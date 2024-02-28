@@ -5,7 +5,10 @@
 ^Space::Send "{vkF3}" ;全角
 RWin::Send "{RCtrl}"
 ;F13 & vk1D::vkF0  
-;
+
+F13 & Up::PgUp
+F13 & Down::PgDn
+
 F13 & i::Send "{Blind}{Up}"
 F13 & k::Send "{Blind}{Down}"
 F13 & j::Send "{Blind}{Left}"
@@ -43,9 +46,6 @@ F13 & s::MouseMove 0,10,0,"R"
 F13 & a::MouseMove -10,0,0,"R"
 F13 & d::MouseMove 10,0,0,"R"
 
-F13 & Up::PgUp
-F13 & Down::PgDn
-
 F13 & 1::F1
 F13 & 2::F2
 F13 & 3::F3
@@ -58,9 +58,6 @@ F13 & 9::F9
 F13 & 0::F10
 F13 & -::F11
 F13 & ^::F12
-
-
-
 
 ;vk1Dsc07B	無変換
 vk1D & i::Send "{Blind}{Up}"
@@ -108,12 +105,32 @@ F14 & k::Send "{Blind}{Home}"
 F14 & vkBC::Send "{Blind}{End}" ; vkBC ,
 F14 & o::Send "{Blind}{BackSpace}"
 F14 & i::Send "{Blind}{Delete}"
+F14 & .::^Left
+F14 & /::^Right
+
+F14 & t::^Home ;Top
+F14 & g::^Home 
+F14 & b::^End  ;Bottom
+
+F14 & Space::Enter                
 
 F14 & z::Send "{Blind}^{z}"
 F14 & x::Send "{Blind}^{x}"
 F14 & c::Send "{Blind}^{c}"
 F14 & v::Send "{Blind}^{v}"
 
+F14 & 1::F1
+F14 & 2::F2
+F14 & 3::F3
+F14 & 4::F4
+F14 & 5::F5
+F14 & 6::F6
+F14 & 7::F7
+F14 & 8::F8
+F14 & 9::F9
+F14 & 0::F10
+F14 & -::F11
+F14 & ^::F12
 
 ;vk1C 変換
 vk1C & k::Send "{Blind}{Left}"
@@ -127,11 +144,34 @@ vk1C & j::Send "{Blind}{Home}"
 vk1C & m::Send "{Blind}{End}"
 vk1C & i::Send "{Blind}{BackSpace}"
 vk1C & u::Send "{Blind}{Delete}"
+vk1C & vkBC::^Left
+vk1C & ]::^Right
+vk1C & .::^Right
+
+vk1C & t::^Home ;Top
+vk1C & g::^Home 
+vk1C & b::^End  ;Bottom
+
+vk1C & Space::Enter                
+
 
 vk1C & z::Send "{Blind}^{z}"
 vk1C & x::Send "{Blind}^{x}"
 vk1C & c::Send "{Blind}^{c}"
 vk1C & v::Send "{Blind}^{v}"
+
+vk1C & 1::F1
+vk1C & 2::F2
+vk1C & 3::F3
+vk1C & 4::F4
+vk1C & 5::F5
+vk1C & 6::F6
+vk1C & 7::F7
+vk1C & 8::F8
+vk1C & 9::F9
+vk1C & 0::F10
+vk1C & -::F11
+vk1C & ^::F12
 
 ;vk1Csc079 = 変換
 ;vkE2sc073 = \
