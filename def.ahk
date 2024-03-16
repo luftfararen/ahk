@@ -1,11 +1,19 @@
 >+Up::_
 <+F13::Send "{Blind}+{CapsLock}"
-^Up::Home ; 
-^Down::End ;
-^Space::Send "{vkF3}" ;全角
+<^Up::Home ; 
+<^Down::End ;
+>^Up::PgUp ; 
+>^Down::PgDn ;
+;^Space::Send "{vkF3}" ;全角
 RWin::Send "{RCtrl}"
 ;F13 & vk1D::vkF0  
 
+F13 & vk1C::Send "{vkF3}"	;F13+変換 → 全角
+F13 & F14::Send "{vkF3}"	;
+;vkF2sc070 = ひらがな
+;vkF3 全角/半角
+
+F13 & vk1D::Esc ;F13+無変換 → Esc
 F13 & Up::PgUp
 F13 & Down::PgDn
 
@@ -58,6 +66,8 @@ F13 & 9::F9
 F13 & 0::F10
 F13 & -::F11
 F13 & ^::F12
+F13 & -::^-
+F13 & -::^+-
 
 ;vk1Dsc07B	無変換
 vk1D & i::Send "{Blind}{Up}"
@@ -91,10 +101,10 @@ vk1D & Space::Enter                ;vkF0sc03A= Eisu
 vk1D & q::Send "{Blind}{Esc}" ; 
 vk1D & Up::PgUp
 vk1D & Down::PgDn
-vk1D::Return
+vllk1D::Return
 
-;F14　ひらがな
-F14 & l::Send "{Blind}{Left}"
+;F14　ひらlがな
+lF14 & l::Send "{Blind}{Left}"
 F14 & p::Send "{Blind}{Up}"
 F14 & @::Send "{Blind}{Down}"
 F14 & [::Send "{Blind}{Right}"
@@ -138,22 +148,22 @@ vk1C & o::Send "{Blind}{Up}"
 vk1C & p::Send "{Blind}{Down}"
 vk1C & @::Send "{Blind}{Right}"
 vk1C & l::Send "{Blind}{Down}" 
-vk1C & vkBB::Send "{Blind}{Right}" ;vkBB +
-vk1C & vkBA::Send "{Blind}{Right}" ; vkBA *
+vk1C & vkBB::Send "{Blind}{Right}" ; vkBB = "+"
+vk1C & vkBA::Send "{Blind}{Right}" ; vkBA = "*"
 vk1C & j::Send "{Blind}{Home}"
 vk1C & m::Send "{Blind}{End}"
 vk1C & i::Send "{Blind}{BackSpace}"
 vk1C & u::Send "{Blind}{Delete}"
-vk1C & vkBC::^Left
+vk1C & vkBC::^Left ;vkBC = ","
 vk1C & ]::^Right
 vk1C & .::^Right
+vk1C & -::^-
+vk1C & -::^+-
 
 vk1C & t::^Home ;Top
 vk1C & g::^Home 
 vk1C & b::^End  ;Bottom
-
 vk1C & Space::Enter                
-
 
 vk1C & z::Send "{Blind}^{z}"
 vk1C & x::Send "{Blind}^{x}"
@@ -173,6 +183,7 @@ vk1C & 0::F10
 vk1C & -::F11
 vk1C & ^::F12
 
+;vk1Dsc07B	無変換
 ;vk1Csc079 = 変換
 ;vkE2sc073 = \
 ;vkBBsc027 = ; +
@@ -183,7 +194,7 @@ vk1C & ^::F12
 ;vkF3sc029 = 全角/半角 sendでおくらなければいけない 入れ替え元の場合、うまく動かない
 ;vkF4sc029 = 全角/半角 sendでおくらなければいけない 
 ;- ^ ¥ @ [ ] . /
-;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn
+;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn Esc
 ;win # 
 ;ctrl ^
 ;shift +
