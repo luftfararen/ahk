@@ -74,6 +74,7 @@ F13 & ^::F12
 ;F13 & -::^-
 ;F13 & -::^+-
 
+/*
 ;vk1Dsc07B	無変換
 vk1D & i::Send "{Blind}{Up}"
 vk1D & k::Send "{Blind}{Down}"
@@ -107,6 +108,7 @@ vk1D & q::Send "{Blind}{Esc}" ;
 vk1D & Up::PgUp
 vk1D & Down::PgDn
 vk1D::Return
+*/
 
 ;F14　ひらlがな
 F14 & l::Send "{Blind}{Left}"
@@ -197,6 +199,7 @@ vk1C & 0::F10
 vk1C & -::F11
 vk1C & ^::F12
 */
+
 ;vk1Dsc07B	無変換
 ;vk1Csc079 = 変換
 ;vkE2sc073 = \
