@@ -13,7 +13,6 @@ F13 & F14::Send "{vkF3}"	;
 ;vkF2sc070 = ひらがな
 ;vkF3 全角/半角
 
-F13 & vk1D::Esc ;F13+無変換 → Esc
 F13 & Up::PgUp
 F13 & Down::PgDn
 
@@ -21,38 +20,44 @@ F13 & i::Send "{Blind}{Up}"
 F13 & k::Send "{Blind}{Down}"
 F13 & j::Send "{Blind}{Left}"
 F13 & l::Send "{Blind}{Right}"
-F13 & o::Send "{Blind}{Down}"
-F13 & p::Send "{Blind}{Right}"
-F13 & vkBB::Send "{Blind}{Right}" ;vkBBsc027 = ; +
-F13 & vkBA::^Right                ;vkBAsc027 = : *
+;F13 & o::Send "{Blind}{Down}"
+;F13 & p::Send "{Blind}{Right}"
+F13 & o::Send "{Blind}{PgUp}"
+F13 & p::Send "{Blind}{PgDn}"
+F13 & vkBB::^Right ;vkBBsc027 = ; +
 F13 & m::^Left
 F13 & vkBC::^Right                ;vkBCsc033 = , <
 F13 & [::Send "{Blind}{PgUp}"
 F13 & ]::Send "{Blind}{PgDn}"
+F13 & @::^Home
+F13 & vkBA::^End  ;vkBAsc027 = : *
 F13 & h::Send "{Blind}{Home}"
 F13 & n::Send "{Blind}{End}"
 F13 & y::Send "{Blind}{Delete}"
 F13 & u::Send "{Blind}{BackSpace}"
 F13 & .::Return
-F13 & t::^Home ;Top
-F13 & g::^Home 
-F13 & b::^End  ;Bottom
 F13 & z::^z
 F13 & x::^x
 F13 & c::^c 
 F13 & v::^v
-F13 & @::Return
 F13 & Space::Enter                
 F13 & Tab::vkF0 ; EISU
-F13 & r::WheelUp ;Send "{Blind}{PgUp}"
-F13 & f::WheelDown ; "{Blind}{PgDn}"
+F13 & q::Send "{Blind}{Esc}"
+F13 & vk1D::Esc ;F13+無変換 → Esc
 
-F13 & q::MouseClick "left"
-F13 & e::MouseClick "right"
-F13 & w::MouseMove 0,-10,0,"R"
-F13 & s::MouseMove 0,10,0,"R"
-F13 & a::MouseMove -10,0,0,"R"
-F13 & d::MouseMove 10,0,0,"R"
+;F13 & t::^Home ;Top
+;F13 & g::^Home 
+;F13 & b::^End  ;Bottom
+
+F13 & t::WheelUp ;Send "{Blind}{PgUp}"
+F13 & g::WheelDown ; "{Blind}{PgDn}"
+
+F13 & w::MouseClick "left"
+F13 & r::MouseClick "right"
+F13 & e::MouseMove 0,-10,0,"R"
+F13 & d::MouseMove 0,10,0,"R"
+F13 & s::MouseMove -10,0,0,"R"
+F13 & f::MouseMove 10,0,0,"R"
 
 F13 & 1::F1
 F13 & 2::F2
@@ -66,8 +71,8 @@ F13 & 9::F9
 F13 & 0::F10
 F13 & -::F11
 F13 & ^::F12
-F13 & -::^-
-F13 & -::^+-
+;F13 & -::^-
+;F13 & -::^+-
 
 ;vk1Dsc07B	無変換
 vk1D & i::Send "{Blind}{Up}"
@@ -77,7 +82,7 @@ vk1D & l::Send "{Blind}{Right}"
 vk1D & o::Send "{Blind}{Down}"
 vk1D & p::Send "{Blind}{Right}"      
 vk1D & vkBB::Send "{Blind}{Right}" ;vkBBsc027 = ;
-vk1D & vkBA::^Right                ;vkBAsc028 = :
+vk1D & vkBA::Send "^{Right}"       ;vkBAsc028 = :
 vk1D & m::^Left
 vk1D & vkBC::^Right                ;vkBCsc033 = , <
 vk1D & [::Send "{Blind}{PgUp}"
@@ -101,22 +106,30 @@ vk1D & Space::Enter                ;vkF0sc03A= Eisu
 vk1D & q::Send "{Blind}{Esc}" ; 
 vk1D & Up::PgUp
 vk1D & Down::PgDn
-vllk1D::Return
+vk1D::Return
 
 ;F14　ひらlがな
-lF14 & l::Send "{Blind}{Left}"
+F14 & l::Send "{Blind}{Left}"
 F14 & p::Send "{Blind}{Up}"
-F14 & @::Send "{Blind}{Down}"
-F14 & [::Send "{Blind}{Right}"
-F14 & vkBB::Send "{Blind}{Down}" ; vkBB + 
-F14 & vkBA::Send "{Blind}{Right}" ; vkBA *
-F14 & ]::Send "{Blind}{Right}"
-F14 & k::Send "{Blind}{Home}" 
-F14 & vkBC::Send "{Blind}{End}" ; vkBC ,
+;F14 & @::Send "{Blind}{Down}"
+;F14 & [::Send "{Blind}{Right}"
+F14 & [::Send "{Blind}{PgDn}"
+F14 & @::Send "{Blind}{PgUp}"
+
+F14 & vkBB::Send "{Blind}{Down}" ; vkBB=+ 
+F14 & vkBA::Send "{Blind}{Right}" ; vkBA=*
+F14 & ]::^Right
 F14 & o::Send "{Blind}{BackSpace}"
 F14 & i::Send "{Blind}{Delete}"
 F14 & .::^Left
 F14 & /::^Right
+
+F14 & k::Send "{Blind}{Home}" 
+F14 & vkBC::Send "{Blind}{End}" ; vkBC=,
+
+F14 & j::^Home ;Top
+F14 & m::^End  ;Bottom
+
 
 F14 & t::^Home ;Top
 F14 & g::^Home 
@@ -142,6 +155,7 @@ F14 & 0::F10
 F14 & -::F11
 F14 & ^::F12
 
+/*
 ;vk1C 変換
 vk1C & k::Send "{Blind}{Left}"
 vk1C & o::Send "{Blind}{Up}"
@@ -182,7 +196,7 @@ vk1C & 9::F9
 vk1C & 0::F10
 vk1C & -::F11
 vk1C & ^::F12
-
+*/
 ;vk1Dsc07B	無変換
 ;vk1Csc079 = 変換
 ;vkE2sc073 = \
@@ -199,5 +213,3 @@ vk1C & ^::F12
 ;ctrl ^
 ;shift +
 ;alt !
-
-
