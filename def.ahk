@@ -13,7 +13,7 @@
 ;vkF3sc029 = 全角/半角 sendでおくらなければいけない 入れ替え元の場合、うまく動かない
 ;vkF4sc029 = 全角/半角 sendでおくらなければいけない 
 ;- ^ ¥ @ [ ] . /
-;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn Esc
+;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn Esc Pause
 
 >+Up::_
 <+F13::Send "{Blind}+{CapsLock}"
@@ -32,6 +32,8 @@ F13 & vk1C::Send "{vkF3}"	;F13+変換(vk1C) → 全角(vkF3)
 F13 & F14::Send "{vkF3}"	;
 F13 & Up::^-
 F13 & Down::^+-
+F13 & .::^-
+F13 & /::^+-
 F13 & i::Send "{Blind}{Up}"
 F13 & k::Send "{Blind}{Down}"
 F13 & j::Send "{Blind}{Left}"
@@ -41,8 +43,6 @@ F13 & p::Send "{Blind}{PgDn}"
 F13 & vkBB::^Right ;vkBBsc027 = ; +(vkBB)
 F13 & m::^Left
 F13 & vkBC::^Right                ;vkBCsc033 = , <
-F13 & [::Send "{Blind}{PgUp}"
-F13 & ]::Send "{Blind}{PgDn}"
 F13 & @::^Home
 F13 & vkBA::^End  ;vkBAsc027 = : *
 F13 & h::Send "{Blind}{Home}"
@@ -54,27 +54,42 @@ F13 & x::^x
 F13 & c::^c 
 F13 & v::^v
 
-F13 & 1::F1
-F13 & 2::F2
-F13 & 3::F3
-F13 & 4::F4
-F13 & 5::F5
-F13 & 6::F6
-F13 & 7::F7
-F13 & 8::F8
-F13 & 9::F9
-F13 & 0::F10
-F13 & -::F11
-F13 & ^::F12
+F13 & 1::Send "{Blind}{F1}"
+F13 & 2::Send "{Blind}{F2}"
+F13 & 3::Send "{Blind}{F3}"
+F13 & 4::Send "{Blind}{F4}"
+F13 & 5::Send "{Blind}{F5}"
+F13 & 6::Send "{Blind}{F6}"
+F13 & 7::Send "{Blind}{F7}"
+F13 & 8::Send "{Blind}{F8}"
+F13 & 9::Send "{Blind}{F9}"
+F13 & 0::Send "{Blind}{F10}"    
+F13 & -::Send "{Blind}{F11}"
+F13 & ^::Send "{Blind}{F12}"
 
-F13 & t::WheelUp ;Send "{Blind}{PgUp}"
-F13 & g::WheelDown ; "{Blind}{PgDn}"
-F13 & w::MouseClick "left"
-F13 & r::MouseClick "right"
-F13 & e::MouseMove 0,-10,0,"R"
-F13 & d::MouseMove 0,10,0,"R"
-F13 & s::MouseMove -10,0,0,"R"
-F13 & f::MouseMove 10,0,0,"R"
+;F13 & 1::Send "{Blind}+{F1}"
+;F13 & 2::Send "{Blind}+{F2}"
+F13 & e::Send "{Blind}+{F3}"
+;F13 & 4::Send "{Blind}+{F4}"
+F13 & t::Send "{Blind}+{F5}"
+
+F13 & a::^a
+F13 & s::^s
+F13 & f::^f
+F13 & g::^g
+F13 & b::Send "{Blind}{Pause}"
+
+F13 & [::Send "^+!{vkBC}"
+F13 & ]::Send "^+!."
+
+;F13 & t::WheelUp ;Send "{Blind}{PgUp}"
+;F13 & g::WheelDown ; "{Blind}{PgDn}"
+;F13 & w::MouseClick "left"
+;F13 & r::MouseClick "right"
+;F13 & e::MouseMove 0,-10,0,"R"
+;F13 & d::MouseMove 0,10,0,"R"
+;F13 & s::MouseMove -10,0,0,"R"
+;F13 & f::MouseMove 10,0,0,"R"
 
 
 ;vk1Dsc07B	無変換
