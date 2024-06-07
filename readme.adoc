@@ -1,5 +1,10 @@
+== def.ahk
 「Caps Lock」、「ひらがな」、「変換」は、レジストリでScanCodeを書き換えることにより、F13、F14、F14を割り当て。
 「Caps Lock」、「ひらがな」は、レジストリでScanCodeを書き換えないと、AutoHotKeyが正しく扱えない。
 「変換」、「ひらがな」は、キーボードによって存在しなかったり位置がずれているので、同じコードを与えることで、区別をなくす。
 
 image::keymap.png[]
+
+== space.ahk
+「Caps Lock」はレジストリでScanCodeを書き換えることによりF13を割り当て。
+「Space」を修飾キーとして使う。高速にdown,upで、「Space」を入力。
