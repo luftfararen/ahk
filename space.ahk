@@ -29,6 +29,10 @@
 *y::Send "{Blind}{Delete}"
 *u::Send "{Blind}{BackSpace}" 
 *vkBB::Send "{Blind}{Enter}" ; vkBB=";"
+*m::Send "{Blind}{-}" ; vkBB=";"
+*vkBC::Send "{Blind}{[}"
+*.::Send "{Blind}{]}"
+b::Send "_"
 
 Tab::vkF0 ; vkF0=EISU
 
@@ -43,6 +47,16 @@ w::MouseMove 0,-10,0,"R"
 s::MouseMove 0,10,0,"R"
 a::MouseMove -10,0,0,"R"
 d::MouseMove 10,0,0,"R"
+^w::MouseMove 0,-100,0,"R"
+^s::MouseMove 0,100,0,"R"
+^a::MouseMove -100,0,0,"R"
+^d::MouseMove 100,0,0,"R"
++w::MouseMove 0,-100,0,"R"
++s::MouseMove 0,100,0,"R"
++a::MouseMove -100,0,0,"R"
++d::MouseMove 100,0,0,"R"
+t::WheelUp
+g::WheelDown
 
 #HotIf  
 <+F13::Send "{Blind}+{CapsLock}"
@@ -59,14 +73,38 @@ d::MouseMove 10,0,0,"R"
 *y::Send "{Blind}{Delete}"
 *u::Send "{Blind}{BackSpace}" 
 *vkBB::Send "{Blind}{Enter}" ; vkBB=";"
+*m::Send "{Blind}{-}" ; vkBB=";"
 
+F13::Send "{vkF0}" ; vkF0=EISU	
+
+q::^q
+a::^a
 s::^s
+f::^f
+g::^g
+z::^z
+x::^x
+c::^c 
+v::^v
+b::Send "_"
 
+1::Send "{Blind}{F1}"
+2::Send "{Blind}{F2}"
+3::Send "{Blind}{F3}"
+4::Send "{Blind}{F4}"
+5::Send "{Blind}{F5}"
+6::Send "{Blind}{F6}"
+7::Send "{Blind}{F7}"
+8::Send "{Blind}{F8}"
+9::Send "{Blind}{F9}"
+0::Send "{Blind}{F10}"    
+-::Send "{Blind}{F11}"
+^::Send "{Blind}{F12}"
 #HotIf        
 
 ;In case of prssing space key alone
 pressed := 0 ;  0: Spaced is not pressed 1: Space is pressed
-modified := 0 ;  0:  A key is not pressed while space is pressed 1: A key is not pressed while space is pressed
+modified := 0 ;  0:  A key is not pressed while space is pressed 1: A key is pressed while space is pressed
 pressed_time := 0 ; Space pressed time
 timeout := 300 ; 
 hook := InputHook() ;  
@@ -102,3 +140,5 @@ hook := InputHook() ;
 		SendInput "{Blind}{Space}"
 	}
 }
+
+F14::Send "{vkF3}"	;全角(vkF3)
