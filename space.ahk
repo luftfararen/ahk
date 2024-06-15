@@ -17,11 +17,15 @@
 ;- ^ ¥ @ [ ] . /
 ;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn Esc Pause
 
+mouse_move := A_ScreenWidth/80
+mouse_move_long := A_ScreenWidth/8
+
 #SingleInstance Force
 ProcessSetPriority "Realtime"
 
 >+Up::_
-F14::Send "{vkF3}"	;全角(vkF3)
+;F14::Send "{vkF3}"	;全角(vkF3)
+F13 & F14::vkF0 ; vkF0=EISU
 
 #HotIf GetKeyState("vk1D", "P")
 1::F1
@@ -37,7 +41,7 @@ F14::Send "{vkF3}"	;全角(vkF3)
 -::F11
 ^::F12
 q::+F1
-W::+F2
+w::+F2
 e::+F3
 r::+F4
 t::+F5
@@ -60,7 +64,21 @@ l::^F9
 vkBB::^F10
 vkBA::^F11
 ]::^F12
-#HotIf ;#HotIf GetKeyState("vk1D", "P")
+z::!F1
+x::!F2
+c::!F3
+v::!F4
+b::!F5
+n::!F6
+m::!F7
+vkBC::!F8
+.::!F9
+vkBB::!F10
+/::!F11
+vkE2::!F12
+
+
+#HotIf ;GetKeyState("vk1D", "P")
 vk1D::Return
 
 #HotIf GetKeyState("F13", "P")
@@ -86,30 +104,65 @@ Tab::vkF0 ; vkF0=EISU
 
 ;*Space:: {
 ;	Send "{Blind}{Enter}"
-;	Exit
+;k	Exit
 ;}
 Space::Send "{vkF3}"
 
+q::Esc
 e::MouseClick "left"
 r::MouseClick "right"
-w::MouseMove 0,-10,0,"R"
-s::MouseMove 0,10,0,"R"
-a::MouseMove -10,0,0,"R"
-d::MouseMove 10,0,0,"R"
-^w::MouseMove 0,-100,0,"R"
-^s::MouseMove 0,100,0,"R"
-^a::MouseMove -100,0,0,"R"
-^d::MouseMove 100,0,0,"R"
-+w::MouseMove 0,-100,0,"R"
-+s::MouseMove 0,100,0,"R"
-+a::MouseMove -100,0,0,"R"
-+d::MouseMove 100,0,0,"R"
+w::MouseMove 0,-mouse_move,0,"R"
+s::MouseMove 0,mouse_move,0,"R"
+a::MouseMove -mouse_move,0,0,"R"
+d::MouseMove mouse_move,0,0,"R"
+^w::MouseMove 0,-mouse_move_long,0,"R"
+^s::MouseMove 0,mouse_move_long,0,"R"
+^a::MouseMove -mouse_move_long,0,0,"R"
+^d::MouseMove mouse_move_long,0,0,"R"
++w::MouseMove 0,-mouse_move_long,0,"R"
++s::MouseMove 0,mouse_move_long,0,"R"
++a::MouseMove -mouse_move_long,0,0,"R"
++d::MouseMove mouse_move_long,0,0,"R"
 t::WheelUp
 g::WheelDown
+f::Tab
 
+a::^a
+s::^s
+g::^g
+z::^z
+x::^x
+c::^c 
+v::^v
+Esc::Reload
 #HotIf  ;#HotIf GetKeyState("F13", "P")
 <+F13::Send "{Blind}+{CapsLock}"
 F13::Return
+
+#HotIf GetKeyState("F14", "P") || GetKeyState("vk1C", "P")
+o::MouseClick "left"
+@::MouseClick "right"
+vkBC::WheelUp ;vkBCsc033 = ,
+.::WheelDown
+
+p::MouseMove 0,-mouse_move,0,"R"
+vkBB::MouseMove 0,mouse_move,0,"R" ;vkBBsc027 = ;
+l::MouseMove -mouse_move,0,0,"R"
+vkBA::MouseMove mouse_move,0,0,"R" ;vkBAsc028 = :
+
++p::MouseMove 0,-mouse_move/2,0,"R"
++vkBB::MouseMove 0,mouse_move/2,0,"R" ;vkBBsc027 = ;
++l::MouseMove -mouse_move/2,0,0,"R"
++vkBA::MouseMove mouse_move/2,0,0,"R" ;vkBAsc028 = :
+
+0::MouseMove 0,-mouse_move_long,0,"R"
+-::MouseMove 0,-mouse_move_long,0,"R"
+/::MouseMove 0,mouse_move_long,0,"R"
+k::MouseMove -mouse_move_long,0,0,"R"
+]::MouseMove mouse_move_long,0,0,"R" 
+
+#HotIf ;GetKeyState("F14", "P") || GetKeyState("vk1C", "P")
+vk1C::Return
 
 #HotIf GetKeyState("Space", "P")
 *i::Send "{Blind}{Up}"
@@ -124,14 +177,14 @@ F13::Return
 *h::Send "{Blind}{Home}"
 *n::Send "{Blind}{End}"
 
-*j::{
+j::{
   if GetKeyState("F13", "P"){
 	Send "^{Left}"
   }else{
 	Send "{Blind}{Left}"
   }
 }
-*l::{
+l::{
  If GetKeyState("F13", "P"){
   Send "^{Right}"
  }else{
@@ -153,6 +206,7 @@ n::{
   Send "{Blind}{End}"
  }
 }
+
 
 b::_
 m::-
