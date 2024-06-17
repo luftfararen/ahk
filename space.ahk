@@ -25,7 +25,8 @@ ProcessSetPriority "Realtime"
 
 >+Up::_
 ;F14::Send "{vkF3}"	;全角(vkF3)
-F13 & F14::vkF0 ; vkF0=EISU
+;F13 & F14::vkF0 ; vkF0=EISU
+^+F13::Send "+{CapsLock}"
 
 #HotIf GetKeyState("vk1D", "P")
 1::F1
@@ -79,7 +80,8 @@ vkE2::!F12
 
 
 #HotIf ;GetKeyState("vk1D", "P")
-vk1D::Return
+vk1D::Return　;vk1Dsc07B	無変換
+
 
 #HotIf GetKeyState("F13", "P")
 *i::Send "{Blind}{Up}"
@@ -136,7 +138,6 @@ c::^c
 v::^v
 Esc::Reload
 #HotIf  ;#HotIf GetKeyState("F13", "P")
-<+F13::Send "{Blind}+{CapsLock}"
 F13::Return
 
 #HotIf GetKeyState("F14", "P") || GetKeyState("vk1C", "P")
