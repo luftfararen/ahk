@@ -43,44 +43,49 @@ class ModKey
 		if this.pressed_time != 0{
 			return 1
 		}
+		if GetKeyState(this.key,"P"){
+			return 1
+		}
 		return 0
 	}
-	make_mod_str()
+	set_mod_str()
 	{
-		str := ""
+		this.mod_str  := ""
 		if GetKeyState("Shift","P"){
-			str := "+"
+			this.mod_str  := "+"
 		}
 		if GetKeyState("Ctrl","P"){
-			str := "^" . str
+			this.mod_str  := "^" . this.mod_str 
 		}
 		if GetKeyState("Alt","P"){
-			str := "!" . str
+			this.mod_str  := "!" . this.mod_str 
 		}
 		;if GetKeyState("Win","P"){ ;not work
-		;	str := "#" . str
+		;	this.mod_str  := "#" . this.mod_str 
 		;}
-		return str
 	}
 	down()
 	{
+		if this.pressed_time != 0 {
+			return
+		}
 		this.pressed_time := A_TickCount
-		this.mod_str := this.make_mod_str() 
+		this.set_mod_str()
 	}
 
 	up()
 	{
 		global timeout
 		if (A_TickCount - this.pressed_time < timeout) {
-			SendInput "{Blind}" . this.mod_str . this.key
+			SendInput "{Blind}" . this.mod_str . "{" . this.key . "}"
 		}
 		this.pressed_time := 0
 	}
 }
 
-space := ModKey("{Space}")
-semicolon := ModKey("{vkBB}")
-colon := ModKey("{vkBA}")
+space := ModKey("Space")
+semicolon := ModKey("vkBB")
+colon := ModKey("vkBA")
 slash := ModKey("/")
 
 m1_modified()
