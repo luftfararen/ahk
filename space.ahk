@@ -25,8 +25,11 @@ mouse_move := A_ScreenWidth/160
 mouse_move_short := A_ScreenWidth/320
 mouse_move_long := A_ScreenWidth/8
 
-timeout := 200 ;
+timeout := 300 ;
 
+;0InstallKeybdHook true
+;#UseHook true
+;#NoEnv
 #MaxThreadsBuffer True
 
 class ModKey
@@ -36,6 +39,8 @@ class ModKey
 		this.key := key
 		this.pressed_time := 0
 		this.mod_str := ""
+		;this.hook := InputHook("L1 V")
+		;this.proc := 0
 	}
 
 	isPressed()
@@ -71,17 +76,53 @@ class ModKey
 		}
 		this.pressed_time := A_TickCount
 		this.set_mod_str()
+		;this.proc := 0
+		;this.hook.Start()
+		;if this.hook.Wait() != "Stopped"{
+		;	this.proc := 1
+			;MsgBox "abc"
+		;}
 	}
 
 	up()
 	{
 		global timeout
+		;this.hook.Stop()
 		if (A_TickCount - this.pressed_time < timeout) {
-			SendInput "{Blind}" . this.mod_str . "{" . this.key . "}"
+			;if this.proc == 0{
+				SendInput "{Blind}" . this.mod_str . "{" . this.key . "}"
+			;}
 		}
 		this.pressed_time := 0
 	}
 }
+
+;--------------------------------------------------------------------
+; マルチモニター環境用のマウスカーソル位置取得関数
+mouse_get_pos2(&x, &y)
+{
+  sizeOfInt := 4
+  point := Buffer(sizeOfInt * 2)
+  DllCall("GetCursorPos", "Ptr", point)
+  x := NumGet(point, 0, "Int")
+  y := NumGet(point, 0 + sizeOfInt, "Int")
+}
+
+;--------------------------------------------------------------------
+; マルチモニター環境用のマウスカーソル位置設定関数
+mouse_set_pos2(x, y)
+{
+  DllCall("SetCursorPos", "int", x, "int", y)
+}
+
+mokuse_move2(rx, ry)
+{
+	x := 0
+	y := 0
+	mouse_get_pos2(x,y)
+	mouse_set_pos2(x,y)
+}
+
 
 space := ModKey("Space")
 semicolon := ModKey("vkBB")
@@ -191,7 +232,7 @@ vkBB::MouseMove mouse_move_long,0,0,"R" ;vkBBsc027 = ; +
 *p::Send "{Blind}+{F10}"
 *@::Send "{Blind}+{F11}"
 *[::Send "{Blind}+{F12}"
-
+/*
 ;ctrl
 *a::Send "{Blind}^{F1}"
 *s::Send "{Blind}^{F2}"
@@ -205,7 +246,26 @@ vkBB::MouseMove mouse_move_long,0,0,"R" ;vkBBsc027 = ; +
 *vkBB::Send "{Blind}^{F10}"
 *vkBA::Send "{Blind}^{F11}"
 *]::Send "{Blind}^{F12}"
+*/
 
+a::+1 ;!
+s::+2 ;""
+d::+3 ;# 
+f::+4 ;$
+g::+5 ;%
+h::+6 ;&
+j::+7 ;
+k::+8 ;(
+l::+9 ;) 
+vkBB::+vkBB ;+
+vkBA::+vkBA ;*
+vkBC::+vkBC ;<
+.::+. ;>
+/::+/ ;?
+m::-
+n::+-
+
+/*k
 ;alt
 *z::Send "{Blind}!{F1}"
 *x::Send "{Blind}!{F2}"
@@ -216,8 +276,9 @@ vkBB::MouseMove mouse_move_long,0,0,"R" ;vkBBsc027 = ; +
 *m::Send "{Blind}!{F7}"
 *vkBC::Send "{Blind}!{F8}" ;vkBC = ,
 *.::Send "{Blind}!{F9}"
-*/::Send "{Blind}!{F10}"
+;*/::Send "{Blind}!{F10}"
 *vkE2::Send "{Blind}!{F11}"
+*/
 #HotIf 
 
 #HotIf space.isPressed() || GetKeyState("F13", "P") || semicolon.isPressed()  
@@ -281,11 +342,18 @@ vkBC::+[
 .::+]
 vkE2::_
 
-2::F2
-3::F3
-4::+F3
-5::F5
-6::F6
+*1::Send "{Blind}+{1}"
+*2::Send "{Blind}+{2}"
+*3::Send "{Blind}+{3}"
+*4::Send "{Blind}+{4}"
+*5::Send "{Blind}+{5}"
+*6::Send "{Blind}+{6}"
+*7::Send "{Blind}+{7}"
+*8::Send "{Blind}+{8}"
+*9::Send "{Blind}+{9}"
+*0::Send "{Blind}+{10}"
+*-::Send "{Blind}+{11}"
+*^::Send "{Blind}+{12}"
 ;vkBB::Send "{Enter}"
 
 ;vk1C::Send "{vkF3}" ;vk1Dsc07B	無変換 vkF3sc029 = 全角/半角
@@ -312,7 +380,7 @@ Esc::Reload
 *Space:: space.down()
 *Space up:: space.up()
 
-*vkBB:: semicolon.down()
+vkBB:: semicolon.down()
 *vkBB up:: semicolon.up()
 
 *vkBA:: colon.down()
