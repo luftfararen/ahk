@@ -97,9 +97,8 @@ class ModKey
 	}
 }
 
-;--------------------------------------------------------------------
-; マルチモニター環境用のマウスカーソル位置取得関数
-mouse_get_pos2(&x, &y)
+
+get_mouse_pos(&x, &y)
 {
   sizeOfInt := 4
   point := Buffer(sizeOfInt * 2)
@@ -108,19 +107,18 @@ mouse_get_pos2(&x, &y)
   y := NumGet(point, 0 + sizeOfInt, "Int")
 }
 
-;--------------------------------------------------------------------
-; マルチモニター環境用のマウスカーソル位置設定関数
-mouse_set_pos2(x, y)
+
+set_mouse_pos(x, y)
 {
   DllCall("SetCursorPos", "int", x, "int", y)
 }
 
-mokuse_move2(rx, ry)
+move_mouse_pos(rx, ry)
 {
 	x := 0
 	y := 0
-	mouse_get_pos2(x,y)
-	mouse_set_pos2(x,y)
+	get_mouse_pos(x,y)
+	set_mouse_pos(x+rx,y+ry)
 }
 
 
@@ -173,34 +171,29 @@ n::WheelUp
 m::WheelDown ;vkBCsc033 = ,
 
 b::!Left
-i::MouseMove 0,-mouse_move,0,"R"
-k::MouseMove 0,mouse_move,0,"R" ;vkBBsc027 = ;
-j::MouseMove -mouse_move,0,0,"R"
-l::MouseMove mouse_move,0,0,"R" ;vkBAsc028 = :
+i::move_mouse_pos(0,-mouse_move)
+k::move_mouse_pos(0,mouse_move) 
+j::move_mouse_pos(-mouse_move,0)
+l::move_mouse_pos(mouse_move,0) 
 
 ;shift
-+i::MouseMove 0,mouse_move_short,0,"R"
-+k::MouseMove 0,mouse_move_short,0,"R" ;vkBBsc027 = ;
-+j::MouseMove -mouse_move_short,0,0,"R"
-+l::MouseMove mouse_move_short,0,0,"R" ;vkBAsc028 = :
++i::move_mouse_pos(0,mouse_move_short)
++k::move_mouse_pos(0,mouse_move_short)
++j::move_mouse_pos(-mouse_move_short,0)
++l::move_mouse_pos(mouse_move_short,0) 
 
 ;ctrl
-^i::MouseMove 0,mouse_move_long,0,"R"
-^k::MouseMove 0,mouse_move_long,0,"R" ;vkBBsc027 = ;
-^j::MouseMove -mouse_move_long,0,0,"R"
-^l::MouseMove mouse_move_long,0,0,"R" ;vkBAsc028 = :
+^i::move_mouse_pos(0,mouse_move_long)
+^k::move_mouse_pos(0,mouse_move_long) 
+^j::move_mouse_pos(-mouse_move_long,0)
+^l::move_mouse_pos(mouse_move_long,0) 
 
-8::MouseMove 0,-mouse_move_long,0,"R"
-9::MouseMove 0,-mouse_move_long,0,"R"
-vkBC::MouseMove 0,mouse_move_long,0,"R" ;vkBCsc03 = ,
-h::MouseMove -mouse_move_long,0,0,"R"
-vkBB::MouseMove mouse_move_long,0,0,"R" ;vkBBsc027 = ; +
+8::move_mouse_pos(0,-mouse_move_long)
+9::move_mouse_pos(0,-mouse_move_long)
+vkBC::move_mouse_pos(0,mouse_move_long) ;vkBCsc03 = ,
+h::move_mouse_pos(-mouse_move_long,0)
+vkBB::move_mouse_pos(mouse_move_long,0) ;vkBBsc027 = ; +
 
-;u::MouseMove 24,24,0
-;o::MouseMove A_ScreenWidth-24,24,0
-;m::MouseMove 24,A_ScreenHeight-24,24 ;vkBCsc03 = ,
-;.::MouseMove A_ScreenWidth-24,A_ScreenHeight-24,0 ;vkBCsc03 = ,
-;vkBB::MouseMove A_ScreenWidth-16,0,0 ;vkBBsc027 = ; +
 #HotIf
 
 ;vk1Dsc07B	無変換
@@ -232,6 +225,8 @@ vkBB::MouseMove mouse_move_long,0,0,"R" ;vkBBsc027 = ; +
 *p::Send "{Blind}+{F10}"
 *@::Send "{Blind}+{F11}"
 *[::Send "{Blind}+{F12}"
+
+
 /*
 ;ctrl
 *a::Send "{Blind}^{F1}"
@@ -264,7 +259,14 @@ vkBC::+vkBC ;<
 /::+/ ;?
 m::-
 n::+-
-
+vkE2::+vkE2
+;[::+[
+]::+]
+v::+[
+b::+]
+x::[
+c::]
+z::+@
 /*k
 ;alt
 *z::Send "{Blind}!{F1}"
@@ -380,7 +382,7 @@ Esc::Reload
 *Space:: space.down()
 *Space up:: space.up()
 
-vkBB:: semicolon.down()
+*vkBB:: semicolon.down()
 *vkBB up:: semicolon.up()
 
 *vkBA:: colon.down()
@@ -391,5 +393,8 @@ vkBB:: semicolon.down()
 
 vk1C::Return
 vk1D::Return
+NumLock::Return
+F13 & NumLock::NumLock
+
 
 #MaxThreadsBuffer False
