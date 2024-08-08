@@ -25,11 +25,10 @@ mouse_move := A_ScreenWidth/160
 mouse_move_short := A_ScreenWidth/320
 mouse_move_long := A_ScreenWidth/8
 
-timeout := 300 ;
+timeout := 200 ;
 
-;0InstallKeybdHook true
+;InstallKeybdHook true
 ;#UseHook true
-;#NoEnv
 #MaxThreadsBuffer True
 
 class ModKey
@@ -100,11 +99,11 @@ class ModKey
 
 get_mouse_pos(&x, &y)
 {
-  sizeOfInt := 4
-  point := Buffer(sizeOfInt * 2)
+  size := 4
+  point := Buffer(size * 2)
   DllCall("GetCursorPos", "Ptr", point)
   x := NumGet(point, 0, "Int")
-  y := NumGet(point, 0 + sizeOfInt, "Int")
+  y := NumGet(point, size, "Int")
 }
 
 
@@ -117,9 +116,9 @@ move_mouse_pos(rx, ry)
 {
 	x := 0
 	y := 0
-	get_mouse_pos(x,y)
+	get_mouse_pos(&x,&y)
 	set_mouse_pos(x+rx,y+ry)
-}
+} 
 
 
 space := ModKey("Space")
@@ -267,7 +266,7 @@ b::+]
 x::[
 c::]
 z::+@
-/*k
+/*
 ;alt
 *z::Send "{Blind}!{F1}"
 *x::Send "{Blind}!{F2}"
@@ -337,31 +336,31 @@ x::^x
 c::^c
 v::^v
 b::^z
-m::-
-+m::=
-@::=
-vkBC::+[
-.::+]
-vkE2::_
-
-*1::Send "{Blind}+{1}"
-*2::Send "{Blind}+{2}"
-*3::Send "{Blind}+{3}"
-*4::Send "{Blind}+{4}"
-*5::Send "{Blind}+{5}"
-*6::Send "{Blind}+{6}"
-*7::Send "{Blind}+{7}"
-*8::Send "{Blind}+{8}"
-*9::Send "{Blind}+{9}"
-*0::Send "{Blind}+{10}"
-*-::Send "{Blind}+{11}"
-*^::Send "{Blind}+{12}"
+m::^-
+]::^]
+;@::=
+;vkBC::+[
+;.::+]
+;vkE2::_
 ;vkBB::Send "{Enter}"
+
+*1::Send "{Blind}^{F1}"
+*2::Send "{Blind}^{F2}"
+*3::Send "{Blind}^{F3}"
+*4::Send "{Blind}^{F4}"
+*5::Send "{Blind}^{F5}"
+*6::Send "{Blind}^{F6}"
+*7::Send "{Blind}^{F7}"
+*8::Send "{Blind}^{F8}"
+*9::Send "{Blind}^{F9}"
+*0::Send "{Blind}^{F10}"
+*-::Send "{Blind}^{F11}"
+*^::Send "{Blind}^{F12}"
+
 
 ;vk1C::Send "{vkF3}" ;vk1Dsc07B	無変換 vkF3sc029 = 全角/半角
 vk1D::Send "{vkF3}" ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send "{vkF3}" ;vkF3sc029 = 全角/半角
-
 #HotIf 
 
 #HotIf space.isPressed() || GetKeyState("F13", "P")
