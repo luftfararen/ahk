@@ -42,3 +42,8 @@ image::img/sc.webp[]
 * ctrl+shift+CapsLock: CapsLock-On +
  ※ShiftでCapsLock-OffできるようにWndowsを設定したほうがよい
 * shift+←: _
+* F13+,(<): 縮小(Visual Stduio,Visual Stduio Code)  
+* F13+.(>): 拡大(Visual Stduio,Visual Stduio Code)  
+* Space+,(<): 縮小(Visual Stduio,Visual Stduio Code)  
+* Space+.(>): 拡大(Visual Stduio,Visual Stduio Code)  
+

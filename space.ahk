@@ -52,7 +52,7 @@ class ModKey
 		}
 		return 0
 	}
-	set_mod_str()
+	set_mod_str( )
 	{
 		this.mod_str  := ""
 		if GetKeyState("Shift","P"){
@@ -144,7 +144,6 @@ m1_modified()
 	return 0 
 }
 
-
 >+Up::_
 ^+F13::Send "+{CapsLock}" ;Change CapsLock off setting to shift on Windows setting
 
@@ -166,33 +165,26 @@ u::MouseClick "left"
 o::MouseClick "right"
 ;space::MouseClick "left"
 ;vk1D::MouseClick "right"
-n::WheelUp
-m::WheelDown ;vkBCsc033 = ,
+h::WheelUp
+n::WheelDown ;vkBCsc033 = ,
 
 b::!Left
 i::move_mouse_pos(0,-mouse_move)
-k::move_mouse_pos(0,mouse_move) 
+m::move_mouse_pos(0,mouse_move) 
 j::move_mouse_pos(-mouse_move,0)
-l::move_mouse_pos(mouse_move,0) 
+k::move_mouse_pos(mouse_move,0) 
 
 ;shift
 +i::move_mouse_pos(0,mouse_move_short)
-+k::move_mouse_pos(0,mouse_move_short)
++m::move_mouse_pos(0,mouse_move_short)
 +j::move_mouse_pos(-mouse_move_short,0)
-+l::move_mouse_pos(mouse_move_short,0) 
++k::move_mouse_pos(mouse_move_short,0) 
 
 ;ctrl
 ^i::move_mouse_pos(0,mouse_move_long)
-^k::move_mouse_pos(0,mouse_move_long) 
+^m::move_mouse_pos(0,mouse_move_long) 
 ^j::move_mouse_pos(-mouse_move_long,0)
-^l::move_mouse_pos(mouse_move_long,0) 
-
-8::move_mouse_pos(0,-mouse_move_long)
-9::move_mouse_pos(0,-mouse_move_long)
-vkBC::move_mouse_pos(0,mouse_move_long) ;vkBCsc03 = ,
-h::move_mouse_pos(-mouse_move_long,0)
-vkBB::move_mouse_pos(mouse_move_long,0) ;vkBBsc027 = ; +
-
+^k::move_mouse_pos(mouse_move_long,0) 
 #HotIf
 
 ;vk1Dsc07B	無変換
@@ -336,13 +328,10 @@ x::^x
 c::^c
 v::^v
 b::^z
-m::^-
+*m::Send "{Blind}{Down}"
 ]::^]
-;@::=
-;vkBC::+[
-;.::+]
-;vkE2::_
-;vkBB::Send "{Enter}"
+@::^vkBB ;vkBBsc027 = ; +
+vkBA::^- ;vkBAsc028 = : *
 
 *1::Send "{Blind}^{F1}"
 *2::Send "{Blind}^{F2}"
@@ -394,6 +383,18 @@ vk1C::Return
 vk1D::Return
 NumLock::Return
 F13 & NumLock::NumLock
+
+#HotIf WinActive("ahk_exe code.exe")
+F13 & vkBC::^-
+Space & vkBC::^-
+F13 & .::^vkBB ;vkBA=: 
+Space & .::^vkBB ;vkBB=;+
+#HotIf WinActive("ahk_exe devenv.exe")
+F13 & vkBC::+^vkBC ;vkBC=,
+Space & vkBC::^vkBC ;vkBC=,
+F13 & .::+^. 
+Space & .::+^.
+#HotIf
 
 
 #MaxThreadsBuffer False
