@@ -57,31 +57,39 @@ class LongPress
 			this.long_key := long_key
 		}
 		this.pressed_time := 0
-		;this.hook := InputHook("L1 V")
-		this.end := 1
+		this.pressed_time2 := 0
+		this.up_sent := 0
 		this.kana := kana
 	}
+
 	IsKana()
 	{
 		return this.kana && IME_GET()	
 	}
-
 	
 	Down()
 	{
 		if this.pressed_time != 0 {
 			return
 		}
-		this.pressed_time := A_TickCount
+		this.pressed_time :=  A_TickCount
+		if this.pressed_time2 != 0 && this.pressed_time - this.pressed_time2 < 70{
+			this.up_sent := 0
+			this.pressed_time := 0
+			this.pressed_time2 := 0
+			return 
+		}
+	
 		;SendInput "{Blind}" . "{" . this.key . "}"
 		SendEvent "{" . this.key . "}"
+		this.pressed_time2 := 0
 		if this.IsKana(){
 			return
 		}
-		this.end := 0
+		this.up_sent := 1
 		hook.Start()
 		if	hook.wait() != "Stopped"  {
-			this.end := 1
+			this.up_sent := 0
 		}
 	}
 
@@ -90,16 +98,17 @@ class LongPress
 		global timeout_lp
 		time := A_TickCount - this.pressed_time
 		hook.Stop()
-		Sleep(1)
-		if this.end = 0 {
+		Sleep(2)
+		if this.up_sent = 1 {
 			if time >= timeout_lp {
-;				SendInput "{BackSpace}{Blind}" . this.long_key
+				this.pressed_time2 := A_TickCount
+				;				SendInput "{BackSpace}{Blind}" . this.long_key
 				SendEvent "{BackSpace}" ;SendIput does not work
 				SendEvent  this.long_key
 				Sleep(10)
 			}
 		}
-		this.end := 1
+		this.up_sent := 0
 		this.pressed_time := 0
 	}
 }
@@ -173,7 +182,7 @@ k7 := LongPress("7","+7")
 k8 := LongPress("8","+8")
 k9 := LongPress("9","+9")
 minus := LongPress("-","+-")							
-hat := LongPress("^","+^")
+hat := LongPress("^","+{sc00D}")
 backslash := LongPress("\","+\")
 
 q := LongPress("q","+q")
@@ -283,6 +292,7 @@ MoveMousePos(rx, ry)
 *i::SendDirKey("{Up}")
 *k::SendDirKey("{Down}")
 *m::SendDirKey("{Down}")
+*p::SendDirKey("{Down}")
 
 *[::Send "{Blind}{PgUp}"
 *]::Send "{Blind}{PgDn}"
@@ -290,9 +300,9 @@ MoveMousePos(rx, ry)
 *u::Send "{Blind}{BackSpace}"
 
 sc027::Send "{Enter}" ;semicolon
-p::Send "{Enter}" ;semicolon
-
-@::^g
+sc028::^g ;vkBAsc028 = : shift:*
+@::Send "{Enter}"
+;@::^g
 q::Esc
 e::^e
 r::^r
@@ -364,8 +374,8 @@ Esc::Reload
 9 up::k9.Up()
 -::minus.Down()
 - up::minus.Up()
-^::hat.Down()
-^ up::hat.Up()
+sc00D::hat.Down()
+sc00D up::hat.Up()
 sc07D::backslash.Down()
 sc07D up::backslash.Up()
 
