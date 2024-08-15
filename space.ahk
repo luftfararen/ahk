@@ -374,8 +374,9 @@ sc033::SendKeyIf("","^{WheelDown}") ;font-
 sc079::Return ;vk1Csc079 = 変換
 sc07B::Return ;vk1Dsc07B = 無変換
 
-;NumLock::Return
-;F13 & NumLock::NumLock
+NumLock::Return
++F15::Send "{NumLock}"
+
 >+Up::_
 ^+F13::Send "+{CapsLock}" ;Change CapsLock off setting to shift on Windows setting
 
