@@ -66,16 +66,6 @@ class LongPress
 		return this.kana && IME_GET()	
 	}
 
-	IsPressed()
-	{
-		if this.pressed_time != 0{
-			return 1
-		}
-		if GetKeyState(this.key,"P"){
-			return 1
-		}
-		return 0
-	}
 	
 	Down()
 	{
