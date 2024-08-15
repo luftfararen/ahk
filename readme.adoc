@@ -1,0 +1,86 @@
+== 概要
+* Autohotkey v2のスクリプト
+* 二種類のahkファイルを準備、それぞれ排他。使用感も含めて、実験調整中。
+* 「Space」などを修飾キーとして扱う。スペースキーダウンから300ms未満（スクリプト設定による）のアップで本来のキーを入力、それ以上で何もしない。キーを押しながら他のキーを押すことで、設定された動作。 
+* 「Caps Lock」「ひらがな」は、ahkでの動作が不安定のため、レジストリでScanCodeを書き換え、F13、F14を割り当てる。レジストリでScanCodeを書き換えないと、AutoHotKeyが正しく扱えない。逆にレジストリを書き換えなければ、ahkファイルのF13に関する設定は無視される。 * 日本語キーボードを使うことが前提
+* 設定は、試行錯誤中のもの、かつ、特殊なキーボードが前提になっている
+* たまに誤動作を起こす（スクリプトの問題といよりも、ahkとその動作状況の問題とも考えられる） +
+→キーリピート遅くすることで、誤動作に頻度を削減できる（事実上、必須と考えたほうがよい）
+* F13(orスペース)+無変換＋矢印でシフト選択動作（HomeやEndもコードを書いたがなぜかEndが動かないので、実験扱い）
+
+image::img/key_prop.png[]
+
+* 隠し機能があるのでahkファイルを参照
+
+== キーマップ
+以下キーの説明 +
+C+ ctrlを押しながら +
+S+ shiftを押しながら +
+A+ altを押しながら +
+
+=== 標準
+image::img/std.webp[]
+
+=== 標準(レジストリ書き換え)
+image::img/stdreg.webp[]
+
+== space.ahk
+=== 概要
+* 「Space」や「F13」が修飾キーとして動作する。２つのキーはほぼ同じ役割だが、一部キーバインドが異なる。
+* F14(ひらがな)/変換/無変換も疑似シフト修飾キーとして動作する。疑似シフトは、シフトキーにて入力する記号が入力できるがキーがキーバインドが異なる。
+
+=== スペース修飾
+image::img/space.webp[]
+
+=== F13修飾
+image::img/f13.webp[]
+F13を押しながらスペースで全角 +
+スペースを押しながらF13は別な動作（スペース＋F13修飾）を参照 
+
+=== スペース & F13修飾（同時押し）
+image::img/space_f13.webp[]
+
+=== 疑似シフト - F14(ひらがな)/変換/無変換 修飾
+image::img/hira.webp[]
+
+=== その他
+* ctrl+shift+CapsLock: CapsLock-On +
+ ※ShiftでCapsLock-OffできるようにWndowsを設定したほうがよい
+
+image::img/CapsLock.webp[]
+
+* shift+←: _
+* F13+,(<): 縮小(Visual Stduio,Visual Stduio Code)  
+* F13+.(>): 拡大(Visual Stduio,Visual Stduio Code)  
+* Space+,(<): 縮小(Visual Stduio,Visual Stduio Code)  
+* Space+.(>): 拡大(Visual Stduio,Visual Stduio Code)  
+
+== long_press_shift.ahk
+=== 概要
+* 「Space」や「F13」が修飾キーとして動作する。２つのキーはほぼ同じ役割だが、一部キーバインドが異なる。
+* 各キーの長押しでシフト押し動作を実現。
+* 若干レスポンスが悪い
+* IMEv2.ahkを使った方が安定する。 +
+IMEv2.ahkを使わない場合、スクリプト中の +
+#Include "IMEv2.ahk" + をコメントアウトして、    IME_GET()  {return 0}を有効化する。 IMEv2.ahkは以下を参照（k-ayaki氏に感謝）+ 
++
+https://github.com/k-ayaki/IMEv2.ahk
+
+=== キー長押し
+image::img/shift.webp[]
+
+=== スペース修飾
+image::img/space.webp[]
+
+=== F13修飾
+image::img/f13.webp[]
+Fスペースを押しながらF13は別な動作（スペース＋F13修飾）を参照 
+
+=== スペース & F13修飾（同時押し）
+image::img/space_f13.webp[]
+
+=== その他
+* ctrl+shift+CapsLock: CapsLock-On +
+ ※ShiftでCapsLock-OffできるようにWndowsを設定したほうがよい
+
+image::img/CapsLock.webp[]
