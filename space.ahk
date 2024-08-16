@@ -278,6 +278,7 @@ sc073::Send "_" ;vkE2sc073 = \ shift:_
 *i::SendDirKey("{Up}")
 *k::SendDirKey("{Down}")
 *m::SendDirKey("{Down}")
+*p::SendDirKey("{Down}")
 
 *[::Send "{Blind}{PgUp}"
 *]::Send "{Blind}{PgDn}"
@@ -285,9 +286,9 @@ sc073::Send "_" ;vkE2sc073 = \ shift:_
 *u::Send "{Blind}{BackSpace}"
 
 sc027::Send "{Enter}" ;semicolon
-p::Send "{Enter}" ;semicolon
-
-@::^g
+sc028::^g ;vkBAsc028 = : shift:*
+@::Send "{Enter}"
+;@::^g
 q::Esc
 e::^e
 r::^r

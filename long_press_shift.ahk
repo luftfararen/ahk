@@ -282,6 +282,59 @@ MoveMousePos(rx, ry)
 } 
 
 
+;***疑似シフト**************************************************************************
+#HotIf IsF14Pressed() && IsSpaceOrF13Pressed() = 0
+*1::Send "{Blind}{F1}"
+*2::Send "{Blind}{F2}"
+*3::Send "{Blind}{F3}"
+*4::Send "{Blind}{F4}"
+*5::Send "{Blind}{F5}"
+*6::Send "{Blind}{F6}"
+*7::Send "{Blind}{F7}"
+*8::Send "{Blind}{F8}"
+*9::Send "{Blind}{F9}"
+*0::Send "{Blind}{F10}"
+*-::Send "{Blind}{F11}"
+*sc00D::Send "{Blind}{F12}" ;^
+
+;shift
+*q::Send "{Blind}+{F1}"
+*w::Send "{Blind}+{F2}"
+*e::Send "{Blind}+{F3}"
+*r::Send "{Blind}+{F4}"
+*t::Send "{Blind}+{F5}"
+*y::Send "{Blind}+{F6}"
+*u::Send "{Blind}+{F7}"
+*i::Send "{Blind}+{F8}"
+*o::Send "{Blind}+{F9}"
+*p::Send "{Blind}+{F10}"
+*@::Send "{Blind}+{F11}"
+*[::Send "{Blind}+{F12}"
+
+a::+1 ;!
+s::+2 ;""
+d::+3 ;# 
+f::+4 ;$
+g::+5 ;%
+h::+6 ;&
+j::+7 ;
+k::+8 ;(
+l::+9 ;) 
+
+sc027::Send "+" ;vkBBsc027 = ; shift:+
+sc028::Send "*" ;vkBAsc028 = : shift:*
+]::Send "}"
+z::[
+x::]
+c::Send "{"
+v::Send "}"
+b::Send "=" ;]
+n::Send "_"
+m::-
+sc033::Send "<" ;vkBCsc033 = ,
+.::Send ">" ;+. ;>
+/::Send "?" ;?
+sc073::Send "_" ;vkE2sc073 = \ shift:_
 ;***F13/Sace修飾****************************************************************************
 #HotIf IsSpaceOrF13Pressed() 
 *j::SendDirKey("{Left}")
@@ -321,18 +374,18 @@ v::^v
 b::^z
 ]::^]
 
-*1::Send "{Blind}{F1}"
-*2::Send "{Blind}{F2}"
-*3::Send "{Blind}{F3}"
-*4::Send "{Blind}{F4}"
-*5::Send "{Blind}{F5}"
-*6::Send "{Blind}{F6}"
-*7::Send "{Blind}{F7}"
-*8::Send "{Blind}{F8}"
-*9::Send "{Blind}{F9}"
-*0::Send "{Blind}{F10}"
-*-::Send "{Blind}{F11}"
-*^::Send "{Blind}{F12}"
+*1::Send "{Blind}^{F1}"
+*2::Send "{Blind}^{F2}"
+*3::Send "{Blind}^{F3}"
+*4::Send "{Blind}^{F4}"
+*5::Send "{Blind}^{F5}"
+*6::Send "{Blind}^{F6}"
+*7::Send "{Blind}^{F7}"
+*8::Send "{Blind}^{F8}"
+*9::Send "{Blind}^{F9}"
+*0::Send "{Blind}^{F10}"
+*-::Send "{Blind}^{F11}"
+*^::Send "{Blind}^{F12}"
 
 ;vk1C::Send "{vkF3}" ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
 ;sc07B::Send "{sc029}" ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
