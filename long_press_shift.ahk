@@ -1,8 +1,8 @@
 ﻿#Requires AutoHotkey v2.0
 
-;long_pressを使う場合、ただし、IMEv2.ahkを使った方が安定する
-;IMEv2.ahkを使わない場合、
-;#Include "IMEv2.ahk"をコメントアウトして、IME_GET()  {return 0}を有効化する。
+;when using long_press mode, it its more stalbe to use "IMEv2.ahk"
+;If "IMEv2.ahk" is not used,
+;#Include "IMEv2.ahk" is comment out and IME_GET() function is enalbed.
 #Include "IMEv2.ahk"
 ;IME_GET()  { 
 ;	return 0 
@@ -12,8 +12,8 @@
 ;ctrl ^
 ;shift +
 ;alt !
-;vk1Dsc07B = 無変換
-;vk1Csc079 = 変換
+;vk1Dsc07B = NoConvert 無変換
+;vk1Csc079 = Convert 変換
 ;vkE2sc073 = \ shift:_
 ;sc07D = \; shift:|
 ;sc073 = \; shift:_
@@ -22,7 +22,7 @@
 ;vkBAsc028 = : shift:*
 ;vkBCsc033 = ,
 ;vkF0sc03A = Eisu
-;vkF2sc070 = ひらがな/カタカナ  入れ替え元の場合、うまく動かない
+;vkF2sc070 = Hiragana(ひらがな/カタカナ) , it is unstable to assign other key to this key.
 ;vkF3sc029 = 全角/半角 sendでおくらなければいけない 入れ替え元の場合、うまく動かない
 ;vkF4sc029 = 全角/半角 sendでおくらなければいけない
 ;- ^ ¥ @ [ ] . /
@@ -32,9 +32,9 @@
 ProcessSetPriority "Realtime"
 SendMode "Input"
 
-mouse_move := A_ScreenWidth/160
-mouse_move_short := A_ScreenWidth/320
-mouse_move_long := A_ScreenWidth/8
+;mouse_move := A_ScreenWidth/160
+;mouse_move_short := A_ScreenWidth/320
+;mouse_move_long := A_ScreenWidth/8
 
 timeout := 300 ;
 timeout_lp := 350 ;For long press
@@ -43,14 +43,29 @@ InstallKeybdHook true
 #UseHook true
 #MaxThreadsBuffer True
 
+lock_num := 0
+ChangeLockState(num)
+{
+	global lock_num
+	if lock_num != num{
+		lock_num := num
+	}else{
+		lock_num := 0
+	}
+}
+
+
 hook := InputHook("L1 V")
 class LongPress
 {
-	;key: not inclueds "{}"
-	;long_key: inclueds "{}"
-	__New(key, long_key:="", kana:=False)
+	;key: base key, not inclueds "{}"
+	;long_key long pressed key, inclueds "{}"
+	;kana True: related kana key, False: not related kana key
+	;lock_key1: key when locked
+	__New(key, long_key:="", kana:=False, lock_key1 := "")
 	{
 		this.key := key
+		this.key1 := lock_key1
 		if long_key = ""{
 			this.long_key :=  "+{" . this.key . "}"
 		}else{
@@ -68,7 +83,13 @@ class LongPress
 	}
 	
 	Down()
-	{
+	{	
+		global lock_num
+		if lock_num > 0 && this.key1 != "" {
+			SendEvent this.key1
+			return
+		}
+		lock_num := 0
 		if this.pressed_time != 0 {
 			return
 		}
@@ -95,6 +116,11 @@ class LongPress
 
 	Up()
 	{
+		global lock_num
+		if lock_num > 0 && this.key1 != "" {
+			return
+		}
+
 		global timeout_lp
 		time := A_TickCount - this.pressed_time
 		hook.Stop()
@@ -168,9 +194,9 @@ class ModKey
 
 space := ModKey("Space")
 
-semicolon := LongPress("sc027","+{sc027}")
-colon := LongPress("sc028","+{sc028}")
-slash := LongPress("/","+/")
+semicolon := LongPress("sc027","+{sc027}",False,"+{sc027}")
+colon := LongPress("sc028","+{sc028}",False,"+{sc028}")
+slash := LongPress("/","+/",False,"/")
 
 k1 := LongPress("1","+1")
 k2 := LongPress("2","+2")
@@ -178,36 +204,36 @@ k3 := LongPress("3","+3")
 k4 := LongPress("4","+4")
 k5 := LongPress("5","+5")
 k6 := LongPress("6","+6")
-k7 := LongPress("7","+7")
-k8 := LongPress("8","+8")
-k9 := LongPress("9","+9")
-minus := LongPress("-","+-")							
-hat := LongPress("^","+{sc00D}")
-backslash := LongPress("\","+\")
+k7 := LongPress("7","+7",False,"7")
+k8 := LongPress("8","+8",False,"8")
+k9 := LongPress("9","+9",False,"9")
+minus := LongPress("-","+-",False,"-")							
+hat := LongPress("^","+{sc00D}",False,"^")
+backslash := LongPress("\","+\",False,"\")
 
 q := LongPress("q","+q")
 w := LongPress("w","+w",True)
 e := LongPress("e","+e",True)
 r := LongPress("r","+r",True)
 t := LongPress("t","+t",True)
-y := LongPress("y","+y",True)
-u := LongPress("u","+u",True)
-i := LongPress("i","+i",True)
-o := LongPress("o","+o",True)
-p := LongPress("p","+p",True)
-at := LongPress("@","+@")
-openbracket := LongPress("[","+[")
+y := LongPress("y","+y",True,"{Delete}")
+u := LongPress("u","+u",True,"4")
+i := LongPress("i","+i",True,"5")
+o := LongPress("o","+o",True,"6")
+p := LongPress("p","+p",True,"{Backspace}")
+at := LongPress("@","+@",False,"{Enter}")
+openbracket := LongPress("[","+[",False,"+8")
 
 a := LongPress("a","+a",True)
 s := LongPress("s","+s",True)
 d := LongPress("d","+d",True)
 f := LongPress("f","+f",True)
 g := LongPress("g","+g",True)
-h := LongPress("h","+h",True)
-j := LongPress("j","+j",True)
-k := LongPress("k","+k",True)
-l := LongPress("l","+l",True)
-closebracket := LongPress("]","+]")
+h := LongPress("h","+h",True,"{Backspace}")
+j := LongPress("j","+j",True,"1")
+k := LongPress("k","+k",True,"2")
+l := LongPress("l","+l",True,"3")
+closebracket := LongPress("]","+]",False,"+9")
 
 z := LongPress("z","+z",True)
 x := LongPress("x","+x",True)
@@ -215,10 +241,10 @@ c := LongPress("c","+c",True)
 v := LongPress("v","+v",True)
 b := LongPress("b","+b",True)
 n := LongPress("n","+n",True)
-m := LongPress("m","+m",True)
-comma := LongPress("sc033","+{sc033}")
-perid := LongPress(".","+.")
-backslash2 := LongPress("sc073","+{sc073}")
+m := LongPress("m","+m",True,"0")
+comma := LongPress("sc033","+{sc033}",False,"{sc033}")
+perid := LongPress(".","+.",False,".")
+backslash2 := LongPress("sc073","+{sc073}",False,"+{sc073}")
 
 IsF13Pressed()
 {
@@ -282,7 +308,7 @@ MoveMousePos(rx, ry)
 } 
 
 
-;***疑似シフト**************************************************************************
+;***代用シフト**************************************************************************
 #HotIf IsF14Pressed() && IsSpaceOrF13Pressed() = 0
 *1::Send "{Blind}{F1}"
 *2::Send "{Blind}{F2}"
@@ -392,6 +418,7 @@ b::^z
 sc079::Send "{sc029}" ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send "{sc029}" ;vkF3sc029 = 全角/半角
 
+sc033::ChangeLockState(1)
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
