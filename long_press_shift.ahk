@@ -32,9 +32,9 @@
 ProcessSetPriority "Realtime"
 SendMode "Input"
 
-;mouse_move := A_ScreenWidth/160
-;mouse_move_short := A_ScreenWidth/320
-;mouse_move_long := A_ScreenWidth/8
+mouse_move := A_ScreenWidth/160
+mouse_move_short := A_ScreenWidth/320
+mouse_move_long := A_ScreenWidth/8
 
 timeout := 300 ;
 timeout_lp := 350 ;For long press
@@ -49,11 +49,62 @@ ChangeLockState(num)
 	global lock_num
 	if lock_num != num{
 		lock_num := num
+		if lock_num = 0{
+			TrayTip("Normal mode","",16)
+		}else if lock_num = 1{
+			TrayTip("10 key mode","",16)
+		}else if lock_num = 2{
+			TrayTip("Mouse mode","",16)
+		}
 	}else{
-		lock_num := 0
+		if lock_num != 0{
+			lock_num := 0
+			TrayTip("Normal mode","",16)
+		}
 	}
 }
 
+MoveMousePos(rx, ry)
+{
+  size := 4
+  point := Buffer(size * 2)
+  DllCall("GetCursorPos", "Ptr", point)
+  x := NumGet(point, 0, "Int")
+  y := NumGet(point, size, "Int")
+  DllCall("SetCursorPos", "int", x+rx, "int", y+ry)
+} 
+
+OperateMouse(cmd)
+{
+	if cmd == "LClick"{
+		MouseClick "left"
+	} else if cmd == "RClick"{
+		MouseClick "right"
+	} else if cmd == "WheelUp"{
+		Send "{WheelUp}"
+	} else if cmd == "WheelDown"{
+		Send "{WheelDown}" 
+	} else if cmd == "Back"{
+		SendInput "!Left"	
+	}else{
+		if GetKeyState("Shift","P"){
+			m := mouse_move_short
+		} else if GetKeyState("Ctrl","P"){
+			m := mouse_move_long
+		}else{
+			m := mouse_move
+		}
+		if cmd == "MouseUp"{
+			MoveMousePos(0,-m)
+		} else if cmd == "MouseLeft"{
+			MoveMousePos(-m,0)
+		} else if cmd == "MouseDown"{
+			MoveMousePos(0,m) 
+		} else if cmd == "MouseRight"{
+			MoveMousePos(m,0) 
+		}
+	}
+}
 
 hook := InputHook("L1 V")
 class LongPress
@@ -62,10 +113,11 @@ class LongPress
 	;long_key long pressed key, inclueds "{}"
 	;kana True: related kana key, False: not related kana key
 	;lock_key1: key when locked
-	__New(key, long_key:="", kana:=False, lock_key1 := "")
+	__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
 	{
 		this.key := key
 		this.key1 := lock_key1
+		this.key2 := lock_key2
 		if long_key = ""{
 			this.long_key :=  "+{" . this.key . "}"
 		}else{
@@ -85,11 +137,15 @@ class LongPress
 	Down()
 	{	
 		global lock_num
-		if lock_num > 0 && this.key1 != "" {
+		if lock_num = 1 && this.key1 != "" {
 			SendEvent this.key1
 			return
+		}else if lock_num = 2 && this.key2 != "" {
+			;SendEvent this.key2
+			OperateMouse(this.key2)
+			return
 		}
-		lock_num := 0
+		ChangeLockState(0)
 		if this.pressed_time != 0 {
 			return
 		}
@@ -194,10 +250,6 @@ class ModKey
 
 space := ModKey("Space")
 
-semicolon := LongPress("sc027","+{sc027}",False,"+{sc027}")
-colon := LongPress("sc028","+{sc028}",False,"+{sc028}")
-slash := LongPress("/","+/",False,"/")
-
 k1 := LongPress("1","+1")
 k2 := LongPress("2","+2")
 k3 := LongPress("3","+3")
@@ -217,9 +269,9 @@ e := LongPress("e","+e",True)
 r := LongPress("r","+r",True)
 t := LongPress("t","+t",True)
 y := LongPress("y","+y",True,"{Delete}")
-u := LongPress("u","+u",True,"4")
-i := LongPress("i","+i",True,"5")
-o := LongPress("o","+o",True,"6")
+u := LongPress("u","+u",True,"4","LClick")
+i := LongPress("i","+i",True,"5","MouseUp")
+o := LongPress("o","+o",True,"6","RClick")
 p := LongPress("p","+p",True,"{Backspace}")
 at := LongPress("@","+@",False,"{Enter}")
 openbracket := LongPress("[","+[",False,"+8")
@@ -229,10 +281,12 @@ s := LongPress("s","+s",True)
 d := LongPress("d","+d",True)
 f := LongPress("f","+f",True)
 g := LongPress("g","+g",True)
-h := LongPress("h","+h",True,"{Backspace}")
-j := LongPress("j","+j",True,"1")
-k := LongPress("k","+k",True,"2")
-l := LongPress("l","+l",True,"3")
+h := LongPress("h","+h",True,"{Backspace}","WheelUp")
+j := LongPress("j","+j",True,"1","MouseLeft")
+k := LongPress("k","+k",True,"2","MouseDown")
+l := LongPress("l","+l",True,"3","MouseRight")
+semicolon := LongPress("sc027","+{sc027}",False,"+{sc027}")
+colon := LongPress("sc028","+{sc028}",False,"+{sc028}")
 closebracket := LongPress("]","+]",False,"+9")
 
 z := LongPress("z","+z",True)
@@ -240,10 +294,11 @@ x := LongPress("x","+x",True)
 c := LongPress("c","+c",True)
 v := LongPress("v","+v",True)
 b := LongPress("b","+b",True)
-n := LongPress("n","+n",True)
+n := LongPress("n","+n",True,"","WheelDown")
 m := LongPress("m","+m",True,"0")
 comma := LongPress("sc033","+{sc033}",False,"{sc033}")
 perid := LongPress(".","+.",False,".")
+slash := LongPress("/","+/",False,"/")
 backslash2 := LongPress("sc073","+{sc073}",False,"+{sc073}")
 
 IsF13Pressed()
@@ -296,16 +351,6 @@ SendDirKey(key)
 	}
 }
   
-
-MoveMousePos(rx, ry)
-{
-  size := 4
-  point := Buffer(size * 2)
-  DllCall("GetCursorPos", "Ptr", point)
-  x := NumGet(point, 0, "Int")
-  y := NumGet(point, size, "Int")
-  DllCall("SetCursorPos", "int", x+rx, "int", y+ry)
-} 
 
 
 ;***代用シフト**************************************************************************
@@ -419,6 +464,7 @@ sc079::Send "{sc029}" ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send "{sc029}" ;vkF3sc029 = 全角/半角
 
 sc033::ChangeLockState(1)
+.::ChangeLockState(2)
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
