@@ -74,7 +74,7 @@ MoveMousePos(rx, ry)
   DllCall("SetCursorPos", "int", x+rx, "int", y+ry)
 } 
 
-OperateMouse(cmd)
+OperateMouse(cmd,shift,ctrl)
 {
 	if cmd == "LClick"{
 		MouseClick "left"
@@ -85,11 +85,11 @@ OperateMouse(cmd)
 	} else if cmd == "WheelDown"{
 		Send "{WheelDown}" 
 	} else if cmd == "Back"{
-		SendInput "!Left"	
+		Send "!{Left}"	
 	}else{
-		if GetKeyState("Shift","P"){
+		if shift != 0 {
 			m := mouse_move_short
-		} else if GetKeyState("Ctrl","P"){
+		} else if ctrl != 0{
 			m := mouse_move_long
 		}else{
 			m := mouse_move
@@ -134,7 +134,7 @@ class LongPress
 		return this.kana && IME_GET()	
 	}
 	
-	Down()
+	Down(shift :=0, ctrl := 0)
 	{	
 		global lock_num
 		if lock_num = 1 && this.key1 != "" {
@@ -142,7 +142,7 @@ class LongPress
 			return
 		}else if lock_num = 2 && this.key2 != "" {
 			;SendEvent this.key2
-			OperateMouse(this.key2)
+			OperateMouse(this.key2,shift,ctrl)
 			return
 		}
 		ChangeLockState(0)
@@ -295,7 +295,7 @@ c := LongPress("c","+c",True)
 v := LongPress("v","+v",True)
 b := LongPress("b","+b",True)
 n := LongPress("n","+n",True,"","WheelDown")
-m := LongPress("m","+m",True,"0")
+m := LongPress("m","+m",True,"0","Back")
 comma := LongPress("sc033","+{sc033}",False,"{sc033}")
 perid := LongPress(".","+.",False,".")
 slash := LongPress("/","+/",False,"/")
@@ -520,6 +520,8 @@ y up::y.Up()
 u::u.Down()
 u up::u.Up()
 i::i.Down()
++i::i.Down(1)
+^i::i.Down(0,1)
 i up::i.Up()
 o::o.Down()
 o up::o.Up()
@@ -543,10 +545,16 @@ g up::g.Up()
 h::h.Down()
 h up::h.Up()
 j::j.Down()
++j::j.Down(1)
+^j::j.Down(0,1)
 j up::j.Up()
 k::k.Down()
++k::k.Down(1)
+^k::k.Down(0,1)
 k up::k.Up()
 l::l.Down()
++l::l.Down(1,)
+^l::l.Down(0,1)
 l up::l.Up()
 sc027::semicolon.Down()
 sc027 up::semicolon.Up()
