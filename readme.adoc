@@ -9,6 +9,10 @@
 
 image::img/key_prop.png[]
 
+* ShiftでCapsLock-Offできる環境以外の動作を不定
+
+image::img/CapsLock.webp[]
+
 == キーマップ
 キーの説明 +
 C+ ctrlを押しながら +
@@ -68,6 +72,3 @@ image::img/mouse.webp[]
 === その他
 * shift+↑: _
 * ctrl+shift+CapsLock: CapsLock-On +
- ※ShiftでCapsLock-OffできるようにWndowsを設定したほうがよい
-
-image::img/CapsLock.webp[]

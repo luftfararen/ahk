@@ -150,16 +150,21 @@ class LongPress
 			return
 		}
 		this.pressed_time :=  A_TickCount
+		this.up_sent := 0
+		this.pressed_time2 := 0
 		if this.pressed_time2 != 0 && this.pressed_time - this.pressed_time2 < 70{
-			this.up_sent := 0
 			this.pressed_time := 0
-			this.pressed_time2 := 0
+;			this.pressed_time2 := 0 一回だけキャンセル
 			return 
 		}
-	
-		;SendInput "{Blind}" . "{" . this.key . "}"
-		SendEvent "{" . this.key . "}"
-		this.pressed_time2 := 0
+		if shift != 0 && ctrl ==0{
+			;SendEvent "{Blind}" . "{" . this.key . "}"
+			SendInput "{Blind}" . "{" . this.key . "}"
+			this.pressed_time :=  0
+			return
+		}else{
+			SendInput "{Blind}" . "{" . this.key . "}"
+		}	
 		if this.IsKana(){
 			return
 		}
@@ -173,10 +178,14 @@ class LongPress
 	Up()
 	{
 		global lock_num
-		if lock_num > 0 && this.key1 != "" {
+		if lock_num = 1 && this.key1 != "" {
+			return
+		}else if lock_num = 2 && this.key2 != "" {
 			return
 		}
-
+		;if this.pressed_time = 0{
+		;	return
+		;}
 		global timeout_lp
 		time := A_TickCount - this.pressed_time
 		hook.Stop()
@@ -184,7 +193,7 @@ class LongPress
 		if this.up_sent = 1 {
 			if time >= timeout_lp {
 				this.pressed_time2 := A_TickCount
-				;				SendInput "{BackSpace}{Blind}" . this.long_key
+				;SendInput "{BackSpace}{Blind}" . this.long_key
 				SendEvent "{BackSpace}" ;SendIput does not work
 				SendEvent  this.long_key
 				Sleep(10)
@@ -249,6 +258,8 @@ class ModKey
 }
 
 space := ModKey("Space")
+f14 := ModKey("sc029")
+;conv := ModKey("sc029")
 
 k1 := LongPress("1","+1")
 k2 := LongPress("2","+2")
@@ -596,8 +607,14 @@ sc073 up::backslash2.Up()
 ;*sc027:: semicolon.Down()
 ;*sc027 up:: semicolon.Up()
 
+;F14::Send Return
+*F14:: f14.Down()
+*F14 up:: f14.Up()
 
-sc079::Return ;vk1Csc079 = 変換
+;sc079::Send Return ;vk1Csc079 = 変換
+*sc079:: f14.Down()
+*sc079 up:: f14.Up()
+
 sc07B::Return ;vk1Dsc07B = 無変換
 
 NumLock::Return
