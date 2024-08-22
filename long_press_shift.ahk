@@ -32,37 +32,10 @@
 ProcessSetPriority "Realtime"
 SendMode "Input"
 
-mouse_move := A_ScreenWidth/160
-mouse_move_short := A_ScreenWidth/320
-mouse_move_long := A_ScreenWidth/8
-
-timeout := 300 ;
-timeout_lp := 350 ;For long press
-
 InstallKeybdHook true
 #UseHook true
 #MaxThreadsBuffer True
 
-lock_num := 0
-ChangeLockState(num)
-{
-	global lock_num
-	if lock_num != num{
-		lock_num := num
-		if lock_num = 0{
-			TrayTip("Normal mode","",16)
-		}else if lock_num = 1{
-			TrayTip("10 key mode","",16)
-		}else if lock_num = 2{
-			TrayTip("Mouse mode","",16)
-		}
-	}else{
-		if lock_num != 0{
-			lock_num := 0
-			TrayTip("Normal mode","",16)
-		}
-	}
-}
 
 MoveMousePos(rx, ry)
 {
@@ -76,6 +49,10 @@ MoveMousePos(rx, ry)
 
 OperateMouse(cmd,shift,ctrl)
 {
+	static mouse_move := A_ScreenWidth/160
+	static mouse_move_short := A_ScreenWidth/320
+	static mouse_move_long := A_ScreenWidth/8
+
 	if cmd == "LClick"{
 		MouseClick "left"
 	} else if cmd == "RClick"{
@@ -106,18 +83,38 @@ OperateMouse(cmd,shift,ctrl)
 	}
 }
 
-hook := InputHook("L1 V")
 class LongPress
 {
-	;key: base key, not inclueds "{}"
-	;long_key long pressed key, inclueds "{}"
-	;kana True: related kana key, False: not related kana key
-	;lock_key1: key when locked
-	__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
+	static hook := InputHook("L1 V")
+	static timeout := 350 
+	static lock_num := 0
+
+	static ChangeLockState(num)
+	{
+		if LongPress.lock_num != num{
+			LongPress.lock_num := num
+			if LongPress.lock_num = 0{
+				TrayTip("Normal mode","",16)
+			}else if LongPress.lock_num = 1{
+				TrayTip("10 key mode","",16)
+			}else if LongPress.lock_num = 2{
+				TrayTip("Mouse mode","",16)
+			}
+		}else{
+			if LongPress.lock_num != 0{
+				LongPress.lock_num := 0
+				TrayTip("Normal mode","",16)
+			}
+		}
+	}
+	/*==========================================
+	key: 		base key, not inclueds "{}"
+	long_key: 	long pressed key, inclueds "{}"
+	kana 		True: related kana key, False: not related kana key
+	==========================================*/
+	__New(key, long_key:="", kana:=False)
 	{
 		this.key := key
-		this.key1 := lock_key1
-		this.key2 := lock_key2
 		if long_key = ""{
 			this.long_key :=  "+{" . this.key . "}"
 		}else{
@@ -133,19 +130,9 @@ class LongPress
 	{
 		return this.kana && IME_GET()	
 	}
-	
-	Down(shift :=0, ctrl := 0)
+
+	DownImpl(shift :=0, ctrl := 0)
 	{	
-		global lock_num
-		if lock_num = 1 && this.key1 != "" {
-			SendEvent this.key1
-			return
-		}else if lock_num = 2 && this.key2 != "" {
-			;SendEvent this.key2
-			OperateMouse(this.key2,shift,ctrl)
-			return
-		}
-		ChangeLockState(0)
 		if this.pressed_time != 0 {
 			return
 		}
@@ -169,29 +156,25 @@ class LongPress
 			return
 		}
 		this.up_sent := 1
-		hook.Start()
-		if	hook.wait() != "Stopped"  {
+		LongPress.hook.Start()
+		if	LongPress.hook.wait() != "Stopped"  {
 			this.up_sent := 0
 		}
 	}
 
+	Down()
+	{
+		LongPress.lock_num := 0
+		this.DownImpl()
+	}
+
 	Up()
 	{
-		global lock_num
-		if lock_num = 1 && this.key1 != "" {
-			return
-		}else if lock_num = 2 && this.key2 != "" {
-			return
-		}
-		;if this.pressed_time = 0{
-		;	return
-		;}
-		global timeout_lp
 		time := A_TickCount - this.pressed_time
-		hook.Stop()
+		LongPress.hook.Stop()
 		Sleep(2)
 		if this.up_sent = 1 {
-			if time >= timeout_lp {
+			if time >= LongPress.timeout {
 				this.pressed_time2 := A_TickCount
 				;SendInput "{BackSpace}{Blind}" . this.long_key
 				SendEvent "{BackSpace}" ;SendIput does not work
@@ -204,8 +187,52 @@ class LongPress
 	}
 }
 
+class LongPress2 extends LongPress 
+{
+
+	/*==========================================
+	key: 		base key, not inclueds "{}"
+	long_key: 	long pressed key, inclueds "{}"
+	kana 		True: related kana key, False: not related kana key
+	lock_key1: 	key mode1 is locked 
+	lock_key2: 	key mode2 is locked
+	==========================================*/
+	__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
+	{
+		super.__New(key, long_key, kana)
+		this.key1 := lock_key1
+		this.key2 := lock_key2
+	}
+
+	
+	Down(shift :=0, ctrl := 0)
+	{	
+		if LongPress.lock_num = 1 && this.key1 != "" {
+			SendEvent this.key1
+			return
+		}else if LongPress.lock_num = 2 && this.key2 != "" {
+			;SendEvent this.key2
+			OperateMouse(this.key2,shift,ctrl)
+			return
+		}
+		super.DownImpl()
+	}
+
+	Up()
+	{
+		if LongPress.lock_num = 1 && this.key1 != "" {
+			return
+		}else if LongPress.lock_num = 2 && this.key2 != "" {
+			return
+		}
+		super.Up()
+	}
+}
+
+
 class ModKey
 {
+	static timeout := 300
 	__New(key)
 	{
 		this.key := key
@@ -247,9 +274,7 @@ class ModKey
 
 	Up()
 	{
-		global timeout
-		;t := A_TickCount      
-		if (A_TickCount - this.pressed_time < timeout) {
+		if (A_TickCount - this.pressed_time < ModKey.timeout) {
 			SendInput "{Blind}" . this.mod_str . "{" . this.key . "}"
 		}
 		this.pressed_time := 0
@@ -267,50 +292,50 @@ k3 := LongPress("3","+3")
 k4 := LongPress("4","+4")
 k5 := LongPress("5","+5")
 k6 := LongPress("6","+6")
-k7 := LongPress("7","+7",False,"7")
-k8 := LongPress("8","+8",False,"8")
-k9 := LongPress("9","+9",False,"9")
-minus := LongPress("-","+-",False,"-")							
-hat := LongPress("^","+{sc00D}",False,"^")
-backslash := LongPress("\","+\",False,"\")
+k7 := LongPress2("7","+7",False,"7")
+k8 := LongPress2("8","+8",False,"8")
+k9 := LongPress2("9","+9",False,"9")
+minus := LongPress2("-","+-",False,"-")							
+hat := LongPress2("^","+{sc00D}",False,"^")
+backslash := LongPress2("\","+\",False,"\")
 
 q := LongPress("q","+q")
 w := LongPress("w","+w",True)
 e := LongPress("e","+e",True)
 r := LongPress("r","+r",True)
 t := LongPress("t","+t",True)
-y := LongPress("y","+y",True,"{Delete}")
-u := LongPress("u","+u",True,"4","LClick")
-i := LongPress("i","+i",True,"5","MouseUp")
-o := LongPress("o","+o",True,"6","RClick")
-p := LongPress("p","+p",True,"{Backspace}")
-at := LongPress("@","+@",False,"{Enter}")
-openbracket := LongPress("[","+[",False,"+8")
+y := LongPress2("y","+y",True,"{Delete}")
+u := LongPress2("u","+u",True,"4","LClick")
+i := LongPress2("i","+i",True,"5","MouseUp")
+o := LongPress2("o","+o",True,"6","RClick")
+p := LongPress2("p","+p",True,"{Backspace}")
+at := LongPress2("@","+@",False,"{Enter}")
+openbracket := LongPress2("[","+[",False,"+8")
 
 a := LongPress("a","+a",True)
 s := LongPress("s","+s",True)
 d := LongPress("d","+d",True)
 f := LongPress("f","+f",True)
 g := LongPress("g","+g",True)
-h := LongPress("h","+h",True,"{Backspace}","WheelUp")
-j := LongPress("j","+j",True,"1","MouseLeft")
-k := LongPress("k","+k",True,"2","MouseDown")
-l := LongPress("l","+l",True,"3","MouseRight")
-semicolon := LongPress("sc027","+{sc027}",False,"+{sc027}")
-colon := LongPress("sc028","+{sc028}",False,"+{sc028}")
-closebracket := LongPress("]","+]",False,"+9")
+h := LongPress2("h","+h",True,"{Backspace}","WheelUp")
+j := LongPress2("j","+j",True,"1","MouseLeft")
+k := LongPress2("k","+k",True,"2","MouseDown")
+l := LongPress2("l","+l",True,"3","MouseRight")
+semicolon := LongPress2("sc027","+{sc027}",False,"+{sc027}")
+colon := LongPress2("sc028","+{sc028}",False,"+{sc028}")
+closebracket := LongPress2("]","+]",False,"+9")
 
 z := LongPress("z","+z",True)
 x := LongPress("x","+x",True)
 c := LongPress("c","+c",True)
 v := LongPress("v","+v",True)
 b := LongPress("b","+b",True)
-n := LongPress("n","+n",True,"","WheelDown")
-m := LongPress("m","+m",True,"0","Back")
-comma := LongPress("sc033","+{sc033}",False,"{sc033}")
-perid := LongPress(".","+.",False,".")
-slash := LongPress("/","+/",False,"/")
-backslash2 := LongPress("sc073","+{sc073}",False,"+{sc073}")
+n := LongPress2("n","+n",True,"","WheelDown")
+m := LongPress2("m","+m",True,"0","Back")
+comma := LongPress2("sc033","+{sc033}",False,"{sc033}")
+perid := LongPress2(".","+.",False,".")
+slash := LongPress2("/","+/",False,"/")
+backslash2 := LongPress2("sc073","+{sc073}",False,"+{sc073}")
 
 IsF13Pressed()
 {
@@ -474,8 +499,8 @@ b::^z
 sc079::Send "{sc029}" ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send "{sc029}" ;vkF3sc029 = 全角/半角
 
-sc033::ChangeLockState(1)
-.::ChangeLockState(2)
+sc033::LongPress.ChangeLockState(1)
+.::LongPress.ChangeLockState(2)
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
