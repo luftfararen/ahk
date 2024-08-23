@@ -85,8 +85,7 @@ OperateMouse(cmd,shift,ctrl)
 
 class LongPress
 {
-	static hook := InputHook("L1 V")
-	static timeout := 350 
+	static timeout := 400 
 	static lock_num := 0
 
 	static ChangeLockState(num)
@@ -156,10 +155,6 @@ class LongPress
 			return
 		}
 		this.up_sent := 1
-		LongPress.hook.Start()
-		if	LongPress.hook.wait() != "Stopped"  {
-			this.up_sent := 0
-		}
 	}
 
 	Down()
@@ -170,16 +165,14 @@ class LongPress
 
 	Up()
 	{
-		time := A_TickCount - this.pressed_time
-		LongPress.hook.Stop()
-		Sleep(2)
 		if this.up_sent = 1 {
+			time := A_TickCount - this.pressed_time
 			if time >= LongPress.timeout {
 				this.pressed_time2 := A_TickCount
 				;SendInput "{BackSpace}{Blind}" . this.long_key
 				SendEvent "{BackSpace}" ;SendIput does not work
 				SendEvent  this.long_key
-				Sleep(10)
+				Sleep(5)
 			}
 		}
 		this.up_sent := 0
@@ -390,7 +383,7 @@ SendDirKey(key)
 
 
 ;***代用シフト**************************************************************************
-#HotIf IsF14Pressed() && IsSpaceOrF13Pressed() = 0
+#HotIf IsF14Pressed() != 0 && IsSpaceOrF13Pressed() = 0
 *1::Send "{Blind}{F1}"
 *2::Send "{Blind}{F2}"
 *3::Send "{Blind}{F3}"
@@ -433,8 +426,8 @@ sc028::Send "*" ;vkBAsc028 = : shift:*
 ]::Send "}"
 z::[
 x::]
-c::Send "{"
-v::Send "}"
+c::Send "+["
+v::Send "+]"
 b::Send "=" ;]
 n::Send "_"
 m::-
