@@ -54,15 +54,15 @@ OperateMouse(cmd,shift,ctrl)
 	static mouse_move_long := A_ScreenWidth/8
 
 	if cmd == "LClick"{
-		MouseClick "left"
+		MouseClick("left")
 	} else if cmd == "RClick"{
-		MouseClick "right"
+		MouseClick("right")
 	} else if cmd == "WheelUp"{
-		Send "{WheelUp}"
+		Send("{WheelUp}")
 	} else if cmd == "WheelDown"{
-		Send "{WheelDown}" 
+		Send("{WheelDown}") 
 	} else if cmd == "Back"{
-		Send "!{Left}"	
+		Send("!{Left}")
 	}else{
 		if shift != 0 {
 			m := mouse_move_short
@@ -145,11 +145,11 @@ class LongPress
 		}
 		if shift != 0 && ctrl ==0{
 			;SendEvent "{Blind}" . "{" . this.key . "}"
-			SendInput "{Blind}" . "{" . this.key . "}"
+			SendInput("{Blind}" . "{" . this.key . "}")
 			this.pressed_time :=  0
 			return
 		}else{
-			SendInput "{Blind}" . "{" . this.key . "}"
+			SendInput("{Blind}" . "{" . this.key . "}")
 		}	
 		if this.IsKana(){
 			return
@@ -170,8 +170,8 @@ class LongPress
 			if time >= LongPress.timeout {
 				this.pressed_time2 := A_TickCount
 				;SendInput "{BackSpace}{Blind}" . this.long_key
-				SendEvent "{BackSpace}" ;SendIput does not work
-				SendEvent  this.long_key
+				SendEvent("{BackSpace}") ;SendIput does not work
+				SendEvent( this.long_key)
 				Sleep(5)
 			}
 		}
@@ -201,7 +201,7 @@ class LongPress2 extends LongPress
 	Down(shift :=0, ctrl := 0)
 	{	
 		if LongPress.lock_num = 1 && this.key1 != "" {
-			SendEvent this.key1
+			SendEvent(this.key1)
 			return
 		}else if LongPress.lock_num = 2 && this.key2 != "" {
 			;SendEvent this.key2
@@ -268,7 +268,7 @@ class ModKey
 	Up()
 	{
 		if (A_TickCount - this.pressed_time < ModKey.timeout) {
-			SendInput "{Blind}" . this.mod_str . "{" . this.key . "}"
+			SendInput("{Blind}" . this.mod_str . "{" . this.key . "}")
 		}
 		this.pressed_time := 0
 		return
@@ -366,16 +366,15 @@ SendDirKey(key)
 {
 	if IsSpaceAndF13Pressed(){
 		if GetKeyState("sc07B", "P"){
-			Send "{Blind}^+" . key
+			Send("{Blind}^+" . key)
 		}else{
-			Send "{Blind}^" . key
+			Send("{Blind}^" . key)
 		}
 	}else{
 		if GetKeyState("sc07B", "P"){
-;			ToolTip key
-			Send "{Blind}+" . key
+			Send("{Blind}+" . key)
 		}else{
-			Send "{Blind}" . key
+			Send("{Blind}" . key)
 		}
 	}
 }
@@ -384,32 +383,32 @@ SendDirKey(key)
 
 ;***代用シフト**************************************************************************
 #HotIf IsF14Pressed() != 0 && IsSpaceOrF13Pressed() = 0
-*1::Send "{Blind}{F1}"
-*2::Send "{Blind}{F2}"
-*3::Send "{Blind}{F3}"
-*4::Send "{Blind}{F4}"
-*5::Send "{Blind}{F5}"
-*6::Send "{Blind}{F6}"
-*7::Send "{Blind}{F7}"
-*8::Send "{Blind}{F8}"
-*9::Send "{Blind}{F9}"
-*0::Send "{Blind}{F10}"
-*-::Send "{Blind}{F11}"
-*sc00D::Send "{Blind}{F12}" ;^
+*1::Send("{Blind}{F1}")
+*2::Send("{Blind}{F2}")
+*3::Send("{Blind}{F3}")
+*4::Send("{Blind}{F4}")
+*5::Send("{Blind}{F5}")
+*6::Send("{Blind}{F6}")
+*7::Send("{Blind}{F7}")
+*8::Send("{Blind}{F8}")
+*9::Send("{Blind}{F9}")
+*0::Send("{Blind}{F10}")
+*-::Send("{Blind}{F11}")
+*sc00D::Send("{Blind}{F12}") ;^
 
 ;shift
-*q::Send "{Blind}+{F1}"
-*w::Send "{Blind}+{F2}"
-*e::Send "{Blind}+{F3}"
-*r::Send "{Blind}+{F4}"
-*t::Send "{Blind}+{F5}"
-*y::Send "{Blind}+{F6}"
-*u::Send "{Blind}+{F7}"
-*i::Send "{Blind}+{F8}"
-*o::Send "{Blind}+{F9}"
-*p::Send "{Blind}+{F10}"
-*@::Send "{Blind}+{F11}"
-*[::Send "{Blind}+{F12}"
+*q::Send("{Blind}+{F1}")
+*w::Send("{Blind}+{F2}")
+*e::Send("{Blind}+{F3}")
+*r::Send("{Blind}+{F4}")
+*t::Send("{Blind}+{F5}")
+*y::Send("{Blind}+{F6}")
+*u::Send("{Blind}+{F7}")
+*i::Send("{Blind}+{F8}")
+*o::Send("{Blind}+{F9}")
+*p::Send("{Blind}+{F10}")
+*@::Send("{Blind}+{F11}")
+*[::Send("{Blind}+{F12}")
 
 a::+1 ;!
 s::+2 ;""
@@ -421,21 +420,21 @@ j::+7 ;
 k::+8 ;(
 l::+9 ;) 
 
-sc027::Send "+" ;vkBBsc027 = ; shift:+
-sc028::Send "*" ;vkBAsc028 = : shift:*
-]::Send "}"
+sc027::Send("+;") ;vkBBsc027 = ; shift:+
+sc028::Send("+:") ;vkBAsc028 = : shift:*
+]::Send("}")
 z::[
 x::]
-c::Send "+["
-v::Send "+]"
-b::Send "=" ;]
-n::Send "_"
+c::Send("+[")
+v::Send("+]")
+b::Send("=") ;]
+n::Send("_")
 m::-
-sc033::Send "<" ;vkBCsc033 = ,
-.::Send ">" ;+. ;>
-/::Send "?" ;?
-sc073::Send "_" ;vkE2sc073 = \ shift:_
-;***F13/Sace修飾****************************************************************************
+sc033::Send("<") ;vkBCsc033 = ,
+.::Send(">") ;+. ;>
+/::Send("?") ;?
+sc073::Send("_") ;vkE2sc073 = \ shift:_
+;***F13 or Sace Modifier***************************************************************************
 #HotIf IsSpaceOrF13Pressed() 
 *j::SendDirKey("{Left}")
 *l::SendDirKey("{Right}")
@@ -447,14 +446,14 @@ sc073::Send "_" ;vkE2sc073 = \ shift:_
 *m::SendDirKey("{Down}")
 *p::SendDirKey("{Down}")
 
-*[::Send "{Blind}{PgUp}"
-*]::Send "{Blind}{PgDn}"
-*y::Send "{Blind}{Delete}"
-*u::Send "{Blind}{BackSpace}"
+*[::Send("{Blind}{PgUp}")
+*]::Send("{Blind}{PgDn}")
+*y::Send("{Blind}{Delete}")
+*u::Send("{Blind}{BackSpace}")
 
-sc027::Send "{Enter}" ;semicolon
+sc027::Send("{Enter}") ;semicolon
 sc028::^g ;vkBAsc028 = : shift:*
-@::Send "{Enter}"
+@::Send("{Enter}")
 ;@::^g
 q::Esc
 e::^e
@@ -474,26 +473,27 @@ v::^v
 b::^z
 ]::^]
 
-*1::Send "{Blind}^{F1}"
-*2::Send "{Blind}^{F2}"
-*3::Send "{Blind}^{F3}"
-*4::Send "{Blind}^{F4}"
-*5::Send "{Blind}^{F5}"
-*6::Send "{Blind}^{F6}"
-*7::Send "{Blind}^{F7}"
-*8::Send "{Blind}^{F8}"
-*9::Send "{Blind}^{F9}"
-*0::Send "{Blind}^{F10}"
-*-::Send "{Blind}^{F11}"
-*^::Send "{Blind}^{F12}"
+*1::Send("{Blind}^{F1}")
+*2::Send("{Blind}^{F2}")
+*3::Send("{Blind}^{F3}")
+*4::Send("{Blind}^{F4}")
+*5::Send("{Blind}^{F5}")
+*6::Send("{Blind}^{F6}")
+*7::Send("{Blind}^{F7}")
+*8::Send("{Blind}^{F8}")
+*9::Send("{Blind}^{F9}")
+*0::Send("{Blind}^{F10}")
+*-::Send("{Blind}^{F11}")
+*^::Send("{Blind}^{F12}")
 
-;vk1C::Send "{vkF3}" ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
-;sc07B::Send "{sc029}" ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
-sc079::Send "{sc029}" ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
-F14::Send "{sc029}" ;vkF3sc029 = 全角/半角
+;vk1C::Send("{vkF3}") ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
+;sc07B::Send("{sc029}") ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
+sc079::Send("{sc029}") ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
+F14::Send("{sc029}") ;vkF3sc029 = 全角/半角
 
 sc033::LongPress.ChangeLockState(1)
 .::LongPress.ChangeLockState(2)
+;/:: Send "{Home}+{End}+{Down}"
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
@@ -502,8 +502,8 @@ sc033::LongPress.ChangeLockState(1)
 
 ;***F13単独修飾**************************************************************************
 #HotIf IsF13Pressed()
-Tab::Send "{sc03A}" ;vkF0sc03A = Eisu
-sc029::Send "{sc03A}" ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
+Tab::Send("{sc03A}") ;vkF0sc03A = Eisu
+sc029::Send("{sc03A}") ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 ;Space::Send "{sc029}" ; vkF3sc029 = 全角/半角
 Esc::Reload
 
@@ -636,9 +636,9 @@ sc073 up::backslash2.Up()
 sc07B::Return ;vk1Dsc07B = 無変換
 
 NumLock::Return
-+F15::Send "{NumLock}"
++F15::Send("{NumLock}")
 
 >+Up::_
-^+F13::Send "+{CapsLock}" ;Change CapsLock off setting to shift on Windows setting
+^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
 
 #MaxThreadsBuffer False
