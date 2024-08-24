@@ -83,34 +83,38 @@ OperateMouse(cmd,shift,ctrl)
 	}
 }
 
+/*============================================================================
+Class to assign different key for long press
+============================================================================*/
 class LongPress
 {
 	static timeout := 400 
-	static lock_num := 0
+	static layer_idx := 0
 
-	static ChangeLockState(num)
+	static ChangeLayer(num)
 	{
-		if LongPress.lock_num != num{
-			LongPress.lock_num := num
-			if LongPress.lock_num = 0{
+		if LongPress.layer_idx != num{
+			LongPress.layer_idx := num
+			if LongPress.layer_idx = 0{
 				TrayTip("Normal mode","",16)
-			}else if LongPress.lock_num = 1{
+			}else if LongPress.layer_idx = 1{
 				TrayTip("10 key mode","",16)
-			}else if LongPress.lock_num = 2{
+			}else if LongPress.layer_idx = 2{
 				TrayTip("Mouse mode","",16)
 			}
 		}else{
-			if LongPress.lock_num != 0{
-				LongPress.lock_num := 0
+			if LongPress.layer_idx != 0{
+				LongPress.layer_idx := 0
 				TrayTip("Normal mode","",16)
 			}
 		}
 	}
-	/*==========================================
+
+/*============================================================================
 	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
 	kana 		True: related kana key, False: not related kana key
-	==========================================*/
+============================================================================*/
 	__New(key, long_key:="", kana:=False)
 	{
 		this.key := key
@@ -121,7 +125,7 @@ class LongPress
 		}
 		this.pressed_time := 0
 		this.pressed_time2 := 0
-		this.up_sent := 0
+		this.sent := 0
 		this.kana := kana
 	}
 
@@ -136,7 +140,7 @@ class LongPress
 			return
 		}
 		this.pressed_time :=  A_TickCount
-		this.up_sent := 0
+		this.sent := 0
 		this.pressed_time2 := 0
 		if this.pressed_time2 != 0 && this.pressed_time - this.pressed_time2 < 70{
 			this.pressed_time := 0
@@ -154,43 +158,46 @@ class LongPress
 		if this.IsKana(){
 			return
 		}
-		this.up_sent := 1
+		this.sent := 1
 	}
 
 	Down()
 	{
-		LongPress.lock_num := 0
+		LongPress.layer_idx := 0
 		this.DownImpl()
 	}
 
 	Up()
 	{
-		if this.up_sent = 1 {
+		if this.sent = 1 {
 			time := A_TickCount - this.pressed_time
 			if time >= LongPress.timeout {
 				this.pressed_time2 := A_TickCount
-				;SendInput "{BackSpace}{Blind}" . this.long_key
+				;SendInput("{BackSpace}{Blind}" . this.long_key)
 				SendEvent("{BackSpace}") ;SendIput does not work
 				SendEvent( this.long_key)
 				Sleep(5)
 			}
 		}
-		this.up_sent := 0
+		this.sent := 0
 		this.pressed_time := 0
 	}
 }
 
+/*============================================================================
+Class to assign different key for long press with layer change
+============================================================================*/
 class LongPress2 extends LongPress 
 {
 
-	/*==========================================
+/*============================================================================
 	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
 	kana 		True: related kana key, False: not related kana key
 	lock_key1: 	key mode1 is locked 
 	lock_key2: 	key mode2 is locked
-	==========================================*/
-	__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
+============================================================================*/
+__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
 	{
 		super.__New(key, long_key, kana)
 		this.key1 := lock_key1
@@ -200,10 +207,10 @@ class LongPress2 extends LongPress
 	
 	Down(shift :=0, ctrl := 0)
 	{	
-		if LongPress.lock_num = 1 && this.key1 != "" {
+		if LongPress.layer_idx = 1 && this.key1 != "" {
 			SendEvent(this.key1)
 			return
-		}else if LongPress.lock_num = 2 && this.key2 != "" {
+		}else if LongPress.layer_idx = 2 && this.key2 != "" {
 			;SendEvent this.key2
 			OperateMouse(this.key2,shift,ctrl)
 			return
@@ -213,16 +220,18 @@ class LongPress2 extends LongPress
 
 	Up()
 	{
-		if LongPress.lock_num = 1 && this.key1 != "" {
+		if LongPress.layer_idx = 1 && this.key1 != "" {
 			return
-		}else if LongPress.lock_num = 2 && this.key2 != "" {
+		}else if LongPress.layer_idx = 2 && this.key2 != "" {
 			return
 		}
 		super.Up()
 	}
 }
 
-
+/*============================================================================
+Class to ignore long press for modifier
+============================================================================*/
 class ModKey
 {
 	static timeout := 300
@@ -238,11 +247,12 @@ class ModKey
 		if this.pressed_time != 0{
 			return 1
 		}
-		if GetKeyState(this.key,"P"){
-			return 1
-		}
+;		if GetKeyState(this.key,"P"){
+;			return 1
+;		}
 		return 0
 	}
+
 	SetModStr( )
 	{
 		this.mod_str  := ""
@@ -256,6 +266,7 @@ class ModKey
 			this.mod_str  := "!" . this.mod_str 
 		}
 	}
+
 	Down()
 	{
 		if this.pressed_time != 0 {
@@ -379,8 +390,6 @@ SendDirKey(key)
 	}
 }
   
-
-
 ;***代用シフト**************************************************************************
 #HotIf IsF14Pressed() != 0 && IsSpaceOrF13Pressed() = 0
 *1::Send("{Blind}{F1}")
@@ -454,7 +463,6 @@ sc073::Send("_") ;vkE2sc073 = \ shift:_
 sc027::Send("{Enter}") ;semicolon
 sc028::^g ;vkBAsc028 = : shift:*
 @::Send("{Enter}")
-;@::^g
 q::Esc
 e::^e
 r::^r
@@ -471,7 +479,6 @@ x::^x
 c::^c
 v::^v
 b::^z
-]::^]
 
 *1::Send("{Blind}^{F1}")
 *2::Send("{Blind}^{F2}")
@@ -491,8 +498,8 @@ b::^z
 sc079::Send("{sc029}") ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send("{sc029}") ;vkF3sc029 = 全角/半角
 
-sc033::LongPress.ChangeLockState(1)
-.::LongPress.ChangeLockState(2)
+sc033::LongPress.ChangeLayer(1)
+.::LongPress.ChangeLayer(2)
 ;/:: Send "{Home}+{End}+{Down}"
 
 ;*****************************************************************************
@@ -622,14 +629,9 @@ sc073 up::backslash2.Up()
 *Space:: space.Down()
 *Space up:: space.Up()
 
-;*sc027:: semicolon.Down()
-;*sc027 up:: semicolon.Up()
-
-;F14::Send Return
 *F14:: f14.Down()
 *F14 up:: f14.Up()
 
-;sc079::Send Return ;vk1Csc079 = 変換
 *sc079:: f14.Down()
 *sc079 up:: f14.Up()
 
