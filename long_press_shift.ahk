@@ -44,7 +44,7 @@ MoveMousePos(rx, ry)
   DllCall("GetCursorPos", "Ptr", point)
   x := NumGet(point, 0, "Int")
   y := NumGet(point, size, "Int")
-  DllCall("SetCursorPos", "int", x+rx, "int", y+ry)
+  DllCall("SetCursorPos", "Int", x+rx, "Int", y+ry)
 } 
 
 OperateMouse(cmd,shift,ctrl)
@@ -54,17 +54,17 @@ OperateMouse(cmd,shift,ctrl)
 	static mouse_move_long := A_ScreenWidth/8
 	if cmd == ""{
 		return
-	} else if cmd =="LClick" {
+	} else if cmd =="MouseLClick" {
 		MouseClick("left")
-	} else if cmd == "RClick"{
+	} else if cmd == "MouseRClick"{
 		MouseClick("right")
-	} else if cmd == "WheelUp"{
+	} else if cmd == "{WheelUp}"{
 		Send("{WheelUp}")
-	} else if cmd == "WheelDown"{
+	} else if cmd == "{WheelDown}"{
 		Send("{WheelDown}") 
-	} else if cmd == "Back"{
+	} else if cmd == "MouseBack"{
 		Send("!{Left}")
-	} else if cmd == "Next"{
+	} else if cmd == "MouseNext"{
 		Send("!{Right}")
 	}else{
 		if shift != 0 {
@@ -104,13 +104,6 @@ class LayerKey
 				ToolTip("Mouse mode",A_ScreenWidth,A_ScreenHeight)
 			}
 		}
-/*		else{
-			if LayerKey.idx != 0{
-				LayerKey.idx := 0
-				TrayTip("Normal mode","",16)
-			}
-		}
-*/
 	}
 	/*============================================================================
 	key: 		base key, not inclueds "{}"
@@ -348,9 +341,9 @@ e := LongPress("e","+e",True)
 r := LongPress("r","+r",True)
 t := LongPress("t","+t",True)
 y := LongPress2("y","+y",True,"{Delete}")
-u := LongPress2("u","+u",True,"4","LClick")
+u := LongPress2("u","+u",True,"4","MouseLClick")
 i := LongPress2("i","+i",True,"5","MouseUp")
-o := LongPress2("o","+o",True,"6","RClick")
+o := LongPress2("o","+o",True,"6","MouseRClick")
 p := LongPress2("p","+p",True,"{Backspace}")
 at := LongPress2("@","+@",False,"{Enter}")
 openbracket := LongPress2("[","+[",False,"+8")
@@ -360,7 +353,7 @@ s := LongPress("s","+s",True)
 d := LongPress("d","+d",True)
 f := LongPress("f","+f",True)
 g := LongPress("g","+g",True)
-h := LongPress2("h","+h",True,"{Backspace}","WheelUp")
+h := LongPress2("h","+h",True,"{Backspace}","{WheelUp}")
 j := LongPress2("j","+j",True,"1","MouseLeft")
 k := LongPress2("k","+k",True,"2","MouseDown")
 l := LongPress2("l","+l",True,"3","MouseRight")
@@ -373,17 +366,17 @@ x := LongPress("x","+x",True)
 c := LongPress("c","+c",True)
 v := LongPress("v","+v",True)
 b := LongPress("b","+b",True)
-n := LongPress2("n","+n",True,"","WheelDown")
-m := LongPress2("m","+m",True,"0","Back")
+n := LongPress2("n","+n",True,"","{WheelDown}")
+m := LongPress2("m","+m",True,"0","MouseBack")
 comma := LongPress2("sc033","+{sc033}",False,"{sc033}")
 perid := LongPress2(".","+.",False,"")
 slash := LongPress2("/","+/",False,"/")
 backslash2 := LongPress2("sc073","+{sc073}",False,"+{sc073}")
 
-up := LayerKey("up","","WheelUp")
-down  := LayerKey("down","","WheelDown")
-left := LayerKey("left","","Back")
-right := LayerKey("right","","Next")
+up := LayerKey("up","","{WheelUp}")
+down  := LayerKey("down","","{WheelDown}")
+left := LayerKey("left","","MouseBack")
+right := LayerKey("right","","MouseNext")
 
 IsF13Pressed()
 {
@@ -695,7 +688,6 @@ F13::{
 	LayerKey.ChangeLayer(0)
 	Send("{F13}")
 }
-
 
 *F14:: f14.Down()
 *F14 up:: f14.Up()
