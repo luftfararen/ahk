@@ -52,8 +52,9 @@ OperateMouse(cmd,shift,ctrl)
 	static mouse_move := A_ScreenWidth/160
 	static mouse_move_short := A_ScreenWidth/320
 	static mouse_move_long := A_ScreenWidth/8
-
-	if cmd == "LClick"{
+	if cmd == ""{
+		return
+	} else if cmd =="LClick" {
 		MouseClick("left")
 	} else if cmd == "RClick"{
 		MouseClick("right")
@@ -63,6 +64,8 @@ OperateMouse(cmd,shift,ctrl)
 		Send("{WheelDown}") 
 	} else if cmd == "Back"{
 		Send("!{Left}")
+	} else if cmd == "Next"{
+		Send("!{Right}")
 	}else{
 		if shift != 0 {
 			m := mouse_move_short
@@ -83,32 +86,68 @@ OperateMouse(cmd,shift,ctrl)
 	}
 }
 
+class LayerKey
+{
+	static idx := 0
+	static ChangeLayer(num)
+	{
+		if LayerKey.idx != num{
+			LayerKey.idx := num
+			if LayerKey.idx = 0{
+				;TrayTip("Normal mode","",16)
+				ToolTip
+			}else if LayerKey.idx = 1{
+				;TrayTip("10 key mode","",16)
+				ToolTip("10 key mode",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = 2{
+				;TrayTip("Mouse mode","",16)
+				ToolTip("Mouse mode",A_ScreenWidth,A_ScreenHeight)
+			}
+		}
+/*		else{
+			if LayerKey.idx != 0{
+				LayerKey.idx := 0
+				TrayTip("Normal mode","",16)
+			}
+		}
+*/
+	}
+	/*============================================================================
+	key: 		base key, not inclueds "{}"
+	long_key: 	long pressed key, inclueds "{}"
+	kana 		True related kana key, False: not related kana key
+	lock_key1: 	keymode1 is locked 
+	lock_key2: 	key mode2 is locked
+===========================================================================*/
+__New(key,  lock_key1 := "", lock_key2 := "")
+{
+	this.key := key
+	this.key1 := lock_key1
+	this.key2 := lock_key2
+}
+
+Down(shift :=0, ctrl := 0)
+{	
+	if LayerKey.idx = 1 && this.key1 != "" {
+		SendEvent(this.key1)
+		return
+	}else if LayerKey.idx = 2 && this.key2 != "" {
+		;SendEvent this.key2
+		OperateMouse(this.key2,shift,ctrl)
+		return
+	}else{
+		SendInput("{Blind}{" . this.key . "}")
+	}
+}
+
+}
+
 /*============================================================================
 Class to assign different key for long press
 ============================================================================*/
 class LongPress
 {
 	static timeout := 400 
-	static layer_idx := 0
-
-	static ChangeLayer(num)
-	{
-		if LongPress.layer_idx != num{
-			LongPress.layer_idx := num
-			if LongPress.layer_idx = 0{
-				TrayTip("Normal mode","",16)
-			}else if LongPress.layer_idx = 1{
-				TrayTip("10 key mode","",16)
-			}else if LongPress.layer_idx = 2{
-				TrayTip("Mouse mode","",16)
-			}
-		}else{
-			if LongPress.layer_idx != 0{
-				LongPress.layer_idx := 0
-				TrayTip("Normal mode","",16)
-			}
-		}
-	}
 
 /*============================================================================
 	key: 		base key, not inclueds "{}"
@@ -163,7 +202,7 @@ class LongPress
 
 	Down()
 	{
-		LongPress.layer_idx := 0
+		LayerKey.ChangeLayer(0)
 		this.DownImpl()
 	}
 
@@ -193,11 +232,11 @@ class LongPress2 extends LongPress
 /*============================================================================
 	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
-	kana 		True: related kana key, False: not related kana key
-	lock_key1: 	key mode1 is locked 
+	kana 		True related kana key, False: not related kana key
+	lock_key1: 	keymode1 is locked 
 	lock_key2: 	key mode2 is locked
-============================================================================*/
-__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
+===========================================================================*/
+	__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
 	{
 		super.__New(key, long_key, kana)
 		this.key1 := lock_key1
@@ -207,10 +246,10 @@ __New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
 	
 	Down(shift :=0, ctrl := 0)
 	{	
-		if LongPress.layer_idx = 1 && this.key1 != "" {
+		if LayerKey.idx = 1 && this.key1 != "" {
 			SendEvent(this.key1)
 			return
-		}else if LongPress.layer_idx = 2 && this.key2 != "" {
+		}else if LayerKey.idx = 2 && this.key2 != "" {
 			;SendEvent this.key2
 			OperateMouse(this.key2,shift,ctrl)
 			return
@@ -220,9 +259,9 @@ __New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
 
 	Up()
 	{
-		if LongPress.layer_idx = 1 && this.key1 != "" {
+		if LayerKey.idx = 1 && this.key1 != "" {
 			return
-		}else if LongPress.layer_idx = 2 && this.key2 != "" {
+		}else if LayerKey.idx = 2 && this.key2 != "" {
 			return
 		}
 		super.Up()
@@ -337,9 +376,14 @@ b := LongPress("b","+b",True)
 n := LongPress2("n","+n",True,"","WheelDown")
 m := LongPress2("m","+m",True,"0","Back")
 comma := LongPress2("sc033","+{sc033}",False,"{sc033}")
-perid := LongPress2(".","+.",False,".")
+perid := LongPress2(".","+.",False,"")
 slash := LongPress2("/","+/",False,"/")
 backslash2 := LongPress2("sc073","+{sc073}",False,"+{sc073}")
+
+up := LayerKey("up","","WheelUp")
+down  := LayerKey("down","","WheelDown")
+left := LayerKey("left","","Back")
+right := LayerKey("right","","Next")
 
 IsF13Pressed()
 {
@@ -498,8 +542,8 @@ b::^z
 sc079::Send("{sc029}") ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send("{sc029}") ;vkF3sc029 = 全角/半角
 
-sc033::LongPress.ChangeLayer(1)
-.::LongPress.ChangeLayer(2)
+sc033::LayerKey.ChangeLayer(1)
+.::LayerKey.ChangeLayer(2)
 ;/:: Send "{Home}+{End}+{Down}"
 
 ;*****************************************************************************
@@ -624,10 +668,34 @@ sc035 up::slash.Up()
 sc073::backslash2.Down()
 sc073 up::backslash2.Up()
 
+down::down.Down()
+;down up::down.Up()
+up::up.Down()
+;up up::up.Up()
+left::left.Down()
+;left up::left.Up()
+right::right.Down()
+;right up::right.Up()
+
+
 ;***修飾長押し処理/他****************************************************************************
 #HotIf 
-*Space:: space.Down()
+*Space::{
+	LayerKey.ChangeLayer(0)
+	space.Down()
+}
+
 *Space up:: space.Up()
+Esc::{
+	LayerKey.ChangeLayer(0)
+	Send("{Escape}")
+}
+
+F13::{
+	LayerKey.ChangeLayer(0)
+	Send("{F13}")
+}
+
 
 *F14:: f14.Down()
 *F14 up:: f14.Up()
