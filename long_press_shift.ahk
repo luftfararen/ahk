@@ -52,19 +52,19 @@ OperateMouse(cmd,shift,ctrl)
 	static mouse_move := A_ScreenWidth/160
 	static mouse_move_short := A_ScreenWidth/320
 	static mouse_move_long := A_ScreenWidth/8
-	if cmd == ""{
+	if cmd = ""{
 		return
-	} else if cmd =="MouseLClick" {
+	} else if cmd ="MouseLClick" {
 		MouseClick("left")
-	} else if cmd == "MouseRClick"{
+	} else if cmd = "MouseRClick"{
 		MouseClick("right")
-	} else if cmd == "{WheelUp}"{
+	} else if cmd = "MouseWheelUp"{
 		Send("{WheelUp}")
-	} else if cmd == "{WheelDown}"{
+	} else if cmd = "MouseWheelDown"{
 		Send("{WheelDown}") 
-	} else if cmd == "MouseBack"{
+	} else if cmd = "MouseBack"{
 		Send("!{Left}")
-	} else if cmd == "MouseNext"{
+	} else if cmd = "MouseNext"{
 		Send("!{Right}")
 	}else{
 		if shift != 0 {
@@ -74,13 +74,13 @@ OperateMouse(cmd,shift,ctrl)
 		}else{
 			m := mouse_move
 		}
-		if cmd == "MouseUp"{
+		if cmd = "MouseUp"{
 			MoveMousePos(0,-m)
-		} else if cmd == "MouseLeft"{
+		} else if cmd = "MouseLeft"{
 			MoveMousePos(-m,0)
-		} else if cmd == "MouseDown"{
+		} else if cmd = "MouseDown"{
 			MoveMousePos(0,m) 
-		} else if cmd == "MouseRight"{
+		} else if cmd = "MouseRight"{
 			MoveMousePos(m,0) 
 		}
 	}
@@ -109,14 +109,14 @@ class LayerKey
 	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
 	kana 		True related kana key, False: not related kana key
-	lock_key1: 	keymode1 is locked 
-	lock_key2: 	key mode2 is locked
+	key1: 	keymode1 is locked 
+	key2: 	key mode2 is locked
 ===========================================================================*/
-__New(key,  lock_key1 := "", lock_key2 := "")
+__New(key,  key1 := "", key2 := "")
 {
 	this.key := key
-	this.key1 := lock_key1
-	this.key2 := lock_key2
+	this.key1 := key1
+	this.key2 := key2
 }
 
 Down(shift :=0, ctrl := 0)
@@ -157,7 +157,6 @@ class LongPress
 		}
 		this.pressed_time := 0
 		this.pressed_time2 := 0
-		this.sent := 0
 		this.kana := kana
 	}
 
@@ -171,26 +170,26 @@ class LongPress
 		if this.pressed_time != 0 {
 			return
 		}
-		this.pressed_time :=  A_TickCount
-		this.sent := 0
-		this.pressed_time2 := 0
-		if this.pressed_time2 != 0 && this.pressed_time - this.pressed_time2 < 70{
-			this.pressed_time := 0
-;			this.pressed_time2 := 0 一回だけキャンセル
+		pressed_time := A_TickCount
+		if this.pressed_time2 != 0 && pressed_time - this.pressed_time2 < 70{
+			this.pressed_time2 := 0 ;一回だけキャンセル
 			return 
 		}
+		this.pressed_time2 := 0
+		SendInput("{Blind}" . "{" . this.key . "}")
 		if shift != 0 && ctrl ==0{
 			;SendEvent "{Blind}" . "{" . this.key . "}"
-			SendInput("{Blind}" . "{" . this.key . "}")
-			this.pressed_time :=  0
+			;SendInput("{Blind}" . "+{" . this.key . "}")
+			;SendInput("{Blind}" . "{" . this.key . "}")
 			return
-		}else{
-			SendInput("{Blind}" . "{" . this.key . "}")
-		}	
+		}
+		;else{
+		;	SendInput("{Blind}" . "{" . this.key . "}")
+		;}	
 		if this.IsKana(){
 			return
 		}
-		this.sent := 1
+		this.pressed_time :=  A_TickCount
 	}
 
 	Down()
@@ -201,7 +200,7 @@ class LongPress
 
 	Up()
 	{
-		if this.sent = 1 {
+		if this.pressed_time > 0{
 			time := A_TickCount - this.pressed_time
 			if time >= LongPress.timeout {
 				this.pressed_time2 := A_TickCount
@@ -210,9 +209,8 @@ class LongPress
 				SendEvent( this.long_key)
 				Sleep(5)
 			}
+			this.pressed_time := 0
 		}
-		this.sent := 0
-		this.pressed_time := 0
 	}
 }
 
@@ -353,7 +351,7 @@ s := LongPress("s","+s",True)
 d := LongPress("d","+d",True)
 f := LongPress("f","+f",True)
 g := LongPress("g","+g",True)
-h := LongPress2("h","+h",True,"{Backspace}","{WheelUp}")
+h := LongPress2("h","+h",True,"{Backspace}","MouseWheelUp")
 j := LongPress2("j","+j",True,"1","MouseLeft")
 k := LongPress2("k","+k",True,"2","MouseDown")
 l := LongPress2("l","+l",True,"3","MouseRight")
@@ -366,15 +364,15 @@ x := LongPress("x","+x",True)
 c := LongPress("c","+c",True)
 v := LongPress("v","+v",True)
 b := LongPress("b","+b",True)
-n := LongPress2("n","+n",True,"","{WheelDown}")
+n := LongPress2("n","+n",True,"","MouseWheelDown")
 m := LongPress2("m","+m",True,"0","MouseBack")
 comma := LongPress2("sc033","+{sc033}",False,"{sc033}")
 perid := LongPress2(".","+.",False,"")
 slash := LongPress2("/","+/",False,"/")
 backslash2 := LongPress2("sc073","+{sc073}",False,"+{sc073}")
 
-up := LayerKey("up","","{WheelUp}")
-down  := LayerKey("down","","{WheelDown}")
+up := LayerKey("up","","MouseWheelUp")
+down  := LayerKey("down","","MouseWheelDown")
 left := LayerKey("left","","MouseBack")
 right := LayerKey("right","","MouseNext")
 
