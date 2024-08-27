@@ -105,34 +105,34 @@ class LayerKey
 			}
 		}
 	}
-	/*============================================================================
+
+/*============================================================================
 	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
 	kana 		True related kana key, False: not related kana key
-	key1: 	keymode1 is locked 
-	key2: 	key mode2 is locked
+	key1: 		key mode1 is locked 
+	key2: 		key mode2 is locked
 ===========================================================================*/
-__New(key,  key1 := "", key2 := "")
-{
-	this.key := key
-	this.key1 := key1
-	this.key2 := key2
-}
-
-Down(shift :=0, ctrl := 0)
-{	
-	if LayerKey.idx = 1 && this.key1 != "" {
-		SendEvent(this.key1)
-		return
-	}else if LayerKey.idx = 2 && this.key2 != "" {
-		;SendEvent this.key2
-		OperateMouse(this.key2,shift,ctrl)
-		return
-	}else{
-		SendInput("{Blind}{" . this.key . "}")
+	__New(key,  key1 := "", key2 := "")
+	{
+		this.key := key
+		this.key1 := key1
+		this.key2 := key2
 	}
-}
 
+	Down(shift :=0, ctrl := 0)
+	{	
+		if LayerKey.idx = 1 && this.key1 != "" {
+			SendEvent(this.key1)
+			return
+		}else if LayerKey.idx = 2 && this.key2 != "" {
+			;SendEvent this.key2
+			OperateMouse(this.key2,shift,ctrl)
+			return
+		}else{
+			SendInput("{Blind}{" . this.key . "}")
+		}
+	}
 }
 
 /*============================================================================
@@ -140,7 +140,7 @@ Class to assign different key for long press
 ============================================================================*/
 class LongPress
 {
-	static timeout := 400 
+	static timeout := 300 
 
 /*============================================================================
 	key: 		base key, not inclueds "{}"
@@ -224,14 +224,14 @@ class LongPress2 extends LongPress
 	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
 	kana 		True related kana key, False: not related kana key
-	lock_key1: 	keymode1 is locked 
-	lock_key2: 	key mode2 is locked
+	key1: 		key mode1 is locked 
+	key2: 		key mode2 is locked
 ===========================================================================*/
-	__New(key, long_key:="", kana:=False, lock_key1 := "", lock_key2 := "")
+	__New(key, long_key:="", kana:=False,  key1 := "", key2 := "")
 	{
 		super.__New(key, long_key, kana)
-		this.key1 := lock_key1
-		this.key2 := lock_key2
+		this.key1 := key1
+		this.key2 := key2
 	}
 
 	
