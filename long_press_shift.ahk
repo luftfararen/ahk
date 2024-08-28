@@ -140,7 +140,8 @@ Class to assign different key for long press
 ============================================================================*/
 class LongPress
 {
-	static timeout := 300 
+	static timeout := 400
+	static last_key := ""
 
 /*============================================================================
 	key: 		base key, not inclueds "{}"
@@ -166,7 +167,8 @@ class LongPress
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
-	{	
+	{
+;		Critical
 		if this.pressed_time != 0 {
 			return
 		}
@@ -176,6 +178,7 @@ class LongPress
 			return 
 		}
 		this.pressed_time2 := 0
+		LongPress.last_key := this.key
 		SendInput("{Blind}" . "{" . this.key . "}")
 		if shift != 0 && ctrl ==0{
 			;SendEvent "{Blind}" . "{" . this.key . "}"
@@ -194,6 +197,7 @@ class LongPress
 
 	Down()
 	{
+		Critical
 		LayerKey.ChangeLayer(0)
 		this.DownImpl()
 	}
@@ -203,11 +207,13 @@ class LongPress
 		if this.pressed_time > 0{
 			time := A_TickCount - this.pressed_time
 			if time >= LongPress.timeout {
-				this.pressed_time2 := A_TickCount
-				;SendInput("{BackSpace}{Blind}" . this.long_key)
-				SendEvent("{BackSpace}") ;SendIput does not work
-				SendEvent( this.long_key)
-				Sleep(5)
+				if LongPress.last_key == this.key {
+					this.pressed_time2 := A_TickCount
+					;SendInput("{BackSpace}{Blind}" . this.long_key)
+					SendEvent("{BackSpace}") ;SendIput does not work
+					SendEvent( this.long_key)
+					Sleep(5)
+				}
 			}
 			this.pressed_time := 0
 		}
@@ -237,6 +243,7 @@ class LongPress2 extends LongPress
 	
 	Down(shift :=0, ctrl := 0)
 	{	
+		Critical
 		if LayerKey.idx = 1 && this.key1 != "" {
 			SendEvent(this.key1)
 			return
