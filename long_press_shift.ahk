@@ -1,13 +1,5 @@
 ﻿#Requires AutoHotkey v2.0
 
-;when using long_press mode, it its more stalbe to use "IMEv2.ahk"
-;If "IMEv2.ahk" is not used,
-;#Include "IMEv2.ahk" is comment out and IME_GET() function is enalbed.
-#Include "IMEv2.ahk"
-;IME_GET()  { 
-;	return 0 
-;}
-
 ;win #
 ;ctrl ^
 ;shift +
@@ -95,7 +87,7 @@ class LayerKey
 			LayerKey.idx := num
 			if LayerKey.idx = 0{
 				;TrayTip("Normal mode","",16)
-				ToolTip
+				ToolTip ;hides ToolTip
 			}else if LayerKey.idx = 1{
 				;TrayTip("10 key mode","",16)
 				ToolTip("10 key mode",A_ScreenWidth,A_ScreenHeight)
@@ -140,7 +132,7 @@ Class to assign different key for long press
 ============================================================================*/
 class LongPress
 {
-	static timeout := 400
+	static timeout := 300
 	static last_key := ""
 
 /*============================================================================
@@ -148,28 +140,27 @@ class LongPress
 	long_key: 	long pressed key, inclueds "{}"
 	kana 		True: related kana key, False: not related kana key
 ============================================================================*/
-	__New(key, long_key:="", kana:=False)
+	__New(key, long_key:="")
 	{
 		this.key := key
+		if SubStr(key,1,1) != "{" {
+			key := "{" . key . "}"
+		}
+		this.short_key_str := "{Blind}" .  key 
 		if long_key = ""{
-			this.long_key :=  "+{" . this.key . "}"
+			this.long_key_str :=  "+" . key
 		}else{
-			this.long_key := long_key
+			this.long_key_str := long_key
 		}
 		this.pressed_time := 0
 		this.pressed_time2 := 0
-		this.kana := kana
-	}
-
-	IsKana()
-	{
-		return this.kana && IME_GET()	
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
 ;		Critical
 		if this.pressed_time != 0 {
+			ToolTip "Debug Message: Pressed " . this.key
 			return
 		}
 		pressed_time := A_TickCount
@@ -179,20 +170,12 @@ class LongPress
 		}
 		this.pressed_time2 := 0
 		LongPress.last_key := this.key
-		SendInput("{Blind}" . "{" . this.key . "}")
+		SendInput(this.short_key_str)
 		if shift != 0 && ctrl ==0{
-			;SendEvent "{Blind}" . "{" . this.key . "}"
-			;SendInput("{Blind}" . "+{" . this.key . "}")
-			;SendInput("{Blind}" . "{" . this.key . "}")
+			;this.pressed_time := 0 ; already set
 			return
 		}
-		;else{
-		;	SendInput("{Blind}" . "{" . this.key . "}")
-		;}	
-		if this.IsKana(){
-			return
-		}
-		this.pressed_time :=  A_TickCount
+		this.pressed_time :=  A_TickCount ;If this.pressed_time is 0, Up() does nothing
 	}
 
 	Down()
@@ -205,13 +188,13 @@ class LongPress
 	Up()
 	{
 		if this.pressed_time > 0{
-			time := A_TickCount - this.pressed_time
-			if time >= LongPress.timeout {
+			duration := A_TickCount - this.pressed_time
+			if duration >= LongPress.timeout {
 				if LongPress.last_key == this.key {
 					this.pressed_time2 := A_TickCount
 					;SendInput("{BackSpace}{Blind}" . this.long_key)
 					SendEvent("{BackSpace}") ;SendIput does not work
-					SendEvent( this.long_key)
+					SendEvent( this.long_key_str)
 					Sleep(5)
 				}
 			}
@@ -233,14 +216,23 @@ class LongPress2 extends LongPress
 	key1: 		key mode1 is locked 
 	key2: 		key mode2 is locked
 ===========================================================================*/
-	__New(key, long_key:="", kana:=False,  key1 := "", key2 := "")
+	__New(key, long_key:="", key1 := "", key2 := "")
 	{
-		super.__New(key, long_key, kana)
+		super.__New(key, long_key)
 		this.key1 := key1
 		this.key2 := key2
 	}
-
 	
+/*============================================================================
+	Defines shift/ctrl combination if they are used
+	ex)
+	x := LongPress2("x")
+	x::x.Down()
+	x up ::x.Down()
+	+x::x.Down()
+	^x::x.Down(0,1)
+	+^x::x.Down(1,1)
+===========================================================================*/
 	Down(shift :=0, ctrl := 0)
 	{	
 		Critical
@@ -272,9 +264,14 @@ Class to ignore long press for modifier
 class ModKey
 {
 	static timeout := 300
+
+/*============================================================================
+	key not inclue "{}"
+============================================================================*/
 	__New(key)
 	{
 		this.key := key
+		this.key_str := "{" . key . "}"
 		this.pressed_time := 0
 		this.mod_str := ""
 	}
@@ -316,7 +313,7 @@ class ModKey
 	Up()
 	{
 		if (A_TickCount - this.pressed_time < ModKey.timeout) {
-			SendInput("{Blind}" . this.mod_str . "{" . this.key . "}")
+			SendInput("{Blind}" . this.mod_str . this.key_str)
 		}
 		this.pressed_time := 0
 		return
@@ -327,56 +324,56 @@ space := ModKey("Space")
 f14 := ModKey("sc029")
 ;conv := ModKey("sc029")
 
-k1 := LongPress("1","+1")
-k2 := LongPress("2","+2")
-k3 := LongPress("3","+3")
-k4 := LongPress("4","+4")
-k5 := LongPress("5","+5")
-k6 := LongPress("6","+6")
-k7 := LongPress2("7","+7",False,"7")
-k8 := LongPress2("8","+8",False,"8")
-k9 := LongPress2("9","+9",False,"9")
-minus := LongPress2("-","+-",False,"-")							
-hat := LongPress2("^","+{sc00D}",False,"^")
-backslash := LongPress2("\","+\",False,"\")
+k1 := LongPress("1")
+k2 := LongPress("2")
+k3 := LongPress("3")
+k4 := LongPress("4")
+k5 := LongPress("5")
+k6 := LongPress("6")
+k7 := LongPress2("7","","7")
+k8 := LongPress2("8","","8")
+k9 := LongPress2("9","","9")
+minus := LongPress2("-","","-")							
+hat := LongPress2("{sc00D}","+{sc00D}","^")
+backslash := LongPress2("\","","\")
 
-q := LongPress("q","+q")
-w := LongPress("w","+w",True)
-e := LongPress("e","+e",True)
-r := LongPress("r","+r",True)
-t := LongPress("t","+t",True)
-y := LongPress2("y","+y",True,"{Delete}")
-u := LongPress2("u","+u",True,"4","MouseLClick")
-i := LongPress2("i","+i",True,"5","MouseUp")
-o := LongPress2("o","+o",True,"6","MouseRClick")
-p := LongPress2("p","+p",True,"{Backspace}")
-at := LongPress2("@","+@",False,"{Enter}")
-openbracket := LongPress2("[","+[",False,"+8")
+q := LongPress("q")
+w := LongPress("w")
+e := LongPress("e")
+r := LongPress("r")
+t := LongPress("t")
+y := LongPress2("y","","{Delete}")
+u := LongPress2("u","","4","MouseLClick")
+i := LongPress2("i","","5","MouseUp")
+o := LongPress2("o","","6","MouseRClick")
+p := LongPress2("p","","{Backspace}")
+at := LongPress2("@","","{Enter}")
+openbracket := LongPress2("[","","+8")
 
-a := LongPress("a","+a",True)
-s := LongPress("s","+s",True)
-d := LongPress("d","+d",True)
-f := LongPress("f","+f",True)
-g := LongPress("g","+g",True)
-h := LongPress2("h","+h",True,"{Backspace}","MouseWheelUp")
-j := LongPress2("j","+j",True,"1","MouseLeft")
-k := LongPress2("k","+k",True,"2","MouseDown")
-l := LongPress2("l","+l",True,"3","MouseRight")
-semicolon := LongPress2("sc027","+{sc027}",False,"+{sc027}")
-colon := LongPress2("sc028","+{sc028}",False,"+{sc028}")
-closebracket := LongPress2("]","+]",False,"+9")
+a := LongPress("a")
+s := LongPress("s")
+d := LongPress("d")
+f := LongPress("f")
+g := LongPress("g")
+h := LongPress2("h","","{Backspace}","MouseWheelUp")
+j := LongPress2("j","","1","MouseLeft")
+k := LongPress2("k","","2","MouseDown")
+l := LongPress2("l","","3","MouseRight")
+semicolon := LongPress2("sc027","","+{sc027}")
+colon := LongPress2("sc028","","+{sc028}")
+closebracket := LongPress2("]","","+9")
 
-z := LongPress("z","+z",True)
-x := LongPress("x","+x",True)
-c := LongPress("c","+c",True)
-v := LongPress("v","+v",True)
-b := LongPress("b","+b",True)
-n := LongPress2("n","+n",True,"","MouseWheelDown")
-m := LongPress2("m","+m",True,"0","MouseBack")
-comma := LongPress2("sc033","+{sc033}",False,"{sc033}")
-perid := LongPress2(".","+.",False,"")
-slash := LongPress2("/","+/",False,"/")
-backslash2 := LongPress2("sc073","+{sc073}",False,"+{sc073}")
+z := LongPress("z")
+x := LongPress("x")
+c := LongPress("c")
+v := LongPress("v")
+b := LongPress("b")
+n := LongPress2("n","","","MouseWheelDown")
+m := LongPress2("m","","0","MouseBack")
+comma := LongPress2("sc033","","{sc033}")
+perid := LongPress2(".","","")
+slash := LongPress2("/","","/")
+backslash2 := LongPress2("sc073","","+{sc073}")
 
 up := LayerKey("up","","MouseWheelUp")
 down  := LayerKey("down","","MouseWheelDown")
@@ -522,18 +519,31 @@ c::^c
 v::^v
 b::^z
 
-*1::Send("{Blind}^{F1}")
-*2::Send("{Blind}^{F2}")
-*3::Send("{Blind}^{F3}")
-*4::Send("{Blind}^{F4}")
-*5::Send("{Blind}^{F5}")
-*6::Send("{Blind}^{F6}")
-*7::Send("{Blind}^{F7}")
-*8::Send("{Blind}^{F8}")
-*9::Send("{Blind}^{F9}")
-*0::Send("{Blind}^{F10}")
-*-::Send("{Blind}^{F11}")
-*^::Send("{Blind}^{F12}")
+; *1::Send("{Blind}^{F1}")
+; *2::Send("{Blind}^{F2}")
+; *3::Send("{Blind}^{F3}")
+; *4::Send("{Blind}^{F4}")
+; *5::Send("{Blind}^{F5}")
+; *6::Send("{Blind}^{F6}")
+; *7::Send("{Blind}^{F7}")
+; *8::Send("{Blind}^{F8}")
+; *9::Send("{Blind}^{F9}")
+; *0::Send("{Blind}^{F10}")
+; *-::Send("{Blind}^{F11}")
+; *^::Send("{Blind}^{F12}")
+
+*1::Send("{Blind}{F1}")
+*2::Send("{Blind}{F2}")
+*3::Send("{Blind}{F3}")
+*4::Send("{Blind}{F4}")
+*5::Send("{Blind}{F5}")
+*6::Send("{Blind}{F6}")
+*7::Send("{Blind}{F7}")
+*8::Send("{Blind}{F8}")
+*9::Send("{Blind}{F9}")
+*0::Send("{Blind}{F10}")
+*-::Send("{Blind}{F11}")
+*sc00D::Send("{Blind}{F12}") ;^
 
 ;vk1C::Send("{vkF3}") ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
 ;sc07B::Send("{sc029}") ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
