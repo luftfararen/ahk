@@ -1,5 +1,13 @@
 ﻿#Requires AutoHotkey v2.0
 
+;when using long_press mode, it its more stalbe to use "IMEv2.ahk"
+;If "IMEv2.ahk" is not used,
+;#Include "IMEv2.ahk" is comment out and IME_GET() function is enalbed.
+#Include "IMEv2.ahk"
+;IME_GET()  { 
+;	return 0 
+;}
+
 ;win #
 ;ctrl ^
 ;shift +
@@ -154,19 +162,29 @@ class LongPress
 		}
 		this.pressed_time := 0
 		this.pressed_time2 := 0
+		this.downed := False
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
 ;		Critical
-		if this.pressed_time != 0 {
-			TrayTip "Reset script due to too fast typing. : " . this.key
-			Reload
-			return
+ 		if IME_GET() {
+		  	SendInput(this.short_key_str)
+		  	this.pressed_time := 0
+		  	return
+ 		}
+		if this.pressed_time != 0 { ;DownImpl() is caled before finishing Up()
+			this.pressed_time := 0
+			TrayTip "Debug Message: typing is too fast. " . this.key
+			;return
+			Sleep(15)
 		}
+		;ToolTip
+		this.downed := True
 		pressed_time := A_TickCount
 		if this.pressed_time2 != 0 && pressed_time - this.pressed_time2 < 70{
 			this.pressed_time2 := 0 ;一回だけキャンセル
+			this.downed := False
 			return 
 		}
 		this.pressed_time2 := 0
@@ -174,20 +192,26 @@ class LongPress
 		SendInput(this.short_key_str)
 		if shift != 0 && ctrl ==0{
 			;this.pressed_time := 0 ; already set
+			this.downed := False
 			return
 		}
 		this.pressed_time :=  A_TickCount ;If this.pressed_time is 0, Up() does nothing
+		this.downed := False
 	}
 
 	Down()
 	{
-		Critical
+		;Critical
 		LayerKey.ChangeLayer(0)
 		this.DownImpl()
 	}
 
 	Up()
 	{
+		while this.downed {
+			TrayTip "Debug Message: up before end of down method"
+			Sleep(5)
+		}
 		if this.pressed_time > 0{
 			duration := A_TickCount - this.pressed_time
 			if duration >= LongPress.timeout {
@@ -196,11 +220,10 @@ class LongPress
 					;SendInput("{BackSpace}{Blind}" . this.long_key)
 					SendEvent("{BackSpace}") ;SendIput does not work
 					SendEvent( this.long_key_str)
-					Sleep(5)
 				}
 			}
-			this.pressed_time := 0
 		}
+		this.pressed_time := 0
 	}
 }
 
@@ -236,7 +259,7 @@ class LongPress2 extends LongPress
 ===========================================================================*/
 	Down(shift :=0, ctrl := 0)
 	{	
-		Critical
+		;Critical
 		if LayerKey.idx = 1 && this.key1 != "" {
 			SendEvent(this.key1)
 			return
