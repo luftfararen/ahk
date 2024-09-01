@@ -160,7 +160,8 @@ class LongPress
 	{
 ;		Critical
 		if this.pressed_time != 0 {
-			ToolTip "Debug Message: Pressed " . this.key
+			TrayTip "Reset script due to too fast typing. : " . this.key
+			Reload
 			return
 		}
 		pressed_time := A_TickCount
@@ -491,8 +492,8 @@ sc073::Send("_") ;vkE2sc073 = \ shift:_
 *n::SendDirKey("{End}")
 *i::SendDirKey("{Up}")
 *k::SendDirKey("{Down}")
-*m::SendDirKey("{Down}")
 *p::SendDirKey("{Down}")
+*m::Tab
 
 *[::Send("{Blind}{PgUp}")
 *]::Send("{Blind}{PgDn}")
@@ -500,16 +501,16 @@ sc073::Send("_") ;vkE2sc073 = \ shift:_
 *u::Send("{Blind}{BackSpace}")
 
 sc027::Send("{Enter}") ;semicolon
-sc028::^g ;vkBAsc028 = : shift:*
+sc028::^g ;vkBAsc028 = ":" shift:*
 @::Send("{Enter}")
 q::Esc
-e::^e
+e::+F3
 r::^r
 w::^w
 s::^s
 a::^a
 d::^d
-t::Tab
+*t::Tab
 g::^y
 f::^f
 z::^z
@@ -543,14 +544,14 @@ b::^z
 *9::Send("{Blind}{F9}")
 *0::Send("{Blind}{F10}")
 *-::Send("{Blind}{F11}")
-*sc00D::Send("{Blind}{F12}") ;^
+*sc00D::Send("{Blind}{F12}") ; sc00D = "^"
 
 ;vk1C::Send("{vkF3}") ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
 ;sc07B::Send("{sc029}") ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
 sc079::Send("{sc029}") ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
 F14::Send("{sc029}") ;vkF3sc029 = 全角/半角
 
-sc033::LayerKey.ChangeLayer(1)
+sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
 .::LayerKey.ChangeLayer(2)
 ;/:: Send "{Home}+{End}+{Down}"
 
