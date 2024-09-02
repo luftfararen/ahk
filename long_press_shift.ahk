@@ -161,42 +161,41 @@ class LongPress
 			this.long_key_str := long_key
 		}
 		this.pressed_time := 0
-		this.pressed_time2 := 0
-		this.downed := False
+		;this.pressed_time2 := 0
+		this.end_down := False
+		this.end_up := True
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
-;		Critical
- 		if IME_GET() {
-		  	SendInput(this.short_key_str)
-		  	this.pressed_time := 0
-		  	return
- 		}
-		if this.pressed_time != 0 { ;DownImpl() is caled before finishing Up()
-			this.pressed_time := 0
-			TrayTip "Debug Message: typing is too fast. " . this.key
-			;return
-			Sleep(15)
+		;Critical
+ 		; if IME_GET() {
+		;    	SendInput(this.short_key_str)
+		;    	this.pressed_time := 0
+		;    	return
+		; }
+		i := 20
+		while this.end_up = False && i>0{
+			Sleep(5)
+			i := i-1
 		}
-		;ToolTip
-		this.downed := True
-		pressed_time := A_TickCount
-		if this.pressed_time2 != 0 && pressed_time - this.pressed_time2 < 70{
-			this.pressed_time2 := 0 ;一回だけキャンセル
-			this.downed := False
-			return 
+
+		if this.end_up == False { ;いらない?
+			Tooltip "this.end_up == False"
+			return ;key repeat cancel
 		}
-		this.pressed_time2 := 0
+		this.end_down := False
+		;pressed_time := A_TickCount
+		;this.pressed_time2 := 0
 		LongPress.last_key := this.key
 		SendInput(this.short_key_str)
 		if shift != 0 && ctrl ==0{
-			;this.pressed_time := 0 ; already set
-			this.downed := False
+			;this.pressed_time := 0 ; already set if this.pressed_time = 0, does nothin in Up()
+			this.end_down := True
 			return
 		}
 		this.pressed_time :=  A_TickCount ;If this.pressed_time is 0, Up() does nothing
-		this.downed := False
+		this.end_down := True
 	}
 
 	Down()
@@ -208,9 +207,11 @@ class LongPress
 
 	Up()
 	{
-		while this.downed {
-			TrayTip "Debug Message: up before end of down method"
+		this.end_up := False
+		i := 20
+		while this.end_down = False && i>0 {
 			Sleep(5)
+			i := i - 1
 		}
 		if this.pressed_time > 0{
 			duration := A_TickCount - this.pressed_time
@@ -220,10 +221,13 @@ class LongPress
 					;SendInput("{BackSpace}{Blind}" . this.long_key)
 					SendEvent("{BackSpace}") ;SendIput does not work
 					SendEvent( this.long_key_str)
+				}else{
+					ToolTip "last key is different"
 				}
 			}
+			this.pressed_time := 0
 		}
-		this.pressed_time := 0
+		this.end_up := True
 	}
 }
 
