@@ -3,7 +3,7 @@
 ;when using long_press mode, it its more stalbe to use "IMEv2.ahk"
 ;If "IMEv2.ahk" is not used,
 ;#Include "IMEv2.ahk" is comment out and IME_GET() function is enalbed.
-#Include "IMEv2.ahk"
+;#Include "IMEv2.ahk"
 ;IME_GET()  { 
 ;	return 0 
 ;}
@@ -174,27 +174,28 @@ class LongPress
 		;    	this.pressed_time := 0
 		;    	return
 		; }
-		i := 20
+		i := LongPress.timeout / 5
 		while this.end_up = False && i>0{
 			Sleep(5)
 			i := i-1
 		}
-
-		if this.end_up == False { ;いらない?
-			Tooltip "this.end_up == False"
-			return ;key repeat cancel
+		if this.end_up = False { ;uncontral condition 
+			Traytip "this.end_up == False in DwonImpl()"
+			this.pressed_time := 0
+			this.end_down := True
+			this.end_up := True ;In next down, skip checking end_up
+			return ;
 		}
-		this.end_down := False
 		;pressed_time := A_TickCount
 		;this.pressed_time2 := 0
+		this.end_down := False
 		LongPress.last_key := this.key
 		SendInput(this.short_key_str)
 		if shift != 0 && ctrl ==0{
-			;this.pressed_time := 0 ; already set if this.pressed_time = 0, does nothin in Up()
-			this.end_down := True
-			return
+			this.pressed_time := 0 ; if this.pressed_time = 0, does nothin in Up()
+		}else{
+			this.pressed_time :=  A_TickCount ;If this.pressed_time is 0, Up() does nothing
 		}
-		this.pressed_time :=  A_TickCount ;If this.pressed_time is 0, Up() does nothing
 		this.end_down := True
 	}
 
@@ -207,22 +208,27 @@ class LongPress
 
 	Up()
 	{
-		this.end_up := False
-		i := 20
+		i := LongPress.timeout / 5
 		while this.end_down = False && i>0 {
 			Sleep(5)
 			i := i - 1
 		}
+		if this.end_down = False { ;uncontrol condition
+			Traytip "this.end_down = False in Up()"
+			this.pressed_time := 0
+			this.end_up := True
+			return
+		}
+		this.end_up := False
 		if this.pressed_time > 0{
 			duration := A_TickCount - this.pressed_time
 			if duration >= LongPress.timeout {
 				if LongPress.last_key == this.key {
 					this.pressed_time2 := A_TickCount
-					;SendInput("{BackSpace}{Blind}" . this.long_key)
 					SendEvent("{BackSpace}") ;SendIput does not work
 					SendEvent( this.long_key_str)
 				}else{
-					ToolTip "last key is different"
+					;ToolTip "last key is different"
 				}
 			}
 			this.pressed_time := 0
@@ -357,7 +363,7 @@ k2 := LongPress("2")
 k3 := LongPress("3")
 k4 := LongPress("4")
 k5 := LongPress("5")
-k6 := LongPress("6")
+k6 := LongPress2("6","","{Escape}")
 k7 := LongPress2("7","","7")
 k8 := LongPress2("8","","8")
 k9 := LongPress2("9","","9")
@@ -443,75 +449,35 @@ IsF14Pressed()
 SendDirKey(key)
 {
 	if IsSpaceAndF13Pressed(){
-		if GetKeyState("sc07B", "P"){
-			Send("{Blind}^+" . key)
-		}else{
-			Send("{Blind}^" . key)
-		}
+		Send("{Blind}^" . key)
 	}else{
-		if GetKeyState("sc07B", "P"){
-			Send("{Blind}+" . key)
-		}else{
-			Send("{Blind}" . key)
-		}
+		Send("{Blind}" . key)
 	}
 }
   
-;***代用シフト**************************************************************************
-#HotIf IsF14Pressed() != 0 && IsSpaceOrF13Pressed() = 0
-*1::Send("{Blind}{F1}")
-*2::Send("{Blind}{F2}")
-*3::Send("{Blind}{F3}")
-*4::Send("{Blind}{F4}")
-*5::Send("{Blind}{F5}")
-*6::Send("{Blind}{F6}")
-*7::Send("{Blind}{F7}")
-*8::Send("{Blind}{F8}")
-*9::Send("{Blind}{F9}")
-*0::Send("{Blind}{F10}")
-*-::Send("{Blind}{F11}")
-*sc00D::Send("{Blind}{F12}") ;^
+;*****************************************************************************
+#HotIf IsF14Pressed()
+i::+Up
+o::+Right
+p::+^Right
+a::^a
+h::+Home
+j::+Left 
+k::+Down
+l::+Right
+sc027::Enter ;vkBBsc027 = ; shift:+
+@::Enter
 
-;shift
-*q::Send("{Blind}+{F1}")
-*w::Send("{Blind}+{F2}")
-*e::Send("{Blind}+{F3}")
-*r::Send("{Blind}+{F4}")
-*t::Send("{Blind}+{F5}")
-*y::Send("{Blind}+{F6}")
-*u::Send("{Blind}+{F7}")
-*i::Send("{Blind}+{F8}")
-*o::Send("{Blind}+{F9}")
-*p::Send("{Blind}+{F10}")
-*@::Send("{Blind}+{F11}")
-*[::Send("{Blind}+{F12}")
+z::^z
+x::^x
+c::^c
+v::^v
+b::^z
+g::^y
+n::+End
+m::+^Left
 
-a::+1 ;!
-s::+2 ;""
-d::+3 ;# 
-f::+4 ;$
-g::+5 ;%
-h::+6 ;&
-j::+7 ;
-k::+8 ;(
-l::+9 ;) 
-
-sc027::Send("+;") ;vkBBsc027 = ; shift:+
-sc028::Send("+:") ;vkBAsc028 = : shift:*
-]::Send("}")
-z::[
-x::]
-c::Send("+[")
-v::Send("+]")
-b::Send("=") ;]
-n::Send("_")
-m::-
-sc033::Send("<") ;vkBCsc033 = ,
-.::Send(">") ;+. ;>
-/::Send("?") ;?
-sc073::Send("_") ;vkE2sc073 = \ shift:_
-;***F13 or Sace Modifier***************************************************************************
-#HotIf IsSpaceOrF13Pressed() 
+#HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0
 *j::SendDirKey("{Left}")
 *l::SendDirKey("{Right}")
 *o::SendDirKey("{Right}")
@@ -519,8 +485,8 @@ sc073::Send("_") ;vkE2sc073 = \ shift:_
 *n::SendDirKey("{End}")
 *i::SendDirKey("{Up}")
 *k::SendDirKey("{Down}")
-*p::SendDirKey("{Down}")
-*m::Tab
+*p::^Right
+*m::^Left
 
 *[::Send("{Blind}{PgUp}")
 *]::Send("{Blind}{PgDn}")
@@ -546,19 +512,6 @@ x::^x
 c::^c
 v::^v
 b::^z
-
-; *1::Send("{Blind}^{F1}")
-; *2::Send("{Blind}^{F2}")
-; *3::Send("{Blind}^{F3}")
-; *4::Send("{Blind}^{F4}")
-; *5::Send("{Blind}^{F5}")
-; *6::Send("{Blind}^{F6}")
-; *7::Send("{Blind}^{F7}")
-; *8::Send("{Blind}^{F8}")
-; *9::Send("{Blind}^{F9}")
-; *0::Send("{Blind}^{F10}")
-; *-::Send("{Blind}^{F11}")
-; *^::Send("{Blind}^{F12}")
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
