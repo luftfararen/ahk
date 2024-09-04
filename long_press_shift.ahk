@@ -466,7 +466,6 @@ j::+Left
 k::+Down
 l::+Right
 sc027::Enter ;vkBBsc027 = ; shift:+
-@::Enter
 
 z::^z
 x::^x
@@ -476,6 +475,11 @@ b::^z
 g::^y
 n::+End
 m::+^Left
+
+#HotIf WinActive("ahk_exe code.exe") && IsSpaceOrF13Pressed() && IsF14Pressed() = 0
+]::Send("^+{sc07D}")
+#HotIf WinActive("ahk_exe code.exe")
+^]::Send("^+{sc07D}")
 
 #HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0
 *j::SendDirKey("{Left}")
@@ -488,14 +492,16 @@ m::+^Left
 *p::^Right
 *m::^Left
 
-*[::Send("{Blind}{PgUp}")
-*]::Send("{Blind}{PgDn}")
+*@::Send("{Blind}{PgUp}")
+*[::Send("{Blind}{PgDn}")
+]::Send("^]")
+
 *y::Send("{Blind}{Delete}")
 *u::Send("{Blind}{BackSpace}")
 
 sc027::Send("{Enter}") ;semicolon
 sc028::^g ;vkBAsc028 = ":" shift:*
-@::Send("{Enter}")
+
 q::Esc
 e::+F3
 r::^r

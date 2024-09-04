@@ -53,9 +53,6 @@ image::img/f13.webp[]
 === (スペース and F13) 修飾
 image::img/space_f13.webp[]
 
-=== (Space or F13) and 無変換 修飾
-image::img/space_f13_noconv.webp[]
-
 === (F14 or 変換 or 無変換) 修飾
 image::img/hira.webp[]
 
