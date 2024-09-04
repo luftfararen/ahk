@@ -140,7 +140,8 @@ Class to assign different key for long press
 ============================================================================*/
 class LongPress
 {
-	static timeout := 300
+	static long_press_th := 300
+	static timeout := 1500
 	static last_key := ""
 
 /*============================================================================
@@ -180,10 +181,10 @@ class LongPress
 			i := i-1
 		}
 		if this.end_up = False { ;uncontral condition 
-			Traytip "this.end_up == False in DwonImpl()"
+			Traytip "this.end_up == False in DwonImpl() " . this.key
 			this.pressed_time := 0
 			this.end_down := True
-			this.end_up := True ;In next down, skip checking end_up
+			this.end_up := True ;In next down, skip checking "end_up"
 			return ;
 		}
 		;pressed_time := A_TickCount
@@ -208,13 +209,13 @@ class LongPress
 
 	Up()
 	{
-		i := LongPress.timeout / 5
+		i := 250
 		while this.end_down = False && i>0 {
 			Sleep(5)
 			i := i - 1
 		}
 		if this.end_down = False { ;uncontrol condition
-			Traytip "this.end_down = False in Up()"
+			Traytip "this.end_down = False in Up() " . this.key
 			this.pressed_time := 0
 			this.end_up := True
 			return
@@ -222,7 +223,7 @@ class LongPress
 		this.end_up := False
 		if this.pressed_time > 0{
 			duration := A_TickCount - this.pressed_time
-			if duration >= LongPress.timeout {
+			if duration >= LongPress.long_press_th {
 				if LongPress.last_key == this.key {
 					this.pressed_time2 := A_TickCount
 					SendEvent("{BackSpace}") ;SendIput does not work
@@ -381,7 +382,7 @@ u := LongPress2("u","","4","MouseLClick")
 i := LongPress2("i","","5","MouseUp")
 o := LongPress2("o","","6","MouseRClick")
 p := LongPress2("p","","{Backspace}")
-at := LongPress2("@","","{Enter}")
+at := LongPress2("@","","+{sc027}")
 openbracket := LongPress2("[","","+8")
 
 a := LongPress("a")
@@ -393,7 +394,7 @@ h := LongPress2("h","","{Backspace}","MouseWheelUp")
 j := LongPress2("j","","1","MouseLeft")
 k := LongPress2("k","","2","MouseDown")
 l := LongPress2("l","","3","MouseRight")
-semicolon := LongPress2("sc027","","+{sc027}")
+semicolon := LongPress2("sc027","","{Enter}")
 colon := LongPress2("sc028","","+{sc028}")
 closebracket := LongPress2("]","","+9")
 
@@ -407,7 +408,7 @@ m := LongPress2("m","","0","MouseBack")
 comma := LongPress2("sc033","","{sc033}")
 perid := LongPress2(".","","")
 slash := LongPress2("/","","/")
-backslash2 := LongPress2("sc073","","+{sc073}")
+backslash2 := LongPress("sc073")
 
 up := LayerKey("up","","MouseWheelUp")
 down  := LayerKey("down","","MouseWheelDown")
@@ -457,29 +458,39 @@ SendDirKey(key)
   
 ;*****************************************************************************
 #HotIf IsF14Pressed()
-i::+Up
-o::+Right
-p::+^Right
-a::^a
-h::+Home
-j::+Left 
-k::+Down
-l::+Right
+*i::Send("{Blind}+{Up}")
+*j::Send("{Blind}+{Left}")
+*k::Send("{Blind}+{Down}")
+*l::Send("{Blind}+{Right}")
+*o::Send("{Blind}+{Right}")
+*p::Send("{Blind}+^{Right}")
+*m::Send("{Blind}+^{Left}")
+*h::Send("{Blind}+{Home}")
+*n::Send("{Blind}+{End}")
 sc027::Enter ;vkBBsc027 = ; shift:+
+
+u::Backspace
+y::Delete
+
+q::^a
+a::^z
+s::^x
+d::^c
+f::^v
+g::^y
 
 z::^z
 x::^x
 c::^c
 v::^v
 b::^z
-g::^y
-n::+End
-m::+^Left
 
 #HotIf WinActive("ahk_exe code.exe") && IsSpaceOrF13Pressed() && IsF14Pressed() = 0
-]::Send("^+{sc07D}")
+]::Send("^+{sc07D}") ;sc07D = \; shift:|
+sc073::!Left ;sc073 = \; shift:_
+
 #HotIf WinActive("ahk_exe code.exe")
-^]::Send("^+{sc07D}")
+^]::Send("^+{sc07D}") ;sc07D = \; shift:|\
 
 #HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0
 *j::SendDirKey("{Left}")
@@ -489,8 +500,8 @@ m::+^Left
 *n::SendDirKey("{End}")
 *i::SendDirKey("{Up}")
 *k::SendDirKey("{Down}")
-*p::^Right
-*m::^Left
+*p::Send("{Blind}^{Right}")
+*m::Send("{Blind}^{Left}")
 
 *@::Send("{Blind}{PgUp}")
 *[::Send("{Blind}{PgDn}")
@@ -518,6 +529,7 @@ x::^x
 c::^c
 v::^v
 b::^z
+sc073::^-
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
@@ -550,7 +562,6 @@ sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
 #HotIf IsF13Pressed()
 Tab::Send("{sc03A}") ;vkF0sc03A = Eisu
 sc029::Send("{sc03A}") ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
-;Space::Send "{sc029}" ; vkF3sc029 = 全角/半角
 Esc::Reload
 
 ;***長押しシフト**************************************************************************

@@ -58,9 +58,13 @@ image::img/hira.webp[]
 
 === テンキー入力モード
 image::img/num.webp[]
+Esc,F13,Spaceでモード解除 +
+その他のキーの押下で、キー入力と同時のモード解除
 
 === キーマウスモード
 image::img/mouse.webp[]
+Esc,F13,Spaceでモード解除 +
+その他のキーの押下で、キー入力と同時のモード解除
 
 === その他
 * shift+↑: _
