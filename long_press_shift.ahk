@@ -441,7 +441,7 @@ SendDirKey(key)
 }
   
 ;*****************************************************************************
-#HotIf IsF14Pressed()
+#HotIf IsF14Pressed() ;|| IsSpaceAndF13Pressed()
 *i::Send("{Blind}+{Up}")
 *j::Send("{Blind}+{Left}")
 *k::Send("{Blind}+{Down}")
@@ -499,21 +499,25 @@ sc028::^g ;vkBAsc028 = ":" shift:*
 
 q::Esc
 e::+F3
-r::^r
 w::^w
 s::^s
 a::^a
 d::^d
-*t::Tab
-g::^y
-f::^f
-z::^z
-+z::^y
-x::^x
-c::^c
-v::^v
-b::^z
-sc073::^-
+
+r::^h ;replace
+t::^f ;find
+
+g::^y ;redo
+b::^z ;undo
+
+f::Tab
+
+z::^z ;undo
++z::^y ;redo
+x::^x ;cut
+c::^c ;copy
+v::^v ;paste
+sc073::^- ;vkE2sc073 = \ shift:_
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
