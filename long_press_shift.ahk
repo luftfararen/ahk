@@ -1,13 +1,5 @@
 ﻿#Requires AutoHotkey v2.0
 
-;when using long_press mode, it its more stalbe to use "IMEv2.ahk"
-;If "IMEv2.ahk" is not used,
-;#Include "IMEv2.ahk" is comment out and IME_GET() function is enalbed.
-;#Include "IMEv2.ahk"
-;IME_GET()  { 
-;	return 0 
-;}
-
 ;win #
 ;ctrl ^
 ;shift +
@@ -86,6 +78,9 @@ OperateMouse(cmd,shift,ctrl)
 	}
 }
 
+/*============================================================================
+Class to change layer
+============================================================================*/
 class LayerKey
 {
 	static idx := 0
@@ -94,13 +89,10 @@ class LayerKey
 		if LayerKey.idx != num{
 			LayerKey.idx := num
 			if LayerKey.idx = 0{
-				;TrayTip("Normal mode","",16)
 				ToolTip ;hides ToolTip
 			}else if LayerKey.idx = 1{
-				;TrayTip("10 key mode","",16)
 				ToolTip("10 key mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = 2{
-				;TrayTip("Mouse mode","",16)
 				ToolTip("Mouse mode",A_ScreenWidth,A_ScreenHeight)
 			}
 		}
@@ -162,33 +154,24 @@ class LongPress
 			this.long_key_str := long_key
 		}
 		this.pressed_time := 0
-		;this.pressed_time2 := 0
 		this.end_down := False
 		this.end_up := True
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
-		;Critical
- 		; if IME_GET() {
-		;    	SendInput(this.short_key_str)
-		;    	this.pressed_time := 0
-		;    	return
-		; }
 		i := LongPress.timeout / 5
 		while this.end_up = False && i>0{
 			Sleep(5)
 			i := i-1
 		}
 		if this.end_up = False { ;uncontral condition 
-			Traytip "this.end_up == False in DwonImpl() " . this.key
+			;Traytip "this.end_up == False in DwonImpl() " . this.key
 			this.pressed_time := 0
 			this.end_down := True
 			this.end_up := True ;In next down, skip checking "end_up"
 			return ;
 		}
-		;pressed_time := A_TickCount
-		;this.pressed_time2 := 0
 		this.end_down := False
 		LongPress.last_key := this.key
 		SendInput(this.short_key_str)
@@ -202,7 +185,6 @@ class LongPress
 
 	Down()
 	{
-		;Critical
 		LayerKey.ChangeLayer(0)
 		this.DownImpl()
 	}
@@ -215,7 +197,7 @@ class LongPress
 			i := i - 1
 		}
 		if this.end_down = False { ;uncontrol condition
-			Traytip "this.end_down = False in Up() " . this.key
+			;Traytip "this.end_down = False in Up() " . this.key
 			this.pressed_time := 0
 			this.end_up := True
 			return
@@ -356,8 +338,10 @@ class ModKey
 }
 
 space := ModKey("Space")
-f14 := ModKey("sc029")
-;conv := ModKey("sc029")
+
+;Prssing f14 shortly, sends sc029 
+f14   := ModKey("sc029") ;vkF3sc029 = 全角/半角
+;conv := ModKey("sc029") ;vkF3sc029 = 全角/半角
 
 k1 := LongPress("1")
 k2 := LongPress("2")
@@ -410,9 +394,9 @@ perid := LongPress2(".","","")
 slash := LongPress2("/","","/")
 backslash2 := LongPress("sc073")
 
-up := LayerKey("up","","MouseWheelUp")
+up    := LayerKey("up","","MouseWheelUp")
 down  := LayerKey("down","","MouseWheelDown")
-left := LayerKey("left","","MouseBack")
+left  := LayerKey("left","","MouseBack")
 right := LayerKey("right","","MouseNext")
 
 IsF13Pressed()
@@ -551,20 +535,19 @@ F14::Send("{sc029}") ;vkF3sc029 = 全角/半角
 
 sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
 .::LayerKey.ChangeLayer(2)
-;/:: Send "{Home}+{End}+{Down}"
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
 ;Space::Send "{Enter}"
 ;*k::Send "{Blind}{Right}"
 
-;***F13単独修飾**************************************************************************
+;***F13 Modifier**************************************************************************
 #HotIf IsF13Pressed()
 Tab::Send("{sc03A}") ;vkF0sc03A = Eisu
 sc029::Send("{sc03A}") ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 Esc::Reload
 
-;***長押しシフト**************************************************************************
+;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
 1::k1.Down()
 1 up::k1.Up()
@@ -684,7 +667,7 @@ right::right.Down()
 ;right up::right.Up()
 
 
-;***修飾長押し処理/他****************************************************************************
+;***ohter****************************************************************************
 #HotIf 
 *Space::{
 	LayerKey.ChangeLayer(0)
@@ -710,7 +693,7 @@ F13::{
 
 sc07B::Return ;vk1Dsc07B = 無変換
 
-NumLock::Return
+;NumLock::Return
 +F15::Send("{NumLock}")
 
 >+Up::_
