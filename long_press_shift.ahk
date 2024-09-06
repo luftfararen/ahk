@@ -20,6 +20,11 @@
 ;- ^ ¥ @ [ ] . /
 ;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn Esc Pause
 
+;キーボード/マウスフックが使用されている場合、物理的なキー/ボタンの状態によって判定される。
+;#InstallKeybdHookでフックを有効化。
+;フックを無効化の場合、論理的な状態で判定される。
+;このときSendコマンドで生成された操作にも反応。
+
 ;SingleInstkance Force
 ProcessSetPriority "Realtime"
 SendMode "Input"
@@ -133,7 +138,7 @@ Class to assign different key for long press
 class LongPress
 {
 	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
-	static timeout := 1500 ;if pressing for more this time, up process is cancel
+	;static timeout := 1500 ;if pressing for more this time, up process is cancel
 	static last_key := ""
 
 /*============================================================================
@@ -153,35 +158,29 @@ class LongPress
 		}else{
 			this.long_key_str := long_key
 		}
-		this.pressed_time := 0
-		this.end_down := False
-		this.end_up := True
+		this.send_time := 0
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
 		LongPress.last_key := this.key
-		i := LongPress.timeout / 5
-		while this.end_up = False && i>0{
-			Sleep(5)
-			i := i-1
+		pressed_time := A_TickCount
+		if pressed_time - this.send_time < LongPress.long_press_th  {
+		 	return
 		}
-		if i=0 { 
-			;Traytip "this.end_up == False in DwonImpl() " . this.key
-			;Since up process is cancel, valiables are set.
-			this.pressed_time := 0
-			this.end_down := True
-			this.end_up := True ;In next down, skip checking "end_up"
-			return ;
+		; Send(String(A_TickCount) . this.short_key_str . "; ") 
+		Send(this.short_key_str) 
+		KeyWait(this.key)
+		if A_TickCount - pressed_time >= LongPress.long_press_th {
+			if LongPress.last_key = this.key {
+				this.send_time := A_TickCount
+				Send("{BackSpace}" . this.long_key_str )
+				return
+			}else{
+				;ToolTip "last key is different"
+			}
 		}
-		this.end_down := False
-		SendInput(this.short_key_str)
-		if shift != 0 && ctrl ==0{
-			this.pressed_time := 0 ; if this.pressed_time = 0, does nothin in Up()
-		}else{
-			this.pressed_time :=  A_TickCount ;If this.pressed_time is 0, Up() does nothing
-		}
-		this.end_down := True
+		this.x:= 0
 	}
 
 	Down()
@@ -192,31 +191,6 @@ class LongPress
 
 	Up()
 	{
-		i := 100/5
-		while LongPress.last_key = this.key && this.end_down = False && i>0 {
-			Sleep(5)
-			i := i - 1
-		}
-		if i = 0 {
-			Traytip "this.end_down = False in Up() " . this.key
-			this.pressed_time := 0
-			this.end_up := True
-			return
-		}
-		this.end_up := False
-		if this.pressed_time > 0{
-			duration := A_TickCount - this.pressed_time
-			if duration >= LongPress.long_press_th {
-				if LongPress.last_key == this.key {
-					SendEvent("{BackSpace}") ;SendIput does not work
-					SendEvent( this.long_key_str)
-				}else{
-					;ToolTip "last key is different"
-				}
-			}
-			this.pressed_time := 0
-		}
-		this.end_up := True
 	}
 }
 
@@ -361,6 +335,7 @@ w := LongPress("w")
 e := LongPress("e")
 r := LongPress("r")
 t := LongPress("t")
+
 y := LongPress2("y","","{Delete}")
 u := LongPress2("u","","4","MouseLClick")
 i := LongPress2("i","","5","MouseUp")
@@ -374,6 +349,7 @@ s := LongPress("s")
 d := LongPress("d")
 f := LongPress("f")
 g := LongPress("g")
+
 h := LongPress2("h","","{Backspace}","MouseWheelUp")
 j := LongPress2("j","","1","MouseLeft")
 k := LongPress2("k","","2","MouseDown")
@@ -387,6 +363,7 @@ x := LongPress("x")
 c := LongPress("c")
 v := LongPress("v")
 b := LongPress("b")
+
 n := LongPress2("n","","","MouseWheelDown")
 m := LongPress2("m","","0","MouseBack")
 comma := LongPress2("sc033","","{sc033}")
@@ -554,122 +531,69 @@ Esc::Reload
 ;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
 1::k1.Down()
-1 up::k1.Up()
 2::k2.Down()
-2 up::k2.Up()
 3::k3.Down()
-3 up::k3.Up()
 4::k4.Down()
-4 up::k4.Up()
 5::k5.Down()
-5 up::k5.Up()
 6::k6.Down()
-6 up::k6.Up()
 7::k7.Down()
-7 up::k7.Up()
 8::k8.Down()
-8 up::k8.Up()
 9::k9.Down()
-9 up::k9.Up()
 -::minus.Down()
-- up::minus.Up()
 sc00D::hat.Down()
-sc00D up::hat.Up()
 sc07D::backslash.Down()
-sc07D up::backslash.Up()
 
 q::q.Down()
-q up::q.Up()
 w::w.Down()
-w up::w.Up()
 e::e.Down()
-e up::e.Up()
 r::r.Down()
-r up::r.Up()
 t::t.Down()
-t up::t.Up()
 y::y.Down()
-y up::y.Up()
 u::u.Down()
-u up::u.Up()
 i::i.Down()
 +i::i.Down(1)
 ^i::i.Down(0,1)
-i up::i.Up()
 o::o.Down()
-o up::o.Up()
 p::p.Down()
-p up::p.Up()
 @::at.Down()
-@ up::at.Up()
 [::openbracket.Down()
-[ up::openbracket.Up()
 
 a::a.Down()
-a up::a.Up()
 s::s.Down()
-s up::s.Up()
 d::d.Down()
-d up::d.Up()
 f::f.Down()
-f up::f.Up()
 g::g.Down()
-g up::g.Up()
 h::h.Down()
-h up::h.Up()
 j::j.Down()
 +j::j.Down(1)
 ^j::j.Down(0,1)
-j up::j.Up()
 k::k.Down()
 +k::k.Down(1)
 ^k::k.Down(0,1)
-k up::k.Up()
 l::l.Down()
 +l::l.Down(1,)
 ^l::l.Down(0,1)
-l up::l.Up()
 sc027::semicolon.Down()
-sc027 up::semicolon.Up()
 sc028::colon.Down()
-sc028 up::colon.Up()
 ]::closebracket.Down()
-] up::closebracket.Up()
 
 z::z.Down()
-z up::z.Up()
 x::x.Down()
-x up::x.Up()
 c::c.Down()
-c up::c.Up()
 v::v.Down()
-v up::v.Up()
 b::b.Down()
-b up::b.Up()
 n::n.Down()
-n up::n.Up()
 m::m.Down()
-m up::m.Up()
 sc033::comma.Down()
-sc033 up::comma.Up()
 .::perid.Down()
-. up::perid.Up()
 
 sc035::slash.Down()
-sc035 up::slash.Up()
-
 sc073::backslash2.Down()
-sc073 up::backslash2.Up()
 
 down::down.Down()
-;down up::down.Up()
 up::up.Down()
-;up up::up.Up()
 left::left.Down()
-;left up::left.Up()
 right::right.Down()
-;right up::right.Up()
-
 
 ;***ohter****************************************************************************
 #HotIf 
