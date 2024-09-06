@@ -410,15 +410,15 @@ IsF14Pressed()
 
 SendDirKey(key)
 {
-	if IsSpaceAndF13Pressed(){
-		Send("{Blind}^" . key)
-	}else{
+	; if IsSpaceAndF13Pressed(){
+	; 	Send("{Blind}^" . key)
+	; }else{
 		Send("{Blind}" . key)
-	}
+	; }
 }
   
 ;*****************************************************************************
-#HotIf IsF14Pressed() ;|| IsSpaceAndF13Pressed()
+#HotIf IsF14Pressed() || IsSpaceAndF13Pressed()
 *i::Send("{Blind}+{Up}")
 *j::Send("{Blind}+{Left}")
 *k::Send("{Blind}+{Down}")
@@ -453,7 +453,7 @@ sc073::!Left ;sc073 = \; shift:_
 #HotIf WinActive("ahk_exe code.exe")
 ^]::Send("^+{sc07D}") ;sc07D = \; shift:|\
 
-#HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0
+#HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0 && IsSpaceAndF13Pressed() = 0
 *j::SendDirKey("{Left}")
 *l::SendDirKey("{Right}")
 *o::SendDirKey("{Right}")
