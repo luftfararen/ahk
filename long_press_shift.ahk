@@ -8,7 +8,7 @@
 ;vk1Csc079 = Convert 変換
 ;vkE2sc073 = \ shift:_
 ;sc07D = \; shift:|
-;sc073 = \; shift:_
+;sc073 = \; shift:_		
 ;sc070 =^
 ;vkBBsc027 = ; shift:+
 ;vkBAsc028 = : shift:*
@@ -132,8 +132,8 @@ Class to assign different key for long press
 ============================================================================*/
 class LongPress
 {
-	static long_press_th := 300
-	static timeout := 1500
+	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
+	static timeout := 1500 ;if pressing for more this time, up process is cancel
 	static last_key := ""
 
 /*============================================================================
@@ -160,20 +160,21 @@ class LongPress
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
+		LongPress.last_key := this.key
 		i := LongPress.timeout / 5
 		while this.end_up = False && i>0{
 			Sleep(5)
 			i := i-1
 		}
-		if this.end_up = False { ;uncontral condition 
+		if i=0 { 
 			;Traytip "this.end_up == False in DwonImpl() " . this.key
+			;Since up process is cancel, valiables are set.
 			this.pressed_time := 0
 			this.end_down := True
 			this.end_up := True ;In next down, skip checking "end_up"
 			return ;
 		}
 		this.end_down := False
-		LongPress.last_key := this.key
 		SendInput(this.short_key_str)
 		if shift != 0 && ctrl ==0{
 			this.pressed_time := 0 ; if this.pressed_time = 0, does nothin in Up()
@@ -191,13 +192,13 @@ class LongPress
 
 	Up()
 	{
-		i := 250
-		while this.end_down = False && i>0 {
+		i := 100/5
+		while LongPress.last_key = this.key && this.end_down = False && i>0 {
 			Sleep(5)
 			i := i - 1
 		}
-		if this.end_down = False { ;uncontrol condition
-			;Traytip "this.end_down = False in Up() " . this.key
+		if i = 0 {
+			Traytip "this.end_down = False in Up() " . this.key
 			this.pressed_time := 0
 			this.end_up := True
 			return
@@ -207,7 +208,6 @@ class LongPress
 			duration := A_TickCount - this.pressed_time
 			if duration >= LongPress.long_press_th {
 				if LongPress.last_key == this.key {
-					this.pressed_time2 := A_TickCount
 					SendEvent("{BackSpace}") ;SendIput does not work
 					SendEvent( this.long_key_str)
 				}else{
