@@ -161,20 +161,24 @@ class LayerKey
 }
 
 /*============================================================================
-Class to assign different key for long press
+Class to assign key for short and long press
 ============================================================================*/
-class LongPress
+class KeyReplacer
 {
 	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
 	static last_key := ""
 
 /*============================================================================
-	key: 		base key, not inclueds "{}", key should be same as assign key to down()
-	long_key: 	long pressed key, inclueds "{}"
+	org_key:	org key, not inclueds "{}"
+	key: 		replaced key, not inclueds "{}", if ommitted, org_key is assigned
+	long_key: 	long pressed key, if ommitted, key whith shift is assigned.
 ============================================================================*/
-	__New(key, long_key:="")
+	__New(org_key, key:="", long_key:="")
 	{
-		this.key := key
+		this.org_key := org_key
+		if key = ""  {
+			key := org_key
+		}
 		if SubStr(key,1,1) != "{" {
 			key := "{" . key . "}"
 		}
@@ -189,16 +193,16 @@ class LongPress
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
-		LongPress.last_key := this.key
+		KeyReplacer.last_key := this.org_key
 		pressed_time := A_TickCount
-		if pressed_time - this.send_time < LongPress.long_press_th  {
+		if pressed_time - this.send_time < KeyReplacer.long_press_th  {
 		 	return
 		}
 		; Send(String(A_TickCount) . this.short_key_str . "; ") 
 		Send(this.short_key_str) 
-		KeyWait(this.key)
-		if A_TickCount - pressed_time >= LongPress.long_press_th {
-			if LongPress.last_key = this.key {
+		KeyWait(this.org_key)
+		if A_TickCount - pressed_time >= KeyReplacer.long_press_th {
+			if KeyReplacer.last_key = this.org_key {
 				this.send_time := A_TickCount
 				Send("{BackSpace}" . this.long_key_str )
 				return
@@ -220,37 +224,40 @@ class LongPress
 }
 
 /*============================================================================
-Class to assign different key for long press with layer change
+Class to assign key for shirt and long press with layer change
 ============================================================================*/
-class LongPressL extends LongPress 
+class KeyReplacerL extends KeyReplacer 
 {
 
 /*============================================================================
-	key: 		base key, not inclueds "{}", key should be same as assign key to down()
-	long_key: 	long pressed key, inclueds "{}"
+	org_key:	org key, not inclueds "{}"
+	key: 		replaced key, not inclueds "{}", if ommitted, org_key is assigned
+	long_key: 	long pressed key, if ommitted, key whith shift is assigned.
 	key1: 		key for mode1 
 	key2: 		key for mode2
 ===========================================================================*/
-	__New(key, long_key:="", key1 := "", key2 := "")
+	__New(org_key,key:="", long_key:="", key1 := "", key2 := "")
 	{
-		super.__New(key, long_key)
+		super.__New(org_key,key, long_key)
 		this.key1 := key1
 		this.key2 := key2
 	}
 	
 /*============================================================================
-	Assign key down to the key as same as registered.  
 	Defines shift/ctrl combination if they are used
 	ex)
-	x := LongPressL("x")
+	x := KeyReplacerL("x")
 	x::x.Down()
 	x up ::x.Down()
 	+x::x.Down()
 	^x::x.Down(0,1)
 	+^x::x.Down(1,1)
 ===========================================================================*/
-	Down(shift :=0, ctrl := 0)
+	Down()
 	{	
+		shift := GetKeyState("shift","P")
+		ctrl := GetKeyState("ctrl","P")
+
 		;Critical
 		if LayerKey.idx = 1 && this.key1 != "" {
 			SendEvent(this.key1)
@@ -260,7 +267,7 @@ class LongPressL extends LongPress
 			OperateMouse(this.key2,shift,ctrl)
 			return
 		}
-		super.DownImpl()
+		super.DownImpl(shift,ctrl)
 	}
 
 }
@@ -332,68 +339,76 @@ class ModKey
 
 space := ModKey("Space")
 
-;Prssing f14 shortly, sends sc029 
-f14   := ModKey("sc029") ;vkF3sc029 = 全角/半角
-;conv := ModKey("sc029") ;vkF3sc029 = 全角/半角
+;Pressing f14 shortly, sends sc029 
+f14   := ModKey("Space") ;vkF3sc029 = 全角/半角
+conv := ModKey("Space") ;vkF3sc029 = 全角/半角
 
-k1 := LongPress("1")
-k2 := LongPress("2")
-k3 := LongPress("3")
-k4 := LongPress("4")
-k5 := LongPress("5")
-k6 := LongPressL("6","","{Escape}")
-k7 := LongPressL("7","","7")
-k8 := LongPressL("8","","8")
-k9 := LongPressL("9","","9")
-minus := LongPressL("-","","-")
-hat := LongPressL(S_HAT)
-backslash := LongPressL("\")
+k1 := KeyReplacer("1")
+k2 := KeyReplacer("2")
+k3 := KeyReplacer("3")
+k4 := KeyReplacer("4")
+k5 := KeyReplacer("5")
+k6 := KeyReplacerL("6","","","{Escape}")
+k7 := KeyReplacerL("7","","","7")
+k8 := KeyReplacerL("8","","","8")
+k9 := KeyReplacerL("9","","","9")
+minus := KeyReplacerL("-","","","-")							
+hat := KeyReplacerL(S_HAT)
+backslash := KeyReplacerL("\")
 ;
-q := LongPress("q")
-w := LongPress("w")
-e := LongPress("e")
-r := LongPress("r")
-t := LongPress("t")
+q := KeyReplacer("q")
+w := KeyReplacer("w")
+e := KeyReplacer("e")
+r := KeyReplacer("r")
+t := KeyReplacer("t")
 ;
-y := LongPressL("y","","{Delete}")
-u := LongPressL("u","","4","MouseLClick")
-i := LongPressL("i","","5","MouseUp")
-o := LongPressL("o","","6","MouseRClick")
-p := LongPressL("p","","{Backspace}")
-at := LongPressL("@","",C_PLUS)
-openbracket := LongPressL("[","","+8")
+y := KeyReplacerL("y","@","","{Delete}")
+u := KeyReplacerL("u","[","","4")
+i := KeyReplacerL("i","y","","5")
+o := KeyReplacerL("o","u","","6","MouseLClick")
+p := KeyReplacerL("p","i","","{Backspace}","MouseUp")
+at := KeyReplacerL("@","o","", C_PLUS,"MouseRClick")  
+openbracket := KeyReplacerL("[","p","","+8")
 ;
-a := LongPress("a")
-s := LongPress("s")
-d := LongPress("d")
-f := LongPress("f")
-g := LongPress("g")
+a := KeyReplacer("a")
+s := KeyReplacer("s")
+d := KeyReplacer("d")
+f := KeyReplacer("f")
+g := KeyReplacer("g")
 ;
-h := LongPressL("h","","{Backspace}","MouseWheelUp")
-j := LongPressL("j","","1","MouseLeft")
-k := LongPressL("k","","2","MouseDown")
-l := LongPressL("l","","3","MouseRight")
-semicolon := LongPressL(S_SEMICOLON,"","{Enter}")
-colon := LongPressL(S_COLON,"",C_ASTERISK)
-closebracket := LongPressL("]","","+9")
+h := KeyReplacerL("h",":","","{Backspace}")
+j := KeyReplacerL("j","]","","1")
+k := KeyReplacerL("k","h","","2","MouseWheelUp")
+l := KeyReplacerL("l","j","","3","MouseLeft")
+semicolon := KeyReplacerL(S_SEMICOLON,"k","","{Enter}","MouseDown")	
+colon := KeyReplacerL(S_COLON,"l","",C_ASTERISK,"MouseRight")
+closebracket := KeyReplacerL("]",S_SEMICOLON,"","+9") ;sc027 = ;
 ;
-z := LongPress("z")
-x := LongPress("x")
-c := LongPress("c")
-v := LongPress("v")
-b := LongPress("b")
+z := KeyReplacer("z")
+x := KeyReplacer("x")
+c := KeyReplacer("c")
+v := KeyReplacer("v")
+b := KeyReplacer("b")
 ;
-n := LongPressL("n","","","MouseWheelDown")
-m := LongPressL("m","","0","MouseBack")
-comma := LongPressL(S_COMMA,"",C_COMMA)
-perid := LongPressL(".","","")
-slash := LongPressL("/","","/")
-backslash2 := LongPress(S_BACKSLASH2)
+n := KeyReplacer("n","/","")
+m := KeyReplacerL("m",S_BACKSLASH2,"","0","MouseBack") ;vkE2sc073 = \ shift:_
+comma := KeyReplacerL(S_COMMA,"n","",C_COMMA,"MouseWheelDown") 
+perid := KeyReplacerL(".","m","","")
+slash := KeyReplacerL("/",S_COMMA,"","/") 
+backslash2 := KeyReplacer(S_BACKSLASH2,".")
 ;
 up    := LayerKey("up","","MouseWheelUp")
 down  := LayerKey("down","","MouseWheelDown")
 left  := LayerKey("left","","MouseBack")
 right := LayerKey("right","","MouseNext")
+
+
+IsSpacePressed()
+{
+;vk1Csc079 = Convert 変換
+;vkF2sc070 = Hiragana(ひらがな/カタカナ) F14
+	return space.IsPressed() || conv.IsPressed() || f14.IsPressed()
+}
 
 IsF13Pressed()
 {
@@ -402,13 +417,13 @@ IsF13Pressed()
 
 IsSpaceOrF13Pressed()
 {
-	return space.IsPressed() || GetKeyState("F13","P")
+	return IsSpacePressed() || GetKeyState("F13","P")
 }
 
 IsSpaceAndF13Pressed()
 {
 	f13_pressed := GetKeyState("F13","P") 
-	if space.IsPressed() && f13_pressed{
+	if IsSpacePressed() && f13_pressed{
 		return 1
 	}
 	/*
@@ -425,7 +440,7 @@ IsSpaceAndF13Pressed()
 IsF14Pressed()
 {
 	;vk1Dsc07B = NoConvert 無変換
-	return GetKeyState("F14", "P") || GetKeyState("sc079", "P") || GetKeyState(S_NOCONV, "P")
+	return GetKeyState(S_NOCONV, "P")
 }
 
 SendDirKey(key)
@@ -439,19 +454,25 @@ SendDirKey(key)
   
 ;*****************************************************************************
 #HotIf IsF14Pressed() || IsSpaceAndF13Pressed()
-*i::Send("{Blind}+{Up}")
-*j::Send("{Blind}+{Left}")
-*k::Send("{Blind}+{Down}")
-*l::Send("{Blind}+{Right}")
-*o::Send("{Blind}+{Right}")
-*p::Send("{Blind}+^{Right}")
-*m::Send("{Blind}+^{Left}")
-*h::Send("{Blind}+{Home}")
-*n::Send("{Blind}+{End}")
-sc027::Enter ;vkBBsc027 = ; shift:+
+*l::Send("{Blind}+{Left}")
+*sc028::Send("{Blind}+{Right}") ;vkBAsc028 = : shift:*
+*@::Send("{Blind}+{Right}")
+*k::Send("{Blind}+{Home}")
+*sc033::Send("{Blind}+{End}") ;sc033 = ,
+*p::Send("{Blind}+{Up}")
+*sc027::Send("{Blind}+{Down}") ;vkBBsc027 = ; shift:+
+*[::Send("{Blind}^+{Right}")
+*.::Send("{Blind}^+{Left}")
 
-@::Send("^{Home}")
-[::Send("^{End}")
+;u::Send("{Blind}{PgUp}")
+;j::Send("{Blind}{PgDn}")
+;;]::Send("^]")
+
+*i::Send("{Blind}{Delete}")
+*o::Send("{Blind}{BackSpace}")
+
+]::Send("{Enter}") ;
+;sc028::^g ;vkBAsc028 = ":" shift:*
 
 u::Backspace
 y::Delete
@@ -470,32 +491,32 @@ v::^v
 b::^z
 
 #HotIf WinActive("ahk_exe code.exe") && IsSpaceOrF13Pressed() && IsF14Pressed() = 0
-]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|
+;]::Send("^+" . C_BACKSLASH) ;sc07D = \; shihft:|
 sc073::!Left ;sc073 = \; shift:_
 
 #HotIf WinActive("ahk_exe code.exe")
-^]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|\
+;^]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|\
 
 #HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0 && IsSpaceAndF13Pressed() = 0
-*j::SendDirKey("{Left}")
-*l::SendDirKey("{Right}")
-*o::SendDirKey("{Right}")
-*h::SendDirKey("{Home}")
-*n::SendDirKey("{End}")
-*i::SendDirKey("{Up}")
-*k::SendDirKey("{Down}")
-*p::Send("{Blind}^{Right}")
-*m::Send("{Blind}^{Left}")
+*l::SendDirKey("{Left}")
+*sc028::SendDirKey("{Right}") ;vkBAsc028 = : shift:*
+*@::SendDirKey("{Right}")
+*k::SendDirKey("{Home}")
+*sc033::SendDirKey("{End}") ;sc033 = ,
+*p::SendDirKey("{Up}")
+*sc027::SendDirKey("{Down}") ;vkBBsc027 = ; shift:+
+*[::Send("{Blind}^{Right}")
+*.::Send("{Blind}^{Left}")
 
-*@::Send("{Blind}{PgUp}")
-*[::Send("{Blind}{PgDn}")
-]::Send("^]")
+u::Send("{Blind}{PgUp}")
+j::Send("{Blind}{PgDn}")
+;]::Send("^]")
 
-*y::Send("{Blind}{Delete}")
-*u::Send("{Blind}{BackSpace}")
+*i::Send("{Blind}{Delete}")
+*o::Send("{Blind}{BackSpace}")
 
-sc027::Send("{Enter}") ;semicolon
-sc028::^g ;vkBAsc028 = ":" shift:*
+]::Send("{Enter}") ;
+;sc028::^g ;vkBAsc028 = ":" shift:*
 
 q::Esc
 e::+F3
@@ -517,7 +538,7 @@ z::^z ;undo
 x::^x ;cut
 c::^c ;copy
 v::^v ;paste
-sc073::^- ;vkE2sc073 = \ shift:_
+;sc073::^- ;vkE2sc073 = \ shift:_
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
@@ -534,11 +555,11 @@ sc073::^- ;vkE2sc073 = \ shift:_
 
 ;vk1C::Send("{vkF3}") ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
 ;sc07B::Send("{sc029}") ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
-sc079::Send(C_ZENKAKU) ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
-F14::Send(C_ZENKAKU) ;vkF3sc029 = 全角/半角
+sc079::Send(S_ZENKAKU) ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
+F14::Send(S_ZENKAKU) ;vkF3sc029 = 全角/半角
 
-sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
-.::LayerKey.ChangeLayer(2)
+sc035::LayerKey.ChangeLayer(1) ;sc033 = ","
+sc073::LayerKey.ChangeLayer(2) ;sc073 = \; shift:_		
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
@@ -553,65 +574,57 @@ Esc::Reload
 
 ;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
-1::k1.Down()
-2::k2.Down()
-3::k3.Down()
-4::k4.Down()
-5::k5.Down()
-6::k6.Down()
-7::k7.Down()
-8::k8.Down()
-9::k9.Down()
--::minus.Down()
-sc00D::hat.Down()
-sc07D::backslash.Down()
+*1::k1.Down()
+*2::k2.Down()
+*3::k3.Down()
+*4::k4.Down()
+*5::k5.Down()
+*6::k6.Down()
+*7::k7.Down()
+*8::k8.Down()
+*9::k9.Down()
+*-::minus.Down()
+*sc00D::hat.Down()
+*sc07D::backslash.Down()
 ;
-q::q.Down()
-w::w.Down()
-e::e.Down()
-r::r.Down()
-t::t.Down()
-y::y.Down()
-u::u.Down()
-i::i.Down()
-+i::i.Down(1)
-^i::i.Down(0,1)
-o::o.Down()
-p::p.Down()
-@::at.Down()
-[::openbracket.Down()
+*q::q.Down()
+*w::w.Down()
+*e::e.Down()
+*r::r.Down()
+*t::t.Down()
+*y::y.Down()
+*u::u.Down()
+*i::i.Down()
+*o::o.Down()
+*p::p.Down()
+*@::at.Down()
+*[::openbracket.Down()
 ;
-a::a.Down()
-s::s.Down()
-d::d.Down()
-f::f.Down()
-g::g.Down()
-h::h.Down()
-j::j.Down()
-+j::j.Down(1)
-^j::j.Down(0,1)
-k::k.Down()
-+k::k.Down(1)
-^k::k.Down(0,1)
-l::l.Down()
-+l::l.Down(1,)
-^l::l.Down(0,1)
-sc027::semicolon.Down()
-sc028::colon.Down()
-]::closebracket.Down()
+*a::a.Down()
+*s::s.Down()
+*d::d.Down()
+*f::f.Down()
+*g::g.Down()
+*h::h.Down()
+*j::j.Down()
+*k::k.Down()
+*l::l.Down()
+*sc027::semicolon.Down()
+*sc028::colon.Down()
+*]::closebracket.Down()
 ;
-z::z.Down()
-x::x.Down()
-c::c.Down()
-v::v.Down()
-b::b.Down()
-n::n.Down()
-m::m.Down()
-sc033::comma.Down()
-.::perid.Down()
+*z::z.Down()
+*x::x.Down()
+*c::c.Down()
+*v::v.Down()
+*b::b.Down()
+*n::n.Down()
+*m::m.Down()
+*sc033::comma.Down()
+*.::perid.Down()
 
-sc035::slash.Down()
-sc073::backslash2.Down()
+*sc035::slash.Down()
+*sc073::backslash2.Down()
 ;
 down::down.Down()
 up::up.Down()
