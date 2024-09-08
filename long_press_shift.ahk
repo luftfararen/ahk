@@ -333,7 +333,7 @@ class ModKey
 space := ModKey("Space")
 
 ;Prssing f14 shortly, sends sc029 
-f14   := ModKey("sc029") ;vkF3sc029 = 全角/半角
+f14   := ModKey("BackSpace") ;vkF3sc029 = 全角/半角
 ;conv := ModKey("sc029") ;vkF3sc029 = 全角/半角
 
 k1 := LongPress("1")
@@ -637,10 +637,16 @@ F13::{
 }
 
 *F14:: f14.Down()
-*F14 up:: f14.Up()
-
 *sc079:: f14.Down()
-*sc079 up:: f14.Up()
+
+*sc079 up:: 
+*F14 up::{
+	if IsSpaceOrF13Pressed(){
+		Send(C_ZENKAKU)
+	}else{
+	 	f14.Up()
+	}
+}
 
 sc07B::Return ;vk1Dsc07B = 無変換
 
