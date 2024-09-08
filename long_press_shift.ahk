@@ -328,6 +328,11 @@ class ModKey
 		this.pressed_time := 0
 		return
 	} 
+
+	Reset()
+	{
+		this.pressed_time := 0
+	}
 }
 
 space := ModKey("Space")
@@ -625,7 +630,14 @@ right::right.Down()
 	space.Down()
 }
 
-*Space up:: space.Up()
+*Space up::{
+	if IsF13Pressed(){
+		space.Reset()
+		Send("{BackSpace}")
+	}else{
+		space.Up()
+	}
+}
 Esc::{
 	LayerKey.ChangeLayer(0)
 	Send("{Escape}")
