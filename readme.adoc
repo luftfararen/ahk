@@ -71,28 +71,3 @@ Esc,F13,Spaceでモード解除 +
 * ctrl+shift+F13(CapsLock): CapsLock-On +
 * 変換: BS
 * F14: BS
-
-
-== 【実験中】long_press_shift2.ahk 
-=== 動作概要
-* 「Space」や「F13」が修飾キー、つまり、このキーと他のキーの同時押しで特殊な動作が行われる、2つのキーはほぼ同じ役割だが、一部異なる
-* 修飾キーを押さない基本状態でも、一部のキーが入れ替済
-** 右側部分を右にシフト（ホームポジションが広がり、エンターキーが近くなるので楽だが慣れが必要）
-* 各キーの長押しでシフト押し動作、連打はできないので、そのときは従来通りShiftキーで行うこと
-* F13とEscの同時押しでReloadだが同時にリセットになる、不安定なときに押すとよい
-
-=== 標準(ahk適用)
-image::img/2/stdahk.webp[]
-
-=== キー長押し
-image::img/2/shift.webp[]
-
-=== スペース修飾
-image::img/2/space.webp[]
-
-=== F13修飾
-image::img/2/f13.webp[]
-
-=== その他
-* shift+↑: _
-* ctrl+shift+F13(CapsLock): CapsLock-On +
