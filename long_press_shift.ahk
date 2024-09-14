@@ -62,7 +62,8 @@ SendMode "Input"
 InstallKeybdHook true
 #UseHook true
 #MaxThreadsBuffer True
-
+#MaxThreadsPerHotkey 3
+SetKeyDelay 0
 
 MoveMousePos(rx, ry)
 {
@@ -191,21 +192,23 @@ class LongPress
 	{
 		LongPress.last_key := this.key
 		pressed_time := A_TickCount
-		if pressed_time - this.send_time < LongPress.long_press_th  {
+		if pressed_time - this.send_time < LongPress.long_press_th /2 {
 		 	return
 		}
 		; Send(String(A_TickCount) . this.short_key_str . "; ") 
 		Send(this.short_key_str) 
-		KeyWait(this.key)
-		if A_TickCount - pressed_time >= LongPress.long_press_th {
+		KeyWait(this.key )
+		time := A_TickCount
+		if time - pressed_time >= LongPress.long_press_th {
 			if LongPress.last_key = this.key {
-				this.send_time := A_TickCount
+				this.send_time := time
 				Send("{BackSpace}" . this.long_key_str )
 				return
 			}else{
 				;ToolTip "last key is different"
 			}
 		}
+		this.send_time := 0
 	}
 /*============================================================================
 	Assign key down to the key as same as registered.  
@@ -273,7 +276,7 @@ class ModKey
 	static timeout := 300
 
 /*============================================================================
-	key not inclue "{}"
+	key: base key, not inclueds "{}", key should be same as assign key to down()
 ============================================================================*/
 	__New(key)
 	{
@@ -307,6 +310,15 @@ class ModKey
 			this.mod_str  := "!" . this.mod_str 
 		}
 	}
+
+	UpImpl()
+	{
+		if (A_TickCount - this.pressed_time < ModKey.timeout) {
+			SendInput("{Blind}" . this.mod_str . this.key_str)
+		}
+		this.pressed_time := 0
+		return
+	} 
 	
 /*============================================================================
 	Assign key down to the key  
@@ -318,16 +330,15 @@ class ModKey
 		}
 		this.pressed_time := A_TickCount
 		this.SetModStr()
+		KeyWait(this.key)
+		this.UpImpl()
 	}
 
 	Up()
 	{
-		if (A_TickCount - this.pressed_time < ModKey.timeout) {
-			SendInput("{Blind}" . this.mod_str . this.key_str)
-		}
-		this.pressed_time := 0
-		return
-	} 
+		;this.UpImpl()
+	}
+
 
 	Reset()
 	{
@@ -638,6 +649,7 @@ right::right.Down()
 		space.Up()
 	}
 }
+
 Esc::{
 	LayerKey.ChangeLayer(0)
 	Send("{Escape}")
