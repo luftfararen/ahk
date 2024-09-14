@@ -46,12 +46,12 @@ C_COMMA := "{sc033}"
 S_EISU := "sc03A"
 C_EISU := "{sc03A}"
 
-;vkF2sc070 = Hiragana(ひらがな/カタカナ) , it is unstable to assign other key to this key.
+;vkF2sc070 = Hiragana(ひらがな/カタカナ) It is unstable to assign other key to this key.
 S_HIRAGANA := "sc070"
 C_HIRAGANA := "{sc070}"
 
-;vkF3sc029 = 全角/半角 sendでおくらなければいけない 入れ替え元の場合、うまく動かない
-;vkF4sc029 = 全角/半角 sendでおくらなければいけない
+;vkF3sc029 = 全角/半角 must be sent. Replace does not work.
+;vkF4sc029 = 全角/半角 must be sent
 S_ZENKAKU := "sc029" 
 C_ZENKAKU := "{sc029}" 
 
@@ -62,7 +62,7 @@ SendMode "Input"
 InstallKeybdHook true
 #UseHook true
 #MaxThreadsBuffer True
-#MaxThreadsPerHotkey 3
+;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
 MoveMousePos(rx, ry)
@@ -167,6 +167,7 @@ Class to assign different key for long press
 class LongPress
 {
 	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
+	static key_wait_timeout := "T0.5"
 	static last_key := ""
 
 /*============================================================================
@@ -190,14 +191,16 @@ class LongPress
 
 	DownImpl(shift :=0, ctrl := 0)
 	{
-		LongPress.last_key := this.key
-		pressed_time := A_TickCount
-		if pressed_time - this.send_time < LongPress.long_press_th /2 {
-		 	return
+		if LongPress.last_key = this.key {
+			if A_TickCount - this.send_time < LongPress.long_press_th{
+			 	return
+			}
 		}
+		LongPress.last_key := this.key
 		; Send(String(A_TickCount) . this.short_key_str . "; ") 
+		pressed_time := A_TickCount
 		Send(this.short_key_str) 
-		KeyWait(this.key )
+		KeyWait(this.key, LongPress.key_wait_timeout)
 		time := A_TickCount
 		if time - pressed_time >= LongPress.long_press_th {
 			if LongPress.last_key = this.key {
