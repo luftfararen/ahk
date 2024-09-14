@@ -69,5 +69,5 @@ Esc,F13,Spaceでモード解除 +
 === その他
 * shift+↑: _
 * ctrl+shift+F13(CapsLock): CapsLock-On +
-* 変換: BS
-* F14: BS
+* 変換: 全角
+* F14: 全角

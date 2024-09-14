@@ -167,7 +167,6 @@ Class to assign different key for long press
 class LongPress
 {
 	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
-	static key_wait_timeout := "T0.5"
 	static last_key := ""
 
 /*============================================================================
@@ -187,6 +186,7 @@ class LongPress
 			this.long_key_str := long_key
 		}
 		this.send_time := 0
+		this.pressed_time := 0
 	}
 
 	DownImpl(shift :=0, ctrl := 0)
@@ -198,20 +198,28 @@ class LongPress
 		}
 		LongPress.last_key := this.key
 		; Send(String(A_TickCount) . this.short_key_str . "; ") 
-		pressed_time := A_TickCount
+		this.pressed_time  := A_TickCount
 		Send(this.short_key_str) 
-		KeyWait(this.key, LongPress.key_wait_timeout)
+	}
+
+	Up()
+	{
+		if this.pressed_time != 0 {
+			TrayTip ""
+		}
 		time := A_TickCount
-		if time - pressed_time >= LongPress.long_press_th {
+		if time - this.pressed_time  >= LongPress.long_press_th {
 			if LongPress.last_key = this.key {
 				this.send_time := time
 				Send("{BackSpace}" . this.long_key_str )
+				this.pressed_time  := 0
 				return
 			}else{
 				;ToolTip "last key is different"
 			}
 		}
 		this.send_time := 0
+		this.pressed_time  := 0
 	}
 /*============================================================================
 	Assign key down to the key as same as registered.  
@@ -314,15 +322,6 @@ class ModKey
 		}
 	}
 
-	UpImpl()
-	{
-		if (A_TickCount - this.pressed_time < ModKey.timeout) {
-			SendInput("{Blind}" . this.mod_str . this.key_str)
-		}
-		this.pressed_time := 0
-		return
-	} 
-	
 /*============================================================================
 	Assign key down to the key  
 ============================================================================*/
@@ -333,13 +332,14 @@ class ModKey
 		}
 		this.pressed_time := A_TickCount
 		this.SetModStr()
-		KeyWait(this.key)
-		this.UpImpl()
 	}
 
 	Up()
 	{
-		;this.UpImpl()
+		if (A_TickCount - this.pressed_time < ModKey.timeout) {
+			SendInput("{Blind}" . this.mod_str . this.key_str)
+		}
+		this.pressed_time := 0
 	}
 
 
@@ -352,8 +352,8 @@ class ModKey
 space := ModKey("Space")
 
 ;Prssing f14 shortly, sends sc029 
-f14   := ModKey("BackSpace") ;vkF3sc029 = 全角/半角
-;conv := ModKey("sc029") ;vkF3sc029 = 全角/半角
+f14   := ModKey(S_ZENKAKU) ;vkF3sc029 = 全角/半角
+
 
 k1 := LongPress("1")
 k2 := LongPress("2")
@@ -573,65 +573,129 @@ Esc::Reload
 ;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
 1::k1.Down()
+1 up::k1.Up()
 2::k2.Down()
+2 up::k2.Up()
 3::k3.Down()
+3 up::k3.Up()
 4::k4.Down()
+4 up::k4.Up()
 5::k5.Down()
+5 up::k5.Up()
 6::k6.Down()
+6 up::k6.Up()
 7::k7.Down()
+7 up::k7.Up()
 8::k8.Down()
+8 up::k8.Up()
 9::k9.Down()
+9 up::k9.Up()
 -::minus.Down()
+- up::minus.Up()
 sc00D::hat.Down()
+sc00D up::hat.Down()
 sc07D::backslash.Down()
+sc07D up::backslash.Up()
 ;
 q::q.Down()
+q up::q.Up()
 w::w.Down()
+w up::w.Up()
 e::e.Down()
+e up::e.Up()
 r::r.Down()
+r up::r.Up()
 t::t.Down()
+t up::t.Up()
 y::y.Down()
+y up::y.Up()
 u::u.Down()
+u up::u.Up()
 i::i.Down()
 +i::i.Down(1)
 ^i::i.Down(0,1)
+i up::i.Up()
++i up::i.Up()
+^i up::i.Up()
+
 o::o.Down()
+o up::o.Up()
 p::p.Down()
+p up::p.Up()
 @::at.Down()
+@ up::at.Up()
 [::openbracket.Down()
+[ up::openbracket.Up()
 ;
+
 a::a.Down()
+a up::a.Up()
 s::s.Down()
+s up::s.Up()
 d::d.Down()
+d up::d.Up()
 f::f.Down()
+f up::f.Up()
 g::g.Down()
+g up::g.Up()
 h::h.Down()
+h up::h.Up()
+
 j::j.Down()
 +j::j.Down(1)
 ^j::j.Down(0,1)
+j up::j.Up()
++j up::j.Up()
+^j up::j.Up()
+
 k::k.Down()
 +k::k.Down(1)
 ^k::k.Down(0,1)
+k up::k.Up()
++k up::k.Up()
+^k up::k.Up()
+
 l::l.Down()
 +l::l.Down(1,)
 ^l::l.Down(0,1)
+l up::l.Up()
++l up::l.Up()
+^l up::l.Up()
+
 sc027::semicolon.Down()
+sc027 up::semicolon.Up()
 sc028::colon.Down()
+sc028 up::colon.Up()
 ]::closebracket.Down()
+] up::closebracket.Up()
 ;
+
 z::z.Down()
+z up::z.Up()
 x::x.Down()
+x up::x.Up()
 c::c.Down()
+c up::c.Up()
 v::v.Down()
+v up::v.Up()
 b::b.Down()
+b up::b.Up()
 n::n.Down()
+n up::n.Up()
 m::m.Down()
+m up::m.Up()
 sc033::comma.Down()
+sc033 up::comma.Up()
 .::perid.Down()
+. up::perid.Up()
 
 sc035::slash.Down()
+sc035 up::slash.Up()
+
 sc073::backslash2.Down()
+sc073 up::backslash2.Up()
 ;
+
 down::down.Down()
 up::up.Down()
 left::left.Down()
@@ -666,14 +730,9 @@ F13::{
 *F14:: f14.Down()
 *sc079:: f14.Down()
 
-*sc079 up:: 
-*F14 up::{
-	if IsSpaceOrF13Pressed(){
-		Send(C_ZENKAKU)
-	}else{
-	 	f14.Up()
-	}
-}
+*sc079 up::f14.Up()
+*F14 up::f14.Up()
+	
 
 sc07B::Return ;vk1Dsc07B = 無変換
 
