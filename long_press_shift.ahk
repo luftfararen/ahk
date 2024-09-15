@@ -60,10 +60,34 @@ ProcessSetPriority "Realtime"
 SendMode "Input"
 
 InstallKeybdHook true
+InstallMouseHook true
 #UseHook true
 #MaxThreadsBuffer True
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
+
+class SlowMouse
+{
+	static SPI_GETMOUSESPEED := 0x70
+    static SPI_SETMOUSESPEED := 0x71
+	static OrigMouseSpeed := 10
+
+	static MakeSlow()
+	{
+		temp:=0
+		DllCall("SystemParametersInfo", "UInt", SlowMouse.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &temp, "UInt", 0)
+		;tooltip String(temp)
+		if temp > 1{
+			SlowMouse.OrigMouseSpeed := temp
+		}
+		DllCall("SystemParametersInfo", "UInt", SlowMouse.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", 1, "UInt", 0)
+	}
+
+	static Reset()
+	{
+		DllCall("SystemParametersInfo", "UInt", SlowMouse.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", SlowMouse.OrigMouseSpeed , "UInt", 0)
+	}
+}
 
 MoveMousePos(rx, ry)
 {
@@ -258,19 +282,21 @@ class LongPressL extends LongPress
 	ex)
 	x := LongPressL("x")
 	x::x.Down()
-	x up ::x.Down()
 	+x::x.Down()
 	^x::x.Down(0,1)
 	+^x::x.Down(1,1)
+	x up ::x.Down()
+	+x::x.Up()
+	^x::x.Up()
+	+^x::x.Up()
 ===========================================================================*/
 	Down(shift :=0, ctrl := 0)
 	{	
-		;Critical
 		if LayerKey.idx = 1 && this.key1 != "" {
-			SendEvent(this.key1)
+			Send(this.key1)
 			return
 		}else if LayerKey.idx = 2 && this.key2 != "" {
-			;SendEvent this.key2
+			;Send(this.key2)
 			OperateMouse(this.key2,shift,ctrl)
 			return
 		}
@@ -365,11 +391,11 @@ k7 := LongPressL("7","","7")
 k8 := LongPressL("8","","8")
 k9 := LongPressL("9","","9")
 minus := LongPressL("-","","-")
-hat := LongPressL(S_HAT)
+hat := LongPress(S_HAT)
 backslash := LongPressL("\")
 ;
 q := LongPress("q")
-w := LongPress("w")
+w := LongPressL("w","","","MouseWheelUp")
 e := LongPress("e")
 r := LongPress("r")
 t := LongPress("t")
@@ -382,9 +408,9 @@ p := LongPressL("p","","{Backspace}")
 at := LongPressL("@","",C_PLUS)
 openbracket := LongPressL("[","","+8")
 ;
-a := LongPress("a")
-s := LongPress("s")
-d := LongPress("d")
+a := LongPressL("a","","","MouseBack")
+s := LongPressL("s","","","MouseWheelDown")
+d := LongPressL("d","","","MouseNext")
 f := LongPress("f")
 g := LongPress("g")
 ;
@@ -593,7 +619,7 @@ Esc::Reload
 -::minus.Down()
 - up::minus.Up()
 sc00D::hat.Down()
-sc00D up::hat.Down()
+sc00D up::hat.Up()
 sc07D::backslash.Down()
 sc07D up::backslash.Up()
 ;
@@ -611,6 +637,7 @@ y::y.Down()
 y up::y.Up()
 u::u.Down()
 u up::u.Up()
+
 i::i.Down()
 +i::i.Down(1)
 ^i::i.Down(0,1)
@@ -703,12 +730,16 @@ right::right.Down()
 
 ;***ohter****************************************************************************
 #HotIf 
+
+
 *Space::{
+	SlowMouse.MakeSlow()
 	LayerKey.ChangeLayer(0)
 	space.Down()
 }
 
 *Space up::{
+	SlowMouse.Reset()
 	if IsF13Pressed(){
 		space.Reset()
 		Send("{BackSpace}")
@@ -723,8 +754,13 @@ Esc::{
 }
 
 F13::{
+	SlowMouse.MakeSlow()
 	LayerKey.ChangeLayer(0)
-	Send("{F13}")
+	;Send("{F13}")
+}
+
+F13 up::{
+	SlowMouse.Reset()
 }
 
 *F14:: f14.Down()
@@ -742,4 +778,23 @@ sc07B::Return ;vk1Dsc07B = 無変換
 >+Up::_
 ^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
 
+; rbutton_locked := 0
+; ~RButton::{
+; 	ToolTip "locked"
+; 	rbutton_locked := 1
+; }
+; ~RButton up::{
+; 	ToolTip "unlocked"
+; 	rbutton_locked := 0
+; }
+
+; RButton & WheelUp::{
+; 	rbutton_locked := 1
+; 	Send("^{WheelUp}")
+; }
+
+; RButton & WheelDown::{
+; 	rbutton_locked := 1
+; 	Send("^{WheelDown} ")
+; }
 #MaxThreadsBuffer False
