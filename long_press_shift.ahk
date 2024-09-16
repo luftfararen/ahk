@@ -194,8 +194,8 @@ class LongPress
 	static last_key := ""
 
 /*============================================================================
-	key: 		base key, not inclueds "{}", key should be same as assign key to down()
-	long_key: 	long pressed key, inclueds "{}"
+	key: 		base key, not inclueds "{}"
+	long_key: 	long pressed key, which inclueds "{}". If blank, shifted key is generated automatically.
 ============================================================================*/
 	__New(key, long_key:="")
 	{
@@ -226,6 +226,23 @@ class LongPress
 		Send(this.short_key_str) 
 	}
 
+/*============================================================================
+	Assign this method to hotkey. 
+	ex)
+	x := LongPress("x")
+	x::x.Down()
+	x::x.Up()
+============================================================================*/
+	Down()
+	{
+		LayerKey.ChangeLayer(0)
+		this.DownImpl()
+	}
+
+/*============================================================================
+	Assign key up to the key as same as registered.  
+	See Down() method for the detail.
+============================================================================*/
 	Up()
 	{
 		if this.pressed_time != 0 {
@@ -245,29 +262,37 @@ class LongPress
 		this.send_time := 0
 		this.pressed_time  := 0
 	}
-/*============================================================================
-	Assign key down to the key as same as registered.  
-============================================================================*/
-	Down()
-	{
-		LayerKey.ChangeLayer(0)
-		this.DownImpl()
-	}
 
-	;Up(){}
+;/*============================================================================
+;   Using Down() and Up() methods are recomended.
+;	ex) 
+;	x := LongPress("x")
+;	x::
+;	x up::
+;	x.Proc(ThisHotKey)
+;============================================================================*/
+	; Proc(key)
+	; {
+	; 	if key == this.key {
+	; 		this.Down()
+	; 	}else if key == this.key . "up" {
+	; 		this.Up()
+	; 	}
+	; }
 }
 
 /*============================================================================
-Class to assign different key for long press with layer change
+Class to assign different key for long press with layer change.
+LongPressL is complicated and not versatile due to mouse operation with shift or/and ctrl key.
 ============================================================================*/
 class LongPressL extends LongPress 
 {
 
 /*============================================================================
-	key: 		base key, not inclueds "{}", key should be same as assign key to down()
+	key: 		base key, not inclueds "{}"
 	long_key: 	long pressed key, inclueds "{}"
 	key1: 		key for mode1 
-	key2: 		key for mode2
+	key2: 		key for mode2, currently only for mouse operation
 ===========================================================================*/
 	__New(key, long_key:="", key1 := "", key2 := "")
 	{
@@ -277,10 +302,11 @@ class LongPressL extends LongPress
 	}
 	
 /*============================================================================
-	Assign key down to the key as same as registered.  
+	Assign this method to hot key.
 	Defines shift/ctrl combination if they are used
-	ex)
-	x := LongPressL("x")
+	Shift and Ctrl is used only for mouse operation 
+	ex1)
+	x := LongPressL("x","","","MouseDown")
 	x::x.Down()
 	+x::x.Down()
 	^x::x.Down(0,1)
@@ -289,6 +315,18 @@ class LongPressL extends LongPress
 	+x::x.Up()
 	^x::x.Up()
 	+^x::x.Up()
+
+	ex2)
+	x := LongPressL("y","+z","","MouseDown")
+	x::x.Down() ; 
+	+x::x.Down()
+	^x::x.Down(0,1)
+	+^x::x.Down(1,1)
+	x up ::x.Down()
+	+x::x.Up()
+	^x::x.Up()
+	+^x::x.Up()
+
 ===========================================================================*/
 	Down(shift :=0, ctrl := 0)
 	{	
@@ -303,6 +341,31 @@ class LongPressL extends LongPress
 		super.DownImpl()
 	}
 
+/*============================================================================
+	Assign key down and up to the hotkey as same as registered. 
+	This is simpler than using Down() and Up() methods.
+	ex)
+	x := LongPressL("x") 
+
+	x:: ;must be same as regesterd.
+	+x::
+	^x::
+	x up ::
+	+x::
+	^x::x.Proc(ThisHotKey)
+===========================================================================*/
+	Proc(key)
+	{
+		if key == this.key {
+			this.Down()
+		}else if InStr(key,"up") > 0 {
+			this.Up() ;currently Up() method is sharead when shirt or ctrl is pressed
+		}else{
+			shift := InStr(key,"+") > 0 ? 1 : 0
+			ctrl  := InStr(key,"^") > 0 ? 1 : 0
+			this.Down(shift,ctrl)
+		}
+	}
 }
 
 /*============================================================================
@@ -313,7 +376,7 @@ class ModKey
 	static timeout := 300
 
 /*============================================================================
-	key: base key, not inclueds "{}", key should be same as assign key to down()
+	key: base key, not inclueds "{}"
 ============================================================================*/
 	__New(key)
 	{
@@ -594,7 +657,10 @@ sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
 #HotIf IsF13Pressed()
 Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
-Esc::Reload
+Esc::{
+	SlowMouse.Reset()
+	Reload
+}
 
 ;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
@@ -637,13 +703,22 @@ y::y.Down()
 y up::y.Up()
 u::u.Down()
 u up::u.Up()
-
+/*
 i::i.Down()
 +i::i.Down(1)
 ^i::i.Down(0,1)
 i up::i.Up()
 +i up::i.Up()
 ^i up::i.Up()
+*/
+;Experitment,  Be careful to change spec of Proc() method.
+i::
++i::
+^i::
++^i::
+i up::
++i up::
+^i up::i.proc(ThisHotkey)
 
 o::o.Down()
 o up::o.Up()
@@ -749,6 +824,7 @@ right::right.Down()
 }
 
 Esc::{
+	SlowMouse.Reset()LOn
 	LayerKey.ChangeLayer(0)
 	Send("{Escape}")
 }
