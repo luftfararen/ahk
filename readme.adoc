@@ -71,3 +71,4 @@ Esc,F13,Spaceでモード解除 +
 * ctrl+shift+F13(CapsLock): CapsLock-On +
 * 変換: 全角
 * F14: 全角
+* Ctrl+Esc: Reload(Reset)
