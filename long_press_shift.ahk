@@ -55,6 +55,9 @@ C_HIRAGANA := "{sc070}"
 S_ZENKAKU := "sc029" 
 C_ZENKAKU := "{sc029}" 
 
+S_SLASH := "sc035"
+C_SLASH:="{sc035}"
+
 ;SingleInstkance Force
 ProcessSetPriority "Realtime"
 SendMode "Input"
@@ -439,9 +442,7 @@ class ModKey
 }
 
 space := ModKey("Space")
-
-;Prssing f14 shortly, sends sc029 
-f14   := ModKey(S_ZENKAKU) ;vkF3sc029 = 全角/半角
+f14   := ModKey("Enter")
 
 
 k1 := LongPress("1")
@@ -553,6 +554,7 @@ SendDirKey(key)
 *l::Send("{Blind}+{Right}")
 *o::Send("{Blind}+{Right}")
 *p::Send("{Blind}+^{Right}")
+*sc033::Send("{Blind}+^{Right}") ;vkBCsc033 = ,
 *m::Send("{Blind}+^{Left}")
 *h::Send("{Blind}+{Home}")
 *n::Send("{Blind}+{End}")
@@ -593,6 +595,7 @@ sc073::!Left ;sc073 = \; shift:_
 *i::SendDirKey("{Up}")
 *k::SendDirKey("{Down}")
 *p::Send("{Blind}^{Right}")
+*sc033::Send("{Blind}^{Right}") ;vkBCsc033 = ,
 *m::Send("{Blind}^{Left}")
 
 *@::Send("{Blind}{PgUp}")
@@ -640,13 +643,12 @@ sc073::^- ;vkE2sc073 = \ shift:_
 *-::Send("{Blind}{F11}")
 *sc00D::Send("{Blind}{F12}") ; sc00D = "^"
 
-;vk1C::Send("{vkF3}") ;vk1Csc079 = 変換 vkF3sc029 = 全角/半角
-;sc07B::Send("{sc029}") ;vk1Dsc07B = 無変換 vkF3sc029 = 全角/半角
-sc079::Send(C_ZENKAKU) ;vvk1Csc079 = 変換 vkF3sc029 = 全角/半角
-F14::Send(C_ZENKAKU) ;vkF3sc029 = 全角/半角
+sc079::Send(C_ZENKAKU) ;vvk1Csc079 = 変換 
+F14::Send(C_ZENKAKU) 
 
-sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
+;sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
 .::LayerKey.ChangeLayer(2)
+sc035::LayerKey.ChangeLayer(1)  ;/
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
@@ -661,6 +663,13 @@ Esc::{
 	SlowMouse.Reset()
 	Reload
 }
+
+F14::Send(C_ZENKAKU) 
+sc079::Send(C_ZENKAKU) ;conv
+
+#HotIf space.IsPressed()
+F14::Send(C_ZENKAKU) 
+sc079::Send(C_ZENKAKU) ;conv
 
 ;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
@@ -824,7 +833,7 @@ right::right.Down()
 }
 
 Esc::{
-	SlowMouse.Reset()LOn
+	SlowMouse.Reset()
 	LayerKey.ChangeLayer(0)
 	Send("{Escape}")
 }
@@ -840,10 +849,10 @@ F13 up::{
 }
 
 *F14:: f14.Down()
-*sc079:: f14.Down()
+*sc079:: f14.Down() ;conv
 
-*sc079 up::f14.Up()
-*F14 up::f14.Up()
+*F14 up::f14.Up() 
+*sc079 up::f14.Up() ;conv
 	
 
 sc07B::Return ;vk1Dsc07B = 無変換
