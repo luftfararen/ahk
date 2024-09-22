@@ -72,7 +72,7 @@ SetKeyDelay 0
 class SlowMouse
 {
 	static SPI_GETMOUSESPEED := 0x70
-    static SPI_SETMOUSESPEED := 0x71
+	static SPI_SETMOUSESPEED := 0x71
 	static OrigMouseSpeed := 10
 
 	static MakeSlow()
@@ -157,6 +157,8 @@ class LayerKey
 				ToolTip("10 key mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = 2{
 				ToolTip("Mouse mode",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = 3{
+				ToolTip("Cursor mode",A_ScreenWidth,A_ScreenHeight)
 			}
 		}
 	}
@@ -287,7 +289,8 @@ class LongPress
 /*============================================================================
 Class to assign different key for long press with layer change.
 LongPressL is complicated and not versatile due to mouse operation with shift or/and ctrl key.
-============================================================================*/
+====================
+========================================================*/
 class LongPressL extends LongPress 
 {
 
@@ -297,14 +300,15 @@ class LongPressL extends LongPress
 	key1: 		key for mode1 
 	key2: 		key for mode2, currently only for mouse operation
 ===========================================================================*/
-	__New(key, long_key:="", key1 := "", key2 := "")
+	__New(key, long_key:="", key1 := "", key2 := "", key3 := "")
 	{
 		super.__New(key, long_key)
 		this.key1 := key1
 		this.key2 := key2
+		this.key3 := key3
 	}
 	
-/*============================================================================
+/*===========================================================================
 	Assign this method to hot key.
 	Defines shift/ctrl combination if they are used
 	Shift and Ctrl is used only for mouse operation 
@@ -340,6 +344,9 @@ class LongPressL extends LongPress
 			;Send(this.key2)
 			OperateMouse(this.key2,shift,ctrl)
 			return
+		}else if LayerKey.idx = 3 && this.key3 != "" {
+			Send(this.key3)
+			return
 		}
 		super.DownImpl()
 	}
@@ -372,7 +379,7 @@ class LongPressL extends LongPress
 }
 
 /*============================================================================
-Class to ignore long press for modifier
+Class to skip long press for modifier
 ============================================================================*/
 class ModKey
 {
@@ -426,6 +433,9 @@ class ModKey
 		this.SetModStr()
 	}
 
+/*============================================================================
+	Assign key up to the key. Code is send in this method if short press.  
+============================================================================*/
 	Up()
 	{
 		if (A_TickCount - this.pressed_time < ModKey.timeout) {
@@ -443,7 +453,7 @@ class ModKey
 
 space := ModKey("Space")
 f14   := ModKey("Enter")
-
+noconv := ModKey(S_ZENKAKU)
 
 k1 := LongPress("1")
 k2 := LongPress("2")
@@ -464,9 +474,9 @@ e := LongPress("e")
 r := LongPress("r")
 t := LongPress("t")
 ;
-y := LongPressL("y","","{Delete}")
-u := LongPressL("u","","4","MouseLClick")
-i := LongPressL("i","","5","MouseUp")
+y := LongPressL("y","","{Delete}","","{Delete}")
+u := LongPressL("u","","4","MouseLClick","{BackSpace}")
+i := LongPressL("i","","5","MouseUp","{Up}")
 o := LongPressL("o","","6","MouseRClick")
 p := LongPressL("p","","{Backspace}")
 at := LongPressL("@","",C_PLUS)
@@ -479,9 +489,9 @@ f := LongPress("f")
 g := LongPress("g")
 ;
 h := LongPressL("h","","{Backspace}","MouseWheelUp")
-j := LongPressL("j","","1","MouseLeft")
-k := LongPressL("k","","2","MouseDown")
-l := LongPressL("l","","3","MouseRight")
+j := LongPressL("j","","1","MouseLeft","{Left}")
+k := LongPressL("k","","2","MouseDown","{Down}")
+l := LongPressL("l","","3","MouseRight","{Right}")
 semicolon := LongPressL(S_SEMICOLON,"","{Enter}")
 colon := LongPressL(S_COLON,"",C_ASTERISK)
 closebracket := LongPressL("]","","+9")
@@ -493,8 +503,8 @@ v := LongPress("v")
 b := LongPress("b")
 ;
 n := LongPressL("n","","","MouseWheelDown")
-m := LongPressL("m","","0","MouseBack")
-comma := LongPressL(S_COMMA,"",C_COMMA)
+m := LongPressL("m","","0","MouseBack","^{Left}")
+comma := LongPressL(S_COMMA,"",C_COMMA,"","^{Right}")
 perid := LongPressL(".","","")
 slash := LongPressL("/","","/")
 backslash2 := LongPress(S_BACKSLASH2)
@@ -534,7 +544,7 @@ IsSpaceAndF13Pressed()
 IsF14Pressed()
 {
 	;vk1Dsc07B = NoConvert 無変換
-	return GetKeyState("F14", "P") || GetKeyState("sc079", "P") || GetKeyState(S_NOCONV, "P")
+	return GetKeyState("F14", "P") || GetKeyState(S_CONV, "P") || GetKeyState(S_NOCONV, "P")
 }
 
 SendDirKey(key)
@@ -613,7 +623,7 @@ e::+F3
 w::^w
 s::^s
 a::^a
-d::^d
+d::LayerKey.ChangeLayer(3)
 
 r::^h ;replace
 t::^f ;find
@@ -646,9 +656,10 @@ sc073::^- ;vkE2sc073 = \ shift:_
 sc079::Send(C_ZENKAKU) ;vvk1Csc079 = 変換 
 F14::Send(C_ZENKAKU) 
 
-;sc033::LayerKey.ChangeLayer(1) ;sc033 = ","
 .::LayerKey.ChangeLayer(2)
-sc035::LayerKey.ChangeLayer(1)  ;/
+sc035::LayerKey.ChangeLayer(1) ;/
+sc073::LayerKey.ChangeLayer(3) ;vkE2sc073 = \ shift:_
+
 
 ;*****************************************************************************
 ;#HotIf semicolon.IsPressed() 
@@ -854,8 +865,9 @@ F13 up::{
 *F14 up::f14.Up() 
 *sc079 up::f14.Up() ;conv
 	
+sc07B::noconv.Down() ;vk1Dsc07B = 無変換
+sc07B up::noconv.Up() 
 
-sc07B::Return ;vk1Dsc07B = 無変換
 
 ;NumLock::Return
 +F15::Send("{NumLock}")
