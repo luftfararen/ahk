@@ -69,9 +69,57 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
+
+IsDisplayCode(key)
+{
+	code := 0
+	sc_pos := InStr(key,"sc")
+	if sc_pos > 0 {
+		num := "0x" . SubStr(key,sc_pos+2,3)
+		;ToolTip key . IsNumber(num)
+		code := Integer(num)
+
+		if code = 0x0e{ ;Backspace
+			return false
+		}
+		if code = 0x0f{ ;Tab
+			return false
+		}
+		if code = 0x1c{ ;Enter
+			return false
+		}
+		if code = 0x1d{ ; Left Ctrl
+			return false
+		}
+	
+		;1234567890-^ QWERTYUIOP@[ ASDFGHJKL;:
+		if 0x02 <= code and code <= 0x28{
+			return true 
+		}
+		;],z-/
+		if 0x2b <= code and code <= 0x35{
+			return true
+		}
+		;\(|) \(_) 
+		if code = 0x7d or code = 0x73{
+			return true
+		}
+		
+		return false
+	}else{
+		code := Ord(key)
+		if 0x21 <= code and code <= 0x7e{
+			return true 
+		}
+		return false
+
+
+	}
+}
+
 class SlowMouse
 {
-	static SPI_GETMOUSESPEED := 0x70
+	static SPI_GETMOUSESPEED := 0x70e
 	static SPI_SETMOUSESPEED := 0x71
 	static OrigMouseSpeed := 10
 
@@ -159,6 +207,8 @@ class LayerKey
 				ToolTip("Mouse mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = 3{
 				ToolTip("Cursor mode",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = 4{
+				ToolTip("Select mode",A_ScreenWidth,A_ScreenHeight)
 			}
 		}
 	}
@@ -205,6 +255,8 @@ class LongPress
 	__New(key, long_key:="")
 	{
 		this.key := key
+		;this.shiftable := IsDisplayCode(this.key)
+	
 		if SubStr(key,1,1) != "{" {
 			key := "{" . key . "}"
 		}
@@ -218,17 +270,25 @@ class LongPress
 		this.pressed_time := 0
 	}
 
-	DownImpl(shift :=0, ctrl := 0)
+	
+	;DownImpl(shift :=0, ctrl := 0, alt := 0, win := 0)
+	DownImpl()
 	{
-		if LongPress.last_key = this.key {
+		if LongPress.last_key = this.key && this.send_time > 0{
 			if A_TickCount - this.send_time < LongPress.long_press_th{
 			 	return
 			}
 		}
 		LongPress.last_key := this.key
-		; Send(String(A_TickCount) . this.short_key_str . "; ") 
-		this.pressed_time  := A_TickCount
-		Send(this.short_key_str) 
+
+		shift := GetKeyState("Shift","P")
+		ctrl := GetKeyState("Ctrl","P")
+		alt := GetKeyState("Alt","P")
+		win := GetKeyState("LWin","P") || GetKeyState("RWin","P")
+		if !(ctrl || shift || alt || win) {
+			this.pressed_time  := A_TickCount
+		} ;else this.pressed_time  := 0 ;skip up method()
+		Send(this.short_key_str) ;Send key in blind mode
 	}
 
 /*============================================================================
@@ -250,47 +310,26 @@ class LongPress
 ============================================================================*/
 	Up()
 	{
-		if this.pressed_time != 0 {
-			TrayTip ""
-		}
-		time := A_TickCount
-		if time - this.pressed_time  >= LongPress.long_press_th {
-			if LongPress.last_key = this.key {
-				this.send_time := time
-				Send("{BackSpace}" . this.long_key_str )
-				this.pressed_time  := 0
-				return
-			}else{
-				;ToolTip "last key is different"
+		if this.pressed_time >0 {
+			time := A_TickCount
+			if time - this.pressed_time  >= LongPress.long_press_th {
+				if LongPress.last_key = this.key {
+					this.send_time := time
+					Send("{BackSpace}" . this.long_key_str )
+					this.pressed_time  := 0
+					return
+				}
 			}
 		}
 		this.send_time := 0
 		this.pressed_time  := 0
 	}
-
-;/*============================================================================
-;   Using Down() and Up() methods are recomended.
-;	ex) 
-;	x := LongPress("x")
-;	x::
-;	x up::
-;	x.Proc(ThisHotKey)
-;============================================================================*/
-	; Proc(key)
-	; {
-	; 	if key == this.key {
-	; 		this.Down()
-	; 	}else if key == this.key . "up" {
-	; 		this.Up()
-	; 	}
-	; }
 }
 
 /*============================================================================
 Class to assign different key for long press with layer change.
 LongPressL is complicated and not versatile due to mouse operation with shift or/and ctrl key.
-====================
-========================================================*/
+============================================================================*/
 class LongPressL extends LongPress 
 {
 
@@ -299,13 +338,16 @@ class LongPressL extends LongPress
 	long_key: 	long pressed key, inclueds "{}"
 	key1: 		key for mode1 
 	key2: 		key for mode2, currently only for mouse operation
+	key3: 		key for mode3
+	key4: 		key for mode3
 ===========================================================================*/
-	__New(key, long_key:="", key1 := "", key2 := "", key3 := "")
+	__New(key, long_key:="", key1 := "", key2 := "", key3 := "", key4 := "")
 	{
 		super.__New(key, long_key)
 		this.key1 := key1
 		this.key2 := key2
 		this.key3 := key3
+		this.key4 := key4
 	}
 	
 /*===========================================================================
@@ -315,67 +357,45 @@ class LongPressL extends LongPress
 	ex1)
 	x := LongPressL("x","","","MouseDown")
 	x::x.Down()
-	+x::x.Down()
-	^x::x.Down(0,1)
-	+^x::x.Down(1,1)
 	x up ::x.Down()
-	+x::x.Up()
-	^x::x.Up()
-	+^x::x.Up()
-
-	ex2)
-	x := LongPressL("y","+z","","MouseDown")
-	x::x.Down() ; 
-	+x::x.Down()
-	^x::x.Down(0,1)
-	+^x::x.Down(1,1)
-	x up ::x.Down()
-	+x::x.Up()
-	^x::x.Up()
-	+^x::x.Up()
-
 ===========================================================================*/
-	Down(shift :=0, ctrl := 0)
+	Down()
 	{	
 		if LayerKey.idx = 1 && this.key1 != "" {
 			Send(this.key1)
 			return
-		}else if LayerKey.idx = 2 && this.key2 != "" {
-			;Send(this.key2)
-			OperateMouse(this.key2,shift,ctrl)
-			return
-		}else if LayerKey.idx = 3 && this.key3 != "" {
+		}
+		if LayerKey.idx = 3 && this.key3 != "" {
 			Send(this.key3)
 			return
 		}
+		if LayerKey.idx = 4 && this.key4 != "" {
+			Send(this.key4)
+			return
+		}
+		if LayerKey.idx = 2 && this.key2 != "" {
+			;Send(this.key2)
+			shift := GetKeyState("Shift","P")
+			ctrl := GetKeyState("Ctrl","P")
+			OperateMouse(this.key2,shift,ctrl)
+			return
+		}
+		;base key down 
 		super.DownImpl()
 	}
 
-/*============================================================================
-	Assign key down and up to the hotkey as same as registered. 
-	This is simpler than using Down() and Up() methods.
-	ex)
-	x := LongPressL("x") 
-
-	x:: ;must be same as regesterd.
-	+x::
-	^x::
-	x up ::
-	+x::
-	^x::x.Proc(ThisHotKey)
-===========================================================================*/
-	Proc(key)
-	{
-		if key == this.key {
-			this.Down()
-		}else if InStr(key,"up") > 0 {
-			this.Up() ;currently Up() method is sharead when shirt or ctrl is pressed
-		}else{
-			shift := InStr(key,"+") > 0 ? 1 : 0
-			ctrl  := InStr(key,"^") > 0 ? 1 : 0
-			this.Down(shift,ctrl)
-		}
-	}
+	; Proc(key)
+	; {
+	; 	if key == this.key {
+	; 		this.Down()
+	; 	}else if InStr(key,"up") > 0 {
+	; 		this.Up() ;currently Up() method is sharead when shirt or ctrl is pressed
+	; 	}else{
+	; 		shift := InStr(key,"+") > 0 ? 1 : 0
+	; 		ctrl  := InStr(key,"^") > 0 ? 1 : 0
+	; 		this.Down(shift,ctrl)
+	; 	}
+	; }
 }
 
 /*============================================================================
@@ -418,6 +438,9 @@ class ModKey
 		}
 		if GetKeyState("Alt","P"){
 			this.mod_str  := "!" . this.mod_str 
+		}
+		if GetKeyState("LWin","P") || GetKeyState("LWin","P"){
+			this.mod_str  := "#" . this.mod_str 
 		}
 	}
 
@@ -476,7 +499,7 @@ t := LongPress("t")
 ;
 y := LongPressL("y","","{Delete}","","{Delete}")
 u := LongPressL("u","","4","MouseLClick","{BackSpace}")
-i := LongPressL("i","","5","MouseUp","{Up}")
+i := LongPressL("i","","5","MouseUp","{Blind}{Up}","{Blind}+{Up}")
 o := LongPressL("o","","6","MouseRClick")
 p := LongPressL("p","","{Backspace}")
 at := LongPressL("@","",C_PLUS)
@@ -488,23 +511,23 @@ d := LongPressL("d","","","MouseNext")
 f := LongPress("f")
 g := LongPress("g")
 ;
-h := LongPressL("h","","{Backspace}","MouseWheelUp")
-j := LongPressL("j","","1","MouseLeft","{Left}")
-k := LongPressL("k","","2","MouseDown","{Down}")
-l := LongPressL("l","","3","MouseRight","{Right}")
-semicolon := LongPressL(S_SEMICOLON,"","{Enter}")
+h := LongPressL("h","","{Backspace}","MouseWheelUp","{Blind}{Home}","{Blind}+{Home}")
+j := LongPressL("j","","1","MouseLeft","{Blind}{Left}","{Blind}+{Left}")
+k := LongPressL("k","","2","MouseDown","{Blind}{Down}","{Blind}+{Down}")
+l := LongPressL("l","","3","MouseRight","{Blind}{Right}","{Blind}+{Right}")
+semicolon := LongPressL(S_SEMICOLON,"","{Enter}","","{Enter}")
 colon := LongPressL(S_COLON,"",C_ASTERISK)
 closebracket := LongPressL("]","","+9")
 ;
-z := LongPress("z")
-x := LongPress("x")
-c := LongPress("c")
-v := LongPress("v")
-b := LongPress("b")
+z := LongPressL("z","","","","^z","^z")
+x := LongPressL("x","","","","^x","^x")
+c := LongPressL("c","","","","^x","^x")
+v := LongPressL("v","","","","^v","^v")
+b := LongPressL("b","","","","^z","^z")
 ;
-n := LongPressL("n","","","MouseWheelDown")
-m := LongPressL("m","","0","MouseBack","^{Left}")
-comma := LongPressL(S_COMMA,"",C_COMMA,"","^{Right}")
+n := LongPressL("n","","","MouseWheelDown","{Blind}{End}","{Blind}+{End}")
+m := LongPressL("m","","0","MouseBack","^{Left}","^+{Left}")
+comma := LongPressL(S_COMMA,"",C_COMMA,"","^{Right}","^+{Right}")
 perid := LongPressL(".","","")
 slash := LongPressL("/","","/")
 backslash2 := LongPress(S_BACKSLASH2)
@@ -620,7 +643,7 @@ sc028::^g ;vkBAsc028 = ":" shift:*
 
 q::Esc
 e::+F3
-w::^w
+w::LayerKey.ChangeLayer(4)
 s::^s
 a::^a
 d::LayerKey.ChangeLayer(3)
@@ -656,9 +679,9 @@ sc073::^- ;vkE2sc073 = \ shift:_
 sc079::Send(C_ZENKAKU) ;vvk1Csc079 = 変換 
 F14::Send(C_ZENKAKU) 
 
-.::LayerKey.ChangeLayer(2)
-sc035::LayerKey.ChangeLayer(1) ;/
-sc073::LayerKey.ChangeLayer(3) ;vkE2sc073 = \ shift:_
+.::LayerKey.ChangeLayer(2) ; mouse
+sc035::LayerKey.ChangeLayer(1) ;/ 10key
+sc073::LayerKey.ChangeLayer(3) ;vkE2sc073 = \ shift:_ cursor
 
 
 ;*****************************************************************************
@@ -684,138 +707,131 @@ sc079::Send(C_ZENKAKU) ;conv
 
 ;***Long Press**************************************************************************
 #HotIf IsSpaceOrF13Pressed() == 0 && IsF14Pressed() == 0 
-1::k1.Down()
-1 up::k1.Up()
-2::k2.Down()
-2 up::k2.Up()
-3::k3.Down()
-3 up::k3.Up()
-4::k4.Down()
-4 up::k4.Up()
-5::k5.Down()
-5 up::k5.Up()
-6::k6.Down()
-6 up::k6.Up()
-7::k7.Down()
-7 up::k7.Up()
-8::k8.Down()
-8 up::k8.Up()
-9::k9.Down()
-9 up::k9.Up()
--::minus.Down()
-- up::minus.Up()
-sc00D::hat.Down()
-sc00D up::hat.Up()
-sc07D::backslash.Down()
-sc07D up::backslash.Up()
+*1::k1.Down()
+*1 up::k1.Up()
+*2::k2.Down()
+*2 up::k2.Up()
+*3::k3.Down()
+*3 up::k3.Up()
+*4::k4.Down()
+*4 up::k4.Up()
+*5::k5.Down()
+*5 up::k5.Up()
+*6::k6.Down()
+*6 up::k6.Up()
+*7::k7.Down()
+*7 up::k7.Up()
+*8::k8.Down()
+*8 up::k8.Up()
+*9::k9.Down()
+*9 up::k9.Up()
+*-::minus.Down()
+*- up::minus.Up()
+*sc00D::hat.Down()
+*sc00D up::hat.Up()
+*sc07D::backslash.Down()
+*sc07D up::backslash.Up()
 ;
-q::q.Down()
-q up::q.Up()
-w::w.Down()
-w up::w.Up()
-e::e.Down()
-e up::e.Up()
-r::r.Down()
-r up::r.Up()
-t::t.Down()
-t up::t.Up()
-y::y.Down()
-y up::y.Up()
-u::u.Down()
-u up::u.Up()
-/*
-i::i.Down()
-+i::i.Down(1)
-^i::i.Down(0,1)
-i up::i.Up()
-+i up::i.Up()
-^i up::i.Up()
-*/
-;Experitment,  Be careful to change spec of Proc() method.
-i::
-+i::
-^i::
-+^i::
-i up::
-+i up::
-^i up::i.proc(ThisHotkey)
-
-o::o.Down()
-o up::o.Up()
-p::p.Down()
-p up::p.Up()
-@::at.Down()
-@ up::at.Up()
-[::openbracket.Down()
-[ up::openbracket.Up()
+*q::q.Down()
+*q up::q.Up()
+*w::{
+	if LayerKey.idx = 4 {
+		LayerKey.ChangeLayer(3)
+		return
+	}
+	if LayerKey.idx = 3 {
+		LayerKey.ChangeLayer(4)
+		return
+	}
+	w.Down()
+}
+*w up::w.Up()
+*e::e.Down()
+*e up::e.Up()
+*r::r.Down()
+*r up::r.Up()
+*t::t.Down()
+*t up::t.Up()
+*y::y.Down()
+*y up::y.Up()
+*u::u.Down()
+*u up::u.Up()
+*i::i.Down()
+*i up::i.Up()
+*o::o.Down()
+*o up::o.Up()
+*p::p.Down()
+*p up::p.Up()
+*@::at.Down()
+*@ up::at.Up()
+*[::openbracket.Down()
+*[ up::openbracket.Up()
 ;
 
-a::a.Down()
-a up::a.Up()
-s::s.Down()
-s up::s.Up()
-d::d.Down()
-d up::d.Up()
-f::f.Down()
-f up::f.Up()
-g::g.Down()
-g up::g.Up()
-h::h.Down()
-h up::h.Up()
+*a::a.Down()
+*a up::a.Up()
+*s::s.Down()
+*s up::s.Up()
+*d::d.Down()
+*d up::d.Up()
+*f::f.Down()
+*f up::f.Up()
+*g::g.Down()
+*g up::g.Up()
+*h::h.Down()
+*h up::h.Up()
 
-j::j.Down()
-+j::j.Down(1)
-^j::j.Down(0,1)
-j up::j.Up()
-+j up::j.Up()
-^j up::j.Up()
+*j::j.Down()
+*j up::j.Up()
 
-k::k.Down()
-+k::k.Down(1)
-^k::k.Down(0,1)
-k up::k.Up()
-+k up::k.Up()
-^k up::k.Up()
+*k::k.Down()
+*k up::k.Up()
 
-l::l.Down()
-+l::l.Down(1,)
-^l::l.Down(0,1)
-l up::l.Up()
-+l up::l.Up()
-^l up::l.Up()
+*l::l.Down()
+*l up::l.Up()
 
-sc027::semicolon.Down()
-sc027 up::semicolon.Up()
-sc028::colon.Down()
-sc028 up::colon.Up()
-]::closebracket.Down()
-] up::closebracket.Up()
+*sc027::semicolon.Down()
+*sc027 up::semicolon.Up()
+*sc028::colon.Down()
+*sc028 up::colon.Up()
+*]::closebracket.Down()
+*] up::closebracket.Up()
 ;
 
-z::z.Down()
-z up::z.Up()
-x::x.Down()
-x up::x.Up()
-c::c.Down()
-c up::c.Up()
-v::v.Down()
-v up::v.Up()
-b::b.Down()
-b up::b.Up()
-n::n.Down()
-n up::n.Up()
-m::m.Down()
-m up::m.Up()
-sc033::comma.Down()
-sc033 up::comma.Up()
-.::perid.Down()
-. up::perid.Up()
+*z::z.Down()
+*z up::z.Up()
+*x::{
+	x.Down()
+	if LayerKey.idx = 4 {
+		LayerKey.ChangeLayer(3)
+	}
+}
+*x up::x.Up()
+*c::{
+	c.Down()
+	if LayerKey.idx = 4 {
+		LayerKey.ChangeLayer(3)
+	}
+}
+*c up::c.Up()
+*v::v.Down()
+*v up::v.Up()
+*b::b.Down()
+*b up::b.Up()
+*n::n.Down()
+*n up::n.Up()
+*m::m.Down()
+*m up::m.Up()
+*sc033::comma.Down()
+*sc033 up::comma.Up()
+*.::perid.Down()
+*. up::perid.Up()
 
-sc035::slash.Down()
-sc035 up::slash.Up()
+*sc035::slash.Down()
+*sc035 up::slash.Up()
 
-sc073::backslash2.Down()
-sc073 up::backslash2.Up()
+*sc073::backslash2.Down()
+*sc073 up::backslash2.Up()
 ;
 
 down::down.Down()
@@ -874,6 +890,7 @@ sc07B up::noconv.Up()
 
 >+Up::_
 ^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
+
 
 ; rbutton_locked := 0
 ; ~RButton::{
