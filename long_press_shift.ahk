@@ -497,13 +497,13 @@ e := LongPress("e")
 r := LongPress("r")
 t := LongPress("t")
 ;
-y := LongPressL("y","","{Delete}","","{Delete}")
-u := LongPressL("u","","4","MouseLClick","{BackSpace}")
+y := LongPressL("y","","{Delete}","","{Delete}","{Delete}")
+u := LongPressL("u","","4","MouseLClick","{BackSpace}","{BackSpace}")
 i := LongPressL("i","","5","MouseUp","{Blind}{Up}","{Blind}+{Up}")
-o := LongPressL("o","","6","MouseRClick")
-p := LongPressL("p","","{Backspace}")
-at := LongPressL("@","",C_PLUS)
-openbracket := LongPressL("[","","+8")
+o := LongPressL("o","","6","MouseRClick","{PgUp}")
+p := LongPressL("p","","{Backspace}","","{PgDn}")
+at := LongPressL("@","",C_PLUS,"","^{Home}")
+openbracket := LongPressL("[","","+8","","^{End}")
 ;
 a := LongPressL("a","","","MouseBack")
 s := LongPressL("s","","","MouseWheelDown")
@@ -515,13 +515,13 @@ h := LongPressL("h","","{Backspace}","MouseWheelUp","{Blind}{Home}","{Blind}+{Ho
 j := LongPressL("j","","1","MouseLeft","{Blind}{Left}","{Blind}+{Left}")
 k := LongPressL("k","","2","MouseDown","{Blind}{Down}","{Blind}+{Down}")
 l := LongPressL("l","","3","MouseRight","{Blind}{Right}","{Blind}+{Right}")
-semicolon := LongPressL(S_SEMICOLON,"","{Enter}","","{Enter}")
+semicolon := LongPressL(S_SEMICOLON,"","{Enter}","","{Enter}","{Enter}")
 colon := LongPressL(S_COLON,"",C_ASTERISK)
 closebracket := LongPressL("]","","+9")
 ;
 z := LongPressL("z","","","","^z","^z")
 x := LongPressL("x","","","","^x","^x")
-c := LongPressL("c","","","","^x","^x")
+c := LongPressL("c","","","","^c","^c")
 v := LongPressL("v","","","","^v","^v")
 b := LongPressL("b","","","","^z","^z")
 ;
@@ -620,19 +620,19 @@ sc073::!Left ;sc073 = \; shift:_
 ^]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|\
 
 #HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0 && IsSpaceAndF13Pressed() = 0
-*j::SendDirKey("{Left}")
-*l::SendDirKey("{Right}")
-*o::SendDirKey("{Right}")
-*h::SendDirKey("{Home}")
-*n::SendDirKey("{End}")
-*i::SendDirKey("{Up}")
-*k::SendDirKey("{Down}")
-*p::Send("{Blind}^{Right}")
-*sc033::Send("{Blind}^{Right}") ;vkBCsc033 = ,
-*m::Send("{Blind}^{Left}")
+*j::Send(j.key3)
+*l::Send(i.key3)
+*o::Send(o.key3)
+*h::Send(h.key3)
+*n::Send(n.key3)
+*i::Send(i.key3)
+*k::Send(k.key3)
+*p::Send(p.key3)
+*sc033::Send(comma.key3) ;vkBCsc033 = ,
+*m::Send(m.key3)
 
-*@::Send("{Blind}{PgUp}")
-*[::Send("{Blind}{PgDn}")
+*@::Send(at.key3)
+*[::Send(openbracket.key3)
 ]::Send("^]")
 
 *y::Send("{Blind}{Delete}")
