@@ -213,6 +213,16 @@ class LayerKey
 		}
 	}
 
+	static ParseAndChange(str)
+	{
+		if InStr(str,"ChangeLayer:") = 1{
+			i := Integer(SubStr(str,13,1))
+			LayerKey.ChangeLayer(i)
+			return true
+		}
+		return false
+	}
+
 /*============================================================================
 	key: 		base key, not inclueds "{}"
 	key1: 		key for mode1 
@@ -228,12 +238,12 @@ class LayerKey
 	Down(shift :=0, ctrl := 0)
 	{	
 		if LayerKey.idx = 1 && this.key1 != "" {
-			SendEvent(this.key1)
-			return
+			SendInput(this.key1)
+			;return
 		}else if LayerKey.idx = 2 && this.key2 != "" {
 			;SendEvent this.key2
 			OperateMouse(this.key2,shift,ctrl)
-			return
+			;return
 		}else{
 			SendInput("{Blind}{" . this.key . "}")
 		}
@@ -366,10 +376,16 @@ class LongPressL extends LongPress
 			return
 		}
 		if LayerKey.idx = 3 && this.key3 != "" {
+			if LayerKey.ParseAndChange(this.key3){
+				return
+			}
 			Send(this.key3)
 			return
 		}
 		if LayerKey.idx = 4 && this.key4 != "" {
+			if LayerKey.ParseAndChange(this.key4){
+				return
+			}
 			Send(this.key4)
 			return
 		}
@@ -516,8 +532,8 @@ j := LongPressL("j","","1","MouseLeft","{Blind}{Left}","{Blind}+{Left}")
 k := LongPressL("k","","2","MouseDown","{Blind}{Down}","{Blind}+{Down}")
 l := LongPressL("l","","3","MouseRight","{Blind}{Right}","{Blind}+{Right}")
 semicolon := LongPressL(S_SEMICOLON,"","{Enter}","","{Enter}","{Enter}")
-colon := LongPressL(S_COLON,"",C_ASTERISK)
-closebracket := LongPressL("]","","+9")
+colon := LongPressL(S_COLON,"",C_ASTERISK,"","ChangeLayer:4","ChangeLayer:3")
+closebracket := LongPressL("]","","+9","","^]")
 ;
 z := LongPressL("z","","","","^z","^z")
 x := LongPressL("x","","","","^x","^x")
@@ -612,12 +628,12 @@ c::^c
 v::^v
 b::^z
 
-#HotIf WinActive("ahk_exe code.exe") && IsSpaceOrF13Pressed() && IsF14Pressed() = 0
-]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|
-sc073::!Left ;sc073 = \; shift:_
+;#HotIf WinActive("ahk_exe code.exe") && IsSpaceOrF13Pressed() && IsF14Pressed() = 0
+;]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|
+;sc073::!Left ;sc073 = \; shift:_
 
-#HotIf WinActive("ahk_exe code.exe")
-^]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|\
+;#HotIf WinActive("ahk_exe code.exe")
+;^]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|\
 
 #HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0 && IsSpaceAndF13Pressed() = 0
 *j::Send(j.key3)
@@ -633,10 +649,10 @@ sc073::!Left ;sc073 = \; shift:_
 
 *@::Send(at.key3)
 *[::Send(openbracket.key3)
-]::Send("^]")
+*]::Send(closebracket.key3)
 
-*y::Send("{Blind}{Delete}")
-*u::Send("{Blind}{BackSpace}")
+*y::Send(y.key3)
+*u::Send(u.key3)
 
 sc027::Send("{Enter}") ;semicolon
 sc028::^g ;vkBAsc028 = ":" shift:*
@@ -813,6 +829,15 @@ sc079::Send(C_ZENKAKU) ;conv
 		LayerKey.ChangeLayer(3)
 	}
 }
+
+RCtrl::{
+	if LayerKey.idx = 4 {
+		LayerKey.ChangeLayer(0)
+	}else{
+		LayerKey.ChangeLayer(4)
+	}
+}
+
 *c up::c.Up()
 *v::v.Down()
 *v up::v.Up()
