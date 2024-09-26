@@ -523,7 +523,7 @@ openbracket := LongPressL("[","","+8","","^{End}")
 ;
 a := LongPressL("a","","","MouseBack")
 s := LongPressL("s","","","MouseWheelDown")
-d := LongPressL("d","","","MouseNext")
+d := LongPressL("d","","","MouseNext","ChangeLayer:4","ChangeLayer:3")
 f := LongPress("f")
 g := LongPress("g")
 ;
@@ -709,10 +709,10 @@ sc073::LayerKey.ChangeLayer(3) ;vkE2sc073 = \ shift:_ cursor
 #HotIf IsF13Pressed()
 Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
-Esc::{
-	SlowMouse.Reset()
-	Reload
-}
+; Esc::{
+; 	SlowMouse.Reset()
+; 	Reload
+; }
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
@@ -832,7 +832,7 @@ sc079::Send(C_ZENKAKU) ;conv
 
 RCtrl::{
 	if LayerKey.idx = 4 {
-		LayerKey.ChangeLayer(0)
+		LayerKey.ChangeLayer(3)
 	}else{
 		LayerKey.ChangeLayer(4)
 	}
@@ -885,9 +885,10 @@ right::right.Down()
 }
 
 Esc::{
-	SlowMouse.Reset()
-	LayerKey.ChangeLayer(0)
+	;SlowMouse.Reset()
+	;LayerKey.ChangeLayer(0)
 	Send("{Escape}")
+	Reload
 }
 
 F13::{
