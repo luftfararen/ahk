@@ -213,11 +213,31 @@ class LayerKey
 		}
 	}
 
+	static IsCode(str)
+	{
+		if InStr(str,"ChangeLayer:") = 1{
+			return true
+		}
+		if InStr(str,"Toggle") = 1{
+			return true
+		}
+		return false
+			
+	}
+
 	static ParseAndChange(str)
 	{
 		if InStr(str,"ChangeLayer:") = 1{
 			i := Integer(SubStr(str,13,1))
 			LayerKey.ChangeLayer(i)
+			return true
+		}
+		if InStr(str,"Toggle") = 1{
+			if LayerKey.idx = 4 {
+				LayerKey.ChangeLayer(3)
+			}else{
+				LayerKey.ChangeLayer(4)
+			}
 			return true
 		}
 		return false
@@ -273,7 +293,9 @@ class LongPress
 		this.short_key_str := "{Blind}" .  key 
 		if long_key = ""{
 			this.long_key_str :=  "+" . key
-		}else{
+		}else if long_key = "none"{
+			this.long_key_str := ""
+		}else{	
 			this.long_key_str := long_key
 		}
 		this.send_time := 0
@@ -290,6 +312,9 @@ class LongPress
 			}
 		}
 		LongPress.last_key := this.key
+		;if LayerKey.ParseAndChange(this.key){
+		;	return
+		;}
 
 		shift := GetKeyState("Shift","P")
 		ctrl := GetKeyState("Ctrl","P")
@@ -320,7 +345,7 @@ class LongPress
 ============================================================================*/
 	Up()
 	{
-		if this.pressed_time >0 {
+		if this.pressed_time >0 && this.long_key_str != ""{
 			time := A_TickCount
 			if time - this.pressed_time  >= LongPress.long_press_th {
 				if LongPress.last_key = this.key {
@@ -430,6 +455,10 @@ class ModKey
 		this.key_str := "{" . key . "}"
 		this.pressed_time := 0
 		this.mod_str := ""
+		this.type := 0
+		if LayerKey.IsCode(key) {
+			this.type := 1
+		}
 	}
 
 	IsPressed()
@@ -478,7 +507,11 @@ class ModKey
 	Up()
 	{
 		if (A_TickCount - this.pressed_time < ModKey.timeout) {
-			SendInput("{Blind}" . this.mod_str . this.key_str)
+			if this.type = 1{
+				LayerKey.ParseAndChange(this.key)
+			}else{
+				SendInput("{Blind}" . this.mod_str . this.key_str)
+			}
 		}
 		this.pressed_time := 0
 	}
@@ -491,7 +524,7 @@ class ModKey
 }
 
 space := ModKey("Space")
-f14   := ModKey("Enter")
+f14   := ModKey("ToggleLayer")
 noconv := ModKey(S_ZENKAKU)
 
 k1 := LongPress("1")
@@ -510,7 +543,7 @@ backslash := LongPressL("\")
 q := LongPress("q")
 w := LongPressL("w","","","MouseWheelUp")
 e := LongPress("e")
-r := LongPress("r")
+r := LongPressL("r","","","","ChangeLayer:0","ChangeLayer:0")
 t := LongPress("t")
 ;
 y := LongPressL("y","","{Delete}","","{Delete}","{Delete}")
@@ -594,7 +627,7 @@ SendDirKey(key)
 		Send("{Blind}" . key)
 	; }
 }
-  
+
 ;*****************************************************************************
 #HotIf IsF14Pressed() || IsSpaceAndF13Pressed()
 *i::Send("{Blind}+{Up}")
@@ -637,7 +670,7 @@ b::^z
 
 #HotIf IsSpaceOrF13Pressed() && IsF14Pressed() = 0 && IsSpaceAndF13Pressed() = 0
 *j::Send(j.key3)
-*l::Send(i.key3)
+*l::Send(l.key3)
 *o::Send(o.key3)
 *h::Send(h.key3)
 *n::Send(n.key3)
@@ -830,13 +863,6 @@ sc079::Send(C_ZENKAKU) ;conv
 	}
 }
 
-RCtrl::{
-	if LayerKey.idx = 4 {
-		LayerKey.ChangeLayer(3)
-	}else{
-		LayerKey.ChangeLayer(4)
-	}
-}
 
 *c up::c.Up()
 *v::v.Down()
