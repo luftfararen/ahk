@@ -69,53 +69,49 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
+; Not inspected yet
+; IsDisplayCode(key)
+; {
+; 	code := 0
+; 	sc_pos := InStr(key,"sc")
+; 	if sc_pos > 0 {
+; 		num := "0x" . SubStr(key,sc_pos+2,3)
+; 		;ToolTip key . IsNumber(num)
+; 		code := Integer(num)
 
-IsDisplayCode(key)
-{
-	code := 0
-	sc_pos := InStr(key,"sc")
-	if sc_pos > 0 {
-		num := "0x" . SubStr(key,sc_pos+2,3)
-		;ToolTip key . IsNumber(num)
-		code := Integer(num)
-
-		if code = 0x0e{ ;Backspace
-			return false
-		}
-		if code = 0x0f{ ;Tab
-			return false
-		}
-		if code = 0x1c{ ;Enter
-			return false
-		}
-		if code = 0x1d{ ; Left Ctrl
-			return false
-		}
-	
-		;1234567890-^ QWERTYUIOP@[ ASDFGHJKL;:
-		if 0x02 <= code and code <= 0x28{
-			return true 
-		}
-		;],z-/
-		if 0x2b <= code and code <= 0x35{
-			return true
-		}
-		;\(|) \(_) 
-		if code = 0x7d or code = 0x73{
-			return true
-		}
-		
-		return false
-	}else{
-		code := Ord(key)
-		if 0x21 <= code and code <= 0x7e{
-			return true 
-		}
-		return false
-
-
-	}
-}
+; 		if code = 0x0e{ ;Backspace
+; 			return false
+; 		}
+; 		if code = 0x0f{ ;Tab
+; 			return false
+; 		}
+; 		if code = 0x1c{ ;Enter
+; 			return false
+; 		}
+; 		if code = 0x1d{ ; Left Ctrl
+; 			return false
+; 		}
+; 		;1234567890-^ QWERTYUIOP@[ ASDFGHJKL;:
+; 		if 0x02 <= code and code <= 0x28{
+; 			return true 
+; 		}
+; 		;],z-/
+; 		if 0x2b <= code and code <= 0x35{
+; 			return true
+; 		}
+; 		;\(|) \(_) 
+; 		if code = 0x7d or code = 0x73{
+; 			return true
+; 		}
+; 		return false
+; 	}else{
+; 		code := Ord(key)
+; 		if 0x21 <= code and code <= 0x7e{
+; 			return true 
+; 		}
+; 		return false
+; 	}
+; }
 
 class SlowMouse
 {
@@ -213,7 +209,8 @@ class LayerKey
 		}
 	}
 
-	static IsCode(str)
+	;Is command string for changing layer or not 
+	static IsCmd(str)
 	{
 		if InStr(str,"ChangeLayer:") = 1{
 			return true
@@ -222,9 +219,9 @@ class LayerKey
 			return true
 		}
 		return false
-			
 	}
 
+	;Parse command string and chage layer
 	static ParseAndChange(str)
 	{
 		if InStr(str,"ChangeLayer:") = 1{
@@ -248,24 +245,39 @@ class LayerKey
 	key1: 		key for mode1 
 	key2: 		key for mode2
 ===========================================================================*/
-	__New(key,  key1 := "", key2 := "")
+	__New(key,  key1 := "", key2 := "",  key3 := "", key4 := "")
 	{
 		this.key := key
 		this.key1 := key1
 		this.key2 := key2
+		this.key3 := key3
+		this.key4 := key4
 	}
 
 	Down(shift :=0, ctrl := 0)
-	{	
-		if LayerKey.idx = 1 && this.key1 != "" {
-			SendInput(this.key1)
-			;return
-		}else if LayerKey.idx = 2 && this.key2 != "" {
-			;SendEvent this.key2
-			OperateMouse(this.key2,shift,ctrl)
-			;return
-		}else{
-			SendInput("{Blind}{" . this.key . "}")
+	{
+		switch LayerKey.idx
+		{
+		case 0:	SendInput("{Blind}{" . this.key . "}")
+		case 1:
+			if this.key1 != "" {
+				SendInput(this.key1)
+			}
+		case 2: OperateMouse(this.key2,shift,ctrl)
+		case 3: 
+			if this.key3 != "" {
+				if LayerKey.ParseAndChange(this.key3){
+					return
+				}
+				SendInput(this.key3)
+			}
+		case 4: 
+			if this.key4 != "" {
+				if LayerKey.ParseAndChange(this.key4){
+					return
+				}
+				SendInput(this.key4)
+			}
 		}
 	}
 }
@@ -456,7 +468,7 @@ class ModKey
 		this.pressed_time := 0
 		this.mod_str := ""
 		this.type := 0
-		if LayerKey.IsCode(key) {
+		if LayerKey.IsCmd(key) {
 			this.type := 1
 		}
 	}
@@ -742,10 +754,10 @@ sc073::LayerKey.ChangeLayer(3) ;vkE2sc073 = \ shift:_ cursor
 #HotIf IsF13Pressed()
 Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
-; Esc::{
-; 	SlowMouse.Reset()
-; 	Reload
-; }
+ Esc::{
+ 	SlowMouse.Reset()
+ 	Reload
+ }
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
@@ -911,10 +923,10 @@ right::right.Down()
 }
 
 Esc::{
-	;SlowMouse.Reset()
-	;LayerKey.ChangeLayer(0)
+	SlowMouse.Reset()
+	LayerKey.ChangeLayer(0)
 	Send("{Escape}")
-	Reload
+	;Reload
 }
 
 F13::{
