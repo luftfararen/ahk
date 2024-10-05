@@ -18,7 +18,7 @@ C_CONV := "{sc079}"
 
 ;sc07D = \; shift:|
 S_BACKSLASH := "sc07D" 
-C_BACKSLASH := "{sc07D}" 
+C_BACKSLASH := "{sc07D}"
 
 ;vkE2sc073 = \ shift:_
 S_BACKSLASH2 := "sc073" 
@@ -152,19 +152,25 @@ OperateMouse(cmd,shift,ctrl)
 	static mouse_move_short := A_ScreenWidth/320
 	static mouse_move_long := A_ScreenWidth/8
 	if cmd = ""{
-		return
+		return false
 	} else if cmd ="MouseLClick" {
 		MouseClick("left")
+		return true
 	} else if cmd = "MouseRClick"{
 		MouseClick("right")
+		return true
 	} else if cmd = "MouseWheelUp"{
 		Send("{WheelUp}")
+		return true
 	} else if cmd = "MouseWheelDown"{
 		Send("{WheelDown}") 
+		return true
 	} else if cmd = "MouseBack"{
 		Send("!{Left}")
+		return true
 	} else if cmd = "MouseNext"{
 		Send("!{Right}")
+		return true
 	}else{
 		if shift != 0 {
 			m := mouse_move_short
@@ -175,13 +181,18 @@ OperateMouse(cmd,shift,ctrl)
 		}
 		if cmd = "MouseUp"{
 			MoveMousePos(0,-m)
+			return true
 		} else if cmd = "MouseLeft"{
 			MoveMousePos(-m,0)
+			return true
 		} else if cmd = "MouseDown"{
 			MoveMousePos(0,m) 
+			return true
 		} else if cmd = "MouseRight"{
 			MoveMousePos(m,0) 
+			return true
 		}
+		return false
 	}
 }
 
@@ -244,6 +255,8 @@ class LayerKey
 	key: 		base key, not inclueds "{}"
 	key1: 		key for mode1 
 	key2: 		key for mode2
+	key3: 		key for mode3 
+	key4: 		key for mode4
 ===========================================================================*/
 	__New(key,  key1 := "", key2 := "",  key3 := "", key4 := "")
 	{
@@ -258,18 +271,22 @@ class LayerKey
 	{
 		switch LayerKey.idx
 		{
-		case 0:	SendInput("{Blind}{" . this.key . "}")
 		case 1:
 			if this.key1 != "" {
 				SendInput(this.key1)
+				return
 			}
-		case 2: OperateMouse(this.key2,shift,ctrl)
+		case 2: 
+			if OperateMouse(this.key2,shift,ctrl){
+				return
+			}
 		case 3: 
 			if this.key3 != "" {
 				if LayerKey.ParseAndChange(this.key3){
 					return
 				}
 				SendInput(this.key3)
+				return
 			}
 		case 4: 
 			if this.key4 != "" {
@@ -277,8 +294,11 @@ class LayerKey
 					return
 				}
 				SendInput(this.key4)
+				return
 			}
 		}
+		LayerKey.ChangeLayer(0)
+		SendInput("{Blind}{" . this.key . "}")
 	}
 }
 
@@ -528,7 +548,6 @@ class ModKey
 		this.pressed_time := 0
 	}
 
-
 	Reset()
 	{
 		this.pressed_time := 0
@@ -593,10 +612,10 @@ perid := LongPressL(".","","")
 slash := LongPressL("/","","/")
 backslash2 := LongPress(S_BACKSLASH2)
 ;
-up    := LayerKey("up","","MouseWheelUp")
-down  := LayerKey("down","","MouseWheelDown")
-left  := LayerKey("left","","MouseBack")
-right := LayerKey("right","","MouseNext")
+up    := LayerKey("up","","MouseWheelUp","{Bind}{up}","{Bind}{up}")
+down  := LayerKey("down","","MouseWheelDown","{Bind}{down}","{Bind}{down}")
+left  := LayerKey("left","","MouseBack","{Bind}{left}","{Bind}{left}")
+right := LayerKey("right","","MouseNext","{Bind}{right}","{Bind}{right}")
 
 IsF13Pressed()
 {
@@ -702,17 +721,17 @@ b::^z
 sc027::Send("{Enter}") ;semicolon
 sc028::^g ;vkBAsc028 = ":" shift:*
 
-q::Esc
-e::+F3
-w::LayerKey.ChangeLayer(4)
-s::^s
+q::^s
+e::Esc
+w::+F3
+s::^Space
 a::^a
-d::LayerKey.ChangeLayer(3)
+d::Delete
 
-r::^h ;replace
-t::^f ;find
+r::^y ;replace
+t::LayerKey.ChangeLayer(3)
 
-g::^y ;redo
+g::^Space ;redo
 b::^z ;undo
 
 f::Tab
@@ -916,7 +935,7 @@ right::right.Down()
 	SlowMouse.Reset()
 	if IsF13Pressed(){
 		space.Reset()
-		Send("{BackSpace}")
+		Send("{Blind}^{Space}")
 	}else{
 		space.Up()
 	}
