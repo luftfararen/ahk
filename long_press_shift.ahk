@@ -575,7 +575,7 @@ q := LongPress("q")
 w := LongPressL("w","","","MouseWheelUp")
 e := LongPress("e")
 r := LongPressL("r","","","","ChangeLayer:0","ChangeLayer:0")
-t := LongPress("t")
+t := LongPressL("t","","","","ChangeLayer:4","ChangeLayer:3")
 ;
 y := LongPressL("y","","{Delete}","","{Delete}","{Delete}")
 u := LongPressL("u","","4","MouseLClick","{BackSpace}","{BackSpace}")
@@ -587,7 +587,7 @@ openbracket := LongPressL("[","","+8","","^{End}")
 ;
 a := LongPressL("a","","","MouseBack")
 s := LongPressL("s","","","MouseWheelDown")
-d := LongPressL("d","","","MouseNext","ChangeLayer:4","ChangeLayer:3")
+d := LongPressL("d","","","MouseNext") ;,"ChangeLayer:4","ChangeLayer:3")
 f := LongPress("f")
 g := LongPress("g")
 ;
@@ -596,7 +596,7 @@ j := LongPressL("j","","1","MouseLeft","{Blind}{Left}","{Blind}+{Left}")
 k := LongPressL("k","","2","MouseDown","{Blind}{Down}","{Blind}+{Down}")
 l := LongPressL("l","","3","MouseRight","{Blind}{Right}","{Blind}+{Right}")
 semicolon := LongPressL(S_SEMICOLON,"","{Enter}","","{Enter}","{Enter}")
-colon := LongPressL(S_COLON,"",C_ASTERISK,"","ChangeLayer:4","ChangeLayer:3")
+colon := LongPressL(S_COLON,"",C_ASTERISK)
 closebracket := LongPressL("]","","+9","","^]")
 ;
 z := LongPressL("z","","","","^z","^z")
@@ -680,11 +680,13 @@ u::Backspace
 y::Delete
 
 q::^a
-a::^z
-s::^x
-d::^c
-f::^v
-g::^y
+e::Escape
+r::^y
+;a::^z
+;s::^s
+d::Delete
+f::+Tab
+;g::^y
 
 z::^z
 x::^x
@@ -724,12 +726,12 @@ sc028::^g ;vkBAsc028 = ":" shift:*
 q::^s
 e::Esc
 w::+F3
-s::^Space
+s::^s
 a::^a
 d::Delete
 
 r::^y ;replace
-t::LayerKey.ChangeLayer(3)
+t::LayerKey.ParseAndChange("Toggle")
 
 g::^Space ;redo
 b::^z ;undo
@@ -814,17 +816,7 @@ sc079::Send(C_ZENKAKU) ;conv
 ;
 *q::q.Down()
 *q up::q.Up()
-*w::{
-	if LayerKey.idx = 4 {
-		LayerKey.ChangeLayer(3)
-		return
-	}
-	if LayerKey.idx = 3 {
-		LayerKey.ChangeLayer(4)
-		return
-	}
-	w.Down()
-}
+*w::w.Down()
 *w up::w.Up()
 *e::e.Down()
 *e up::e.Up()
