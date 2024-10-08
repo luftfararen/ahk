@@ -574,7 +574,7 @@ backslash := LongPressL("\")
 q := LongPress("q")
 w := LongPressL("w","","","MouseWheelUp")
 e := LongPress("e")
-r := LongPressL("r","","","","ChangeLayer:0","ChangeLayer:0")
+r := LongPressL("r","","","","^y","^y")
 t := LongPressL("t","","","","ChangeLayer:4","ChangeLayer:3")
 ;
 y := LongPressL("y","","{Delete}","","{Delete}","{Delete}")
@@ -679,7 +679,7 @@ sc027::Enter ;vkBBsc027 = ; shift:+
 u::Backspace
 y::Delete
 
-q::^a
+q::^+p
 e::Escape
 r::^y
 ;a::^z
@@ -723,7 +723,7 @@ b::^z
 sc027::Send("{Enter}") ;semicolon
 sc028::^g ;vkBAsc028 = ":" shift:*
 
-q::^s
+q::^+p
 e::Esc
 w::+F3
 s::^s
@@ -775,13 +775,14 @@ sc073::LayerKey.ChangeLayer(3) ;vkE2sc073 = \ shift:_ cursor
 #HotIf IsF13Pressed()
 Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
- Esc::{
- 	SlowMouse.Reset()
- 	Reload
- }
+Esc::{
+	SlowMouse.Reset()
+	Reload
+}
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
+space::BackSpace
 
 #HotIf space.IsPressed()
 F14::Send(C_ZENKAKU) 
