@@ -201,6 +201,8 @@ Class to change layer
 ============================================================================*/
 class LayerKey
 {
+	static CTRL_MODE := 5
+
 	static idx := 0
 	static ChangeLayer(num)
 	{
@@ -209,13 +211,15 @@ class LayerKey
 			if LayerKey.idx = 0{
 				ToolTip ;hides ToolTip
 			}else if LayerKey.idx = 1{
-				ToolTip("10 key mode",A_ScreenWidth,A_ScreenHeight)
+				ToolTip("10 key Mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = 2{
-				ToolTip("Mouse mode",A_ScreenWidth,A_ScreenHeight)
+				ToolTip("Mouse Mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = 3{
-				ToolTip("Cursor mode",A_ScreenWidth,A_ScreenHeight)
+				ToolTip("Cursor Mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = 4{
-				ToolTip("Select mode",A_ScreenWidth,A_ScreenHeight)
+				ToolTip("Select Mode",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = LayerKey.CTRL_MODE {
+				ToolTip("Ctrl Mode",A_ScreenWidth,A_ScreenHeight)
 			}
 		}
 	}
@@ -453,6 +457,11 @@ class LongPressL extends LongPress
 			OperateMouse(this.key2,shift,ctrl)
 			return
 		}
+		if LayerKey.idx = LayerKey.CTRL_MODE {
+			Send("{Blind}^" . this.key . "}")
+			LayerKey.ChangeLayer(0)
+			return
+		}
 		;base key down 
 		super.DownImpl()
 	}
@@ -575,7 +584,8 @@ q := LongPress("q")
 w := LongPressL("w","","","MouseWheelUp")
 e := LongPress("e")
 r := LongPressL("r","","","","^y","^y")
-t := LongPressL("t","","","","ChangeLayer:4","ChangeLayer:3")
+;t := LongPressL("t","","","","ChangeLayer:4","ChangeLayer:3")
+t := LongPressL("t","","","","","")
 ;
 y := LongPressL("y","","{Delete}","","{Delete}","{Delete}")
 u := LongPressL("u","","4","MouseLClick","{BackSpace}","{BackSpace}")
@@ -731,7 +741,7 @@ a::^a
 d::Delete
 
 r::^y ;replace
-t::LayerKey.ParseAndChange("Toggle")
+t::LayerKey.ChangeLayer(LayerKey.CTRL_MODE)
 
 g::^Space ;redo
 b::^z ;undo
