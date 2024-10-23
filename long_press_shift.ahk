@@ -201,7 +201,14 @@ Class to change layer
 ============================================================================*/
 class LayerKey
 {
-	static CTRL_MODE := 5
+	static NUM_MODE 	:= 1
+	static MOUSE_MODE 	:= 2
+	static CUR_MODE 	:= 3
+	static SEL_MODE 	:= 4
+	static CTRL_MODE 	:= 5
+	static ALT_MODE 	:= 6
+	static SHIFT_MODE 	:= 7
+	static WIN_MODE 	:= 8
 
 	static idx := 0
 	static ChangeLayer(num)
@@ -219,7 +226,13 @@ class LayerKey
 			}else if LayerKey.idx = 4{
 				ToolTip("Select Mode",A_ScreenWidth,A_ScreenHeight)
 			}else if LayerKey.idx = LayerKey.CTRL_MODE {
-				ToolTip("Ctrl Mode",A_ScreenWidth,A_ScreenHeight)
+				ToolTip("Ctrl Lock",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = LayerKey.ALT_MODE {
+				ToolTip("Alt Lock",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = LayerKey.SHIFT_MODE {
+				ToolTip("Shift Lock",A_ScreenWidth,A_ScreenHeight)
+			}else if LayerKey.idx = LayerKey.WIN_MODE {
+				ToolTip("Win Lock",A_ScreenWidth,A_ScreenHeight)
 			}
 		}
 	}
@@ -271,6 +284,31 @@ class LayerKey
 		this.key4 := key4
 	}
 
+	static ProcMod(key)
+	{
+		if LayerKey.idx = LayerKey.CTRL_MODE {
+			Send("{Blind}^{" . key . "}")
+			LayerKey.ChangeLayer(0)
+			return true
+		}
+		if LayerKey.idx = LayerKey.ALT_MODE {
+			Send("{Blind}!{" . key . "}")
+			LayerKey.ChangeLayer(0)
+			return true
+		}
+		if LayerKey.idx = LayerKey.SHIFT_MODE {
+			Send("{Blind}+{" . key . "}")
+			LayerKey.ChangeLayer(0)
+			return true
+		}
+		if LayerKey.idx = LayerKey.WIN_MODE {
+			Send("{Blind}#{" . key . "}")
+			LayerKey.ChangeLayer(0)
+			return true
+		}
+		return false
+	}
+
 	Down(shift :=0, ctrl := 0)
 	{
 		switch LayerKey.idx
@@ -300,6 +338,9 @@ class LayerKey
 				SendInput(this.key4)
 				return
 			}
+		}
+		if LayerKey.ProcMod(this.key){
+			return
 		}
 		LayerKey.ChangeLayer(0)
 		SendInput("{Blind}{" . this.key . "}")
@@ -420,7 +461,7 @@ class LongPressL extends LongPress
 		this.key3 := key3
 		this.key4 := key4
 	}
-	
+
 /*===========================================================================
 	Assign this method to hot key.
 	Defines shift/ctrl combination if they are used
@@ -457,9 +498,8 @@ class LongPressL extends LongPress
 			OperateMouse(this.key2,shift,ctrl)
 			return
 		}
-		if LayerKey.idx = LayerKey.CTRL_MODE {
-			Send("{Blind}^{" . this.key . "}")
-			LayerKey.ChangeLayer(0)
+
+		if LayerKey.ProcMod(this.key){
 			return
 		}
 		;base key down 
@@ -737,7 +777,9 @@ q::^+p
 e::Esc
 w::+F3
 s::^s
-a::^a
+;a::^a
+a::LayerKey.ChangeLayer(LayerKey.ALT_MODE)
+
 d::Delete
 
 r::^y ;replace
@@ -792,7 +834,8 @@ Esc::{
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
-space::BackSpace
+;space::BackSpace
+space::Send(C_ZENKAKU)
 
 #HotIf space.IsPressed()
 F14::Send(C_ZENKAKU) 
