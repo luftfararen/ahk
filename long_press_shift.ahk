@@ -1,5 +1,6 @@
 ﻿#Requires AutoHotkey v2.0
 
+;Modifier symbol
 ;win #   ctrl ^   shift +   alt !
 
 ;used directly
@@ -249,7 +250,11 @@ class LayerKey
 		return false
 	}
 
-	;Parse command string and chage layer
+/*============================================================================
+	Parses command string and chages layer
+	str: 		command string
+	return: 	true: str is command and changes layer.
+===========================================================================*/
 	static ParseAndChange(str)
 	{
 		if InStr(str,"ChangeLayer:") = 1{
@@ -268,23 +273,21 @@ class LayerKey
 		return false
 	}
 
-/*============================================================================
-	key: 		base key, not inclueds "{}"
-	key1: 		key for mode1 
-	key2: 		key for mode2
-	key3: 		key for mode3 
-	key4: 		key for mode4
-===========================================================================*/
-	__New(key,  key1 := "", key2 := "",  key3 := "", key4 := "")
-	{
-		this.key := key
-		this.key1 := key1
-		this.key2 := key2
-		this.key3 := key3
-		this.key4 := key4
-	}
+	; __New(key,  key1 := "", key2 := "",  key3 := "", key4 := "")
+	; {
+	; 	this.key := key
+	; 	this.key1 := key1
+	; 	this.key2 := key2
+	; 	this.key3 := key3
+	; 	this.key4 := key4
+	; }
 
-	static ProcMod(key)
+/*============================================================================
+	Send key code with modifier in each lock mode.
+	key: 		base key
+	return: 	true: modifed key is send.
+===========================================================================*/
+	static SendModifiedKey(key)
 	{
 		if LayerKey.idx = LayerKey.CTRL_MODE {
 			Send("{Blind}^{" . key . "}")
@@ -309,42 +312,42 @@ class LayerKey
 		return false
 	}
 
-	Down(shift :=0, ctrl := 0)
-	{
-		switch LayerKey.idx
-		{
-		case 1:
-			if this.key1 != "" {
-				SendInput(this.key1)
-				return
-			}
-		case 2: 
-			if OperateMouse(this.key2,shift,ctrl){
-				return
-			}
-		case 3: 
-			if this.key3 != "" {
-				if LayerKey.ParseAndChange(this.key3){
-					return
-				}
-				SendInput(this.key3)
-				return
-			}
-		case 4: 
-			if this.key4 != "" {
-				if LayerKey.ParseAndChange(this.key4){
-					return
-				}
-				SendInput(this.key4)
-				return
-			}
-		}
-		if LayerKey.ProcMod(this.key){
-			return
-		}
-		LayerKey.ChangeLayer(0)
-		SendInput("{Blind}{" . this.key . "}")
-	}
+	; Down(shift :=0, ctrl := 0)
+	; {
+	; 	switch LayerKey.idx
+	; 	{
+	; 	case 1:
+	; 		if this.key1 != "" {
+	; 			SendInput(this.key1)
+	; 			return
+	; 		}
+	; 	case 2: 
+	; 		if OperateMouse(this.key2,shift,ctrl){
+	; 			return
+	; 		}
+	; 	case 3: 
+	; 		if this.key3 != "" {
+	; 			if LayerKey.ParseAndChange(this.key3){
+	; 				return
+	; 			}
+	; 			SendInput(this.key3)
+	; 			return
+	; 		}
+	; 	case 4: 
+	; 		if this.key4 != "" {
+	; 			if LayerKey.ParseAndChange(this.key4){
+	; 				return
+	; 			}
+	; 			SendInput(this.key4)
+	; 			return
+	; 		}
+	; 	}
+	; 	if LayerKey.SendModifiedKey(this.key){
+	; 		return
+	; 	}
+	; 	LayerKey.ChangeLayer(0)
+	; 	SendInput("{Blind}{" . this.key . "}")
+	; }
 }
 
 /*============================================================================
@@ -357,7 +360,8 @@ class LongPress
 
 /*============================================================================
 	key: 		base key, not inclueds "{}"
-	long_key: 	long pressed key, which inclueds "{}". If blank, shifted key is generated automatically.
+	long_key: 	long pressed key, which inclueds "{}". 
+				If blank, shifted key is generated automatically. If "none", does nothing.  
 ============================================================================*/
 	__New(key, long_key:="")
 	{
@@ -447,7 +451,8 @@ class LongPressL extends LongPress
 
 /*============================================================================
 	key: 		base key, not inclueds "{}"
-	long_key: 	long pressed key, inclueds "{}"
+	long_key: 	long pressed key, which inclueds "{}". 
+				If blank, shifted key is generated automatically. If "none", does nothing.  
 	key1: 		key for mode1 
 	key2: 		key for mode2, currently only for mouse operation
 	key3: 		key for mode3
@@ -472,26 +477,26 @@ class LongPressL extends LongPress
 	x up ::x.Down()
 ===========================================================================*/
 	Down()
-	{	
-		if LayerKey.idx = 1 && this.key1 != "" {
+	{
+		if LayerKey.idx =LayerKey.NUM_MODE && this.key1 != "" {
 			Send(this.key1)
 			return
 		}
-		if LayerKey.idx = 3 && this.key3 != "" {
+		if LayerKey.idx = LayerKey.CUR_MODE && this.key3 != "" {
 			if LayerKey.ParseAndChange(this.key3){
 				return
 			}
 			Send(this.key3)
 			return
 		}
-		if LayerKey.idx = 4 && this.key4 != "" {
+		if LayerKey.idx = LayerKey.SEL_MODE && this.key4 != "" {
 			if LayerKey.ParseAndChange(this.key4){
 				return
 			}
 			Send(this.key4)
 			return
 		}
-		if LayerKey.idx = 2 && this.key2 != "" {
+		if LayerKey.idx = LayerKey.MOUSE_MODE && this.key2 != "" {
 			;Send(this.key2)
 			shift := GetKeyState("Shift","P")
 			ctrl := GetKeyState("Ctrl","P")
@@ -499,7 +504,7 @@ class LongPressL extends LongPress
 			return
 		}
 
-		if LayerKey.ProcMod(this.key){
+		if LayerKey.SendModifiedKey(this.key){
 			return
 		}
 		;base key down 
@@ -623,12 +628,12 @@ backslash := LongPressL("\")
 q := LongPressL("q")
 w := LongPressL("w","","","MouseWheelUp")
 e := LongPressL("e")
-r := LongPressL("r","","","","^y","^y")
+r := LongPressL("r","","","","{Blind}^{y}","{Blind}^{y}")
 ;t := LongPressL("t","","","","ChangeLayer:4","ChangeLayer:3")
 t := LongPressL("t","","","","","")
 ;
-y := LongPressL("y","","{Delete}","","{Delete}","{Delete}")
-u := LongPressL("u","","4","MouseLClick","{BackSpace}","{BackSpace}")
+y := LongPressL("y","","{Delete}","","{Blind}{Delete}","{Blind}{Delete}")
+u := LongPressL("u","","4","MouseLClick","{Blind}{BackSpace}","{Blind}{BackSpace}")
 i := LongPressL("i","","5","MouseUp","{Blind}{Up}","{Blind}+{Up}")
 o := LongPressL("o","","6","MouseRClick","{PgUp}")
 p := LongPressL("p","","{Backspace}","","{PgDn}")
@@ -645,15 +650,15 @@ h := LongPressL("h","","{Backspace}","MouseWheelUp","{Blind}{Home}","{Blind}+{Ho
 j := LongPressL("j","","1","MouseLeft","{Blind}{Left}","{Blind}+{Left}")
 k := LongPressL("k","","2","MouseDown","{Blind}{Down}","{Blind}+{Down}")
 l := LongPressL("l","","3","MouseRight","{Blind}{Right}","{Blind}+{Right}")
-semicolon := LongPressL(S_SEMICOLON,"","{Enter}","","{Enter}","{Enter}")
+semicolon := LongPressL(S_SEMICOLON,"","{Blind}{Enter}","","{Blind}{Enter}","{Blind}{Enter}")
 colon := LongPressL(S_COLON,"",C_ASTERISK)
 closebracket := LongPressL("]","","+9","","^]")
 ;
-z := LongPressL("z","","","","^z","^z")
-x := LongPressL("x","","","","^x","^x")
-c := LongPressL("c","","","","^c","^c")
-v := LongPressL("v","","","","^v","^v")
-b := LongPressL("b","","","","^z","^z")
+z := LongPressL("z","","","","{Blind}^{z}","{Blind}^{z}")
+x := LongPressL("x","","","","{Blind}^{x}","{Blind}^{x}")
+c := LongPressL("c","","","","{Blind}^{c}","{Blind}^{c}")
+v := LongPressL("v","","","","{Blind}^{v}","{Blind}^{v}")
+b := LongPressL("b","","","","{Blind}^{z}","{Blind}^{z}")
 ;
 n := LongPressL("n","","","MouseWheelDown","{Blind}{End}","{Blind}+{End}")
 m := LongPressL("m","","0","MouseBack","^{Left}","^+{Left}")
@@ -662,10 +667,10 @@ perid := LongPressL(".","","")
 slash := LongPressL("/","","/")
 backslash2 := LongPressL(S_BACKSLASH2)
 ;
-up    := LayerKey("up","","MouseWheelUp","{Bind}{up}","{Bind}{up}")
-down  := LayerKey("down","","MouseWheelDown","{Bind}{down}","{Bind}{down}")
-left  := LayerKey("left","","MouseBack","{Bind}{left}","{Bind}{left}")
-right := LayerKey("right","","MouseNext","{Bind}{right}","{Bind}{right}")
+up    := LongPressL("up","none","MouseWheelUp","{Bind}{up}","{Bind}{up}")
+down  := LongPressL("down","none","MouseWheelDown","{Bind}{down}","{Bind}{down}")
+left  := LongPressL("left","none","MouseBack","{Bind}{left}","{Bind}{left}")
+right := LongPressL("right","none","MouseNext","{Bind}{right}","{Bind}{right}")
 
 IsF13Pressed()
 {
@@ -696,7 +701,6 @@ IsSpaceAndF13Pressed()
 
 IsF14Pressed()
 {
-	;vk1Dsc07B = NoConvert 無変換
 	return GetKeyState("F14", "P") || GetKeyState(S_CONV, "P") || GetKeyState(S_NOCONV, "P")
 }
 
@@ -711,38 +715,49 @@ SendDirKey(key)
 
 ;*****************************************************************************
 #HotIf IsF14Pressed() || IsSpaceAndF13Pressed()
-*i::Send("{Blind}+{Up}")
-*j::Send("{Blind}+{Left}")
-*k::Send("{Blind}+{Down}")
-*l::Send("{Blind}+{Right}")
-*o::Send("{Blind}+{Right}")
-*p::Send("{Blind}+^{Right}")
-*sc033::Send("{Blind}+^{Right}") ;vkBCsc033 = ,
-*m::Send("{Blind}+^{Left}")
-*h::Send("{Blind}+{Home}")
-*n::Send("{Blind}+{End}")
-sc027::Enter ;vkBBsc027 = ; shift:+
+*i::Send(i.key4)
+*j::Send(j.key4)
+*k::Send(k.key4)
+*l::Send(l.key4)
+;*o::Send("{Blind}+{Right}")
+;*p::Send("{Blind}+^{Right}")
+*sc033::Send(comma.key4) ;vkBCsc033 = ,
+*m::Send(m.key4)
+*h::Send(h.key4)
+*n::Send(n.key4)
+sc027::Send(semicolon.key4) ;vkBBsc027 = ; shift:+
 
-@::Send("^{Home}")
-[::Send("^{End}")
+;@::Send("^{Home}")
+;[::Send("^{End}")
 
-u::Backspace
-y::Delete
+u::Send(u.key4)
+y::Send(y.key4)
 
 q::^+p
+w::F3
 e::Escape
-r::^y
-;a::^z
-;s::^s
-d::Delete
+d::Send("{Blind}^{Delete}")
 f::+Tab
-;g::^y
 
-z::^z
-x::^x
-c::^c
-v::^v
-b::^z
+r::Send(r.key4) ;redo
+z::Send(z.key4) ;undo
+x::Send(x.key4) ;cut
+c::Send(c.key4) ;copy
+v::Send(v.key4) ;paste
+b::Send(b.key4) ;undo
+
+*1::Send("{Blind}+{F1}")
+*2::Send("{Blind}+{F2}")
+*3::Send("{Blind}+{F3}")
+*4::Send("{Blind}+{F4}")
+*5::Send("{Blind}+{F5}")
+*6::Send("{Blind}+{F6}")
+*7::Send("{Blind}+{F7}")
+*8::Send("{Blind}+{F8}")
+*9::Send("{Blind}+{F9}")
+*0::Send("{Blind}+{F10}")
+*-::Send("{Blind}+{F11}")
+*sc00D::Send("{Blind}+{F12}") ; sc00D = "^"
 
 ;#HotIf WinActive("ahk_exe code.exe") && IsSpaceOrF13Pressed() && IsF14Pressed() = 0
 ;]::Send("^+" . C_BACKSLASH) ;sc07D = \; shift:|
@@ -770,8 +785,8 @@ b::^z
 *y::Send(y.key3)
 *u::Send(u.key3)
 
-sc027::Send("{Enter}") ;semicolon
-sc028::^g ;vkBAsc028 = ":" shift:*
+sc027::Send(semicolon.key3) ;vkBBsc027 = ; shift:+
+;sc028::^g ;vkBAsc028 = ":" shift:*
 
 q::^+p
 e::Esc
@@ -780,21 +795,19 @@ s::^s
 ;a::^a
 a::LayerKey.ChangeLayer(LayerKey.ALT_MODE)
 
-d::Delete
-
-r::^y ;replace
+d::Send("{Blind}^{Delete}")
 t::LayerKey.ChangeLayer(LayerKey.CTRL_MODE)
-
-g::^Space ;redo
-b::^z ;undo
 
 f::Tab
 
-z::^z ;undo
-+z::^y ;redo
-x::^x ;cut
-c::^c ;copy
-v::^v ;paste
+g::Send("{Blind}^{Space}") 
+
+r::Send(r.key3) ;redo
+z::Send(z.key3) ;undo
+x::Send(x.key3) ;cut
+c::Send(c.key3) ;copy
+v::Send(v.key3) ;paste
+b::Send(b.key3) ;undo
 sc073::^- ;vkE2sc073 = \ shift:_
 
 *1::Send("{Blind}{F1}")
