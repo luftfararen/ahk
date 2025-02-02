@@ -838,7 +838,11 @@ class ModKey
 	__New(key,timeout:=200)
 	{
 		this.key := key
-		this.key_str := "{" . key . "}"
+		if key = ""{
+			this.key_str := ""
+		}else{
+			this.key_str := "{" . key . "}"
+		}
 		this.pressed_time := 0
 		this.mod_str := ""
 		this.type := 0
@@ -901,7 +905,9 @@ class ModKey
 			if this.type = 1{
 				LayerKey.ParseAndChange(this.key)
 			}else{
-				SendInput("{Blind}" . this.mod_str . this.key_str)
+				if this.key_str != "" {
+					SendInput("{Blind}" . this.mod_str . this.key_str)
+				}
 			}
 		}
 		this.pressed_time := 0
@@ -913,11 +919,12 @@ class ModKey
 	}
 } ;class ModKey
 
-f13 := ModKey(S_ZENKAKU,200) ;m1
+;f13 := ModKey(S_ZENKAKU,200) ;m1
+f13 := ModKey("",200) ;m1
 space := ModKey("Space") ;m2
 tab := ModKey("Tab") ;m3
-noconv := ModKey(B_ENTER) ;m4
-;conv := ModKey(B_ENTER) ;m1
+;noconv := ModKey(B_ENTER) ;m4
+noconv := ModKey(S_ZENKAKU) ;m4
 f14 := ModKey(B_ENTER) ;m5
 
 k1 := LongPressKeyC("1")
