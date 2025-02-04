@@ -124,14 +124,14 @@ SetKeyDelay 0
 
 IsImeOn()
 {
-	hwnd := WinActive("A")
-	return DllCall("SendMessage", "UInt", DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",hwnd),
+	return DllCall("SendMessage", "UInt", 
+		DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",WinActive("A")),
 		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
 }
 
 SendDepOn(key_ime_off,key_ime_on:="")
 {
-	if IsImeOn && key_ime_on != ""{
+	if IsImeOn() && key_ime_on != ""{
 		Send(key_ime_on)
 	}else{
 		Send(key_ime_off)
@@ -174,14 +174,14 @@ class SwapKey
 	SendShiftedKey(shift)
 	{
 		if  shift  {
-			if IsImeOn && this.shift_ime_key_str != "" {
+			if IsImeOn() && this.shift_ime_key_str != "" {
 				Send(this.shift_ime_key_str )
 			}else{
 				Send(this.shift_key_str )
 			}
 			return true
 		}else{ 
-			if IsImeOn && this.short_ime_key_str != ""{
+			if IsImeOn() && this.short_ime_key_str != ""{
 				Send(this.short_ime_key_str)
 			}else{
 				Send(this.short_key_str) ;Sends key in blind mode
