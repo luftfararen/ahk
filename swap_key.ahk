@@ -274,8 +274,15 @@ class ModKey
 		this.key := key
 		if key = ""{
 			this.key_str := ""
+			this.key := key
 		}else{
-			this.key_str := "{" . key . "}"
+			if SubStr(key,1,1) = "{"{
+				this.key := SubStr(key,2,StrLen(key)-2)
+				this.key_str := key
+			}else{
+				this.key := key
+				this.key_str := "{" . key . "}"
+			}
 		}
 		this.pressed_time := 0
 		this.mod_str := ""
@@ -348,7 +355,7 @@ class ModKey
 f13 := ModKey("",200) ;m1
 space := ModKey("SPACE") ;m2
 tab := ModKey("TAB") ;m3
-noconv := ModKey("ZENKAKU") ;m4
+noconv := ModKey(S_ZENKAKU) ;m4
 f14 := ModKey("ENTER") ;m5
 
 k1 := SwapKey("1")
