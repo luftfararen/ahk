@@ -941,6 +941,23 @@ tab := ModKey("TAB") ;m3
 noconv := ModKey(S_ZENKAKU) ;m4
 f14 := ModKey("ENTER") ;m5
 
+ModifiedState(m)
+{
+	if m = 1{
+		return GetKeyState("F13","P")
+	} if m = 2{
+		return space.IsPressed() 
+	} if m = 3{
+		return tab.IsPressed()
+	} if m = 4{
+		return GetKeyState(S_NOCONV, "P") 
+	} if m = 5{
+		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
+		return F14.IsPressed()
+	}
+	return false
+}
+
 k1 := LongPressKeyC("1")
 k2 := LongPressKeyC("2")
 k3 := LongPressKeyC("3")
@@ -1378,22 +1395,6 @@ ChangeKSTNHLayout()
 	TrayTip("kstnh layout","",0x11)
 }
 
-ModifiedState(m)
-{
-	if m = 1{
-		return GetKeyState("F13","P")
-	} if m = 2{
-		return space.IsPressed() 
-	} if m = 3{
-		return tab.IsPressed()
-	} if m = 4{
-		return GetKeyState(S_NOCONV, "P") 
-	} if m = 5{
-		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
-		return F14.IsPressed()
-	}
-	return false
-}
 
 ; ModifiedState2(m1:=False,m2:=False,m3:=False,m4:=False,m5:=False)
 ; {
@@ -1513,6 +1514,7 @@ w::Send("^x")
 e::Send("^c")
 r::Send("^v")
 
+#HotIf ModifiedState(3) || (ModifiedState(1) && ModifiedState(4)) 
 y::Send(C_REDO)
 u::Send(C_BS)
 i::Send("+{Up}")
