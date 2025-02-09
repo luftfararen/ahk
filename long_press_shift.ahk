@@ -18,32 +18,32 @@ S_CONV := "sc079"
 C_CONV := "{sc079}" 
 
 ;sc07D = \; shift:|
-S_BACKSLASH := "sc07D" 
+;S_BACKSLASH := "sc07D" 
 C_BACKSLASH := "{sc07D}"
 B_BACKSLASH := "{Blind}{sc07D}"
 
 ;vkE2sc073 = \ shift:_
-S_BACKSLASH2 := "sc073" 
+;S_BACKSLASH2 := "sc073"
 C_BACKSLASH2 := "{sc073}" 
 
 ;sc00D =^
-S_HAT := "sc00D"
+;S_HAT := "sc00D"
 C_HAT := "{sc00D}"
 
 ;vkBBsc027 = ; shift:+
-S_SEMICOLON := "sc027" 
+;S_SEMICOLON := "sc027" 
 C_SEMICOLON := "{sc027}" 
 B_SEMICOLON := "{Blind}{sc027}" 
 C_PLUS := "+{sc027}" 
 
 ;vkBAsc028 = : shift:*
-S_COLON := "sc028"
+;S_COLON := "sc028"
 C_COLON := "{sc028}"
 B_COLON := "{Blind}{sc028}"
 C_ASTERISK := "+{sc028}"
 
 ;vkBCsc033 = ,
-S_COMMA := "sc033"
+;S_COMMA := "sc033"
 C_COMMA := "{sc033}"
 
 ;vkF0sc03A = Eisu
@@ -58,8 +58,9 @@ C_HIRAGANA := "{sc070}"
 ;vkF4sc029 = 全角/半角 must be sent
 S_ZENKAKU := "sc029" 
 C_ZENKAKU := "{sc029}" 
+B_ZENKAKU := "{Blind}{sc029}"
 
-S_SLASH := "sc035"
+;S_SLASH := "sc035"
 C_SLASH := "{sc035}"
 B_SLASH := "{Blind}{sc035}"
 
@@ -88,6 +89,7 @@ B_BS    := "{Blind}{Backspace}"
 
 C_REDO := "^y"
 
+B_SPACE   := "{Blind}{Space}"
 B_ESC   := "{Blind}{Esc}"
 B_TAB   := "{Blind}{Tab}"
 B_UNDO  := "{Blind}^{z}"
@@ -129,7 +131,7 @@ IsImeOn()
 		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
 }
 
-SendDepOn(key_ime_off,key_ime_on:="")
+SendAccImeState(key_ime_off,key_ime_on:="")
 {
 	if IsImeOn() && key_ime_on != ""{
 		Send(key_ime_on)
@@ -540,7 +542,7 @@ class SwapKey
 	static use_registered_key_for_ctrl  := true ;for ctrl or alt
 
 /*============================================================================
-	key: 		base key.
+	key: 		base key, if it is speial key, "{}" is needed.
 	long_key: 	long pressed key, which inclueds "{}". 
 				If blank, shifted key is generated automatically. If "none", does nothing.  
 ============================================================================*/
@@ -551,20 +553,47 @@ class SwapKey
 		this.shift_ime_key_str := ""
 	}
 
-	SetIMEKey(key, shift_key:="")
+/*============================================================================
+	key: 		base key.
+	shift_key: 	shift key, which inclueds "{}". 
+				If blank, shifted key is generated automatically.
+============================================================================*/
+	SetKey(key, shift_key:="")
 	{
-		;this.ime_key := key
-		if SubStr(key,1,1) != "{" {
-			key := "{" . key . "}"
-		}
-		this.short_ime_key_str := "{Blind}" .  key 
-
-		if shift_key = ""{
-			this.shift_ime_key_str :=  "+" . key
+		this.key := key
+		len := Strlen(key)
+		if SubStr(key,1,1) = "{" ||  len = 1 {
+			this.short_key_str := "{Blind}" .  key 
+			if shift_key = ""{
+				this.shift_key_str :=  "+" . key
+			}else{
+				this.shift_key_str :=  shift_key 
+			}
 		}else{
-			this.shift_ime_key_str :=  shift_key 
+			this.short_key_str := key 
+			this.shift_key_str :=  "" 
 		}
 	}
+	
+	/* 
+	
+	*/
+	SetImeKey(key := "", shift_key:="")
+	{
+		len := Strlen(key)
+		if SubStr(key,1,1) = "{" ||  len = 1 {
+			this.short_ime_key_str := "{Blind}" .  key 
+			if shift_key = ""{
+				this.shift_ime_key_str :=  "+" . key
+			}else{
+				this.shift_ime_key_str :=  shift_key 
+			}
+		}else{
+			this.short_ime_key_str := key 
+			this.shift_ime_key_str :=  "" 
+		}
+	}
+
 	
 	SendShiftedKey(shift)
 	{
@@ -582,26 +611,6 @@ class SwapKey
 				Send(this.short_key_str) ;Sends key in blind mode
 			}
 			return false
-		}
-	}
-
-/*============================================================================
-	key: 		base key.
-	shift_key: 	shift key, which inclueds "{}". 
-				If blank, shifted key is generated automatically.
-============================================================================*/
-	SetKey(key, shift_key:="")
-	{
-		this.key := key
-		if SubStr(key,1,1) != "{" {
-			key := "{" . key . "}"
-		}
-		this.short_key_str := "{Blind}" .  key 
-
-		if shift_key = ""{
-			this.shift_key_str :=  "+" . key
-		}else{
-			this.shift_key_str :=  shift_key 
 		}
 	}
 
@@ -659,7 +668,7 @@ class LongPressKey extends SwapKey
 	static long_press_enabled  := true
 
 /*============================================================================
-	key: 		base key.
+	key: 		base key, if it is speial key, "{}" is needed.
 	long_key: 	long pressed key, which inclueds "{}". 
 				If blank, shifted key is generated automatically. If "none", does nothing.  
 ============================================================================*/
@@ -792,7 +801,7 @@ class LongPressKeyC extends LongPressKey
 {
 
 /*============================================================================
-	key: 		base key, not inclueds "{}".
+	key: 		base key, if it is speial key, "{}" is needed.
 	long_key: 	long pressed key, which inclueds "{}". 
 				If blank, shifted key is generated automatically. If "none", does nothing.  
 ===========================================================================*/
@@ -921,11 +930,10 @@ class ModKey
 
 ;f13 := ModKey(S_ZENKAKU,200) ;m1
 f13 := ModKey("",200) ;m1
-space := ModKey("Space") ;m2
-tab := ModKey("Tab") ;m3
-;noconv := ModKey(B_ENTER) ;m4
-noconv := ModKey(S_ZENKAKU) ;m4
-f14 := ModKey(B_ENTER) ;m5
+space := ModKey("SPACE") ;m2
+tab := ModKey("TAB") ;m3
+noconv := ModKey("ZENKAKU") ;m4
+f14 := ModKey("ENTER") ;m5
 
 k1 := LongPressKeyC("1")
 k2 := LongPressKeyC("2")
@@ -938,7 +946,7 @@ k8 := LongPressKeyC("8")
 k9 := LongPressKeyC("9")
 k0 := LongPressKeyC("0","none")
 minus := LongPressKeyC("-")
-hat := LongPressKeyC(S_HAT)
+hat := LongPressKeyC(C_HAT)
 backslash := LongPressKeyC("\")
 ;
 q := LongPressKeyC("q")
@@ -965,8 +973,8 @@ h := LongPressKeyC("h")
 j := LongPressKeyC("j")
 k := LongPressKeyC("k")
 l := LongPressKeyC("l")
-semicolon := LongPressKeyC(S_SEMICOLON)
-colon := LongPressKeyC(S_COLON)
+semicolon := LongPressKeyC(C_SEMICOLON)
+colon := LongPressKeyC(C_COLON)
 closebracket := LongPressKeyC("]")
 ;
 z := LongPressKeyC("z")
@@ -977,15 +985,15 @@ b := LongPressKeyC("b")
 ;
 n := LongPressKeyC("n")
 m := LongPressKeyC("m")
-comma := LongPressKeyC(S_COMMA)
+comma := LongPressKeyC(C_COMMA)
 period := LongPressKeyC(".")
 slash := LongPressKeyC("/")
 backslash2 := LongPressKeyC("_")
 ;
-up    := LongPressKeyC("up","none")
-down  := LongPressKeyC("down","none")
-left  := LongPressKeyC("left","none")
-right := LongPressKeyC("right","none")
+up    := LongPressKeyC(B_UP,"none")
+down  := LongPressKeyC(B_DOWN,"none")
+left  := LongPressKeyC(B_LEFT,"none")
+right := LongPressKeyC(B_RIGHT,"none")
 
 ;===10 Key Mode===
 #hotif LayerKey.idx = LayerKey.NUM_MODE
@@ -1194,6 +1202,47 @@ r::LayerKey.ChangeLayer(LayerKey.CUR_MODE)
 #hotif
 
 
+Reset()
+{   
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	q.SetImeKey()
+	w.SetImeKey()
+	e.SetImeKey()
+	r.SetImeKey()
+	t.SetImeKey()
+	y.SetImeKey()
+	u.SetImeKey()
+	i.SetImeKey()
+	o.SetImeKey()
+	p.SetImeKey()
+
+	a.SetImeKey()
+	s.SetImeKey()
+	d.SetImeKey()
+	f.SetImeKey()
+	g.SetImeKey()
+	h.SetImeKey()
+	j.SetImeKey()
+	k.SetImeKey()
+	l.SetImeKey()
+	semicolon.SetImeKey()
+
+	z.SetImeKey()
+	x.SetImeKey()
+	c.SetImeKey()
+	v.SetImeKey()
+	b.SetImeKey()
+	n.SetImeKey()
+	m.SetImeKey()
+	comma.SetImeKey()
+	period.SetImeKey()
+	slash.SetImeKey()
+}
+
 
 ChangeASRTLayout()
 {
@@ -1231,6 +1280,8 @@ ChangeASRTLayout()
 	comma.SetKey(C_COMMA)
 	period.SetKey(".")
 	slash.SetKey("/")
+
+	Reset()
 	TrayTip("ASRT layout","",0x11)
 }
 
@@ -1271,10 +1322,11 @@ ChangeFMIX15Layout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	a.SetIMEKey("a","ya")
-	i.SetIMEKey("u","yu")
-	semicolon.SetIMEKey("o","yo")
+	a.SetImeKey("a","ya")
+	i.SetImeKey("u","yu")
+	semicolon.SetImeKey("o","yo")
 	
+	Reset()
 	TrayTip("FMIX15 layout","",0x11)
 }
 
@@ -1315,6 +1367,8 @@ ChangeKSTNHLayout()
 	comma.SetKey("d")
 	period.SetKey("m")
 	slash.SetKey("b")
+
+	Reset()
 	TrayTip("kstnh layout","",0x11)
 }
 
@@ -1407,7 +1461,7 @@ Esc::{
 
 q::!space
 *e::Send(B_ESC)
-;r::LayerKey.ChangeLayer(LayerKey.CUR_MODE)
+r::+F3
 *a::Send("{Blind}^a")
 *s::Send("{Blind}^s")
 *d::Send("{Blind}^{Space}") 
@@ -1416,7 +1470,7 @@ g::Send("^f")
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
-*space::Send("{Blind}{Backspace}")
+*space::Send(B_BS)
 #k::ChangeKSTNHLayout()
 #a::ChangeASRTLayout()
 #f::ChangeFMIX15Layout()
@@ -1427,19 +1481,19 @@ sc079::Send(C_ZENKAKU) ;conv
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
-*e::SendDepOn(B_SLASH,"ya")
-*r::SendDepOn(B_NADD,"yu") 
-*t::Send(B_NMUL)
+*e::SendAccImeState(B_SLASH,"ya")
+*r::SendAccImeState(B_NMUL,"yu") 
+*t::Send(B_NADD)
 *a::Send("{Blind}^a")
 s::Send("()")
-d::SendDepOn("_","yo")
+d::SendAccImeState("_","yo")
 *f::Send("{Blind}-")
 g::Send("=")
 
 sc035::LayerKey.ChangeLayer(LayerKey.MOUSE_MODE) ;/ 
 
-F14::Send(C_ZENKAKU) 
-sc079::Send(C_ZENKAKU) ;conv
+F14::Send(B_ZENKAKU) 
+sc079::Send(B_ZENKAKU) ;conv
 #HotIf
 
 ;***M3**************************************************************************
@@ -1479,20 +1533,26 @@ space::Send(C_BS)
 sc00D::Send(C_HAT)
 sc07D::Send("\")
 
+q::Send("''{Left}")
+w::Send('""{Left}')
+e::Send("<")
+r::Send(">")
+t::Send("+1")
+
+a::Send("<>{Left}")
+s::Send("(){Left}")
+d::Send("[]{Left}")
+f::Send("-")
+g::Send("=")
+v::Send("+[+]{Left}")
+;g::Send(B_BACKSLASH)
+
 y::Send(C_BS)
 u::Send(C_N4)
 i::Send(C_N5)
 o::Send(C_N6)
 p::Send(B_NADD)
 @::Send(B_UP)
-
-w::Send('""{Left}')
-e::Send("''{Left}")
-a::Send("<>{Left}")
-s::Send("(){Left}")
-d::Send("[]{Left}")
-f::Send("+[+]{Left}")
-;g::Send(B_BACKSLASH)
 
 h::Send("=")
 j::Send(C_N1)
@@ -1502,14 +1562,17 @@ l::Send(C_N3)
 *sc028::Send(B_DOWN) ;:
 ]::Send(B_RIGHT)
 
-n::Send("{Delete}")
+n::Send(C_DEL)
 m::Send(C_N0)
 sc033::Send(C_COMMA) ;.
 .::Send(C_NDOT)
++sc033::Send("<=") ;.
++.::Send(">=")
 *sc035::Send(B_NDIV)
 *sc073::Send("\")
 
 space::Send(B_ENTER)
+
 
 up::Send(B_UP)
 down::Send(B_DOWN)
@@ -1529,29 +1592,34 @@ right::Send(B_RIGHT)
 8::+8
 9::+9
 
-q::Send("?")
-w::Send("&")
-e::Send("|")
-r::Send(C_HAT)
-;t::Send("~")
-u::Send("+{@}")
-i::Send("+[")
-o::Send("+]")
+q::Send("+7")
+w::Send("+2")
+e::Send("+3")
+r::Send("+4")
+t::Send("+5")
 
 a::Send("@")
-s::Send("$")
-g::Send("#")
+s::Send(C_HAT)
+g::Send("+6")
 
+;z::Send('"')
+;x::Send("'")
+c::Send(B_COLON)
+v::Send(B_SEMICOLON)
+b::Send("\")
+
+u::Send("+{@}") ;`
+i::Send("+[")
+o::Send("+]")
 h::Send("~")
 k::Send("[")
 l::Send("]")
 
-z::Send('"')
-x::Send("'")
-c::Send(B_COLON)
-v::Send(B_SEMICOLON)
-b::Send("\")
-n::Send("%")
+j::Send("+1") ;!
+n::Send("-") ;%
+m::Send("=")
+sc033::Send("<") ;.
+.::Send(">")
 
 ;***Long Press**************************************************************************
 #HotIf ;ModifiedState(false,false,false,false) 
