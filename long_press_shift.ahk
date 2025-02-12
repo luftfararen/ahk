@@ -1274,6 +1274,8 @@ ChangeASRTLayout()
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
+	Reset()
+
 	minus.SetKey("-")
 	q.SetKey("q")
 	w.SetKey("w")
@@ -1304,7 +1306,6 @@ ChangeASRTLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	Reset()
 	TrayTip("ASRT layout","",0x11)
 }
 
@@ -1314,6 +1315,50 @@ ChangeFMIX15Layout()
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
+
+	Reset()
+
+	minus.SetKey("-")
+	q.SetKey("q")
+	w.SetKey("w")
+	e.SetKey("l")
+	r.SetKey("d")
+	t.SetKey("k")
+	y.SetKey(C_SEMICOLON)
+	u.SetKey("f")
+	i.SetKey("u")
+	o.SetKey("y")
+	p.SetKey("j")
+
+	a.SetKey("a")
+	s.SetKey("s")
+	d.SetKey("r")
+	f.SetKey("t")
+	g.SetKey("g")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("e")
+	l.SetKey("i")
+	semicolon.SetKey("o")
+	
+	b.SetKey("b")
+	n.SetKey("p")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+	
+	TrayTip("FMIX15 layout","",0x11)
+}
+
+ChangeFMIX15RLayout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	Reset()
 
 	minus.SetKey("-")
 	q.SetKey("q")
@@ -1345,14 +1390,12 @@ ChangeFMIX15Layout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	a.SetImeKey("a","ya")
-	i.SetImeKey("u","yu")
-	semicolon.SetImeKey("o","yo")
+	d.SetImeKey("k")
+	t.SetImeKey("l")
+	e.SetImeKey("r")
 	
-	Reset()
-	TrayTip("FMIX15 layout","",0x11)
+	TrayTip("FMIX15R layout","",0x11)
 }
-
 
 ChangeKSTNHLayout()
 {
@@ -1360,6 +1403,8 @@ ChangeKSTNHLayout()
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
+
+	Reset()
 
 	minus.SetKey(C_SLASH)
 	q.SetKey("q")
@@ -1391,7 +1436,6 @@ ChangeKSTNHLayout()
 	period.SetKey("m")
 	slash.SetKey("b")
 
-	Reset()
 	TrayTip("kstnh layout","",0x11)
 }
 
@@ -1477,10 +1521,12 @@ g::Send("^f")
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
-*space::Send(B_BS)
+space::Send(C_ZENKAKU)
+;*space::Send(B_BS)
 #k::ChangeKSTNHLayout()
 #a::ChangeASRTLayout()
 #f::ChangeFMIX15Layout()
+#r::ChangeFMIX15RLayout()
 #x::LongPressKey.EnableLongPress(2,true)
 #HotIf
 
@@ -1524,7 +1570,7 @@ h::Send("+{Home}")
 j::Send("+{Left}")
 k::Send("+{Down}")
 l::Send("+{Right}")
-sc027::Send("{Enter}") ;vkBBsc027 = ; shift:+
+sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
 Enter::Send("{Enter}")
 n::Send("+{End}")
 m::Send(C_DEL)
