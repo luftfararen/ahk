@@ -124,11 +124,24 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
+SearchWindowsToGetImeState(parent) 
+{
+	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
+	if DllCall("SendMessage", "UInt", hwnd,
+	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+	 		return true
+	}
+    for child in WinGetControlsHwnd(parent) {
+        if SearchWindowsToGetImeState(child){
+			return true
+		}
+    }
+	return false
+}
+
 IsImeOn()
 {
-	return DllCall("SendMessage", "UInt", 
-		DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",WinActive("A")),
-		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+	return SearchWindowsToGetImeState(WinActive("A"))
 }
 
 SendAccImeState(key_ime_off,key_ime_on:="")
@@ -195,9 +208,8 @@ class SwapKey
 			this.shift_ime_key_str :=  "" 
 		}
 	}
-
 	
-	SendShiftedKey(shift)
+	SendShiftedKey(shift := true)
 	{
 		if  shift  {
 			if IsImeOn() && this.shift_ime_key_str != "" {
@@ -271,7 +283,6 @@ class ModKey
 ============================================================================*/
 	__New(key,timeout:=200)
 	{
-		this.key := key
 		if key = ""{
 			this.key_str := ""
 			this.key := key
@@ -358,6 +369,23 @@ tab := ModKey("TAB") ;m3
 noconv := ModKey(S_ZENKAKU) ;m4
 f14 := ModKey("ENTER") ;m5
 
+ModifiedState(m)
+{
+	if m = 1{
+		return GetKeyState("F13","P")
+	} if m = 2{
+		return space.IsPressed() 
+	} if m = 3{
+		return tab.IsPressed()
+	} if m = 4{
+		return GetKeyState(S_NOCONV, "P") 
+	} if m = 5{
+		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
+		return F14.IsPressed()
+	}
+	return false
+}
+
 k1 := SwapKey("1")
 k2 := SwapKey("2")
 k3 := SwapKey("3")
@@ -411,7 +439,7 @@ m := SwapKey("m")
 comma := SwapKey(C_COMMA)
 period := SwapKey(".")
 slash := SwapKey("/")
-backslash2 := SwapKey("_")
+backslash2 := SwapKey(C_BACKSLASH2)
 ;
 up    := SwapKey(B_UP,"none")
 down  := SwapKey(B_DOWN,"none")
@@ -469,6 +497,8 @@ ChangeASRTLayout()
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
+	Reset()
+
 	minus.SetKey("-")
 	q.SetKey("q")
 	w.SetKey("w")
@@ -499,7 +529,6 @@ ChangeASRTLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	Reset()
 	TrayTip("ASRT layout","",0x11)
 }
 
@@ -509,6 +538,50 @@ ChangeFMIX15Layout()
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
+
+	Reset()
+
+	minus.SetKey("-")
+	q.SetKey("q")
+	w.SetKey("w")
+	e.SetKey("l")
+	r.SetKey("d")
+	t.SetKey("k")
+	y.SetKey(C_SEMICOLON)
+	u.SetKey("f")
+	i.SetKey("u")
+	o.SetKey("y")
+	p.SetKey("j")
+
+	a.SetKey("a")
+	s.SetKey("s")
+	d.SetKey("r")
+	f.SetKey("t")
+	g.SetKey("g")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("e")
+	l.SetKey("i")
+	semicolon.SetKey("o")
+	
+	b.SetKey("b")
+	n.SetKey("p")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+	
+	TrayTip("FMIX15 layout","",0x11)
+}
+
+ChangeFMIX15RLayout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	Reset()
 
 	minus.SetKey("-")
 	q.SetKey("q")
@@ -540,14 +613,12 @@ ChangeFMIX15Layout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	a.SetImeKey("a","ya")
-	i.SetImeKey("u","yu")
-	semicolon.SetImeKey("o","yo")
+	d.SetImeKey("k")
+	t.SetImeKey("l")
+	e.SetImeKey("r")
 	
-	Reset()
-	TrayTip("FMIX15 layout","",0x11)
+	TrayTip("FMIX15R layout","",0x11)
 }
-
 
 ChangeKSTNHLayout()
 {
@@ -590,22 +661,6 @@ ChangeKSTNHLayout()
 	TrayTip("kstnh layout","",0x11)
 }
 
-ModifiedState(m)
-{
-	if m = 1{
-		return GetKeyState("F13","P")
-	} if m = 2{
-		return space.IsPressed() 
-	} if m = 3{
-		return tab.IsPressed()
-	} if m = 4{
-		return GetKeyState(S_NOCONV, "P") 
-	} if m = 5{
-		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
-		return F14.IsPressed()
-	}
-	return false
-}
 
 ; ModifiedState2(m1:=False,m2:=False,m3:=False,m4:=False,m5:=False)
 ; {
@@ -618,8 +673,8 @@ ModifiedState(m)
 ; 	return b1 = m1 && b2 = m2 && b3 = m3 && b4 = m4 && b5 = m5  
 ; }
 
-;***M1 or M2 *******************************************************************
-#HotIf ModifiedState(1) || ModifiedState(2)
+;***M1 or M5 *******************************************************************
+#HotIf ModifiedState(1) || ModifiedState(5)
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
@@ -683,22 +738,24 @@ g::Send("^f")
 
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
-*space::Send(B_BS)
+space::Send(C_ZENKAKU)
+;*space::Send(B_BS)
 #k::ChangeKSTNHLayout()
 #a::ChangeASRTLayout()
 #f::ChangeFMIX15Layout()
+#r::ChangeFMIX15RLayout()
 #HotIf
 
-;***M2**************************************************************************
-#HotIf ModifiedState(2)
+;***M5**************************************************************************
+#HotIf ModifiedState(5)
 q::Send("?")
 w::+F3
-*e::SendAccImeState(B_SLASH,"ya")
-*r::SendAccImeState(B_NMUL,"yu") 
+*e::Send(B_SLASH)
+*r::Send(B_NMUL) 
 *t::Send(B_NADD)
 *a::Send("{Blind}^a")
 s::Send("()")
-d::SendAccImeState("_","yo")
+d::Send("_")
 *f::Send("{Blind}-")
 g::Send("=")
 
@@ -718,6 +775,7 @@ w::Send("^x")
 e::Send("^c")
 r::Send("^v")
 
+#HotIf ModifiedState(3) || (ModifiedState(1) && ModifiedState(4)) 
 y::Send(C_REDO)
 u::Send(C_BS)
 i::Send("+{Up}")
@@ -727,7 +785,7 @@ h::Send("+{Home}")
 j::Send("+{Left}")
 k::Send("+{Down}")
 l::Send("+{Right}")
-sc027::Send("{Enter}") ;vkBBsc027 = ; shift:+
+sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
 Enter::Send("{Enter}")
 n::Send("+{End}")
 m::Send(C_DEL)
@@ -791,48 +849,66 @@ left::Send(B_LEFT)
 right::Send(B_RIGHT)
 
 #HotIf ;needed to enable m5
-;***M5**************************************************************************
-#HotIf ModifiedState(5)
-1::+1
-2::+2
-3::+3
-4::+4
-5::+5
-6::+6
-7::+7
-8::+8
-9::+9
+;***M2**************************************************************************
+#HotIf ModifiedState(2)
+1::k1.SendShiftedKey()
+2::k2.SendShiftedKey()
+3::k3.SendShiftedKey()
+4::k4.SendShiftedKey()
+5::k5.SendShiftedKey()
+6::k6.SendShiftedKey()
+7::k7.SendShiftedKey()
+8::k8.SendShiftedKey()
+9::k9.SendShiftedKey()
+-::minus.SendShiftedKey()
+sc00D::hat.SendShiftedKey()
+sc07D::backslash.SendShiftedKey()
 
-q::Send("+7")
-w::Send("+2")
-e::Send("+3")
-r::Send("+4")
-t::Send("+5")
+q::q.SendShiftedKey()
+w::w.SendShiftedKey()
+e::e.SendShiftedKey()
+r::r.SendShiftedKey()
+t::t.SendShiftedKey()
+y::y.SendShiftedKey()
+u::u.SendShiftedKey()
+i::i.SendShiftedKey()
+o::o.SendShiftedKey()
+p::p.SendShiftedKey()
+@::at.SendShiftedKey()
+[::openbracket.SendShiftedKey()
+;
 
-a::Send("@")
-s::Send(C_HAT)
-g::Send("+6")
+a::a.SendShiftedKey()
+s::s.SendShiftedKey()
+d::d.SendShiftedKey()
+f::f.SendShiftedKey()
+g::g.SendShiftedKey()
 
-;z::Send('"')
-;x::Send("'")
-c::Send(B_COLON)
-v::Send(B_SEMICOLON)
-b::Send("\")
+h::h.SendShiftedKey()
+j::j.SendShiftedKey()
+k::k.SendShiftedKey()
+l::l.SendShiftedKey()
 
-u::Send("+{@}") ;`
-i::Send("+[")
-o::Send("+]")
-h::Send("~")
-k::Send("[")
-l::Send("]")
+sc027::semicolon.SendShiftedKey()
+sc028::+sc028
+]::+]
+;
 
-j::Send("+1") ;!
-n::Send("-") ;%
-m::Send("=")
-sc033::Send("<") ;.
-.::Send(">")
+z::z.SendShiftedKey()
+x::x.SendShiftedKey()
+c::c.SendShiftedKey()
+v::v.SendShiftedKey()
+b::b.SendShiftedKey()
 
-;***Long Press**************************************************************************
+n::n.SendShiftedKey()
+m::m.SendShiftedKey()
+sc033::comma.SendShiftedKey()
+.::period.SendShiftedKey()
+sc035::slash.SendShiftedKey()
+sc073::backslash2.SendShiftedKey()
+
+;
+
 #HotIf ;ModifiedState(false,false,false,false) 
 *1::k1.Down()
 *1 up::k1.Up()

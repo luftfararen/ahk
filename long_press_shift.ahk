@@ -124,11 +124,24 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
+SearchWindowsToGetImeState(parent) 
+{
+	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
+	if DllCall("SendMessage", "UInt", hwnd,
+	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+	 		return true
+	}
+    for child in WinGetControlsHwnd(parent) {
+        if SearchWindowsToGetImeState(child){
+			return true
+		}
+    }
+	return false
+}
+
 IsImeOn()
 {
-	return DllCall("SendMessage", "UInt", 
-		DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",WinActive("A")),
-		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+	return SearchWindowsToGetImeState(WinActive("A"))
 }
 
 SendAccImeState(key_ime_off,key_ime_on:="")
@@ -1534,12 +1547,12 @@ space::Send(C_ZENKAKU)
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
-*e::SendAccImeState(B_SLASH,"ya")
-*r::SendAccImeState(B_NMUL,"yu") 
+*e::Send(B_SLASH)
+*r::Send(B_NMUL) 
 *t::Send(B_NADD)
 *a::Send("{Blind}^a")
 s::Send("()")
-d::SendAccImeState("_","yo")
+d::Send("_")
 *f::Send("{Blind}-")
 g::Send("=")
 
