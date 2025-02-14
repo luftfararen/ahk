@@ -124,15 +124,20 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
-SearchWindowsToGetImeState(parent) 
+last_ime_hwnd := 0
+last_active_hwnd := 0
+SearchWindowsToGetImeState(root,parent) 
 {
+	global last_ime_hwnd,last_active_hwnd
 	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
 	if DllCall("SendMessage", "UInt", hwnd,
 	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+			last_active_hwnd := root
+			last_ime_hwnd := hwnd
 	 		return true
 	}
     for child in WinGetControlsHwnd(parent) {
-        if SearchWindowsToGetImeState(child){
+        if SearchWindowsToGetImeState(root,child){
 			return true
 		}
     }
@@ -141,7 +146,15 @@ SearchWindowsToGetImeState(parent)
 
 IsImeOn()
 {
-	return SearchWindowsToGetImeState(WinActive("A"))
+	global last_ime_hwnd,last_active_hwnd
+	hwnd := WinActive("A")
+	if hwnd = last_active_hwnd {
+		return DllCall("SendMessage", "UInt", last_ime_hwnd,
+		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+	}else{
+		last_active_hwnd := 0
+		return SearchWindowsToGetImeState(hwnd,hwnd)
+	}
 }
 
 SendAccImeState(key_ime_off,key_ime_on:="")
@@ -208,6 +221,7 @@ class SwapKey
 			this.shift_ime_key_str :=  "" 
 		}
 	}
+
 	
 	SendShiftedKey(shift := true)
 	{
@@ -627,6 +641,8 @@ ChangeKSTNHLayout()
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
+	Reset()
+
 	minus.SetKey(C_SLASH)
 	q.SetKey("q")
 	w.SetKey("l")
@@ -657,7 +673,6 @@ ChangeKSTNHLayout()
 	period.SetKey("m")
 	slash.SetKey("b")
 
-	Reset()
 	TrayTip("kstnh layout","",0x11)
 }
 
@@ -739,6 +754,7 @@ g::Send("^f")
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
 space::Send(C_ZENKAKU)
+
 ;*space::Send(B_BS)
 #k::ChangeKSTNHLayout()
 #a::ChangeASRTLayout()
@@ -753,6 +769,7 @@ w::+F3
 *e::Send(B_SLASH)
 *r::Send(B_NMUL) 
 *t::Send(B_NADD)
+
 *a::Send("{Blind}^a")
 s::Send("()")
 d::Send("_")
@@ -793,14 +810,6 @@ space::Send(C_BS)
 
 ;***M4**************************************************************************
 #HotIf ModifiedState(4)
-6::Send("{Escape}")
-7::Send(C_N7)
-8::Send(C_N8)
-9::Send(C_N9)
-0::Send(B_NMUL)
-;-::Send("-")
-sc00D::Send(C_HAT)
-sc07D::Send("\")
 
 q::Send("''{Left}")
 w::Send('""{Left}')
@@ -815,6 +824,15 @@ f::Send("-")
 g::Send("=")
 v::Send("+[+]{Left}")
 ;g::Send(B_BACKSLASH)
+
+6::Send("{Escape}")
+7::Send(C_N7)
+8::Send(C_N8)
+9::Send(C_N9)
+0::Send(B_NMUL)
+;-::Send("-")
+sc00D::Send(C_HAT)
+sc07D::Send("\")
 
 y::Send(C_BS)
 u::Send(C_N4)
@@ -842,7 +860,6 @@ sc033::Send(C_COMMA) ;.
 
 space::Send(B_ENTER)
 
-
 up::Send(B_UP)
 down::Send(B_DOWN)
 left::Send(B_LEFT)
@@ -856,6 +873,25 @@ right::Send(B_RIGHT)
 3::k3.SendShiftedKey()
 4::k4.SendShiftedKey()
 5::k5.SendShiftedKey()
+
+q::q.SendShiftedKey()
+w::w.SendShiftedKey()
+e::e.SendShiftedKey()
+r::r.SendShiftedKey()
+t::t.SendShiftedKey()
+
+a::a.SendShiftedKey()
+s::s.SendShiftedKey()
+d::d.SendShiftedKey()
+f::f.SendShiftedKey()
+g::g.SendShiftedKey()
+
+z::z.SendShiftedKey()
+x::x.SendShiftedKey()
+c::c.SendShiftedKey()
+v::v.SendShiftedKey()
+b::b.SendShiftedKey()
+
 6::k6.SendShiftedKey()
 7::k7.SendShiftedKey()
 8::k8.SendShiftedKey()
@@ -864,11 +900,6 @@ right::Send(B_RIGHT)
 sc00D::hat.SendShiftedKey()
 sc07D::backslash.SendShiftedKey()
 
-q::q.SendShiftedKey()
-w::w.SendShiftedKey()
-e::e.SendShiftedKey()
-r::r.SendShiftedKey()
-t::t.SendShiftedKey()
 y::y.SendShiftedKey()
 u::u.SendShiftedKey()
 i::i.SendShiftedKey()
@@ -876,29 +907,14 @@ o::o.SendShiftedKey()
 p::p.SendShiftedKey()
 @::at.SendShiftedKey()
 [::openbracket.SendShiftedKey()
-;
-
-a::a.SendShiftedKey()
-s::s.SendShiftedKey()
-d::d.SendShiftedKey()
-f::f.SendShiftedKey()
-g::g.SendShiftedKey()
 
 h::h.SendShiftedKey()
 j::j.SendShiftedKey()
 k::k.SendShiftedKey()
 l::l.SendShiftedKey()
-
 sc027::semicolon.SendShiftedKey()
 sc028::+sc028
 ]::+]
-;
-
-z::z.SendShiftedKey()
-x::x.SendShiftedKey()
-c::c.SendShiftedKey()
-v::v.SendShiftedKey()
-b::b.SendShiftedKey()
 
 n::n.SendShiftedKey()
 m::m.SendShiftedKey()

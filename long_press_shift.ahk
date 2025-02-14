@@ -124,15 +124,20 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
-SearchWindowsToGetImeState(parent) 
+last_ime_hwnd := 0
+last_active_hwnd := 0
+SearchWindowsToGetImeState(root,parent) 
 {
+	global last_ime_hwnd,last_active_hwnd
 	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
 	if DllCall("SendMessage", "UInt", hwnd,
 	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+			last_active_hwnd := root
+			last_ime_hwnd := hwnd
 	 		return true
 	}
     for child in WinGetControlsHwnd(parent) {
-        if SearchWindowsToGetImeState(child){
+        if SearchWindowsToGetImeState(root,child){
 			return true
 		}
     }
@@ -141,7 +146,15 @@ SearchWindowsToGetImeState(parent)
 
 IsImeOn()
 {
-	return SearchWindowsToGetImeState(WinActive("A"))
+	global last_ime_hwnd,last_active_hwnd
+	hwnd := WinActive("A")
+	if hwnd = last_active_hwnd {
+		return DllCall("SendMessage", "UInt", last_ime_hwnd,
+		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+	}else{
+		last_active_hwnd := 0
+		return SearchWindowsToGetImeState(hwnd,hwnd)
+	}
 }
 
 SendAccImeState(key_ime_off,key_ime_on:="")
@@ -608,7 +621,7 @@ class SwapKey
 	}
 
 	
-	SendShiftedKey(shift)
+	SendShiftedKey(shift := true)
 	{
 		if  shift  {
 			if IsImeOn() && this.shift_ime_key_str != "" {
@@ -1535,6 +1548,7 @@ g::Send("^f")
 F14::Send(C_ZENKAKU) 
 sc079::Send(C_ZENKAKU) ;conv
 space::Send(C_ZENKAKU)
+
 ;*space::Send(B_BS)
 #k::ChangeKSTNHLayout()
 #a::ChangeASRTLayout()
@@ -1550,6 +1564,7 @@ w::+F3
 *e::Send(B_SLASH)
 *r::Send(B_NMUL) 
 *t::Send(B_NADD)
+
 *a::Send("{Blind}^a")
 s::Send("()")
 d::Send("_")
@@ -1591,14 +1606,6 @@ space::Send(C_BS)
 
 ;***M4**************************************************************************
 #HotIf ModifiedState(4)
-6::Send("{Escape}")
-7::Send(C_N7)
-8::Send(C_N8)
-9::Send(C_N9)
-0::Send(B_NMUL)
-;-::Send("-")
-sc00D::Send(C_HAT)
-sc07D::Send("\")
 
 q::Send("''{Left}")
 w::Send('""{Left}')
@@ -1613,6 +1620,15 @@ f::Send("-")
 g::Send("=")
 v::Send("+[+]{Left}")
 ;g::Send(B_BACKSLASH)
+
+6::Send("{Escape}")
+7::Send(C_N7)
+8::Send(C_N8)
+9::Send(C_N9)
+0::Send(B_NMUL)
+;-::Send("-")
+sc00D::Send(C_HAT)
+sc07D::Send("\")
 
 y::Send(C_BS)
 u::Send(C_N4)
@@ -1640,7 +1656,6 @@ sc033::Send(C_COMMA) ;.
 
 space::Send(B_ENTER)
 
-
 up::Send(B_UP)
 down::Send(B_DOWN)
 left::Send(B_LEFT)
@@ -1654,10 +1669,6 @@ right::Send(B_RIGHT)
 3::+3
 4::+4
 5::+5
-6::+6
-7::+7
-8::+8
-9::+9
 
 q::Send("+7")
 w::Send("+2")
@@ -1675,14 +1686,21 @@ c::Send(B_COLON)
 v::Send(B_SEMICOLON)
 b::Send("\")
 
+
+6::+6
+7::+7
+8::+8
+9::+9
+
 u::Send("+{@}") ;`
 i::Send("+[")
 o::Send("+]")
+
 h::Send("~")
+j::Send("+1") ;!
 k::Send("[")
 l::Send("]")
 
-j::Send("+1") ;!
 n::Send("-") ;%
 m::Send("=")
 sc033::Send("<") ;.

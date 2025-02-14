@@ -151,11 +151,27 @@ image::img/fmix.webp[]
 ColemakよりもQwertyからの入れ替えが少なく覚えやすい
 ////
 
-== swap_key.ahk
-long_press_shift.ahkに対し、
+== saas.ahk
+スペース長押しでシフトコンビネーションを実現 +
+long_press_shift.ahkに対し、 以下を排除
 
 * 長押し
 * モード（レイヤー）固定機能
 * マウス関連機能
 
-を排除したスクリプト
+=== M1修飾
+image::img/m1.webp[]
+FuncLock未対応
+
+=== M2修飾
+image::img/shift.webp[]
+
+=== M3修飾
+image::img/m3.webp[]
+C+z,C+x,C+c,C+vは、未対応
+
+=== M4修飾
+image::img/m4.webp[]
+
+=== M5修飾
+image::img/m2.webp[]
