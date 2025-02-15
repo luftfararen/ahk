@@ -563,9 +563,9 @@ class LayerKey
 /*============================================================================
 Class to assign different key for long press.
 ============================================================================*/
-class SwapKey
+class RKey
 {
-	static use_registered_key_for_ctrl  := true ;for ctrl or alt
+	static use_registered_key_for_ctrl  := false ;for ctrl or alt
 
 /*============================================================================
 	key: 		base key, if it is speial key, "{}" is needed.
@@ -601,9 +601,11 @@ class SwapKey
 		}
 	}
 	
-	/* 
-	
-	*/
+/*============================================================================
+	key: 		base key when ime is on.
+	shift_key: 	shift key, which inclueds "{}". 
+				If blank, shifted key is generated automatically.
+============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
 		len := Strlen(key)
@@ -669,7 +671,7 @@ class SwapKey
 ============================================================================*/
 	Down(pressed_key := "")
 	{
-		if SwapKey.use_registered_key_for_ctrl ||  pressed_key = ""{
+		if RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
 			pressed_key := this.key
 		}
 		this.SendModKey(pressed_key)
@@ -687,7 +689,7 @@ class SwapKey
 /*============================================================================
 Class to assign different key for long press.
 ============================================================================*/
-class LongPressKey extends SwapKey
+class LongPressKey extends RKey
 {
 	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
 	static last_key := ""
@@ -847,7 +849,7 @@ class LongPressKeyC extends LongPressKey
 ===========================================================================*/
 	Down(pressed_key := "")
 	{
-		if !SwapKey.use_registered_key_for_ctrl ||  pressed_key = ""{
+		if !RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
 			pressed_key := this.key
 		}
 		if LayerKey.SendModifiedKey(pressed_key,this.shift_key_str){
@@ -967,8 +969,30 @@ tab := ModKey("TAB") ;m3
 noconv := ModKey(S_ZENKAKU) ;m4
 f14 := ModKey("ENTER") ;m5
 
-ModifiedState(m)
+/*============================================================================
+	Returns true if modifier key is pressed. 
+	m: modifier num
+	alt: if value is true and alt key is pressed, returns false.  
+	ctrl: if value is true and ctrl key is pressed, returns false.
+	shift: if value is true and shift key is pressed, returns false.
+============================================================================*/
+ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 {
+	if ctrl {
+		if GetKeyState("Ctll","P") {
+			return false
+		}
+	} 
+	if alt {
+		if GetKeyState("Alt","P") {
+			return false
+		}
+	} 
+	if shift {
+		if GetKeyState("Shift","P") {
+			return false
+		}
+	} 
 	if m = 1{
 		return GetKeyState("F13","P")
 	} if m = 2{
@@ -1477,6 +1501,36 @@ ChangeKSTNHLayout()
 ; 	return b1 = m1 && b2 = m2 && b3 = m3 && b4 = m4 && b5 = m5  
 ; }
 
+;***M3**************************************************************************
+;#HotIf ModifiedState(3) 
+;#HotIf (ModifiedState(1) && GetKeyState("Alt","P")) 
+
+#HotIf ModifiedState(3) || (ModifiedState(1) && GetKeyState("Alt","P")) 
+*1::Send("^z")
+*2::Send("^x")
+*3::Send("^c")
+*4::Send("^v")
+*z::Send("^z")
+*x::Send("^x")
+*c::Send("^c")
+*v::Send("^v")
+*b::Send("^z")
+
+*y::Send(C_REDO)
+*u::Send(C_BS)
+*i::Send("+{Up}")
+*o::Send("+{PgUp}")
+*p::Send("+{PgDn}")
+*h::Send("+{Home}")
+*j::Send("+{Left}")
+*k::Send("+{Down}")
+*l::Send("+{Right}")
+*sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
+*Enter::Send("{Enter}")
+*n::Send("+{End}")
+*m::Send(C_DEL)
+*space::Send(C_BS)
+
 ;***M1 or M2 *******************************************************************
 #HotIf ModifiedState(1) || ModifiedState(2)
 
@@ -1577,33 +1631,6 @@ F14::Send(B_ZENKAKU)
 sc079::Send(B_ZENKAKU) ;conv
 #HotIf
 
-;***M3**************************************************************************
-#HotIf ModifiedState(3) 
-1::Send("^z")
-2::Send("^x")
-3::Send("^c")
-4::Send("^v")
-q::Send("^z")
-w::Send("^x")
-e::Send("^c")
-r::Send("^v")
-
-#HotIf ModifiedState(3) || (ModifiedState(1) && ModifiedState(4)) 
-y::Send(C_REDO)
-u::Send(C_BS)
-i::Send("+{Up}")
-o::Send("+{PgUp}")
-p::Send("+{PgDn}")
-h::Send("+{Home}")
-j::Send("+{Left}")
-k::Send("+{Down}")
-l::Send("+{Right}")
-sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
-Enter::Send("{Enter}")
-n::Send("+{End}")
-m::Send(C_DEL)
-space::Send(C_BS)
-
 ;***M4**************************************************************************
 #HotIf ModifiedState(4)
 
@@ -1618,8 +1645,11 @@ s::Send("(){Left}")
 d::Send("[]{Left}")
 f::Send("-")
 g::Send("=")
-v::Send("+[+]{Left}")
-;g::Send(B_BACKSLASH)
+
+x::Send("+[+]{Left}")
+c::Send(":")
+v::Send(";")
+b::Send(":=")
 
 6::Send("{Escape}")
 7::Send(C_N7)
@@ -1707,7 +1737,7 @@ sc033::Send("<") ;.
 .::Send(">")
 
 ;***Long Press**************************************************************************
-#HotIf ;ModifiedState(false,false,false,false) 
+#HotIf
 *1::k1.Down()
 *1 up::k1.Up()
 *2::k2.Down()

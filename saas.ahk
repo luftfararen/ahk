@@ -168,9 +168,9 @@ SendAccImeState(key_ime_off,key_ime_on:="")
 /*============================================================================
 Class to assign different key for long press.
 ============================================================================*/
-class SwapKey
+class RKey
 {
-	static use_registered_key_for_ctrl  := true ;for ctrl or alt
+	static use_registered_key_for_ctrl  := false ;for ctrl or alt
 
 /*============================================================================
 	key: 		base key, if it is speial key, "{}" is needed.
@@ -206,6 +206,11 @@ class SwapKey
 		}
 	}
 	
+/*============================================================================
+	key: 		base key when ime is on.
+	shift_key: 	shift key, which inclueds "{}". 
+				If blank, shifted key is generated automatically.
+============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
 		len := Strlen(key)
@@ -271,7 +276,7 @@ class SwapKey
 ============================================================================*/
 	Down(pressed_key := "")
 	{
-		if SwapKey.use_registered_key_for_ctrl ||  pressed_key = ""{
+		if RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
 			pressed_key := this.key
 		}
 		this.SendModKey(pressed_key)
@@ -283,7 +288,7 @@ class SwapKey
 	Up()
 	{
 	}
-} ;class SwapKey
+} ;class RKey
 
 
 
@@ -383,8 +388,30 @@ tab := ModKey("TAB") ;m3
 noconv := ModKey(S_ZENKAKU) ;m4
 f14 := ModKey("ENTER") ;m5
 
-ModifiedState(m)
+/*============================================================================
+	Returns true if modifier key is pressed. 
+	m: modifier num
+	alt: if value is true and alt key is pressed, returns false.  
+	ctrl: if value is true and ctrl key is pressed, returns false.
+	shift: if value is true and shift key is pressed, returns false.
+============================================================================*/
+ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 {
+	if ctrl {
+		if GetKeyState("Ctll","P") {
+			return false
+		}
+	} 
+	if alt {
+		if GetKeyState("Alt","P") {
+			return false
+		}
+	} 
+	if shift {
+		if GetKeyState("Shift","P") {
+			return false
+		}
+	} 
 	if m = 1{
 		return GetKeyState("F13","P")
 	} if m = 2{
@@ -400,65 +427,66 @@ ModifiedState(m)
 	return false
 }
 
-k1 := SwapKey("1")
-k2 := SwapKey("2")
-k3 := SwapKey("3")
-k4 := SwapKey("4")
-k5 := SwapKey("5")
-k6 := SwapKey("6")
-k7 := SwapKey("7")
-k8 := SwapKey("8")
-k9 := SwapKey("9")
-k0 := SwapKey("0","none")
-minus := SwapKey("-")
-hat := SwapKey(C_HAT)
-backslash := SwapKey("\")
+
+k1 := RKey("1")
+k2 := RKey("2")
+k3 := RKey("3")
+k4 := RKey("4")
+k5 := RKey("5")
+k6 := RKey("6")
+k7 := RKey("7")
+k8 := RKey("8")
+k9 := RKey("9")
+k0 := RKey("0","none")
+minus := RKey("-")
+hat := RKey(C_HAT)
+backslash := RKey("\")
 ;
-q := SwapKey("q")
-w := SwapKey("w")
-e := SwapKey("e")
-r := SwapKey("r")
-t := SwapKey("t")
+q := RKey("q")
+w := RKey("w")
+e := RKey("e")
+r := RKey("r")
+t := RKey("t")
 ;
-y := SwapKey("y")
-u := SwapKey("u")
-i := SwapKey("i")
-o := SwapKey("o")
-p := SwapKey("p")
-at := SwapKey("@")
-openbracket := SwapKey("[")
+y := RKey("y")
+u := RKey("u")
+i := RKey("i")
+o := RKey("o")
+p := RKey("p")
+at := RKey("@")
+openbracket := RKey("[")
 ;
-a := SwapKey("a")
-s := SwapKey("s")
-d := SwapKey("d")
-f := SwapKey("f")
-g := SwapKey("g")
+a := RKey("a")
+s := RKey("s")
+d := RKey("d")
+f := RKey("f")
+g := RKey("g")
 ;
-h := SwapKey("h")
-j := SwapKey("j")
-k := SwapKey("k")
-l := SwapKey("l")
-semicolon := SwapKey(C_SEMICOLON)
-colon := SwapKey(C_COLON)
-closebracket := SwapKey("]")
+h := RKey("h")
+j := RKey("j")
+k := RKey("k")
+l := RKey("l")
+semicolon := RKey(C_SEMICOLON)
+colon := RKey(C_COLON)
+closebracket := RKey("]")
 ;
-z := SwapKey("z")
-x := SwapKey("x")
-c := SwapKey("c")
-v := SwapKey("v")
-b := SwapKey("b")
+z := RKey("z")
+x := RKey("x")
+c := RKey("c")
+v := RKey("v")
+b := RKey("b")
 ;
-n := SwapKey("n")
-m := SwapKey("m")
-comma := SwapKey(C_COMMA)
-period := SwapKey(".")
-slash := SwapKey("/")
-backslash2 := SwapKey(C_BACKSLASH2)
+n := RKey("n")
+m := RKey("m")
+comma := RKey(C_COMMA)
+period := RKey(".")
+slash := RKey("/")
+backslash2 := RKey(C_BACKSLASH2)
 ;
-up    := SwapKey(B_UP,"none")
-down  := SwapKey(B_DOWN,"none")
-left  := SwapKey(B_LEFT,"none")
-right := SwapKey(B_RIGHT,"none")
+up    := RKey(B_UP,"none")
+down  := RKey(B_DOWN,"none")
+left  := RKey(B_LEFT,"none")
+right := RKey(B_RIGHT,"none")
 #hotif
 
 
@@ -630,6 +658,9 @@ ChangeFMIX15RLayout()
 	d.SetImeKey("k")
 	t.SetImeKey("l")
 	e.SetImeKey("r")
+	f.SetImeKey("t","-")
+	j.SetImeKey("n","j")
+	q.SetImeKey("q","?")
 	
 	TrayTip("FMIX15R layout","",0x11)
 }
@@ -687,6 +718,36 @@ ChangeKSTNHLayout()
 ; 	b5 := F14.IsPressed()
 ; 	return b1 = m1 && b2 = m2 && b3 = m3 && b4 = m4 && b5 = m5  
 ; }
+
+;***M3**************************************************************************
+;#HotIf ModifiedState(3) 
+;#HotIf (ModifiedState(1) && GetKeyState("Alt","P")) 
+
+#HotIf ModifiedState(3) || (ModifiedState(1) && GetKeyState("Alt","P")) 
+*1::Send("^z")
+*2::Send("^x")
+*3::Send("^c")
+*4::Send("^v")
+*z::Send("^z")
+*x::Send("^x")
+*c::Send("^c")
+*v::Send("^v")
+*b::Send("^z")
+
+*y::Send(C_REDO)
+*u::Send(C_BS)
+*i::Send("+{Up}")
+*o::Send("+{PgUp}")
+*p::Send("+{PgDn}")
+*h::Send("+{Home}")
+*j::Send("+{Left}")
+*k::Send("+{Down}")
+*l::Send("+{Right}")
+*sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
+*Enter::Send("{Enter}")
+*n::Send("+{End}")
+*m::Send(C_DEL)
+*space::Send(C_BS)
 
 ;***M1 or M5 *******************************************************************
 #HotIf ModifiedState(1) || ModifiedState(5)
@@ -781,33 +842,6 @@ F14::Send(B_ZENKAKU)
 sc079::Send(B_ZENKAKU) ;conv
 #HotIf
 
-;***M3**************************************************************************
-#HotIf ModifiedState(3) 
-1::Send("^z")
-2::Send("^x")
-3::Send("^c")
-4::Send("^v")
-q::Send("^z")
-w::Send("^x")
-e::Send("^c")
-r::Send("^v")
-
-#HotIf ModifiedState(3) || (ModifiedState(1) && ModifiedState(4)) 
-y::Send(C_REDO)
-u::Send(C_BS)
-i::Send("+{Up}")
-o::Send("+{PgUp}")
-p::Send("+{PgDn}")
-h::Send("+{Home}")
-j::Send("+{Left}")
-k::Send("+{Down}")
-l::Send("+{Right}")
-sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
-Enter::Send("{Enter}")
-n::Send("+{End}")
-m::Send(C_DEL)
-space::Send(C_BS)
-
 ;***M4**************************************************************************
 #HotIf ModifiedState(4)
 
@@ -822,8 +856,11 @@ s::Send("(){Left}")
 d::Send("[]{Left}")
 f::Send("-")
 g::Send("=")
-v::Send("+[+]{Left}")
-;g::Send(B_BACKSLASH)
+
+x::Send("+[+]{Left}")
+c::Send(":")
+v::Send(";")
+b::Send(":=")
 
 6::Send("{Escape}")
 7::Send(C_N7)
@@ -923,9 +960,8 @@ sc033::comma.SendShiftedKey()
 sc035::slash.SendShiftedKey()
 sc073::backslash2.SendShiftedKey()
 
-;
 
-#HotIf ;ModifiedState(false,false,false,false) 
+#HotIf
 *1::k1.Down()
 *1 up::k1.Up()
 *2::k2.Down()
