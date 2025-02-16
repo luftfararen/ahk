@@ -88,6 +88,7 @@ ki	き
 ko	こ
 ku	く
 kk	っ	k
+kx	っ	k
 kya	きゃ
 kye	きぇ
 kyi	きぃ
@@ -111,7 +112,6 @@ lyu	ゅ
 ma	ま
 me	め
 mi	み
-mmm	めん
 mo	も
 mu	む
 mm	っ	m
@@ -343,7 +343,7 @@ sm	せん
 tm	てん
 nm	ねん
 hm	へん
-mm	めん
+mmm	めん
 rm	れん
 wm	うぇん
 gm	げん
@@ -423,7 +423,7 @@ yd	ゆい
 rd	るい
 gd	ぐい
 zd	ずい
-dd	づい
+ddd	づい
 bd	ぶい
 pd	ぷい
 xd	ゆい
@@ -473,7 +473,7 @@ xw	よい
 fw	ふぉい
 vw	ゔぉい
 kc	こう
-cc	こう
+ccc	こう
 sc	そう
 tc	とう
 nc	のう
@@ -512,3 +512,43 @@ jq	じゅう
 xq	ゆう
 fq	ふう
 vq	ゔう
+kga	きゃ
+kgu	きゅ
+kgo	きょ
+cga	きゃ
+cgu	きゅ
+cgo	きょ
+sga	しゃ
+sgu	しゅ
+sgo	しょ
+tga	ちゃ
+tgu	ちゅ
+tgo	ちょ
+nga	にゃ
+ngu	にゅ
+ngo	にょ
+nga	にゃ
+hga	ひゃ
+hgu	ひゅ
+hgo	ひょ
+mga	みゃ
+mgu	みゅ
+mgo	みょ
+rga	りゃ
+rgu	りゅ
+rgo	りょ
+gha	ぎゃ
+ghu	ぎゅ
+gho	ぎょ
+zga	じゃ
+zgu	じゅ
+zgo	じょ
+dga	ぢゃ
+dgu	ぢゅ
+dgo	ぢょ
+bga	びゃ
+bgu	びゅ
+bgo	びょ
+pga	ぴゃ
+pgu	ぴゅ
+pgo	ぴょ

@@ -662,6 +662,9 @@ ChangeFMIX15RLayout()
 	;g.SetImeKey("g","ga")
 	j.SetImeKey("n","j")
 	q.SetImeKey("q","?")
+	o.SetImeKey("j")
+	p.SetImeKey("y")
+
 	
 	; a.SetImeKey("a","ka")
 	; i.SetImeKey("u","ku")
@@ -830,7 +833,7 @@ space::Send(C_ZENKAKU)
 #r::ChangeFMIX15RLayout()
 #HotIf
 
-;***M5**************************************************************************
+;***M2**************************************************************************
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
@@ -869,6 +872,7 @@ c::Send(":")
 v::Send(";")
 b::Send(":=")
 
+;-----------------------------------------------
 6::Send("{Escape}")
 7::Send(C_N7)
 8::Send(C_N8)
@@ -878,20 +882,32 @@ b::Send(":=")
 sc00D::Send(C_HAT)
 sc07D::Send("\")
 
-y::Send(C_BS)
 u::Send(C_N4)
 i::Send(C_N5)
 o::Send(C_N6)
 p::Send(B_NADD)
 @::Send(B_UP)
 
-h::Send("=")
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
 *sc027::Send(B_LEFT) ;; 
 *sc028::Send(B_DOWN) ;:
 ]::Send(B_RIGHT)
+;-----------------------------------------------
+; u::Send(C_N6)
+; i::Send(C_N7)
+; o::Send(C_N8)
+; p::Send(C_N9)
+; j::Send(C_N1)
+; k::Send(C_N2)
+; l::Send(C_N3)
+; *sc027::Send(C_N4) ;; 
+; *sc028::Send(C_N5) ;:
+;-----------------------------------------------
+
+y::Send(C_BS)
+h::Send("-")
 
 n::Send(C_DEL)
 m::Send(C_N0)

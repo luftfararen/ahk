@@ -1440,10 +1440,23 @@ ChangeFMIX15RLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	d.SetImeKey("k")
+	e.SetImeKey("r","da")
+	d.SetImeKey("k","de")
 	t.SetImeKey("l")
-	e.SetImeKey("r")
+	f.SetImeKey("t","-")
+	;g.SetImeKey("g","ga")
+	j.SetImeKey("n","j")
+	q.SetImeKey("q","?")
+	o.SetImeKey("j")
+	p.SetImeKey("y")
+
 	
+	; a.SetImeKey("a","ka")
+	; i.SetImeKey("u","ku")
+	; k.SetImeKey("e","ke")
+	; l.SetImeKey("i","ki")
+	; semicolon.SetImeKey("o","ko")
+
 	TrayTip("FMIX15R layout","",0x11)
 }
 
@@ -1651,6 +1664,7 @@ c::Send(":")
 v::Send(";")
 b::Send(":=")
 
+;-----------------------------------------------
 6::Send("{Escape}")
 7::Send(C_N7)
 8::Send(C_N8)
@@ -1660,20 +1674,32 @@ b::Send(":=")
 sc00D::Send(C_HAT)
 sc07D::Send("\")
 
-y::Send(C_BS)
 u::Send(C_N4)
 i::Send(C_N5)
 o::Send(C_N6)
 p::Send(B_NADD)
 @::Send(B_UP)
 
-h::Send("=")
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
 *sc027::Send(B_LEFT) ;; 
 *sc028::Send(B_DOWN) ;:
 ]::Send(B_RIGHT)
+;-----------------------------------------------
+; u::Send(C_N6)
+; i::Send(C_N7)
+; o::Send(C_N8)
+; p::Send(C_N9)
+; j::Send(C_N1)
+; k::Send(C_N2)
+; l::Send(C_N3)
+; *sc027::Send(C_N4) ;; 
+; *sc028::Send(C_N5) ;:
+;-----------------------------------------------
+
+y::Send(C_BS)
+h::Send("-")
 
 n::Send(C_DEL)
 m::Send(C_N0)
@@ -1738,24 +1764,26 @@ sc033::Send("<") ;.
 
 ;***Long Press**************************************************************************
 #HotIf
-*1::k1.Down()
+*1::k1.Down("1")
 *1 up::k1.Up()
-*2::k2.Down()
+*2::k2.Down("2")
 *2 up::k2.Up()
-*3::k3.Down()
+*3::k3.Down("3")
 *3 up::k3.Up()
-*4::k4.Down()
+*4::k4.Down("4")
 *4 up::k4.Up()
-*5::k5.Down()
+*5::k5.Down("5")
 *5 up::k5.Up()
-*6::k6.Down()
+*6::k6.Down("6")
 *6 up::k6.Up()
-*7::k7.Down()
+*7::k7.Down("7")
 *7 up::k7.Up()
-*8::k8.Down()
+*8::k8.Down("8")
 *8 up::k8.Up()
-*9::k9.Down()
+*9::k9.Down("9")
 *9 up::k9.Up()
+*0::k0.Down("0")
+*0 up::k0.Up()
 *-::minus.Down("-")
 *- up::minus.Up()
 *sc00D::hat.Down("sc00D")
