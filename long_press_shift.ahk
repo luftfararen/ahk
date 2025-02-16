@@ -683,7 +683,7 @@ class RKey
 	Up()
 	{
 	}
-} ;class SwapKey
+} ;class RKey
 
 
 /*============================================================================
@@ -867,7 +867,7 @@ class LongPressKeyC extends LongPressKey
 /*============================================================================
 Class to skip long press for modifier.
 ============================================================================*/
-class ModKey
+class MKey
 {
 /*============================================================================
 	key: base key, not inclueds "{}".
@@ -960,14 +960,14 @@ class ModKey
 	{
 		this.pressed_time := 0
 	}
-} ;class ModKey
+} ;class MKey
 
 ;f13 := ModKey(S_ZENKAKU,200) ;m1
-f13 := ModKey("",200) ;m1
-space := ModKey("SPACE") ;m2
-tab := ModKey("TAB") ;m3
-noconv := ModKey(S_ZENKAKU) ;m4
-f14 := ModKey("ENTER") ;m5
+f13 := MKey("",200) ;m1
+space := MKey("SPACE") ;m2
+tab := MKey("TAB") ;m3
+noconv := MKey(S_ZENKAKU) ;m4
+f14 := MKey("ENTER") ;m5
 
 /*============================================================================
 	Returns true if modifier key is pressed. 

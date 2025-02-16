@@ -756,8 +756,8 @@ ChangeKSTNHLayout()
 *m::Send(C_DEL)
 *space::Send(C_BS)
 
-;***M1 or M5 *******************************************************************
-#HotIf ModifiedState(1) || ModifiedState(5)
+;***M1 or M2 *******************************************************************
+#HotIf ModifiedState(1) || ModifiedState(2)
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
@@ -831,7 +831,7 @@ space::Send(C_ZENKAKU)
 #HotIf
 
 ;***M5**************************************************************************
-#HotIf ModifiedState(5)
+#HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
 *e::Send(B_SLASH)
@@ -910,8 +910,8 @@ left::Send(B_LEFT)
 right::Send(B_RIGHT)
 
 #HotIf ;needed to enable m5
-;***M2**************************************************************************
-#HotIf ModifiedState(2)
+;***M5**************************************************************************
+#HotIf ModifiedState(5)
 1::k1.SendShiftedKey()
 2::k2.SendShiftedKey()
 3::k3.SendShiftedKey()

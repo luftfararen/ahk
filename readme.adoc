@@ -186,7 +186,7 @@ FuncLock未対応
 === M2修飾
 image::img/shift.webp[]
 
-=== M3修飾 or (Alt + M1修飾) 
+=== M3修飾 
 image::img/m3.webp[]
 
 === M4修飾
@@ -194,3 +194,46 @@ image::img/m4.webp[]
 
 === M5修飾
 image::img/m2.webp[]
+FuncLock未対応
+
+== center_shift.ahk
+=== 概要
+変換 or F14がシフトと同じ効果 +
+基本はlong_press_shift.ahkと同じだが、 以下が排除されている
+
+* 長押し
+* モード（レイヤー）固定機能
+* マウス関連機能
+
+=== 動作詳細
+* 以下を修飾キーとして取り扱う +
+
+M1修飾::
+F13
+M2修飾::
+space
+M3修飾::
+Tab or (Alt + F13) 
+M4修飾::
+無変換 
+M5修飾::
+変換 or F14
+
+* 長押しシフトがない分、動作が安定
+
+=== M1修飾
+image::img/m1.webp[]
+FuncLock未対応
+
+=== M2修飾
+image::img/m2.webp[]
+FuncLock未対応
+
+=== M3修飾 
+image::img/m3.webp[]
+
+=== M4修飾
+image::img/m4.webp[]
+
+=== M5修飾
+image::img/shift.webp[]
