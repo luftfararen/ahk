@@ -657,17 +657,17 @@ ChangeFMIX15RLayout()
 
 	q.SetImeKey("q","?")
 	e.SetImeKey("r","da")
-	t.SetImeKey("l")
-	i.SetImeKey("u","yu")
+	;t.SetImeKey("l")
+	;i.SetImeKey("u","yu")
 	o.SetImeKey("j")
 	p.SetImeKey("y")
 
-	a.SetImeKey("a","ya")
-	s.SetImeKey("s","ltu")
+	;a.SetImeKey("a","ya")
+	;s.SetImeKey("s","ltu")
 	d.SetImeKey("k","de")
 	f.SetImeKey("t","-")
 	;g.SetImeKey("g","ga")
-	j.SetImeKey("n","nn")
+	j.SetImeKey("n","nann")
 	semicolon.SetImeKey("o","yo")
 	
 	
