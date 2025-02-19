@@ -166,6 +166,115 @@ SendAccImeState(key_ime_off,key_ime_on:="")
 	}
 }
 /*============================================================================
+Class to ctrl mouse speed.
+============================================================================*/
+class MouseSpeed
+{
+	static SPI_GETMOUSESPEED := 0x70e
+	static SPI_SETMOUSESPEED := 0x71
+	static DefMouseSpeed := 10
+/*============================================================================
+	Gets system mouse speed.
+============================================================================*/
+	static	GetSpeed()
+	{
+		val:=0
+		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0)
+		return val
+	}
+
+/*============================================================================
+	Sets system mouse speed.
+============================================================================*/
+	static SetSpeed(val)
+	{
+		if val < 1{
+			val := 1
+		}else if val > 20{
+			val := 20
+		}
+		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", val, "UInt", 0)
+		ToolTip("MouseSpeed: " . val)
+		SetTimer(ToolTip,3000)
+		return val
+	}
+
+/*============================================================================
+	Increase mouse speed value.
+============================================================================*/
+	static IncSpeed()
+	{
+		v := MouseSpeed.GetSpeed()
+		if v = 0{
+			return
+		}
+		MouseSpeed.SetSpeed(v+1)
+	}
+/*============================================================================
+	Decrease mouse speed value.
+============================================================================*/
+	static DecSpeed()
+	{
+		v := MouseSpeed.GetSpeed()
+		if v = 0{
+			return
+		}
+		MouseSpeed.SetSpeed(v-1)
+	}
+
+/*============================================================================
+	Use it if chaing mouse speed temporally.
+	Stores system mouse speed to default value then makes system mouse speed slow.
+============================================================================*/
+	static MakeSlow()
+	{
+		val:=0
+		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0)
+		if val > 1{
+			MouseSpeed.DefMouseSpeed := val
+		}
+		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", 1, "UInt", 0)
+	}
+
+/*============================================================================
+	Resets system mouse speed to default value.
+============================================================================*/
+	static Reset()
+	{
+		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", MouseSpeed.DefMouseSpeed , "UInt", 0)
+	}
+
+/*============================================================================
+	Increase default mouse speed value, this value is reflected after calling Reset().
+============================================================================*/
+	static IncDefSpeed()
+	{
+		temp := MouseSpeed.DefMouseSpeed + 1
+		if temp > 20 {
+			temp := 20
+		}
+		MouseSpeed.DefMouseSpeed := temp *2
+		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
+		SetTimer(ToolTip,3000)
+	}
+
+/*============================================================================
+	Decrease default mouse speed value, this value is reflected after calling Reset().
+============================================================================*/
+	static DecDefSpeed()
+	{
+		temp := MouseSpeed.DefMouseSpeed - 1
+		if temp < 1 {
+			temp := 1
+		}
+		MouseSpeed.DefMouseSpeed := temp
+		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
+		SetTimer(ToolTip,3000)
+	}
+	
+}
+
+/*============================================================================
 Class to assign different key for long press.
 ============================================================================*/
 class RKey
@@ -655,16 +764,21 @@ ChangeFMIX15RLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	e.SetImeKey("r","da")
-	d.SetImeKey("k","de")
-	t.SetImeKey("l")
-	f.SetImeKey("t","-")
-	;g.SetImeKey("g","ga")
-	j.SetImeKey("n","j")
-	q.SetImeKey("q","?")
-	o.SetImeKey("j")
-	p.SetImeKey("y")
+	;q.SetImeKey("q","?")
+	e.SetImeKey("r","L")
+	;t.SetImeKey("l")
+	;i.SetImeKey("u","yu")
+	o.SetImeKey("j","Y")
+	p.SetImeKey("y","J")
 
+	;a.SetImeKey("a","ya")
+	;s.SetImeKey("s","ltu")
+	d.SetImeKey("k","R")
+	;f.SetImeKey("t","-")
+	;g.SetImeKey("g","ga")
+	;j.SetImeKey("n","nann")
+	;semicolon.SetImeKey("o","yo")
+	
 	
 	; a.SetImeKey("a","ka")
 	; i.SetImeKey("u","ku")
@@ -762,6 +876,8 @@ ChangeKSTNHLayout()
 ;***M1 or M5 *******************************************************************
 #HotIf ModifiedState(1) || ModifiedState(5)
 
+PgUp::MouseSpeed.IncSpeed()
+PgDn::MouseSpeed.DecSpeed()
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
 *3::Send("{Blind}{F3}")
@@ -1089,6 +1205,7 @@ sc073::backslash2.SendShiftedKey()
 
 *sc035::slash.Down("sc035")
 *sc035 up::slash.Up()
+
 *sc073::backslash2.Down("sc073")
 *sc073 up::backslash2.Up()
 ;

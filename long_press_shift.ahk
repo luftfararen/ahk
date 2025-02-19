@@ -318,6 +318,7 @@ class MouseSpeed
 	}
 	
 }
+
 /*============================================================================
 	Moves mouse position supporting for second screen.
 ============================================================================*/
@@ -1440,16 +1441,21 @@ ChangeFMIX15RLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	e.SetImeKey("r","da")
-	d.SetImeKey("k","de")
-	t.SetImeKey("l")
-	f.SetImeKey("t","-")
-	;g.SetImeKey("g","ga")
-	j.SetImeKey("n","j")
-	q.SetImeKey("q","?")
-	o.SetImeKey("j")
-	p.SetImeKey("y")
+	;q.SetImeKey("q","?")
+	e.SetImeKey("r","L")
+	;t.SetImeKey("l")
+	;i.SetImeKey("u","yu")
+	o.SetImeKey("j","Y")
+	p.SetImeKey("y","J")
 
+	;a.SetImeKey("a","ya")
+	;s.SetImeKey("s","ltu")
+	d.SetImeKey("k","R")
+	;f.SetImeKey("t","-")
+	;g.SetImeKey("g","ga")
+	;j.SetImeKey("n","nann")
+	;semicolon.SetImeKey("o","yo")
+	
 	
 	; a.SetImeKey("a","ka")
 	; i.SetImeKey("u","ku")
