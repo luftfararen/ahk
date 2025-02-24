@@ -267,6 +267,7 @@ rd	りゃ
 gd	ぎゃ
 zd	じゃ
 ddd	ぢゃ
+dj	ぢゃ
 bd	びゃ
 pd	ぴゃ
 kn	かん
@@ -315,7 +316,8 @@ gp	ぎん
 zp	じん
 dp	ぢん
 bp	びん
-pp	ぴん
+ppp	ぴん
+pj	ぴん
 fp	ふぃん
 vp	ゔぃん
 jp	じん
@@ -360,6 +362,7 @@ sh	そん
 th	とん
 nh	のん
 hhh	ほん
+hj	ほん
 mh	もん
 yh	よん
 rh	ろん
@@ -385,6 +388,7 @@ rz	らい
 wz	わい
 gz	がい
 zzz	ざい
+zj	ざい
 dz	だい
 bz	ばい
 pz	ぱい
@@ -395,6 +399,7 @@ jz	じゃい
 ks	かい
 cs	かい
 sss	さい
+sj	さい
 ts	たい
 ns	ない
 hs	はい
@@ -430,6 +435,7 @@ fv	ふい
 vvv	ゔい
 jv	じゅい
 kkk	けい
+kj	けい
 ck	けい
 sk	せい
 tk	てい
@@ -448,6 +454,7 @@ vk	ゔぇい
 jk	じぇい
 kc	こい
 ccc	こい
+cj	こい
 sc	そい
 tc	とい
 nc	のい
@@ -469,6 +476,7 @@ kt	こう
 ct	こう
 st	そう
 ttt	とう
+tj	とう
 nt	のう
 ht	ほう
 mt	もう
