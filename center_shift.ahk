@@ -1032,7 +1032,7 @@ w::+F3
 *r::SendAccImeState(B_NMUL,r_ime) 
 *t::Send(B_NADD)
 
-*a::SendAccImeHState("{Blind}^a",a_ime)
+*a::SendAccImeState("{Blind}^a",a_ime)
 *s::SendAccImeState("()",s_ime)
 *d::SendAccImeState("_",d_ime)
 *f::Send("{Blind}-")
@@ -1048,6 +1048,7 @@ sc079::Send(B_ZENKAKU) ;conv
 
 2::Send('""{Left}')
 3::Send("''{Left}")
+4::Send("~")
 q::Send(":")
 w::Send("+1")
 e::Send("<")
@@ -1062,8 +1063,8 @@ g::Send("&")
 
 x::Send("+[+]{Left}")
 c::Send("\")
-v::Send("")
-b::Send("^")
+v::Send(";")
+b::Send(C_HAT)
 
 ;-----------------------------------------------
 6::Send("{Escape}")

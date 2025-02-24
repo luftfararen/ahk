@@ -1275,6 +1275,40 @@ r::LayerKey.ChangeLayer(LayerKey.CUR_MODE)
 
 #hotif
 
+q_ime := ""
+w_ime := ""
+e_ime := ""
+r_ime := ""
+t_ime := ""
+
+a_ime := ""
+s_ime := ""
+d_ime := ""
+f_ime := ""
+g_ime := ""
+
+z_ime := ""
+x_ime := ""
+c_ime := ""
+v_ime := ""
+b_ime := ""
+
+y_ime := ""
+u_ime := ""
+i_ime := ""
+o_ime := ""
+p_ime := ""
+
+h_ime := ""
+j_ime := ""
+k_ime := ""
+l_ime := ""
+sc_ime := ""
+
+n_ime := ""
+m_ime := ""
+comma_ime := ""
+period_ime := ""
 
 Reset()
 {   
@@ -1315,6 +1349,43 @@ Reset()
 	comma.SetImeKey()
 	period.SetImeKey()
 	slash.SetImeKey()
+
+
+	global q_ime := ""
+	global w_ime := ""
+	global e_ime := ""
+	global r_ime := ""
+	global t_ime := ""
+	
+	global a_ime := ""
+	global s_ime := ""
+	global d_ime := ""
+	global f_ime := ""
+	global g_ime := ""
+	
+	global z_ime := ""
+	global x_ime := ""
+	global c_ime := ""
+	global v_ime := ""
+	global b_ime := ""
+	
+	global y_ime := ""
+	global u_ime := ""
+	global i_ime := ""
+	global o_ime := ""
+	global p_ime := ""
+	
+	global h_ime := ""
+	global j_ime := ""
+	global k_ime := ""
+	global l_ime := ""
+	global sc_ime := ""
+	
+	global n_ime := ""
+	global m_ime := ""
+	global comma_ime := ""
+	global period_ime := ""
+	global slash_ime := ""
 }
 
 
@@ -1399,8 +1470,15 @@ ChangeFMIX15Layout()
 	period.SetKey(".")
 	slash.SetKey("/")
 	
+	global a_ime := "ka"
+	global s_ime := "ki"
+	global d_ime := "ku"
+	global e_ime := "ko"
+	global r_ime := "ke"
+
 	TrayTip("FMIX15 layout","",0x11)
 }
+
 
 ChangeFMIX15RLayout()
 {
@@ -1456,12 +1534,9 @@ ChangeFMIX15RLayout()
 	;j.SetImeKey("n","nann")
 	;semicolon.SetImeKey("o","yo")
 	
-	
-	; a.SetImeKey("a","ka")
-	; i.SetImeKey("u","ku")
-	; k.SetImeKey("e","ke")
-	; l.SetImeKey("i","ki")
-	; semicolon.SetImeKey("o","ko")
+	global d_ime := "de"
+	global e_ime := "da"
+	global r_ime := "do"
 
 	TrayTip("FMIX15R layout","",0x11)
 }
@@ -1634,13 +1709,13 @@ space::Send(C_ZENKAKU)
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
-*e::Send(B_SLASH)
-*r::Send(B_NMUL) 
+*e::SendAccImeState("/",e_ime)
+*r::SendAccImeState(B_NMUL,r_ime) 
 *t::Send(B_NADD)
 
-*a::Send("{Blind}^a")
-s::Send("()")
-d::Send("_")
+*a::SendAccImeState("{Blind}^a",a_ime)
+*s::SendAccImeState("()",s_ime)
+*d::SendAccImeState("_",d_ime)
 *f::Send("{Blind}-")
 g::Send("=")
 
@@ -1653,22 +1728,25 @@ sc079::Send(B_ZENKAKU) ;conv
 ;***M4**************************************************************************
 #HotIf ModifiedState(4)
 
-q::Send("''{Left}")
-w::Send('""{Left}')
+2::Send('""{Left}')
+3::Send("''{Left}")
+4::Send("~")
+q::Send(":")
+w::Send("+1")
 e::Send("<")
 r::Send(">")
-t::Send("+1")
+t::Send("|")
 
 a::Send("<>{Left}")
 s::Send("(){Left}")
 d::Send("[]{Left}")
-f::Send("-")
-g::Send("=")
+f::Send("=")
+g::Send("&")
 
 x::Send("+[+]{Left}")
-c::Send(":")
+c::Send("\")
 v::Send(";")
-b::Send(":=")
+b::Send(C_HAT)
 
 ;-----------------------------------------------
 6::Send("{Escape}")
