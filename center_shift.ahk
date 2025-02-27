@@ -733,20 +733,13 @@ ChangeFMIX15RLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	q.SetImeKey("q","?")
-	e.SetImeKey("r","da")
-	;t.SetImeKey("l")
-	;i.SetImeKey("u","yu")
-	o.SetImeKey("j")
-	p.SetImeKey("yu")
 
-	;a.SetImeKey("a","ya")
-	;s.SetImeKey("s","ltu")
-	d.SetImeKey("k","de")
-	f.SetImeKey("t","-")
-	;g.SetImeKey("g","ga")
-	j.SetImeKey("n","nann")
-	semicolon.SetImeKey("o","yo")
+	e.SetImeKey("r")
+	t.SetImeKey("-")
+	y.SetImeKey("y")
+	o.SetImeKey("j")
+	p.SetImeKey("l")
+	d.SetImeKey("k")
 	
 	global d_ime := "de"
 	global e_ime := "da"

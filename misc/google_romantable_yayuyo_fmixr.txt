@@ -50,6 +50,7 @@ fe	ふぇ
 fi	ふぃ
 fo	ふぉ
 fu	ふ
+ff	っ	f
 fya	ふゃ
 fyo	ふょ
 fyu	ふゅ
@@ -114,7 +115,6 @@ me	め
 mi	み
 mo	も
 mu	む
-mm	っ	m
 mya	みゃ
 mye	みぇ
 myi	みぃ
@@ -243,6 +243,19 @@ zw	じゅ
 dw	ぢゅ
 bw	びゅ
 pw	ぴゅ
+kl	きゅ
+cl	きゅ
+sl	しゅ
+tl	ちゅ
+nl	にゅ
+hl	ひゅ
+ml	みゅ
+rl	りゅ
+gl	ぎゅ
+zl	じゅ
+dl	ぢゅ
+bl	びゅ
+pl	ぴゅ
 kr	きょ
 cr	きょ
 sr	しょ
@@ -332,7 +345,7 @@ df	づん
 bf	ぶん
 pf	ぷん
 xf	ゆん
-ff	ふん
+fff	ふん
 vf	ゔん
 jf	じゅん
 km	けん
@@ -425,7 +438,7 @@ bv	ぶい
 pv	ぷい
 xv	ゆい
 fv	ふい
-vvv	ゔい
+vv	ゔい
 jv	じゅい
 kkk	けい
 ck	けい
