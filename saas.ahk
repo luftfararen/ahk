@@ -322,6 +322,9 @@ class RKey
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
+		if key = ""{
+			key  := this.key
+		}
 		len := Strlen(key)
 		if SubStr(key,1,1) = "{" ||  len = 1 {
 			this.short_ime_key_str := "{Blind}" .  key 
@@ -842,20 +845,13 @@ ChangeFMIX15RLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	;q.SetImeKey("q","?")
-	e.SetImeKey("r","L")
-	;t.SetImeKey("l")
-	;i.SetImeKey("u","yu")
-	o.SetImeKey("j","Y")
-	p.SetImeKey("y","J")
 
-	;a.SetImeKey("a","ya")
-	;s.SetImeKey("s","ltu")
-	d.SetImeKey("k","R")
-	;f.SetImeKey("t","-")
-	;g.SetImeKey("g","ga")
-	;j.SetImeKey("n","nann")
-	;semicolon.SetImeKey("o","yo")
+	e.SetImeKey("r")
+	t.SetImeKey("-")
+	y.SetImeKey("y")
+	o.SetImeKey("j")
+	p.SetImeKey("l")
+	d.SetImeKey("k")
 	
 	global d_ime := "de"
 	global e_ime := "da"
@@ -863,6 +859,73 @@ ChangeFMIX15RLayout()
 
 	TrayTip("FMIX15R layout","",0x11)
 }
+
+ChangeFMIX15R2Layout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	Reset()
+
+	minus.SetKey("-")
+	q.SetKey("q")
+	w.SetKey("w")
+	e.SetKey("l")
+	r.SetKey("d")
+	t.SetKey("k")
+	y.SetKey(C_SEMICOLON)
+	u.SetKey("f")
+	i.SetKey("u")
+	o.SetKey("y")
+	p.SetKey("j")
+
+	a.SetKey("a")
+	s.SetKey("s")
+	d.SetKey("r")
+	f.SetKey("t")
+	g.SetKey("g")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("e")
+	l.SetKey("i")
+	semicolon.SetKey("o")
+	
+	b.SetKey("b")
+	n.SetKey("p")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+
+	w.SetImeKey("w","wo")
+	e.SetImeKey("r","ra")
+	r.SetImeKey("d","de")
+	t.SetImeKey("-")
+	y.SetImeKey("y","yo")
+	u.SetImeKey("f","fa")
+	o.SetImeKey("j","ji")
+	p.SetImeKey("l")
+	s.SetImeKey("s","si")
+	d.SetImeKey("k","ka")
+	f.SetImeKey("t","ta")
+	g.SetImeKey("g","ga")
+	h.SetImeKey("h","ha")
+	j.SetImeKey("n","no")
+	z.SetImeKey("z","zi")
+	x.SetImeKey("x","ya")
+	c.SetImeKey("c","cu")
+	;v.SetImeKey("c","cu")
+	;b.SetImeKey("b","ba")
+	
+	global d_ime := "de"
+	global e_ime := "da"
+	global r_ime := "do"
+
+	TrayTip("FMIX15R2 layout","",0x11)
+}
+
 
 ChangeKSTNHLayout()
 {
@@ -922,7 +985,7 @@ ChangeKSTNHLayout()
 ;#HotIf ModifiedState(3) 
 ;#HotIf (ModifiedState(1) && GetKeyState("Alt","P")) 
 
-#HotIf ModifiedState(3) || (ModifiedState(1) && GetKeyState("Alt","P")) 
+#HotIf ModifiedState(3) || (ModifiedState(1) && (GetKeyState("Alt","P") || ModifiedState(4))) 
 *1::Send("^z")
 *2::Send("^x")
 *3::Send("^c")
@@ -1022,6 +1085,7 @@ space::Send(C_ZENKAKU)
 #a::ChangeASRTLayout()
 #f::ChangeFMIX15Layout()
 #r::ChangeFMIX15RLayout()
+#d::ChangeFMIX15R2Layout()
 #HotIf
 
 ;***M5**************************************************************************
@@ -1044,7 +1108,7 @@ sc079::Send(B_ZENKAKU) ;conv
 #HotIf
 
 ;***M4**************************************************************************
-#HotIf ModifiedState(4)
+#HotIf ModifiedState(4) && !ModifiedState(1)
 
 2::Send('""{Left}')
 3::Send("''{Left}")
@@ -1283,7 +1347,6 @@ sc073::backslash2.SendShiftedKey()
 
 *sc035::slash.Down("sc035")
 *sc035 up::slash.Up()
-
 *sc073::backslash2.Down("sc073")
 *sc073 up::backslash2.Up()
 ;
