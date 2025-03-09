@@ -124,6 +124,12 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
+GetShiftState()
+{
+	return GetKeyState("Shift","P") || GetKeyState("Space","P")
+}
+
+
 last_ime_hwnd := 0
 last_active_hwnd := 0
 SearchWindowsToGetImeState(root,parent) 
@@ -271,138 +277,7 @@ class MouseSpeed
 		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
 		SetTimer(ToolTip,3000)
 	}
-	
-}
-
-/*============================================================================
-Class to assign different key for long press.
-============================================================================*/
-class RKey
-{
-	static use_registered_key_for_ctrl  := false ;for ctrl or alt
-
-/*============================================================================
-	key: 		base key, if it is speial key, "{}" is needed.
-	long_key: 	long pressed key, which inclueds "{}". 
-				If blank, shifted key is generated automatically. If "none", does nothing.  
-============================================================================*/
-	__New(key, shift_key:="")
-	{
-		this.SetKey(key,shift_key)
-		this.short_ime_key_str := "" 
-		this.shift_ime_key_str := ""
-	}
-
-/*============================================================================
-	key: 		base key.
-	shift_key: 	shift key, which inclueds "{}". 
-				If blank, shifted key is generated automatically.
-============================================================================*/
-	SetKey(key, shift_key:="")
-	{
-		this.key := key
-		len := Strlen(key)
-		if SubStr(key,1,1) = "{" ||  len = 1 {
-			this.short_key_str := "{Blind}" .  key 
-			if shift_key = ""{
-				this.shift_key_str :=  "+" . key
-			}else{
-				this.shift_key_str :=  shift_key 
-			}
-		}else{
-			this.short_key_str := key 
-			this.shift_key_str :=  "" 
-		}
-	}
-	
-/*============================================================================
-	key: 		base key when ime is on.
-	shift_key: 	shift key, which inclueds "{}". 
-				If blank, shifted key is generated automatically.
-============================================================================*/
-	SetImeKey(key := "", shift_key:="")
-	{
-		if key = ""{
-			key  := this.key
-		}
-		len := Strlen(key)
-		if SubStr(key,1,1) = "{" ||  len = 1 {
-			this.short_ime_key_str := "{Blind}" .  key 
-			if shift_key = ""{
-				this.shift_ime_key_str :=  "+" . key
-			}else{
-				this.shift_ime_key_str :=  shift_key 
-			}
-		}else{
-			this.short_ime_key_str := key 
-			this.shift_ime_key_str :=  "" 
-		}
-	}
-
-	
-	SendShiftedKey(shift := true)
-	{
-		if  shift  {
-			if IsImeOn() && this.shift_ime_key_str != "" {
-				Send(this.shift_ime_key_str )
-			}else{
-				Send(this.shift_key_str )
-			}
-			return true
-		}else{ 
-			if IsImeOn() && this.short_ime_key_str != ""{
-				Send(this.short_ime_key_str)
-			}else{
-				Send(this.short_key_str) ;Sends key in blind mode
-			}
-			return false
-		}
-	}
-
-	;Sends registered shift key when pressing only shift key.
-	SendModKey(pressed_key)
-	{
-		shift := GetKeyState("Shift","P")
-		;ctrl := GetKeyState("Ctrl","P")
-		;alt := GetKeyState("Alt","P")
-		;win := GetKeyState("LWin","P") || GetKeyState("RWin","P")
-		caw := GetKeyState("Ctrl","P") || GetKeyState("Alt","P") ||
-			GetKeyState("LWin","P") || GetKeyState("RWin","P")
-		; if !(shift || caw) {
-		; } ;else this.pressed_time  := 0 ;skip up method()
-		
-		if caw {
-			Send("{Blind}" . pressed_key . "}")
-			;ToolTip pressed_key
-			return true
-		}
-		this.SendShiftedKey(shift) ;Sends key in blind mode
-	}
-
-/*============================================================================
-	Assign this method to the hotkey as same as registered.  
-	ex)
-	x := LongPressKey("x")
-	x::x.Down("x")
-	x::x.Up()
-============================================================================*/
-	Down(pressed_key := "")
-	{
-		if RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
-			pressed_key := this.key
-		}
-		this.SendModKey(pressed_key)
-	}
-
-/*============================================================================
-	Assign this method to the hotkey as same as registered.  
-============================================================================*/
-	Up()
-	{
-	}
-} ;class RKey
-
-
+}	
 
 /*============================================================================
 Class to skip long press for modifier.
@@ -448,7 +323,7 @@ class MKey
 	SetModStr( )
 	{
 		this.mod_str  := ""
-		if GetKeyState("Shift","P"){
+		if GetShiftState(){
 			this.mod_str  := "+"
 		}
 		if GetKeyState("Ctrl","P"){
@@ -500,6 +375,141 @@ tab := MKey("TAB") ;m3
 noconv := MKey(S_ZENKAKU) ;m4
 f14 := MKey("ENTER") ;m5
 
+
+/*============================================================================
+Class to assign different key.
+============================================================================*/
+class RKey
+{
+	static use_registered_key_for_ctrl  := false ;for ctrl or alt
+
+/*============================================================================
+	key: 		base key, if it is speial key, "{}" is needed.
+	long_key: 	long pressed key, which inclueds "{}". 
+				If blank, shifted key is generated automatically. If "none", does nothing.  
+============================================================================*/
+	__New(key, shift_key:="")
+	{
+		this.SetKey(key,shift_key)
+		this.short_ime_key_str := "" 
+		this.shift_ime_key_str := ""
+	}
+
+/*============================================================================
+	key: 		base key.
+	shift_key: 	shift key, which inclueds "{}". 
+				If blank, shifted key is generated automatically.
+============================================================================*/
+	SetKey(key, shift_key:="")
+	{
+		this.key := key
+		len := Strlen(key)
+		if SubStr(key,1,1) = "{" ||  len = 1 {
+			this.short_key_str := "{Blind}" .  key 
+			if shift_key = ""{
+				this.shift_key_str :=  "+" . key
+			}else{
+				this.shift_key_str :=  shift_key 
+			}
+		}else{
+			;word
+			this.short_key_str := key 
+			if shift_key = ""{
+				this.shift_key_str :=  key
+			}else{
+				this.shift_key_str :=  shift_key 
+			}
+		}
+	}
+	
+/*============================================================================
+	key: 		base key when ime is on.
+	shift_key: 	shift key, which inclueds "{}". 
+				If blank, shifted key is generated automatically.
+============================================================================*/
+	
+	
+	SetImeKey(key := "", shift_key:="")
+	{
+		; if key = "" {
+		; 	key  := this.key
+		; }
+		len := Strlen(key)
+		if SubStr(key,1,1) = "{" ||  len = 1 {
+			this.short_ime_key_str := "{Blind}" .  key 
+			if shift_key = ""{
+				this.shift_ime_key_str :=  "+" . key
+			}else{
+				this.shift_ime_key_str :=  shift_key 
+			}
+		}else{
+			this.short_ime_key_str := key 
+			if shift_key = ""{
+				this.shift_ime_key_str :=  key
+			}else{
+				this.shift_ime_key_str :=  shift_key 
+			}
+		}
+	}
+
+	
+	SendShiftedKey(shift := true)
+	{
+		if  shift  {
+			if this.shift_ime_key_str != "" && IsImeOn() {
+				Send(this.shift_ime_key_str )
+			}else{
+				Send(this.shift_key_str )
+			}
+			return true
+		}else{ 
+			if this.short_ime_key_str != "" && IsImeOn() {
+				Send(this.short_ime_key_str)
+			}else{
+				Send(this.short_key_str) ;Sends key in blind mode
+			}
+			return false
+		}
+	}
+
+	;Sends registered shift key when pressing only shift key.
+	SendModKey(pressed_key)
+	{
+		shift := GetShiftState()
+		caw := GetKeyState("Ctrl","P") || GetKeyState("Alt","P") ||
+			GetKeyState("LWin","P") || GetKeyState("RWin","P")
+		if caw {
+			Send("{Blind}" . pressed_key . "}")
+			;ToolTip pressed_key
+			return true
+		}
+		this.SendShiftedKey(shift) ;Sends key in blind mode
+	}
+
+/*============================================================================
+	Assign this method to the hotkey as same as registered.  
+	ex)
+	x := LongPressKey("x")
+	x::x.Down("x")
+	x::x.Up()
+============================================================================*/
+	Down(pressed_key := "")
+	{
+		if RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
+			pressed_key := this.key
+		}
+		this.SendModKey(pressed_key)
+	}
+
+/*============================================================================
+	Assign this method to the hotkey as same as registered.  
+============================================================================*/
+	Up()
+	{
+	}
+} ;class RKey
+
+
 /*============================================================================
 	Returns true if modifier key is pressed. 
 	m: modifier num
@@ -520,7 +530,7 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 		}
 	} 
 	if shift {
-		if GetKeyState("Shift","P") {
+		if GetShiftState(){
 			return false
 		}
 	} 
@@ -599,7 +609,7 @@ up    := RKey(B_UP,"none")
 down  := RKey(B_DOWN,"none")
 left  := RKey(B_LEFT,"none")
 right := RKey(B_RIGHT,"none")
-#hotif
+
 
 q_ime := ""
 w_ime := ""
@@ -636,7 +646,7 @@ m_ime := ""
 comma_ime := ""
 period_ime := ""
 
-Reset()
+ResetIME()
 {   
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -715,14 +725,102 @@ Reset()
 }
 
 
-ChangeASRTLayout()
+ChangeOonishiLayout()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
-	Reset()
+	minus.SetKey("/")
+	q.SetKey("q")
+	w.SetKey("l")
+	e.SetKey("u")
+	r.SetKey(",","<")
+	t.SetKey(".",">")
+	y.SetKey("f")
+	u.SetKey("w")
+	i.SetKey("r")
+	o.SetKey("y")
+	p.SetKey("p")
+
+	a.SetKey("e")
+	s.SetKey("i")
+	d.SetKey("a")
+	f.SetKey("o")
+	g.SetKey("-")
+	h.SetKey("k")
+	j.SetKey("t")
+	k.SetKey("n")
+	l.SetKey("s")
+	semicolon.SetKey("h")
+
+	ResetIME()
+
+	b.SetKey(";")
+	n.SetKey("g")
+	m.SetKey("d")
+	comma.SetKey("m")
+	period.SetKey("j")
+	slash.SetKey("b")
+
+	TrayTip("Oonish layout","",0x11)
+}
+
+ChangeFMIX15Layout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	minus.SetKey("-")
+	q.SetKey("q")
+	w.SetKey("w")
+	e.SetKey("l")
+	r.SetKey("d")
+	t.SetKey("k")
+	y.SetKey(C_SEMICOLON)
+	u.SetKey("f")
+	i.SetKey("u")
+	o.SetKey("y")
+	p.SetKey("j")
+
+	a.SetKey("a")
+	s.SetKey("s")
+	d.SetKey("r")
+	f.SetKey("t")
+	g.SetKey("g")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("e")
+	l.SetKey("i")
+	semicolon.SetKey("o")
+	
+	b.SetKey("b")
+	n.SetKey("p")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+	
+	ResetIME()
+
+	global a_ime := "ka"
+	global s_ime := "ki"
+	global d_ime := "ku"
+	global e_ime := "ko"
+	global r_ime := "ke"
+
+	TrayTip("FMIX15 layout","",0x11)
+}
+
+ChangeFMIX14Layout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
 
 	minus.SetKey("-")
 	q.SetKey("q")
@@ -730,10 +828,10 @@ ChangeASRTLayout()
 	e.SetKey("l")
 	r.SetKey("d")
 	t.SetKey("p")
-	y.SetKey("j")
+	y.SetKey("y") ;C_SEMICOLON)
 	u.SetKey("f")
 	i.SetKey("u")
-	o.SetKey("y")
+	o.SetKey("j")
 	p.SetKey(C_SEMICOLON)
 
 	a.SetKey("a")
@@ -753,18 +851,19 @@ ChangeASRTLayout()
 	comma.SetKey(C_COMMA)
 	period.SetKey(".")
 	slash.SetKey("/")
+	
+	ResetIME()
 
-	TrayTip("ASRT layout","",0x11)
+	TrayTip("FMIX14 layout","",0x11)
 }
 
-ChangeFMIX15Layout()
+
+ChangeFMIX14RLayout()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
-
-	Reset()
 
 	minus.SetKey("-")
 	q.SetKey("q")
@@ -772,60 +871,11 @@ ChangeFMIX15Layout()
 	e.SetKey("l")
 	r.SetKey("d")
 	t.SetKey("k")
-	y.SetKey(C_SEMICOLON)
+	y.SetKey("y")
 	u.SetKey("f")
 	i.SetKey("u")
-	o.SetKey("y")
-	p.SetKey("j")
-
-	a.SetKey("a")
-	s.SetKey("s")
-	d.SetKey("r")
-	f.SetKey("t")
-	g.SetKey("g")
-	h.SetKey("h")
-	j.SetKey("n")
-	k.SetKey("e")
-	l.SetKey("i")
-	semicolon.SetKey("o")
-	
-	b.SetKey("b")
-	n.SetKey("p")
-	m.SetKey("m")
-	comma.SetKey(C_COMMA)
-	period.SetKey(".")
-	slash.SetKey("/")
-	
-	global a_ime := "ka"
-	global s_ime := "ki"
-	global d_ime := "ku"
-	global e_ime := "ko"
-	global r_ime := "ke"
-
-	TrayTip("FMIX15 layout","",0x11)
-}
-
-
-ChangeFMIX15RLayout()
-{
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
-	global b,n,m,comma,period,slash
-
-	Reset()
-
-	minus.SetKey("-")
-	q.SetKey("q")
-	w.SetKey("w")
-	e.SetKey("l")
-	r.SetKey("d")
-	t.SetKey("k")
-	y.SetKey(C_SEMICOLON)
-	u.SetKey("f")
-	i.SetKey("u")
-	o.SetKey("y")
-	p.SetKey("j")
+	o.SetKey("j")
+	p.SetKey(C_SEMICOLON)
 
 	a.SetKey("a")
 	s.SetKey("s")
@@ -845,13 +895,18 @@ ChangeFMIX15RLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
+	ResetIME()
 
-	e.SetImeKey("r")
-	t.SetImeKey("-")
-	y.SetImeKey("y")
-	o.SetImeKey("j")
-	p.SetImeKey("l")
-	d.SetImeKey("k")
+	e.SetImeKey("r","L")
+	t.SetImeKey("l","K")
+	;y.SetImeKey("y","+")
+	;o.SetImeKey("j","Y")
+	;p.SetImeKey("l","J")
+	;f.SetImeKey("t","T")
+	d.SetImeKey("k","R")
+	;k.SetImeKey("e","E")
+	;l.SetImeKey("i","I")
+
 	
 	global d_ime := "de"
 	global e_ime := "da"
@@ -860,114 +915,8 @@ ChangeFMIX15RLayout()
 	TrayTip("FMIX15R layout","",0x11)
 }
 
-ChangeFMIX15R2Layout()
-{
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
-	global b,n,m,comma,period,slash
-
-	Reset()
-
-	minus.SetKey("-")
-	q.SetKey("q")
-	w.SetKey("w")
-	e.SetKey("l")
-	r.SetKey("d")
-	t.SetKey("k")
-	y.SetKey(C_SEMICOLON)
-	u.SetKey("f")
-	i.SetKey("u")
-	o.SetKey("y")
-	p.SetKey("j")
-
-	a.SetKey("a")
-	s.SetKey("s")
-	d.SetKey("r")
-	f.SetKey("t")
-	g.SetKey("g")
-	h.SetKey("h")
-	j.SetKey("n")
-	k.SetKey("e")
-	l.SetKey("i")
-	semicolon.SetKey("o")
-	
-	b.SetKey("b")
-	n.SetKey("p")
-	m.SetKey("m")
-	comma.SetKey(C_COMMA)
-	period.SetKey(".")
-	slash.SetKey("/")
-
-	w.SetImeKey("w","wo")
-	e.SetImeKey("r","ra")
-	r.SetImeKey("d","de")
-	t.SetImeKey("-")
-	y.SetImeKey("y","yo")
-	u.SetImeKey("f","fa")
-	o.SetImeKey("j","ji")
-	p.SetImeKey("l")
-	s.SetImeKey("s","si")
-	d.SetImeKey("k","ka")
-	f.SetImeKey("t","ta")
-	g.SetImeKey("g","ga")
-	h.SetImeKey("h","ha")
-	j.SetImeKey("n","no")
-	z.SetImeKey("z","zi")
-	x.SetImeKey("x","ya")
-	c.SetImeKey("c","cu")
-	;v.SetImeKey("c","cu")
-	;b.SetImeKey("b","ba")
-	
-	global d_ime := "de"
-	global e_ime := "da"
-	global r_ime := "do"
-
-	TrayTip("FMIX15R2 layout","",0x11)
-}
 
 
-ChangeKSTNHLayout()
-{
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
-	global b,n,m,comma,period,slash
-
-	Reset()
-
-	minus.SetKey(C_SLASH)
-	q.SetKey("q")
-	w.SetKey("l")
-	e.SetKey("u")
-	r.SetKey(C_COMMA)
-	t.SetKey(".")
-	y.SetKey("f")
-	u.SetKey("w")
-	i.SetKey("y")
-	o.SetKey("r")
-	p.SetKey("p")
-
-	a.SetKey("a")
-	s.SetKey("i")
-	d.SetKey("e")
-	f.SetKey("o")
-	g.SetKey("-")
-	h.SetKey("k")
-	j.SetKey("s")
-	k.SetKey("t")
-	l.SetKey("n")
-	semicolon.SetKey("h")
-	
-	b.SetKey(C_SEMICOLON)
-	n.SetKey("g")
-	m.SetKey("j")
-	comma.SetKey("d")
-	period.SetKey("m")
-	slash.SetKey("b")
-
-	TrayTip("kstnh layout","",0x11)
-}
 
 
 ; ModifiedState2(m1:=False,m2:=False,m3:=False,m4:=False,m5:=False)
@@ -1009,6 +958,9 @@ ChangeKSTNHLayout()
 *Enter::Send("{Enter}")
 *n::Send("+{End}")
 *m::Send(C_DEL)
+*sc033::Send("+^{Left}") ;vkBCsc033 = ,
+*.::Send("+^{Right}")
+
 *space::Send(C_BS)
 
 ;***M1 or M5 *******************************************************************
@@ -1054,9 +1006,7 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *n::Send(B_END)
 *m::Send(B_DEL)
 *sc033::Send("{Blind}^{Left}") ;vkBCsc033 = ,
-.::Send("{Blind}^{Right}")
-;sc035::LayerKey.ChangeLayer(LayerKey.NUM_MODE) ;/ 
-;sc073::LayerKey.ChangeLayer(LayerKey.MOUSE_MODE) ; \(_) 
+*.::Send("{Blind}^{Right}")
 
 *Enter::Send("{Blind}^{Enter}")
 
@@ -1081,11 +1031,12 @@ sc079::Send(C_ZENKAKU) ;conv
 space::Send(C_ZENKAKU)
 
 ;*space::Send(B_BS)
-#k::ChangeKSTNHLayout()
-#a::ChangeASRTLayout()
-#f::ChangeFMIX15Layout()
-#r::ChangeFMIX15RLayout()
-#d::ChangeFMIX15R2Layout()
+#o::ChangeOonishiLayout()
+#f::ChangeFMIX14Layout()
+#r::ChangeFMIX14RLayout()
+;#1::ChangeFMIX15RLayout()
+;#2::ChangeFMIX15R2Layout()
+;#3::ChangeFMIX14Layout()
 #HotIf
 
 ;***M5**************************************************************************
@@ -1185,61 +1136,61 @@ right::Send(B_RIGHT)
 
 #HotIf ;needed to enable m5
 ;***M2**************************************************************************
-#HotIf ModifiedState(2)
-1::k1.SendShiftedKey()
-2::k2.SendShiftedKey()
-3::k3.SendShiftedKey()
-4::k4.SendShiftedKey()
-5::k5.SendShiftedKey()
+; #HotIf ModifiedState(2)
+; 1::k1.SendShiftedKey()
+; 2::k2.SendShiftedKey()
+; 3::k3.SendShiftedKey()
+; 4::k4.SendShiftedKey()
+; 5::k5.SendShiftedKey()
 
-q::q.SendShiftedKey()
-w::w.SendShiftedKey()
-e::e.SendShiftedKey()
-r::r.SendShiftedKey()
-t::t.SendShiftedKey()
+; q::q.SendShiftedKey()
+; w::w.SendShiftedKey()
+; e::e.SendShiftedKey()
+; r::r.SendShiftedKey()
+; t::t.SendShiftedKey()
 
-a::a.SendShiftedKey()
-s::s.SendShiftedKey()
-d::d.SendShiftedKey()
-f::f.SendShiftedKey()
-g::g.SendShiftedKey()
+; a::a.SendShiftedKey()
+; s::s.SendShiftedKey()
+; d::d.SendShiftedKey()
+; f::f.SendShiftedKey()
+; g::g.SendShiftedKey()
 
-z::z.SendShiftedKey()
-x::x.SendShiftedKey()
-c::c.SendShiftedKey()
-v::v.SendShiftedKey()
-b::b.SendShiftedKey()
+; z::z.SendShiftedKey()
+; x::x.SendShiftedKey()
+; c::c.SendShiftedKey()
+; v::v.SendShiftedKey()
+; b::b.SendShiftedKey()
 
-6::k6.SendShiftedKey()
-7::k7.SendShiftedKey()
-8::k8.SendShiftedKey()
-9::k9.SendShiftedKey()
--::minus.SendShiftedKey()
-sc00D::hat.SendShiftedKey()
-sc07D::backslash.SendShiftedKey()
+; 6::k6.SendShiftedKey()
+; 7::k7.SendShiftedKey()
+; 8::k8.SendShiftedKey()
+; 9::k9.SendShiftedKey()
+; -::minus.SendShiftedKey()
+; sc00D::hat.SendShiftedKey()
+; sc07D::backslash.SendShiftedKey()
 
-y::y.SendShiftedKey()
-u::u.SendShiftedKey()
-i::i.SendShiftedKey()
-o::o.SendShiftedKey()
-p::p.SendShiftedKey()
-@::at.SendShiftedKey()
-[::openbracket.SendShiftedKey()
+; y::y.SendShiftedKey()
+; u::u.SendShiftedKey()
+; i::i.SendShiftedKey()
+; o::o.SendShiftedKey()
+; p::p.SendShiftedKey()
+; @::at.SendShiftedKey()
+; [::openbracket.SendShiftedKey()
 
-h::h.SendShiftedKey()
-j::j.SendShiftedKey()
-k::k.SendShiftedKey()
-l::l.SendShiftedKey()
-sc027::semicolon.SendShiftedKey()
-sc028::+sc028
-]::+]
+; h::h.SendShiftedKey()
+; j::j.SendShiftedKey()
+; k::k.SendShiftedKey()
+; l::l.SendShiftedKey()
+; sc027::semicolon.SendShiftedKey()
+; sc028::+sc028
+; ]::+]
 
-n::n.SendShiftedKey()
-m::m.SendShiftedKey()
-sc033::comma.SendShiftedKey()
-.::period.SendShiftedKey()
-sc035::slash.SendShiftedKey()
-sc073::backslash2.SendShiftedKey()
+; n::n.SendShiftedKey()
+; m::m.SendShiftedKey()
+; sc033::comma.SendShiftedKey()
+; .::period.SendShiftedKey()
+; sc035::slash.SendShiftedKey()
+; sc073::backslash2.SendShiftedKey()
 
 
 #HotIf

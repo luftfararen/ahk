@@ -124,6 +124,12 @@ InstallMouseHook true
 ;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
 SetKeyDelay 0
 
+GetShiftState()
+{
+	return GetKeyState("Shift","P")
+}
+
+
 last_ime_hwnd := 0
 last_active_hwnd := 0
 SearchWindowsToGetImeState(root,parent) 
@@ -364,7 +370,7 @@ OperateMouse(cmd)
 		Send("!{Right}")
 		return true
 	}else{
-		shift := GetKeyState("Shift","P")
+		shift := GetShiftState()
 		ctrl := GetKeyState("Ctrl","P")
 ;		alt := GetKeyState("Alt","P")
 ;		win := GetKeyState("LWin","P") || GetKeyState("RWin","P")
@@ -559,10 +565,113 @@ class LayerKey
 	}
 
 } ;class LayerKey
+/*============================================================================
+Class to skip long press for modifier.
+============================================================================*/
+class MKey
+{
+/*============================================================================
+	key: base key, not inclueds "{}".
+============================================================================*/
+	__New(key,timeout:=200)
+	{
+		if key = ""{
+			this.key_str := ""
+			this.key := key
+		}else{
+			if SubStr(key,1,1) = "{"{
+				this.key := SubStr(key,2,StrLen(key)-2)
+				this.key_str := key
+			}else{
+				this.key := key
+				this.key_str := "{" . key . "}"
+			}
+		}
+		this.pressed_time := 0
+		this.mod_str := ""
+		this.type := 0
+		this.timeout := timeout
+		if LayerKey.IsCmd(key) {
+			this.type := 1
+		}
+	}
+/*============================================================================
+	Is registerd key presed or not.
+============================================================================*/
+	IsPressed()
+	{
+		if this.pressed_time != 0{
+			return 1
+		}
+;		if GetKeyState(this.key,"P"){
+;			return 1
+;		}
+		return 0
+	}
 
+	SetModStr( )
+	{
+		this.mod_str  := ""
+		if GetShiftState(){
+			this.mod_str  := "+"
+		}
+		if GetKeyState("Ctrl","P"){
+			this.mod_str  := "^" . this.mod_str 
+		}
+		if GetKeyState("Alt","P"){
+			this.mod_str  := "!" . this.mod_str 
+		}
+		if GetKeyState("LWin","P") || GetKeyState("LWin","P"){
+			this.mod_str  := "#" . this.mod_str 
+		}
+	}
 
 /*============================================================================
-Class to assign different key for long press.
+	Assign this method to the hotkey as same as registered.  
+============================================================================*/
+	Down()
+	{
+		if this.pressed_time != 0 {
+			return false
+		}
+		this.pressed_time := A_TickCount
+		this.SetModStr()
+		return true
+	}
+
+/*============================================================================
+	Assign this method to the hotkey as same as registered.  
+	Code is sent in this method if short press.  
+============================================================================*/
+	Up()
+	{
+		if (A_TickCount - this.pressed_time < this.timeout) {
+			if this.type = 1{
+				LayerKey.ParseAndChange(this.key)
+			}else{
+				if this.key_str != "" {
+					SendInput("{Blind}" . this.mod_str . this.key_str)
+				}
+			}
+		}
+		this.pressed_time := 0
+	}
+
+	Reset()
+	{
+		this.pressed_time := 0
+	}
+} ;class MKey
+
+;f13 := ModKey(S_ZENKAKU,200) ;m1
+f13 := MKey("",200) ;m1
+space := MKey("SPACE") ;m2
+tab := MKey("TAB") ;m3
+noconv := MKey(S_ZENKAKU) ;m4
+f14 := MKey("ENTER") ;m5
+
+/*============================================================================
+Class to assign different key.
 ============================================================================*/
 class RKey
 {
@@ -609,6 +718,9 @@ class RKey
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
+		if key = ""{
+			key  := this.key
+		}
 		len := Strlen(key)
 		if SubStr(key,1,1) = "{" ||  len = 1 {
 			this.short_ime_key_str := "{Blind}" .  key 
@@ -646,7 +758,7 @@ class RKey
 	;Sends registered shift key when pressing only shift key.
 	SendModKey(pressed_key)
 	{
-		shift := GetKeyState("Shift","P")
+		shift := GetShiftState()
 		;ctrl := GetKeyState("Ctrl","P")
 		;alt := GetKeyState("Alt","P")
 		;win := GetKeyState("LWin","P") || GetKeyState("RWin","P")
@@ -865,110 +977,6 @@ class LongPressKeyC extends LongPressKey
 	}
 } ;class LongPressKeyC
 
-/*============================================================================
-Class to skip long press for modifier.
-============================================================================*/
-class MKey
-{
-/*============================================================================
-	key: base key, not inclueds "{}".
-============================================================================*/
-	__New(key,timeout:=200)
-	{
-		if key = ""{
-			this.key_str := ""
-			this.key := key
-		}else{
-			if SubStr(key,1,1) = "{"{
-				this.key := SubStr(key,2,StrLen(key)-2)
-				this.key_str := key
-			}else{
-				this.key := key
-				this.key_str := "{" . key . "}"
-			}
-		}
-		this.pressed_time := 0
-		this.mod_str := ""
-		this.type := 0
-		this.timeout := timeout
-		if LayerKey.IsCmd(key) {
-			this.type := 1
-		}
-	}
-/*============================================================================
-	Is registerd key presed or not.
-============================================================================*/
-	IsPressed()
-	{
-		if this.pressed_time != 0{
-			return 1
-		}
-;		if GetKeyState(this.key,"P"){
-;			return 1
-;		}
-		return 0
-	}
-
-	SetModStr( )
-	{
-		this.mod_str  := ""
-		if GetKeyState("Shift","P"){
-			this.mod_str  := "+"
-		}
-		if GetKeyState("Ctrl","P"){
-			this.mod_str  := "^" . this.mod_str 
-		}
-		if GetKeyState("Alt","P"){
-			this.mod_str  := "!" . this.mod_str 
-		}
-		if GetKeyState("LWin","P") || GetKeyState("LWin","P"){
-			this.mod_str  := "#" . this.mod_str 
-		}
-	}
-
-/*============================================================================
-	Assign this method to the hotkey as same as registered.  
-============================================================================*/
-	Down()
-	{
-		if this.pressed_time != 0 {
-			return false
-		}
-		this.pressed_time := A_TickCount
-		this.SetModStr()
-		return true
-	}
-
-/*============================================================================
-	Assign this method to the hotkey as same as registered.  
-	Code is sent in this method if short press.  
-============================================================================*/
-	Up()
-	{
-		if (A_TickCount - this.pressed_time < this.timeout) {
-			if this.type = 1{
-				LayerKey.ParseAndChange(this.key)
-			}else{
-				if this.key_str != "" {
-					SendInput("{Blind}" . this.mod_str . this.key_str)
-				}
-			}
-		}
-		this.pressed_time := 0
-	}
-
-	Reset()
-	{
-		this.pressed_time := 0
-	}
-} ;class MKey
-
-;f13 := ModKey(S_ZENKAKU,200) ;m1
-f13 := MKey("",200) ;m1
-space := MKey("SPACE") ;m2
-tab := MKey("TAB") ;m3
-noconv := MKey(S_ZENKAKU) ;m4
-f14 := MKey("ENTER") ;m5
 
 /*============================================================================
 	Returns true if modifier key is pressed. 
@@ -990,7 +998,7 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 		}
 	} 
 	if shift {
-		if GetKeyState("Shift","P") {
+		if GetShiftState(){
 			return false
 		}
 	} 
