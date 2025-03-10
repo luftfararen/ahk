@@ -299,6 +299,7 @@ zj	じょ
 dj	ぢょ
 bj	びょ
 pj	ぴょ
+jj	じょ
 kn	かん
 cn	かん
 sn	さん
@@ -443,7 +444,7 @@ bv	ぼう
 pv	ぽう
 xv	よう
 fv	ふぉう
-vv	ゔぉう
+vv	で
 jv	じょう
 kkk	けい
 ck	けい
@@ -495,7 +496,7 @@ ds	どう
 bs	ぼう
 ps	ぽう
 fs	ふぉう
-vs	ゔぉう
+vs	だ
 js	じょう
 kq	きゅう
 cq	きゅう
