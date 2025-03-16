@@ -856,19 +856,63 @@ ChangeFMIX14RLayout()
 	;p.SetImeKey("l","J")
 	;f.SetImeKey("t","T")
 	d.SetImeKey("k","R")
-	;k.SetImeKey("e","E")
-	;l.SetImeKey("i","I")
+	r.SetImeKey("v","D")
+	v.SetImeKey("d","V")
+
+	;i.SetImeKey("e","U")
+	;k.SetImeKey("u","E")
+
 
 	
-	global d_ime := "de"
-	global e_ime := "da"
-	global r_ime := "do"
+	; global d_ime := "de"
+	; global e_ime := "da"
+	; global r_ime := "do"
 
 	TrayTip("FMIX15R layout","",0x11)
 }
 
+ChangeHNTSKLayout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
 
+	ResetIME()
 
+	minus.SetKey(C_SEMICOLON)
+	q.SetKey("q")
+	w.SetKey("l")
+	e.SetKey("e")
+	r.SetKey(C_COMMA)
+	t.SetKey(".")
+	y.SetKey("j")
+	u.SetKey("p")
+	i.SetKey("y")
+	o.SetKey("r")
+	p.SetKey("w")
+
+	a.SetKey("o")
+	s.SetKey("u")
+	d.SetKey("i")
+	f.SetKey("a")
+	g.SetKey("-")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("t")
+	l.SetKey("s")
+	semicolon.SetKey("k")
+
+	z.SetKey(C_SLASH)
+	b.SetKey("f")
+	n.SetKey("b")
+	m.SetKey("m")
+	comma.SetKey("d")
+	period.SetKey("z")
+	slash.SetKey("g")
+
+	TrayTip("HNTSK layout","",0x11)
+}
 
 
 ; ModifiedState2(m1:=False,m2:=False,m3:=False,m4:=False,m5:=False)
@@ -984,6 +1028,7 @@ space::Send(C_ZENKAKU)
 #o::ChangeOonishiLayout()
 #f::ChangeFMIX14Layout()
 #r::ChangeFMIX14RLayout()
+#h::ChangeHNTSKLayout()
 ;#1::ChangeFMIX15RLayout()
 ;#2::ChangeFMIX15R2Layout()
 ;#3::ChangeFMIX14Layout()
