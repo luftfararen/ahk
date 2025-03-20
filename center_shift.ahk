@@ -767,50 +767,7 @@ ChangeOonishiLayout()
 	TrayTip("Oonish layout","",0x11)
 }
 
-ChangeFMIX14Layout()
-{
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
-	global b,n,m,comma,period,slash
-
-	minus.SetKey("-")
-	q.SetKey("q")
-	w.SetKey("w")
-	e.SetKey("l")
-	r.SetKey("d")
-	t.SetKey("p")
-	y.SetKey("y") ;C_SEMICOLON)
-	u.SetKey("f")
-	i.SetKey("u")
-	o.SetKey("j")
-	p.SetKey(C_SEMICOLON)
-
-	a.SetKey("a")
-	s.SetKey("s")
-	d.SetKey("r")
-	f.SetKey("t")
-	g.SetKey("g")
-	h.SetKey("h")
-	j.SetKey("n")
-	k.SetKey("e")
-	l.SetKey("i")
-	semicolon.SetKey("o")
-	
-	b.SetKey("b")
-	n.SetKey("k")
-	m.SetKey("m")
-	comma.SetKey(C_COMMA)
-	period.SetKey(".")
-	slash.SetKey("/")
-	
-	ResetIME()
-
-	TrayTip("FMIX14 layout","",0x11)
-}
-
-
-ChangeFMIX14RLayout()
+ChangeFMIXLayoutImpl()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -846,9 +803,24 @@ ChangeFMIX14RLayout()
 	comma.SetKey(C_COMMA)
 	period.SetKey(".")
 	slash.SetKey("/")
+	
+}
+
+ChangeFMIXLayout()
+{
+	ChangeFMIXLayoutImpl()
+	ResetIME()
+	TrayTip("FMIX layout","",0x11)
+}
+
+ChangeIME_FMIXLayoutImpl()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
 
 	ResetIME()
-
 	e.SetImeKey("r","L")
 	t.SetImeKey("l","K")
 	;y.SetImeKey("y","+")
@@ -858,20 +830,16 @@ ChangeFMIX14RLayout()
 	d.SetImeKey("k","R")
 	r.SetImeKey("v","D")
 	v.SetImeKey("d","V")
-
-	;i.SetImeKey("e","U")
-	;k.SetImeKey("u","E")
-
-
-	
-	; global d_ime := "de"
-	; global e_ime := "da"
-	; global r_ime := "do"
-
-	TrayTip("FMIX15R layout","",0x11)
 }
 
-ChangeHNTSKLayout()
+ChangeFMIXRLayout()
+{
+	ChangeFMIXLayoutImpl()
+	ChangeIME_FMIXLayoutImpl()
+	TrayTip("FMIXR layout","",0x11)
+}
+
+ChangeIME_HNTSKLayoutImpl()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -887,16 +855,16 @@ ChangeHNTSKLayout()
 	r.SetImeKey(C_SEMICOLON)
 	t.SetImeKey("l")
 	y.SetImeKey("f")
-	u.SetImeKey("r")
-	i.SetImeKey("d")
+	u.SetImeKey("d")
+	i.SetImeKey("r")
 	o.SetImeKey("j")
-	p.SetImeKey("g")
+	p.SetImeKey("y")
 
 	a.SetImeKey("a")
 	s.SetImeKey("o")
 	d.SetImeKey("e")
 	f.SetImeKey("i")
-	g.SetImeKey("y")
+	g.SetImeKey("g")
 	h.SetImeKey("h")
 	j.SetImeKey("n")
 	k.SetImeKey("t")
@@ -913,10 +881,15 @@ ChangeHNTSKLayout()
 	comma.SetImeKey(C_COMMA)
 	period.SetImeKey(".")
 	slash.SetImeKey("/")
-
-	TrayTip("HNTSK layout","",0x11)
 }
 
+
+ChangeHNTSKLayout()
+{
+	ChangeFMIXLayoutImpl()
+	ChangeIME_HNTSKLayoutImpl()
+	TrayTip("HNTSK layout","",0x11)
+}
 
 ; ModifiedState2(m1:=False,m2:=False,m3:=False,m4:=False,m5:=False)
 ; {
@@ -1029,8 +1002,8 @@ space::Send(C_ZENKAKU)
 
 ;*space::Send(B_BS)
 #o::ChangeOonishiLayout()
-#f::ChangeFMIX14Layout()
-#r::ChangeFMIX14RLayout()
+#f::ChangeFMIXLayout()
+#r::ChangeFMIXRLayout()
 #h::ChangeHNTSKLayout()
 ;#1::ChangeFMIX15RLayout()
 ;#2::ChangeFMIX15R2Layout()
