@@ -767,6 +767,51 @@ ChangeOonishiLayout()
 	TrayTip("Oonish layout","",0x11)
 }
 
+ChangeColemakLayout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	minus.SetKey("-")
+	q.SetKey("q")
+	w.SetKey("w")
+	e.SetKey("f")
+	r.SetKey("p")
+	t.SetKey("g")
+	y.SetKey("j")
+	u.SetKey("l")
+	i.SetKey("u")
+	o.SetKey("y")
+	p.SetKey(C_SEMICOLON)
+
+	a.SetKey("a")
+	s.SetKey("r")
+	d.SetKey("s")
+	f.SetKey("t")
+	g.SetKey("d")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("e")
+	l.SetKey("i")
+	semicolon.SetKey("o")
+	
+	z.SetKey("z")
+	x.SetKey("x")
+	c.SetKey("c")
+	v.SetKey("v")
+	b.SetKey("b")
+	n.SetKey("k")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+
+	TrayTip("Colemak layout","",0x11)
+}
+
+
 ChangeFMIXLayoutImpl()
 {
 	global minus
@@ -797,13 +842,16 @@ ChangeFMIXLayoutImpl()
 	l.SetKey("i")
 	semicolon.SetKey("o")
 	
+	z.SetKey("z")
+	x.SetKey("x")
+	c.SetKey("c")
+	v.SetKey("v")
 	b.SetKey("b")
 	n.SetKey("p")
 	m.SetKey("m")
 	comma.SetKey(C_COMMA)
 	period.SetKey(".")
 	slash.SetKey("/")
-	
 }
 
 ChangeFMIXLayout()
@@ -813,31 +861,79 @@ ChangeFMIXLayout()
 	TrayTip("FMIX layout","",0x11)
 }
 
-ChangeIME_FMIXLayoutImpl()
+ChangeFMIXKLayout()
 {
+	ChangeFMIXLayoutImpl()
+	t.SetKey("p")
+	n.SetKey("k")
+	ResetIME()
+	TrayTip("FMIXK layout","",0x11)
+}
+
+ChangeFMIXRLayout()
+{
+	ChangeFMIXLayoutImpl()
+
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
 	ResetIME()
+	r.SetKey("v")
+	v.SetKey("d")
 	e.SetImeKey("r","L")
 	t.SetImeKey("l","K")
-	;y.SetImeKey("y","+")
-	;o.SetImeKey("j","Y")
-	;p.SetImeKey("l","J")
-	;f.SetImeKey("t","T")
 	d.SetImeKey("k","R")
-	r.SetImeKey("v","D")
-	v.SetImeKey("d","V")
-}
-
-ChangeFMIXRLayout()
-{
-	ChangeFMIXLayoutImpl()
-	ChangeIME_FMIXLayoutImpl()
 	TrayTip("FMIXR layout","",0x11)
 }
+
+ChangeFMIXR_TDLayout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+	r.SetKey("g")
+	g.SetKey("d")
+	e.SetImeKey("r","L")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","R")
+
+	TrayTip("FMIXR_TD layout","",0x11)
+}
+
+
+ChangeFMIXR_VBDLayout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	;e.SetKey("l")
+	;r.SetKey("d")
+	;d.SetKey("s")
+	t.SetKey("p")
+	n.SetKey("k")
+
+	e.SetImeKey("r","L")
+	r.SetImeKey("p","D")
+	t.SetImeKey("l","P")
+	d.SetImeKey("k","R")
+	n.SetImeKey("d","K")
+
+	TrayTip("FMIXR_VBD layout","",0x11)
+}
+
 
 ChangeIME_HNTSKLayoutImpl()
 {
@@ -1004,7 +1100,11 @@ space::Send(C_ZENKAKU)
 #o::ChangeOonishiLayout()
 #f::ChangeFMIXLayout()
 #r::ChangeFMIXRLayout()
+#t::ChangeFMIXR_TDLayout()
 #h::ChangeHNTSKLayout()
+#v::ChangeFMIXR_VBDLayout()
+#k::ChangeFMIXKLayout()
+#c::ChangeColemakLayout()
 ;#1::ChangeFMIX15RLayout()
 ;#2::ChangeFMIX15R2Layout()
 ;#3::ChangeFMIX14Layout()

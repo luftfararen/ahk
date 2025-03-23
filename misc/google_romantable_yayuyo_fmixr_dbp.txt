@@ -201,7 +201,6 @@ ya	や
 yo	よ
 yu	ゆ
 yy	っ	y
-nx	なん
 xa	や
 xu	ゆ
 xo	よ
@@ -210,6 +209,9 @@ xe	で
 xc	だ
 xr	れる
 xs	する
+nx	なん
+zx	ざ
+jx	じ
 dxi	でぃ
 txi	てぃ
 dgi	でぃ
@@ -273,20 +275,7 @@ zw	じゃ
 dw	ぢゃ
 bw	びゃ
 pw	ぴゃ
-jw	じょ
-kd	きゃ
-cd	きゃ
-sd	しゃ
-td	ちゃ
-nd	にゃ
-hd	ひゃ
-md	みゃ
-rd	りゃ
-gd	ぎゃ
-zd	じゃ
-ddd	ぢゃ
-bd	びゃ
-pd	ぴゃ
+
 kj	きょ
 cj	きょ
 sj	しょ
@@ -428,6 +417,23 @@ xt	やい
 ft	ふぁい
 vt	ゔぁい
 jt	じゃい
+kv	こう
+cv	こう
+sv	そう
+tv	とう
+nv	のう
+hv	ほう
+mv	もう
+yv	よう
+rv	ろう
+gv	ごう
+zv	ぞう
+dv	どう
+bv	ぼう
+pv	ぽう
+xv	よう
+fv	ふぉう
+jv	じょう
 kd	こう
 cd	こう
 sd	そう

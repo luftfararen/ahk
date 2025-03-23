@@ -199,7 +199,6 @@ ya	や
 yo	よ
 yu	ゆ
 yy	っ	y
-nx	なん
 xa	や
 xu	ゆ
 xo	よ
@@ -208,6 +207,7 @@ xe	で
 xc	だ
 xr	れる
 xs	する
+nx	なん
 dxi	でぃ
 txi	てぃ
 dli	でぃ
