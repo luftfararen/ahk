@@ -935,6 +935,32 @@ ChangeFMIXR_VBDLayout()
 	TrayTip("FMIXR_VBD layout","",0x11)
 }
 
+ChangeFMIXR_VBD2Layout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	;e.SetKey("l")
+	;r.SetKey("d")
+	;d.SetKey("s")
+	r.SetKey("p")
+	t.SetKey("k")
+	n.SetKey("d")
+
+	e.SetImeKey("r","L")
+	;r.SetImeKey("p","P")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","R")
+	;n.SetImeKey("d","K")
+
+	TrayTip("FMIXR_VBD2 layout","",0x11)
+}
 
 ChangeIME_HNTSKLayoutImpl()
 {
@@ -1104,6 +1130,7 @@ space::Send(C_ZENKAKU)
 #t::ChangeFMIXR_TDLayout()
 #h::ChangeHNTSKLayout()
 #v::ChangeFMIXR_VBDLayout()
+#d::ChangeFMIXR_VBD2Layout()
 #k::ChangeFMIXKLayout()
 #c::ChangeColemakLayout()
 ;#1::ChangeFMIX15RLayout()
