@@ -858,7 +858,7 @@ ChangeFMIXLayout()
 {
 	ChangeFMIXLayoutImpl()
 	ResetIME()
-	TrayTip("FMIX layout","",0x11)
+	TrayTip("FMIX VBP layout","",0x11)
 }
 
 ChangeFMIXKLayout()
@@ -867,8 +867,19 @@ ChangeFMIXKLayout()
 	t.SetKey("p")
 	n.SetKey("k")
 	ResetIME()
-	TrayTip("FMIXK layout","",0x11)
+	TrayTip("FMIX VBK layout","",0x11)
 }
+
+ChangeFMIXDLayout()
+{
+	ChangeFMIXLayoutImpl()
+	r.SetKey("p")
+	t.SetKey("k")
+	n.SetKey("d")
+	ResetIME()
+	TrayTip("FMIX VBD layout","",0x11)
+}
+
 
 ChangeFMIXRLayout()
 {
@@ -932,7 +943,7 @@ ChangeFMIXR_VBDLayout()
 	d.SetImeKey("k","R")
 	n.SetImeKey("d","K")
 
-	TrayTip("FMIXR_VBD layout","",0x11)
+	TrayTip("FMIXR VBD layout","",0x11)
 }
 
 ChangeFMIXR_VBD2Layout()
@@ -959,7 +970,7 @@ ChangeFMIXR_VBD2Layout()
 	d.SetImeKey("k","R")
 	;n.SetImeKey("d","K")
 
-	TrayTip("FMIXR_VBD2 layout","",0x11)
+	TrayTip("FMIXR VBD2 layout","",0x11)
 }
 
 ChangeIME_HNTSKLayoutImpl()
@@ -1124,18 +1135,19 @@ sc079::Send(C_ZENKAKU) ;conv
 space::Send(C_ZENKAKU)
 
 ;*space::Send(B_BS)
-#o::ChangeOonishiLayout()
 #f::ChangeFMIXLayout()
+#k::ChangeFMIXKLayout()
+#x::ChangeFMIXDLayout()
+
 #r::ChangeFMIXRLayout()
 #t::ChangeFMIXR_TDLayout()
-#h::ChangeHNTSKLayout()
 #v::ChangeFMIXR_VBDLayout()
 #d::ChangeFMIXR_VBD2Layout()
-#k::ChangeFMIXKLayout()
+
+#o::ChangeOonishiLayout()
+#h::ChangeHNTSKLayout()
 #c::ChangeColemakLayout()
-;#1::ChangeFMIX15RLayout()
-;#2::ChangeFMIX15R2Layout()
-;#3::ChangeFMIX14Layout()
+
 #HotIf
 
 ;***M2**************************************************************************
