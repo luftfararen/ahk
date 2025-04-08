@@ -368,14 +368,6 @@ class MKey
 	}
 } ;class MKey
 
-;f13 := ModKey(S_ZENKAKU,200) ;m1
-f13 := MKey("",200) ;m1
-space := MKey("SPACE") ;m2
-tab := MKey("TAB") ;m3
-noconv := MKey(S_ZENKAKU) ;m4
-f14 := MKey("ENTER") ;m5
-
-
 /*============================================================================
 Class to assign different key.
 ============================================================================*/
@@ -384,7 +376,7 @@ class RKey
 	static use_registered_key_for_ctrl  := false ;for ctrl or alt
 
 /*============================================================================
-	key: 		base key, if it is speial key, "{}" is needed.
+	key: 		base key, if it is a speial key, "{}" is needed.
 	long_key: 	long pressed key, which inclueds "{}". 
 				If blank, shifted key is generated automatically. If "none", does nothing.  
 ============================================================================*/
@@ -396,7 +388,7 @@ class RKey
 	}
 
 /*============================================================================
-	key: 		base key.
+	key: 		base key, if it is a speial key, "{}" is needed.
 	shift_key: 	shift key, which inclueds "{}". 
 				If blank, shifted key is generated automatically.
 ============================================================================*/
@@ -427,8 +419,6 @@ class RKey
 	shift_key: 	shift key, which inclueds "{}". 
 				If blank, shifted key is generated automatically.
 ============================================================================*/
-	
-	
 	SetImeKey(key := "", shift_key:="")
 	{
 		; if key = "" {
@@ -472,24 +462,35 @@ class RKey
 		}
 	}
 
-	;Sends registered shift key when pressing only shift key.
-	SendModKey(pressed_key)
+	SendCAWKey(pressed_key)
 	{
-		shift := GetShiftState()
+;		shift := GetShiftState()
 		caw := GetKeyState("Ctrl","P") || GetKeyState("Alt","P") ||
 			GetKeyState("LWin","P") || GetKeyState("RWin","P")
 		if caw {
-			Send("{Blind}" . pressed_key . "}")
+			Send("{Blind}" . "{" . pressed_key . "}")
 			;ToolTip pressed_key
 			return true
 		}
+		return false
+	}
+
+	;Sends registered shift key when pressing only shift key.
+	;returns true if Ctrl is pressed
+	SendModKey(pressed_key)
+	{
+		if this.SendCAWKey(pressed_key) {
+			return true
+		}
+		shift := GetShiftState()
 		this.SendShiftedKey(shift) ;Sends key in blind mode
+		return false
 	}
 
 /*============================================================================
 	Assign this method to the hotkey as same as registered.  
 	ex)
-	x := LongPressKey("x")
+	x := LKey("x")
 	x::x.Down("x")
 	x::x.Up()
 ============================================================================*/
@@ -509,6 +510,184 @@ class RKey
 	}
 } ;class RKey
 
+/*============================================================================
+Class to assign different key for long press.
+============================================================================*/
+class LKey extends RKey
+{
+	;static use_registered_key_for_ctrl  := false ;for ctrl or alt
+	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
+	static last_key := ""
+	static long_press_enabled  := true
+	long_key_str := ""
+	pressing := False
+/*============================================================================
+	key: 		base key, if it is a speial key, "{}" is needed.
+	long_key: 	long pressed key, which inclueds "{}". 
+				If blank, shifted key is generated automatically. If "none", does nothing.  
+============================================================================*/
+	__New(key, shift_key:="", long_key:="")
+	{
+		super.__New(key,shift_key)
+		this.SetLongKey(long_key)
+		this.send_time := 0
+		this.pressed_time := 0
+	}
+
+/*============================================================================
+	m: 		0:disable 1:enable 2:toggle
+============================================================================*/
+	static EnableLongPress(m := 2, show_info := False)
+	{
+		if m == 0{
+			LKey.long_press_enabled := False
+		} else if m == 1{
+			LKey.long_press_enabled := True
+		}else{
+			LKey.long_press_enabled := !LKey.long_press_enabled
+		}
+		if show_info {
+			if LKey.long_press_enabled {
+				TrayTip("LKey is enabled","",0x11)
+			} else {
+				TrayTip("LKey is disabled","",0x11)
+			}
+		}
+	}
+
+/*============================================================================
+	key: 		base key, if it is a speial key, "{}" is needed.
+	shift_key: 	shift key, which inclueds "{}". 
+				If blank, shifted key is generated automatically.
+	long_key: 	long pressed key, which inclueds "{}". 
+				If blank, shifted key is generated automatically. If "none", does nothing.  
+============================================================================*/
+	SetKey(key, shift_key:="")
+	{
+		super.SetKey(key, shift_key)
+	}
+
+	SetLongKey(long_key:="")
+	{
+		if long_key = ""{
+			this.long_key_str :=  this.shift_key_str
+		}else if long_key = "none"{
+			this.long_key_str := "none"
+		}else{	
+			this.long_key_str := long_key
+		}
+	}
+
+	/*============================================================================
+	Is registerd key presed or not.
+	============================================================================*/
+	IsPressed()
+	{
+		return this.pressing
+	}
+
+
+	;Sends registered shift key when pressing only shift key.
+	DownImpl(pressed_key)
+	{
+		if this.long_key_str = "none" {
+			if super.SendCAWKey(pressed_key){
+				this.pressed_time  := 0
+				return
+			}
+			if this.pressing {
+				return
+			}
+			this.pressing := True
+			LKey.last_key := this.key
+			this.pressed_time  := A_TickCount
+			;tooltip	this.pressed_time
+		}else{
+			this.pressing := True
+			if LKey.long_press_enabled {
+				if LKey.last_key = this.key && this.send_time > 0{
+					if A_TickCount - this.send_time < LKey.long_press_th{
+						return
+					}
+				}
+				LKey.last_key := this.key
+				if ! super.SendModKey(pressed_key){
+					this.pressed_time  := A_TickCount
+				}
+			}else{
+				super.SendModKey(pressed_key)
+			}
+		}
+	}
+
+
+
+/*============================================================================
+	Assign this method to the hotkey as same as registered.  
+	ex)
+	x := LKey("x")
+	x::x.Down("x")
+	x::x.Up()
+============================================================================*/
+	Down(pressed_key := "")
+	{
+		;LayerKey.ChangeLayer(0)
+		if LKey.use_registered_key_for_ctrl ||  pressed_key = ""{
+			pressed_key := this.key
+		}
+		this.DownImpl(pressed_key)
+	}	
+	/*============================================================================
+	Assign this method to the hotkey as same as registered.  
+	See Down() method for the detail.
+	return value short:true  long:falsem
+	============================================================================*/
+	Up()
+	{
+		if this.pressed_time >0 && this.long_key_str != ""{
+			time := A_TickCount
+			if this.long_key_str = "none"{
+				if time - this.pressed_time  >= LKey.long_press_th {
+				}else{
+					if this.pressing {
+						if LKey.last_key = this.key {
+							shift := GetShiftState()
+							this.SendShiftedKey(shift) ;Sends key in blind mode
+						}
+					}
+				}
+				this.pressed_time  := 0
+			}else{
+				if time - this.pressed_time  >= LKey.long_press_th {
+					if LKey.last_key = this.key {
+						this.send_time := time
+						Send("{Backspace}" . this.long_key_str )
+						this.pressed_time  := 0
+						this.pressing := false 
+						return true
+					}
+				}
+			}
+		}
+		this.pressing := false 
+		this.send_time := 0
+		this.pressed_time  := 0
+		return false
+	}
+} ;class LKey
+
+;f13 := ModKey(S_ZENKAKU,200) ;m1
+f13 := MKey("",200) ;m1
+space := MKey("SPACE") ;m2
+tab := MKey("TAB") ;m3
+noconv := MKey(S_ZENKAKU) ;m4
+f14 := MKey("ENTER") ;m5
+f := LKey("f","","none") ;
+
+j := LKey("j","","none") ;
+a := LKey("a","","none") ;
+s := LKey("s","","none") ;
+;semicolon := LKey("j","","none") ;
 
 /*============================================================================
 	Returns true if modifier key is pressed. 
@@ -516,40 +695,8 @@ class RKey
 	alt: if value is true and alt key is pressed, returns false.  
 	ctrl: if value is true and ctrl key is pressed, returns false.
 	shift: if value is true and shift key is pressed, returns false.
-============================================================================*/
-ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
-{
-	if ctrl {
-		if GetKeyState("Ctll","P") {
-			return false
-		}
-	} 
-	if alt {
-		if GetKeyState("Alt","P") {
-			return false
-		}
-	} 
-	if shift {
-		if GetShiftState(){
-			return false
-		}
-	} 
-	if m = 1{
-		return GetKeyState("F13","P")
-	} if m = 2{
-		return space.IsPressed() 
-	} if m = 3{
-		return tab.IsPressed()
-	} if m = 4{
-		return GetKeyState(S_NOCONV, "P") 
-	} if m = 5{
-		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
-		return F14.IsPressed()
-	}
-	return false
-}
-
-
+	============================================================================*/
+	
 k1 := RKey("1")
 k2 := RKey("2")
 k3 := RKey("3")
@@ -578,14 +725,14 @@ p := RKey("p")
 at := RKey("@")
 openbracket := RKey("[")
 ;
-a := RKey("a")
-s := RKey("s")
+;a := RKey("a")
+;s := RKey("s")
 d := RKey("d")
-f := RKey("f")
+;f := RKey("f")
 g := RKey("g")
 ;
 h := RKey("h")
-j := RKey("j")
+;j := RKey("j")
 k := RKey("k")
 l := RKey("l")
 semicolon := RKey(C_SEMICOLON)
@@ -609,7 +756,6 @@ up    := RKey(B_UP,"none")
 down  := RKey(B_DOWN,"none")
 left  := RKey(B_LEFT,"none")
 right := RKey(B_RIGHT,"none")
-
 
 q_ime := ""
 w_ime := ""
@@ -645,6 +791,49 @@ n_ime := ""
 m_ime := ""
 comma_ime := ""
 period_ime := ""
+
+ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
+{
+	if ctrl {
+		if GetKeyState("Ctll","P") {
+			return false
+		}
+	} 
+	if alt {
+		if GetKeyState("Alt","P") {
+			return false
+		}
+	} 
+	if shift {
+		if GetShiftState(){
+			return false
+		}
+	} 
+	if m = 1{
+		return GetKeyState("F13","P") || a.IsPressed()
+	} if m = 2{
+		return space.IsPressed() 
+	} if m = 3{
+		return tab.IsPressed() 	
+	} if m = 4{
+		return GetKeyState(S_NOCONV, "P") 
+	} if m = 5{
+		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
+		return F14.IsPressed() || GetShiftState2() || GetKeyState(S_NOCONV, "P") 
+	}
+	return false
+}
+
+
+IsCPressed(_a,_b) 
+{
+	return _a.IsPressed() && (!_b.IsPressed())
+}
+
+GetShiftState2()
+{
+	return  (f.IsPressed() && (!j.IsPressed())) || (j.IsPressed() && (!f.IsPressed()))
+}
 
 ResetIME()
 {   
@@ -1040,7 +1229,9 @@ ChangeHNTSKLayout()
 ;#HotIf ModifiedState(3) 
 ;#HotIf (ModifiedState(1) && GetKeyState("Alt","P")) 
 
+
 #HotIf ModifiedState(3) || (ModifiedState(1) && (GetKeyState("Alt","P") || ModifiedState(4))) 
+;#HotIf ModifiedState(3) 
 *1::Send("^z")
 *2::Send("^x")
 *3::Send("^c")
@@ -1158,8 +1349,8 @@ w::+F3
 *r::SendAccImeState(B_NMUL,r_ime) 
 *t::Send(B_NADD)
 
-*a::SendAccImeState("{Blind}^a",a_ime)
-*s::SendAccImeState("()",s_ime)
+*a::SendAccImeState("(",a_ime)
+*s::SendAccImeState(")",s_ime)
 *d::SendAccImeState("_",d_ime)
 *f::Send("{Blind}-")
 g::Send("=")
@@ -1175,22 +1366,22 @@ sc079::Send(B_ZENKAKU) ;conv
 2::Send('""{Left}')
 3::Send("''{Left}")
 4::Send("~")
-q::Send(":")
-w::Send("+1")
-e::Send("<")
-r::Send(">")
-t::Send("|")
+q::Send("!")
+;w::Send("+1")
+e::Send("~")
+r::Send("|")
+t::Send("&")
 
-a::Send("<>{Left}")
-s::Send("(){Left}")
-d::Send("[]{Left}")
-f::Send("=")
-g::Send("&")
+a::Send("[")
+s::Send("]")
+d::Send("+[")
+f::Send("+]")
+;g::Send("&")
 
-x::Send("+[+]{Left}")
-c::Send("\")
+;x::Send("+[+]{Left}")
+c::Send(":")
 v::Send(";")
-b::Send(C_HAT)
+b::Send("\")
 
 ;-----------------------------------------------
 6::Send("{Escape}")
@@ -1247,7 +1438,7 @@ right::Send(B_RIGHT)
 
 #HotIf ;needed to enable m5
 ;***M5**************************************************************************
-#HotIf ModifiedState(5)
+#HotIf ModifiedState(5) || f.IsPressed() ||j.IsPressed()  	 
 1::k1.SendShiftedKey()
 2::k2.SendShiftedKey()
 3::k3.SendShiftedKey()
@@ -1263,7 +1454,7 @@ t::t.SendShiftedKey()
 a::a.SendShiftedKey()
 s::s.SendShiftedKey()
 d::d.SendShiftedKey()
-f::f.SendShiftedKey()
+f::f.SendShiftedKey(((ModifiedState(5) || j.IsPressed())) )
 g::g.SendShiftedKey()
 
 z::z.SendShiftedKey()
@@ -1288,8 +1479,11 @@ p::p.SendShiftedKey()
 @::at.SendShiftedKey()
 [::openbracket.SendShiftedKey()
 
+
+
+
 h::h.SendShiftedKey()
-j::j.SendShiftedKey()
+j::j.SendShiftedKey(((ModifiedState(5) || f.IsPressed())) )
 k::k.SendShiftedKey()
 l::l.SendShiftedKey()
 sc027::semicolon.SendShiftedKey()
@@ -1327,9 +1521,9 @@ sc073::backslash2.SendShiftedKey()
 *0 up::k0.Up()
 *-::minus.Down("-")
 *- up::minus.Up()
-*sc00D::hat.Down("sc00D")
+*sc00D::hat.Down("{sc00D}")
 *sc00D up::hat.Up()
-*sc07D::backslash.Down("sc07D")
+*sc07D::backslash.Down("{sc07D}")
 *sc07D up::backslash.Up()
 
 *q::q.Down("q")
