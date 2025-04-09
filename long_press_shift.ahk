@@ -670,6 +670,7 @@ tab := MKey("TAB") ;m3
 noconv := MKey(S_ZENKAKU) ;m4
 f14 := MKey("ENTER") ;m5
 
+
 /*============================================================================
 Class to assign different key.
 ============================================================================*/
@@ -778,7 +779,7 @@ class RKey
 /*============================================================================
 	Assign this method to the hotkey as same as registered.  
 	ex)
-	x := LongPressKey("x")
+	x := LKey("x")
 	x::x.Down("x")
 	x::x.Up()
 ============================================================================*/
@@ -798,11 +799,10 @@ class RKey
 	}
 } ;class RKey
 
-
 /*============================================================================
 Class to assign different key for long press.
 ============================================================================*/
-class LongPressKey extends RKey
+class LKey extends RKey
 {
 	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
 	static last_key := ""
@@ -827,17 +827,17 @@ class LongPressKey extends RKey
 	static EnableLongPress(m := 2, show_info := False)
 	{
 		if m == 0{
-			LongPressKey.long_press_enabled := False
+			LKey.long_press_enabled := False
 		} else if m == 1{
-			LongPressKey.long_press_enabled := True
+			LKey.long_press_enabled := True
 		}else{
-			LongPressKey.long_press_enabled := !LongPressKey.long_press_enabled
+			LKey.long_press_enabled := !LKey.long_press_enabled
 		}
 		if show_info {
-			if LongPressKey.long_press_enabled {
-				TrayTip("LongPressKey is enabled","",0x11)
+			if LKey.long_press_enabled {
+				TrayTip("LKey is enabled","",0x11)
 			} else {
-				TrayTip("LongPressKey is disabled","",0x11)
+				TrayTip("LKey is disabled","",0x11)
 			}
 		}
 }
@@ -876,13 +876,13 @@ class LongPressKey extends RKey
 	;Sends registered shift key when pressing only shift key.
 	DownImpl(pressed_key)
 	{
-		if LongPressKey.long_press_enabled {
-			if LongPressKey.last_key = this.key && this.send_time > 0{
-				if A_TickCount - this.send_time < LongPressKey.long_press_th{
+		if LKey.long_press_enabled {
+			if LKey.last_key = this.key && this.send_time > 0{
+				if A_TickCount - this.send_time < LKey.long_press_th{
 					return
 				}
 			}
-			LongPressKey.last_key := this.key
+			LKey.last_key := this.key
 			;if LayerKey.ParseAndChange(this.key){
 			;	return
 			;}
@@ -897,14 +897,14 @@ class LongPressKey extends RKey
 /*============================================================================
 	Assign this method to the hotkey as same as registered.  
 	ex)
-	x := LongPressKey("x")
+	x := LKey("x")
 	x::x.Down("x")
 	x::x.Up()
 ============================================================================*/
 	Down(pressed_key := "")
 	{
 		;LayerKey.ChangeLayer(0)
-		if LongPressKey.use_registered_key ||  pressed_key = ""{
+		if LKey.use_registered_key ||  pressed_key = ""{
 			pressed_key := this.key
 		}
 		this.DownImpl(pressed_key)
@@ -919,8 +919,8 @@ class LongPressKey extends RKey
 	{
 		if this.pressed_time >0 && this.long_key_str != ""{
 			time := A_TickCount
-			if time - this.pressed_time  >= LongPressKey.long_press_th {
-				if LongPressKey.last_key = this.key {
+			if time - this.pressed_time  >= LKey.long_press_th {
+				if LKey.last_key = this.key {
 					this.send_time := time
 					Send("{Backspace}" . this.long_key_str )
 					this.pressed_time  := 0
@@ -932,13 +932,13 @@ class LongPressKey extends RKey
 		this.pressed_time  := 0
 		return false
 	}
-} ;class LongPressKey
+} ;class LKey
 
 /*============================================================================
 Class to assign different key for long press with layer change.
-LongPressKeyC is complicated and not versatile due to mouse operation with shift or/and ctrl key.
+LKeyC is complicated and not versatile due to mouse operation with shift or/and ctrl key.
 ============================================================================*/
-class LongPressKeyC extends LongPressKey  
+class LKeyC extends LKey  
 {
 
 /*============================================================================
@@ -956,7 +956,7 @@ class LongPressKeyC extends LongPressKey
 	Defines shift/ctrl combination if they are used
 	Shift and Ctrl is used only for mouse operation 
 	ex1)
-	x := LongPressKeyC("x","","","MouseDown")
+	x := LKeyC("x","","","MouseDown")
 	x::x.Down("x")
 	x up ::x.Down()
 ===========================================================================*/
@@ -975,7 +975,7 @@ class LongPressKeyC extends LongPressKey
 		;base key down 
 		super.DownImpl(pressed_key)
 	}
-} ;class LongPressKeyC
+} ;class LKeyC
 
 
 /*============================================================================
@@ -1017,65 +1017,65 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 	return false
 }
 
-k1 := LongPressKeyC("1")
-k2 := LongPressKeyC("2")
-k3 := LongPressKeyC("3")
-k4 := LongPressKeyC("4")
-k5 := LongPressKeyC("5")
-k6 := LongPressKeyC("6")
-k7 := LongPressKeyC("7")
-k8 := LongPressKeyC("8")
-k9 := LongPressKeyC("9")
-k0 := LongPressKeyC("0","none")
-minus := LongPressKeyC("-")
-hat := LongPressKeyC(C_HAT)
-backslash := LongPressKeyC("\")
+k1 := LKeyC("1")
+k2 := LKeyC("2")
+k3 := LKeyC("3")
+k4 := LKeyC("4")
+k5 := LKeyC("5")
+k6 := LKeyC("6")
+k7 := LKeyC("7")
+k8 := LKeyC("8")
+k9 := LKeyC("9")
+k0 := LKeyC("0","none")
+minus := LKeyC("-")
+hat := LKeyC(C_HAT)
+backslash := LKeyC("\")
 ;
-q := LongPressKeyC("q")
-w := LongPressKeyC("w")
-e := LongPressKeyC("e")
-r := LongPressKeyC("r")
-t := LongPressKeyC("t")
+q := LKeyC("q")
+w := LKeyC("w")
+e := LKeyC("e")
+r := LKeyC("r")
+t := LKeyC("t")
 ;
-y := LongPressKeyC("y")
-u := LongPressKeyC("u")
-i := LongPressKeyC("i")
-o := LongPressKeyC("o")
-p := LongPressKeyC("p")
-at := LongPressKeyC("@")
-openbracket := LongPressKeyC("[")
+y := LKeyC("y")
+u := LKeyC("u")
+i := LKeyC("i")
+o := LKeyC("o")
+p := LKeyC("p")
+at := LKeyC("@")
+openbracket := LKeyC("[")
 ;
-a := LongPressKeyC("a")
-s := LongPressKeyC("s")
-d := LongPressKeyC("d")
-f := LongPressKeyC("f")
-g := LongPressKeyC("g")
+a := LKeyC("a")
+s := LKeyC("s")
+d := LKeyC("d")
+f := LKeyC("f")
+g := LKeyC("g")
 ;
-h := LongPressKeyC("h")
-j := LongPressKeyC("j")
-k := LongPressKeyC("k")
-l := LongPressKeyC("l")
-semicolon := LongPressKeyC(C_SEMICOLON)
-colon := LongPressKeyC(C_COLON)
-closebracket := LongPressKeyC("]")
+h := LKeyC("h")
+j := LKeyC("j")
+k := LKeyC("k")
+l := LKeyC("l")
+semicolon := LKeyC(C_SEMICOLON)
+colon := LKeyC(C_COLON)
+closebracket := LKeyC("]")
 ;
-z := LongPressKeyC("z")
-x := LongPressKeyC("x")
-c := LongPressKeyC("c")
-v := LongPressKeyC("v")
-b := LongPressKeyC("b")
+z := LKeyC("z")
+x := LKeyC("x")
+c := LKeyC("c")
+v := LKeyC("v")
+b := LKeyC("b")
 ;
-n := LongPressKeyC("n")
-m := LongPressKeyC("m")
-comma := LongPressKeyC(C_COMMA)
-period := LongPressKeyC(".")
-slash := LongPressKeyC("/")
-backslash2 := LongPressKeyC(C_BACKSLASH2)
+n := LKeyC("n")
+m := LKeyC("m")
+comma := LKeyC(C_COMMA)
+period := LKeyC(".")
+slash := LKeyC("/")
+backslash2 := LKeyC(C_BACKSLASH2)
 ;
-up    := LongPressKeyC(B_UP,"none")
-down  := LongPressKeyC(B_DOWN,"none")
-left  := LongPressKeyC(B_LEFT,"none")
-right := LongPressKeyC(B_RIGHT,"none")
+up    := LKeyC(B_UP,"none")
+down  := LKeyC(B_DOWN,"none")
+left  := LKeyC(B_LEFT,"none")
+right := LKeyC(B_RIGHT,"none")
 
 ;===10 Key Mode===
 #hotif LayerKey.idx = LayerKey.NUM_MODE
@@ -1318,7 +1318,7 @@ m_ime := ""
 comma_ime := ""
 period_ime := ""
 
-Reset()
+ResetIME()
 {   
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1397,25 +1397,110 @@ Reset()
 }
 
 
-ChangeASRTLayout()
+ChangeOonishiLayout()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
-	Reset()
+	minus.SetKey("/")
+	q.SetKey("q")
+	w.SetKey("l")
+	e.SetKey("u")
+	r.SetKey(",","<")
+	t.SetKey(".",">")
+	y.SetKey("f")
+	u.SetKey("w")
+	i.SetKey("r")
+	o.SetKey("y")
+	p.SetKey("p")
+
+	a.SetKey("e")
+	s.SetKey("i")
+	d.SetKey("a")
+	f.SetKey("o")
+	g.SetKey("-")
+	h.SetKey("k")
+	j.SetKey("t")
+	k.SetKey("n")
+	l.SetKey("s")
+	semicolon.SetKey("h")
+
+	b.SetKey(";")
+	n.SetKey("g")
+	m.SetKey("d")
+	comma.SetKey("m")
+	period.SetKey("j")
+	slash.SetKey("b")
+
+	ResetIME()
+
+	TrayTip("Oonish layout","",0x11)
+}
+
+ChangeColemakLayout()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	minus.SetKey("-")
+	q.SetKey("q")
+	w.SetKey("w")
+	e.SetKey("f")
+	r.SetKey("p")
+	t.SetKey("g")
+	y.SetKey("j")
+	u.SetKey("l")
+	i.SetKey("u")
+	o.SetKey("y")
+	p.SetKey(C_SEMICOLON)
+
+	a.SetKey("a")
+	s.SetKey("r")
+	d.SetKey("s")
+	f.SetKey("t")
+	g.SetKey("d")
+	h.SetKey("h")
+	j.SetKey("n")
+	k.SetKey("e")
+	l.SetKey("i")
+	semicolon.SetKey("o")
+	
+	z.SetKey("z")
+	x.SetKey("x")
+	c.SetKey("c")
+	v.SetKey("v")
+	b.SetKey("b")
+	n.SetKey("k")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+
+	TrayTip("Colemak layout","",0x11)
+}
+
+
+ChangeFMIXLayoutImpl()
+{
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
 
 	minus.SetKey("-")
 	q.SetKey("q")
 	w.SetKey("w")
 	e.SetKey("l")
 	r.SetKey("d")
-	t.SetKey("p")
-	y.SetKey("j")
+	t.SetKey("k")
+	y.SetKey("y")
 	u.SetKey("f")
 	i.SetKey("u")
-	o.SetKey("y")
+	o.SetKey("j")
 	p.SetKey(C_SEMICOLON)
 
 	a.SetKey("a")
@@ -1429,168 +1514,188 @@ ChangeASRTLayout()
 	l.SetKey("i")
 	semicolon.SetKey("o")
 	
+	z.SetKey("z")
+	x.SetKey("x")
+	c.SetKey("c")
+	v.SetKey("v")
 	b.SetKey("b")
+	n.SetKey("p")
+	m.SetKey("m")
+	comma.SetKey(C_COMMA)
+	period.SetKey(".")
+	slash.SetKey("/")
+}
+
+ChangeFMIXLayout()
+{
+	ChangeFMIXLayoutImpl()
+	ResetIME()
+	TrayTip("FMIX VBP layout","",0x11)
+}
+
+ChangeFMIXKLayout()
+{
+	ChangeFMIXLayoutImpl()
+	t.SetKey("p")
 	n.SetKey("k")
-	m.SetKey("m")
-	comma.SetKey(C_COMMA)
-	period.SetKey(".")
-	slash.SetKey("/")
-
-	TrayTip("ASRT layout","",0x11)
+	ResetIME()
+	TrayTip("FMIX VBK layout","",0x11)
 }
 
-ChangeFMIX15Layout()
+ChangeFMIXDLayout()
 {
+	ChangeFMIXLayoutImpl()
+	r.SetKey("p")
+	t.SetKey("k")
+	n.SetKey("d")
+	ResetIME()
+	TrayTip("FMIX VBD layout","",0x11)
+}
+
+
+ChangeFMIXRLayout()
+{
+	ChangeFMIXLayoutImpl()
+
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
-	Reset()
-
-	minus.SetKey("-")
-	q.SetKey("q")
-	w.SetKey("w")
-	e.SetKey("l")
-	r.SetKey("d")
-	t.SetKey("k")
-	y.SetKey(C_SEMICOLON)
-	u.SetKey("f")
-	i.SetKey("u")
-	o.SetKey("y")
-	p.SetKey("j")
-
-	a.SetKey("a")
-	s.SetKey("s")
-	d.SetKey("r")
-	f.SetKey("t")
-	g.SetKey("g")
-	h.SetKey("h")
-	j.SetKey("n")
-	k.SetKey("e")
-	l.SetKey("i")
-	semicolon.SetKey("o")
-	
-	b.SetKey("b")
-	n.SetKey("p")
-	m.SetKey("m")
-	comma.SetKey(C_COMMA)
-	period.SetKey(".")
-	slash.SetKey("/")
-	
-	global a_ime := "ka"
-	global s_ime := "ki"
-	global d_ime := "ku"
-	global e_ime := "ko"
-	global r_ime := "ke"
-
-	TrayTip("FMIX15 layout","",0x11)
-}
-
-
-ChangeFMIX15RLayout()
-{
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
-	global b,n,m,comma,period,slash
-
-	Reset()
-
-	minus.SetKey("-")
-	q.SetKey("q")
-	w.SetKey("w")
-	e.SetKey("l")
-	r.SetKey("d")
-	t.SetKey("k")
-	y.SetKey(C_SEMICOLON)
-	u.SetKey("f")
-	i.SetKey("u")
-	o.SetKey("y")
-	p.SetKey("j")
-
-	a.SetKey("a")
-	s.SetKey("s")
-	d.SetKey("r")
-	f.SetKey("t")
-	g.SetKey("g")
-	h.SetKey("h")
-	j.SetKey("n")
-	k.SetKey("e")
-	l.SetKey("i")
-	semicolon.SetKey("o")
-	
-	b.SetKey("b")
-	n.SetKey("p")
-	m.SetKey("m")
-	comma.SetKey(C_COMMA)
-	period.SetKey(".")
-	slash.SetKey("/")
-
-	;q.SetImeKey("q","?")
+	ResetIME()
+	r.SetKey("v")
+	v.SetKey("d")
 	e.SetImeKey("r","L")
-	;t.SetImeKey("l")
-	;i.SetImeKey("u","yu")
-	o.SetImeKey("j","Y")
-	p.SetImeKey("y","J")
-
-	;a.SetImeKey("a","ya")
-	;s.SetImeKey("s","ltu")
+	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
-	;f.SetImeKey("t","-")
-	;g.SetImeKey("g","ga")
-	;j.SetImeKey("n","nann")
-	;semicolon.SetImeKey("o","yo")
-	
-	global d_ime := "de"
-	global e_ime := "da"
-	global r_ime := "do"
-
-	TrayTip("FMIX15R layout","",0x11)
+	TrayTip("FMIXR layout","",0x11)
 }
 
-ChangeKSTNHLayout()
+ChangeFMIXR_TDLayout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+	r.SetKey("g")
+	g.SetKey("d")
+	e.SetImeKey("r","L")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","R")
+
+	TrayTip("FMIXR_TD layout","",0x11)
+}
+
+
+ChangeFMIXR_VBDLayout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	;e.SetKey("l")
+	;r.SetKey("d")
+	;d.SetKey("s")
+	r.SetKey("p")
+	t.SetKey("d")
+	n.SetKey("k")
+
+	e.SetImeKey("r","L")
+	;r.SetImeKey("p","P")
+	t.SetImeKey("l","D")
+	d.SetImeKey("k","R")
+	n.SetImeKey("d","K")
+
+	TrayTip("FMIXR VBD layout","",0x11)
+}
+
+ChangeFMIXR_VBD2Layout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	;e.SetKey("l")
+	;r.SetKey("d")
+	;d.SetKey("s")
+	r.SetKey("p")
+	t.SetKey("k")
+	n.SetKey("d")
+
+	e.SetImeKey("r","L")
+	;r.SetImeKey("p","P")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","R")
+	;n.SetImeKey("d","K")
+
+	TrayTip("FMIXR VBD2 layout","",0x11)
+}
+
+ChangeIME_HNTSKLayoutImpl()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
 	global a,s,d,f,g,h,j,k,l,semicolon
 	global b,n,m,comma,period,slash
 
-	Reset()
+	ResetIME()
 
-	minus.SetKey(C_SLASH)
-	q.SetKey("q")
-	w.SetKey("l")
-	e.SetKey("u")
-	r.SetKey(C_COMMA)
-	t.SetKey(".")
-	y.SetKey("f")
-	u.SetKey("w")
-	i.SetKey("y")
-	o.SetKey("r")
-	p.SetKey("p")
+	minus.SetKey("-")
+	q.SetImeKey("q")
+	w.SetImeKey("w")
+	e.SetImeKey("u")
+	r.SetImeKey(C_SEMICOLON)
+	t.SetImeKey("l")
+	y.SetImeKey("f")
+	u.SetImeKey("d")
+	i.SetImeKey("r")
+	o.SetImeKey("j")
+	p.SetImeKey("y")
 
-	a.SetKey("a")
-	s.SetKey("i")
-	d.SetKey("e")
-	f.SetKey("o")
-	g.SetKey("-")
-	h.SetKey("k")
-	j.SetKey("s")
-	k.SetKey("t")
-	l.SetKey("n")
-	semicolon.SetKey("h")
-	
-	b.SetKey(C_SEMICOLON)
-	n.SetKey("g")
-	m.SetKey("j")
-	comma.SetKey("d")
-	period.SetKey("m")
-	slash.SetKey("b")
+	a.SetImeKey("a")
+	s.SetImeKey("o")
+	d.SetImeKey("e")
+	f.SetImeKey("i")
+	g.SetImeKey("g")
+	h.SetImeKey("h")
+	j.SetImeKey("n")
+	k.SetImeKey("t")
+	l.SetImeKey("s")
+	semicolon.SetImeKey("k")
 
-	TrayTip("kstnh layout","",0x11)
+	z.SetImeKey("z")
+	x.SetImeKey("x")
+	c.SetImeKey("c")
+	v.SetImeKey("v")
+	b.SetImeKey("b")
+	n.SetImeKey("p")
+	m.SetImeKey("m")
+	comma.SetImeKey(C_COMMA)
+	period.SetImeKey(".")
+	slash.SetImeKey("/")
 }
 
+
+ChangeHNTSKLayout()
+{
+	ChangeFMIXLayoutImpl()
+	ChangeIME_HNTSKLayoutImpl()
+	TrayTip("HNTSK layout","",0x11)
+}
 
 ; ModifiedState2(m1:=False,m2:=False,m3:=False,m4:=False,m5:=False)
 ; {
@@ -1706,11 +1811,19 @@ sc079::Send(C_ZENKAKU) ;conv
 space::Send(C_ZENKAKU)
 
 ;*space::Send(B_BS)
-#k::ChangeKSTNHLayout()
-#a::ChangeASRTLayout()
-#f::ChangeFMIX15Layout()
-#r::ChangeFMIX15RLayout()
-#x::LongPressKey.EnableLongPress(2,true)
+#f::ChangeFMIXLayout()
+#k::ChangeFMIXKLayout()
+#x::ChangeFMIXDLayout()
+
+#r::ChangeFMIXRLayout()
+#t::ChangeFMIXR_TDLayout()
+#v::ChangeFMIXR_VBDLayout()
+#d::ChangeFMIXR_VBD2Layout()
+
+#o::ChangeOonishiLayout()
+#h::ChangeHNTSKLayout()
+#c::ChangeColemakLayout()
+
 #HotIf
 
 ;***M2**************************************************************************
@@ -1971,7 +2084,6 @@ sc033::Send("<") ;.
 
 *sc035::slash.Down("sc035")
 *sc035 up::slash.Up()
-
 *sc073::backslash2.Down("sc073")
 *sc073 up::backslash2.Up()
 ;

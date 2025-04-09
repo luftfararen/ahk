@@ -171,6 +171,7 @@ SendAccImeState(key_ime_off,key_ime_on:="")
 		Send(key_ime_off)
 	}
 }
+
 /*============================================================================
 Class to ctrl mouse speed.
 ============================================================================*/
@@ -462,7 +463,7 @@ class RKey
 		}
 	}
 
-	SendCAWKey(pressed_key)
+	_SendCAWKey(pressed_key)
 	{
 ;		shift := GetShiftState()
 		caw := GetKeyState("Ctrl","P") || GetKeyState("Alt","P") ||
@@ -477,9 +478,9 @@ class RKey
 
 	;Sends registered shift key when pressing only shift key.
 	;returns true if Ctrl is pressed
-	SendModKey(pressed_key)
+	_SendModKey(pressed_key)
 	{
-		if this.SendCAWKey(pressed_key) {
+		if this._SendCAWKey(pressed_key) {
 			return true
 		}
 		shift := GetShiftState()
@@ -499,7 +500,7 @@ class RKey
 		if RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
 			pressed_key := this.key
 		}
-		this.SendModKey(pressed_key)
+		this._SendModKey(pressed_key)
 	}
 
 /*============================================================================
@@ -588,10 +589,10 @@ class LKey extends RKey
 
 
 	;Sends registered shift key when pressing only shift key.
-	DownImpl(pressed_key)
+	_Down(pressed_key)
 	{
 		if this.long_key_str = "none" {
-			if super.SendCAWKey(pressed_key){
+			if super._SendCAWKey(pressed_key){
 				this.pressed_time  := 0
 				return
 			}
@@ -611,7 +612,7 @@ class LKey extends RKey
 					}
 				}
 				LKey.last_key := this.key
-				if ! super.SendModKey(pressed_key){
+				if ! super._SendModKey(pressed_key){
 					this.pressed_time  := A_TickCount
 				}
 			}else{
@@ -635,7 +636,7 @@ class LKey extends RKey
 		if LKey.use_registered_key_for_ctrl ||  pressed_key = ""{
 			pressed_key := this.key
 		}
-		this.DownImpl(pressed_key)
+		this._Down(pressed_key)
 	}	
 	/*============================================================================
 	Assign this method to the hotkey as same as registered.  
@@ -682,11 +683,10 @@ space := MKey("SPACE") ;m2
 tab := MKey("TAB") ;m3
 noconv := MKey(S_ZENKAKU) ;m4
 f14 := MKey("ENTER") ;m5
-f := LKey("f","","none") ;
 
-j := LKey("j","","none") ;
-a := LKey("a","","none") ;
-s := LKey("s","","none") ;
+v := LKey("v","","none") ;
+c := LKey("c","","none") ;
+x := LKey("x","","none") ;
 ;semicolon := LKey("j","","none") ;
 
 /*============================================================================
@@ -695,8 +695,7 @@ s := LKey("s","","none") ;
 	alt: if value is true and alt key is pressed, returns false.  
 	ctrl: if value is true and ctrl key is pressed, returns false.
 	shift: if value is true and shift key is pressed, returns false.
-	============================================================================*/
-	
+============================================================================*/
 k1 := RKey("1")
 k2 := RKey("2")
 k3 := RKey("3")
@@ -725,14 +724,14 @@ p := RKey("p")
 at := RKey("@")
 openbracket := RKey("[")
 ;
-;a := RKey("a")
-;s := RKey("s")
+a := RKey("a")
+s := RKey("s")
 d := RKey("d")
-;f := RKey("f")
+f := RKey("f")
 g := RKey("g")
 ;
 h := RKey("h")
-;j := RKey("j")
+j := RKey("j")
 k := RKey("k")
 l := RKey("l")
 semicolon := RKey(C_SEMICOLON)
@@ -740,9 +739,9 @@ colon := RKey(C_COLON)
 closebracket := RKey("]")
 ;
 z := RKey("z")
-x := RKey("x")
-c := RKey("c")
-v := RKey("v")
+;x := RKey("x")
+;c := RKey("c")
+;v := RKey("v")
 b := RKey("b")
 ;
 n := RKey("n")
@@ -810,7 +809,7 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 		}
 	} 
 	if m = 1{
-		return GetKeyState("F13","P") || a.IsPressed()
+		return GetKeyState("F13","P") 
 	} if m = 2{
 		return space.IsPressed() 
 	} if m = 3{
@@ -819,7 +818,7 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 		return GetKeyState(S_NOCONV, "P") 
 	} if m = 5{
 		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
-		return F14.IsPressed() || GetShiftState2() || GetKeyState(S_NOCONV, "P") 
+		return F14.IsPressed()  || GetKeyState(S_CONV, "P") 
 	}
 	return false
 }
@@ -828,11 +827,6 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 IsCPressed(_a,_b) 
 {
 	return _a.IsPressed() && (!_b.IsPressed())
-}
-
-GetShiftState2()
-{
-	return  (f.IsPressed() && (!j.IsPressed())) || (j.IsPressed() && (!f.IsPressed()))
 }
 
 ResetIME()
@@ -1260,8 +1254,9 @@ ChangeHNTSKLayout()
 
 *space::Send(C_BS)
 
+#HotIf
 ;***M1 or M2 *******************************************************************
-#HotIf ModifiedState(1) || ModifiedState(2)
+#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
@@ -1307,7 +1302,7 @@ sc07D::Send("^+{sc07D}") ;\(|)
 
 #HotIf
 ;***M1**************************************************************************
-#HotIf ModifiedState(1)
+#HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 ;Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 Esc::Reload
@@ -1355,35 +1350,13 @@ w::+F3
 *f::Send("{Blind}-")
 g::Send("=")
 
-
+ 
 F14::Send(B_ZENKAKU) 
 sc079::Send(B_ZENKAKU) ;conv
 #HotIf
-
+ 
 ;***M4**************************************************************************
-#HotIf ModifiedState(4) && !ModifiedState(1)
-
-2::Send('""{Left}')
-3::Send("''{Left}")
-4::Send("~")
-q::Send("!")
-;w::Send("+1")
-e::Send("~")
-r::Send("|")
-t::Send("&")
-
-a::Send("[")
-s::Send("]")
-d::Send("+[")
-f::Send("+]")
-;g::Send("&")
-
-;x::Send("+[+]{Left}")
-c::Send(":")
-v::Send(";")
-b::Send("\")
-
-;-----------------------------------------------
+#HotIf v.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 6::Send("{Escape}")
 7::Send(C_N7)
 8::Send(C_N8)
@@ -1405,17 +1378,6 @@ l::Send(C_N3)
 *sc027::Send(B_LEFT) ;; 
 *sc028::Send(B_DOWN) ;:
 ]::Send(B_RIGHT)
-;-----------------------------------------------
-; u::Send(C_N6)
-; i::Send(C_N7)
-; o::Send(C_N8)
-; p::Send(C_N9)
-; j::Send(C_N1)
-; k::Send(C_N2)
-; l::Send(C_N3)
-; *sc027::Send(C_N4) ;; 
-; *sc028::Send(C_N5) ;:
-;-----------------------------------------------
 
 y::Send(C_BS)
 h::Send("-")
@@ -1428,17 +1390,65 @@ sc033::Send(C_COMMA) ;.
 +.::Send(">=")
 *sc035::Send(B_NDIV)
 *sc073::Send("\")
-
 space::Send(B_ENTER)
 
-up::Send(B_UP)
-down::Send(B_DOWN)
-left::Send(B_LEFT)
-right::Send(B_RIGHT)
+; up::Send(B_UP)
+; down::Send(B_DOWN)
+; left::Send(B_LEFT)
+; right::Send(B_RIGHT)
+
+;***M4**************************************************************************
+#HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+u::Send(C_HAT)
+i::Send("+1")
+o::Send("[")
+p::Send("]")
+;@::Send(B_UP)
+
+h::Send("&")
+j::Send("=")
+k::Send(":")
+l::Send("+[")
+*sc027::Send("+]") ;; 
+;*sc028::Send("+]") ;:
+;]::Send(B_RIGHT)
+
+n::Send("|")
+m::Send(";")
+sc033::Send("<=") ;.
+.::Send(">=")
+;*sc035::Send(B_NDIV)
+;*sc073::Send("\")
+;space::Send(B_ENTER)
+
+;***M4**************************************************************************
+#HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+u::Send("+3")
+i::Send("+4")
+o::Send("+5")
+;p::Send("]")
+;@::Send(B_UP)
+
+;h::Send("&")
+j::Send("+2")
+k::Send("+7")
+;l::Send("+[")
+;*sc027::Send("+]") ;; 
+;*sc028::Send("+]") ;:
+;]::Send(B_RIGHT)
+
+;n::Send("|")
+;m::Send(";")
+;sc033::Send("<=") ;.
+;.::Send(">=")
+;*sc035::Send(B_NDIV)
+;*sc073::Send("\")
+;space::Send(B_ENTER)
 
 #HotIf ;needed to enable m5
+
 ;***M5**************************************************************************
-#HotIf ModifiedState(5) || f.IsPressed() ||j.IsPressed()  	 
+#HotIf (ModifiedState(5) || ModifiedState(4) ) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
 1::k1.SendShiftedKey()
 2::k2.SendShiftedKey()
 3::k3.SendShiftedKey()
@@ -1454,7 +1464,7 @@ t::t.SendShiftedKey()
 a::a.SendShiftedKey()
 s::s.SendShiftedKey()
 d::d.SendShiftedKey()
-f::f.SendShiftedKey(((ModifiedState(5) || j.IsPressed())) )
+f::f.SendShiftedKey()
 g::g.SendShiftedKey()
 
 z::z.SendShiftedKey()
@@ -1478,9 +1488,6 @@ o::o.SendShiftedKey()
 p::p.SendShiftedKey()
 @::at.SendShiftedKey()
 [::openbracket.SendShiftedKey()
-
-
-
 
 h::h.SendShiftedKey()
 j::j.SendShiftedKey(((ModifiedState(5) || f.IsPressed())) )
