@@ -684,9 +684,12 @@ tab := MKey("TAB") ;m3
 noconv := MKey(S_ZENKAKU) ;m4
 f14 := MKey("ENTER") ;m5
 
-v := LKey("v","","none") ;
-c := LKey("c","","none") ;
+z := LKey("z","","none") ;
 x := LKey("x","","none") ;
+c := LKey("c","","none") ;
+v := LKey("v","","none") ;
+comma := LKey(C_COMMA,"","none")
+
 ;semicolon := LKey("j","","none") ;
 
 /*============================================================================
@@ -738,7 +741,7 @@ semicolon := RKey(C_SEMICOLON)
 colon := RKey(C_COLON)
 closebracket := RKey("]")
 ;
-z := RKey("z")
+;z := RKey("z")
 ;x := RKey("x")
 ;c := RKey("c")
 ;v := RKey("v")
@@ -746,7 +749,7 @@ b := RKey("b")
 ;
 n := RKey("n")
 m := RKey("m")
-comma := RKey(C_COMMA)
+;comma := RKey(C_COMMA)
 period := RKey(".")
 slash := RKey("/")
 backslash2 := RKey(C_BACKSLASH2)
@@ -823,11 +826,26 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 	return false
 }
 
-
-IsCPressed(_a,_b) 
+ModifiedState2(m1:=false, m2:=false, m3:=false, m4:=false, m5:=false)
 {
-	return _a.IsPressed() && (!_b.IsPressed())
+	b := False
+	if m1 = true {
+		b |= ModifiedState(1)
+	}
+	if m2 = true{
+		b |= ModifiedState(2)
+	}
+	if  m3 = true{
+		b |= ModifiedState(3)
+	}
+	if  m4 = true {
+		b |= ModifiedState(4)
+	}
+	if m5 = true{
+		b |= ModifiedState(5)
+	}
 }
+
 
 ResetIME()
 {   
@@ -1301,6 +1319,7 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *Enter::Send("{Blind}^{Enter}")
 
 #HotIf
+
 ;***M1**************************************************************************
 #HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 ;Tab::Send(C_EISU) ;vkF0sc03A = Eisu
@@ -1397,7 +1416,7 @@ space::Send(B_ENTER)
 ; left::Send(B_LEFT)
 ; right::Send(B_RIGHT)
 
-;***M4**************************************************************************
+;*****************************************************************************
 #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 u::Send(C_HAT)
 i::Send("+1")
@@ -1421,7 +1440,7 @@ sc033::Send("<=") ;.
 ;*sc073::Send("\")
 ;space::Send(B_ENTER)
 
-;***M4**************************************************************************
+;*****************************************************************************
 #HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 u::Send("+3")
 i::Send("+4")
@@ -1504,6 +1523,62 @@ sc033::comma.SendShiftedKey()
 sc035::slash.SendShiftedKey()
 sc073::backslash2.SendShiftedKey()
 
+;#HotIf (c.IsPressed() || comma.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+#HotIf z.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+; 1::k1.SendShiftedKey()
+; 2::k2.SendShiftedKey()
+; 3::k3.SendShiftedKey()
+; 4::k4.SendShiftedKey()
+; 5::k5.SendShiftedKey()
+
+q::^q
+w::^w
+e::^e
+r::^r
+t::^t
+
+a::^a
+s::^s
+d::^d
+f::^f
+g::^g
+
+; z::z.SendShiftedKey()
+; x::x.SendShiftedKey()
+; c::c.SendShiftedKey()
+; v::v.SendShiftedKey()
+b::^b
+
+; 6::k6.SendShiftedKey()
+; 7::k7.SendShiftedKey()
+; 8::k8.SendShiftedKey()
+; 9::k9.SendShiftedKey()
+; -::minus.SendShiftedKey()
+; sc00D::hat.SendShiftedKey()
+; sc07D::backslash.SendShiftedKey()
+
+y::^y
+u::^u
+i::^i
+o::^o
+p::^p
+@::^@
+[::^[
+
+h::^h
+j::^j
+k::^k
+l::^l
+sc027::^sc027
+sc028::^sc028
+]::^]
+
+n::^n
+m::^m
+sc033::^sc033 ;comma
+.::^.
+sc035::^sc035
+sc073::^sc073
 
 #HotIf
 *1::k1.Down("1")
