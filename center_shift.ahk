@@ -1418,51 +1418,27 @@ space::Send(B_ENTER)
 
 ;*****************************************************************************
 #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-u::Send(C_HAT)
-i::Send("+1")
-o::Send("[")
-p::Send("]")
-;@::Send(B_UP)
-
-h::Send("&")
-j::Send("=")
-k::Send(":")
-l::Send("+[")
-*sc027::Send("+]") ;; 
-;*sc028::Send("+]") ;:
-;]::Send(B_RIGHT)
-
-n::Send("|")
-m::Send(";")
-sc033::Send("<=") ;.
+i::Send("[")
+o::Send("]")
+j::Send("+2") ;"
+k::Send("+[") ;{
+l::Send("+]") ;}
+m::Send("+7") ;'
+sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
-;*sc035::Send(B_NDIV)
-;*sc073::Send("\")
-;space::Send(B_ENTER)
 
 ;*****************************************************************************
 #HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-u::Send("+3")
-i::Send("+4")
-o::Send("+5")
-;p::Send("]")
-;@::Send(B_UP)
-
-;h::Send("&")
-j::Send("+2")
-k::Send("+7")
-;l::Send("+[")
-;*sc027::Send("+]") ;; 
-;*sc028::Send("+]") ;:
-;]::Send(B_RIGHT)
-
-;n::Send("|")
-;m::Send(";")
-;sc033::Send("<=") ;.
-;.::Send(">=")
-;*sc035::Send(B_NDIV)
-;*sc073::Send("\")
-;space::Send(B_ENTER)
+u::Send(C_HAT)
+i::Send("+3") ;#
+o::Send("+4") ;$
+p::Send("+5") ;%
+h::Send("&")
+j::Send(":")
+k::Send("=")
+l::Send("+1") ;!
+m::Send(";")
+n::Send("|")
 
 #HotIf ;needed to enable m5
 
