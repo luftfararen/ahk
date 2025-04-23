@@ -101,10 +101,10 @@ B_HOME  := "{Blind}{Home}"
 B_END   := "{Blind}{End}"
 B_PGUP  := "{Blind}{PgUp}"
 B_PGDN  := "{Blind}{PgDn}"
-B_CHOME := "{Blind}^{Home}"
-B_CEND  := "{Blind}^{End}"
-B_CPGUP := "{Blind}^{PgUp}"
-B_CPGDN := "{Blind}^{PgDn}"
+B_HOME := "{Blind}^{Home}"
+B_END  := "{Blind}^{End}"
+B_PGUP := "{Blind}^{PgUp}"
+B_PGDN := "{Blind}^{PgDn}"
 
 B_LEFT := "{Blind}{Left}"
 B_RIGHT := "{Blind}{Right}"
@@ -112,6 +112,20 @@ B_UP := "{Blind}{Up}"
 B_DOWN := "{Blind}{Down}"
 B_CLEFT := "{Blind}^{Left}"
 B_CRIGHT := "{Blind}^{Right}"
+
+B_F1 := "{Blind}{F1}"
+B_F2 := "{Blind}{F2}"
+B_F3 := "{Blind}{F3}"
+B_F4 := "{Blind}{F4}"
+B_F5 := "{Blind}{F5}"
+B_F6 := "{Blind}{F6}"
+B_F7 := "{Blind}{F7}"
+B_F8 := "{Blind}{F8}"
+B_F9 := "{Blind}{F9}"
+B_F10 := "{Blind}{F10}"
+B_F11 := "{Blind}{F11}"
+B_F12 := "{Blind}{F12}"
+
 
 ;SingleInstkance Force
 ProcessSetPriority "Realtime"
@@ -684,12 +698,13 @@ tab := MKey("TAB") ;m3
 noconv := MKey(S_ZENKAKU) ;m4
 f14 := MKey("ENTER") ;m5
 
+q := LKey("q","","none") ;
+w := LKey("w","","none") ;
+a := LKey("a","","none") ;
 z := LKey("z","","none") ;
 x := LKey("x","","none") ;
 c := LKey("c","","none") ;
 v := LKey("v","","none") ;
-q := LKey("q","","none") ;
-a := LKey("a","","none") ;
 comma := LKey(C_COMMA,"","none")
 
 ;semicolon := LKey("j","","none") ;
@@ -716,7 +731,7 @@ hat := RKey(C_HAT)
 backslash := RKey("\")
 ;
 ;q := RKey("q")
-w := RKey("w")
+;w := RKey("w")
 e := RKey("e")
 r := RKey("r")
 t := RKey("t")
@@ -1297,8 +1312,8 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *i::Send(B_UP)
 *o::Send(B_PGUP)
 *p::Send(B_PGDN)
-*@::Send(B_CHOME)
-*[::Send(B_CEND)
+*@::Send(B_HOME)
+*[::Send(B_END)
 
 *h::Send(B_HOME)
 *j::Send(B_LEFT)
@@ -1438,13 +1453,28 @@ h::Send("-")
 
 n::Send(C_N0)
 m::Send(C_N1)
-sc033::Send(C_COMMA) ;.
+sc033::Send(C_COMMA) ;,
 .::Send(C_NDOT)
 +sc033::Send("<=") ;.
 +.::Send(">=")
 *sc035::Send(B_NDIV)
 *sc073::Send("\")
 space::Send(B_ENTER)
+
+#HotIf w.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+u::Send(B_F6)
+i::Send(B_F7)
+o::Send(B_F8)
+p::Send(B_F9)
+h::Send(B_F1)
+j::Send(B_F2)
+k::Send(B_F3)
+l::Send(B_F4)
+sc027::Send(B_F5) ;; 
+n::Send(B_F10)
+m::Send(B_F11)
+sc033::Send(B_F12) ;,
+
 
 
 ;*****************************************************************************
