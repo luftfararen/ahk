@@ -688,6 +688,8 @@ z := LKey("z","","none") ;
 x := LKey("x","","none") ;
 c := LKey("c","","none") ;
 v := LKey("v","","none") ;
+q := LKey("q","","none") ;
+a := LKey("a","","none") ;
 comma := LKey(C_COMMA,"","none")
 
 ;semicolon := LKey("j","","none") ;
@@ -713,7 +715,7 @@ minus := RKey("-")
 hat := RKey(C_HAT)
 backslash := RKey("\")
 ;
-q := RKey("q")
+;q := RKey("q")
 w := RKey("w")
 e := RKey("e")
 r := RKey("r")
@@ -727,7 +729,7 @@ p := RKey("p")
 at := RKey("@")
 openbracket := RKey("[")
 ;
-a := RKey("a")
+;a := RKey("a")
 s := RKey("s")
 d := RKey("d")
 f := RKey("f")
@@ -744,7 +746,7 @@ closebracket := RKey("]")
 ;z := RKey("z")
 ;x := RKey("x")
 ;c := RKey("c")
-;v := RKey("v")
+;v := RKey("v");
 b := RKey("b")
 ;
 n := RKey("n")
@@ -1274,7 +1276,7 @@ ChangeHNTSKLayout()
 
 #HotIf
 ;***M1 or M2 *******************************************************************
-#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+#HotIf (a.IsPressed() || ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 *1::Send("{Blind}{F1}")
 *2::Send("{Blind}{F2}")
@@ -1322,6 +1324,10 @@ sc07D::Send("^+{sc07D}") ;\(|)
 
 ;***M1**************************************************************************
 #HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+*a::Send("{Blind}^a")
+#HotIf
+
+#HotIf (a.IsPressed() || ModifiedState(1)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 ;Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 Esc::Reload
@@ -1416,6 +1422,31 @@ space::Send(B_ENTER)
 ; left::Send(B_LEFT)
 ; right::Send(B_RIGHT)
 
+#HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+u::Send(C_N6)
+i::Send(C_N7)
+o::Send(C_N8)
+p::Send(C_N9)
+@::Send(B_NADD)
+j::Send(C_N2)
+k::Send(C_N3)
+l::Send(C_N4)
+sc027::Send(C_N5) ;; 
+sc028::Send(B_NMUL) ;:
+y::Send(C_BS)
+h::Send("-")
+
+n::Send(C_N0)
+m::Send(C_N1)
+sc033::Send(C_COMMA) ;.
+.::Send(C_NDOT)
++sc033::Send("<=") ;.
++.::Send(">=")
+*sc035::Send(B_NDIV)
+*sc073::Send("\")
+space::Send(B_ENTER)
+
+
 ;*****************************************************************************
 #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 i::Send("[")
@@ -1442,7 +1473,7 @@ n::Send("|")
 
 #HotIf ;needed to enable m5
 
-;***M5**************************************************************************
+;***shift**************************************************************************
 #HotIf (ModifiedState(5) || ModifiedState(4) ) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
 1::k1.SendShiftedKey()
 2::k2.SendShiftedKey()
