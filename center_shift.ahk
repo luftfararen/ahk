@@ -414,7 +414,7 @@ class RKey
 		if SubStr(key,1,1) = "{" ||  len = 1 {
 			this.short_key_str := "{Blind}" .  key 
 			if shift_key = ""{
-				this.shift_key_str :=  "+" . key
+				this.shift_key_str :=  "{Blind}+" . key
 			}else{
 				this.shift_key_str :=  shift_key 
 			}
@@ -443,11 +443,12 @@ class RKey
 		if SubStr(key,1,1) = "{" ||  len = 1 {
 			this.short_ime_key_str := "{Blind}" .  key 
 			if shift_key = ""{
-				this.shift_ime_key_str :=  "+" . key
+				this.shift_ime_key_str :=  "{Blind}+" . key
 			}else{
 				this.shift_ime_key_str :=  shift_key 
 			}
 		}else{
+			;Key is word.
 			this.short_ime_key_str := key 
 			if shift_key = ""{
 				this.shift_ime_key_str :=  key
@@ -700,13 +701,13 @@ f14 := MKey("ENTER") ;m5
 
 q := LKey("q","","none") ;
 w := LKey("w","","none") ;
+e := LKey("e","","none") ;
 a := LKey("a","","none") ;
 z := LKey("z","","none") ;
 x := LKey("x","","none") ;
 c := LKey("c","","none") ;
 v := LKey("v","","none") ;
 comma := LKey(C_COMMA,"","none")
-
 ;semicolon := LKey("j","","none") ;
 
 /*============================================================================
@@ -732,7 +733,7 @@ backslash := RKey("\")
 ;
 ;q := RKey("q")
 ;w := RKey("w")
-e := RKey("e")
+;e := RKey("e")
 r := RKey("r")
 t := RKey("t")
 ;
@@ -1290,21 +1291,22 @@ ChangeHNTSKLayout()
 *space::Send(C_BS)
 
 #HotIf
+
 ;***M1 or M2 *******************************************************************
 #HotIf (a.IsPressed() || ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
-*1::Send("{Blind}{F1}")
-*2::Send("{Blind}{F2}")
-*3::Send("{Blind}{F3}")
-*4::Send("{Blind}{F4}")
-*5::Send("{Blind}{F5}")
-*6::Send("{Blind}{F6}")
-*7::Send("{Blind}{F7}")
-*8::Send("{Blind}{F8}")
-*9::Send("{Blind}{F9}")
-*0::Send("{Blind}{F10}")
-*-::Send("{Blind}{F11}")
-*sc00D::Send("{Blind}{F12}") ; sc00D = "^"
+*1::Send(B_F1)
+*2::Send(B_F2)
+*3::Send(B_F3)
+*4::Send(B_F4)
+*5::Send(B_F5)
+*6::Send(B_F6)
+*7::Send(B_F7)
+*8::Send(B_F8)
+*9::Send(B_F9)
+*0::Send(B_F10)
+*-::Send(B_F11)
+*sc00D::Send(B_F12) ; sc00D = "^"
 sc07D::Send("^+{sc07D}") ;\(|)
 
 *y::Send(B_UNDO)
@@ -1438,44 +1440,35 @@ space::Send(B_ENTER)
 ; right::Send(B_RIGHT)
 
 #HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-u::Send(C_N6)
-i::Send(C_N7)
-o::Send(C_N8)
-p::Send(C_N9)
+u::Send(C_BS)
+i::Send(C_N4)
+o::Send(C_N5)
+p::Send(C_N6)
 @::Send(B_NADD)
-j::Send(C_N2)
-k::Send(C_N3)
-l::Send(C_N4)
-sc027::Send(C_N5) ;; 
-sc028::Send(B_NMUL) ;:
-y::Send(C_BS)
+j::Send(C_N0)
+k::Send(C_N1)
+l::Send(C_N2)
+sc027::Send(C_N3) ;; 
 h::Send("-")
-
-n::Send(C_N0)
-m::Send(C_N1)
-sc033::Send(C_COMMA) ;,
-.::Send(C_NDOT)
-+sc033::Send("<=") ;.
-+.::Send(">=")
-*sc035::Send(B_NDIV)
-*sc073::Send("\")
+n::Send(C_DEL)
+m::Send(C_N7)
+sc033::Send(C_N8) ;,
+.::Send(C_N9)
 space::Send(B_ENTER)
 
-#HotIf w.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-u::Send(B_F6)
-i::Send(B_F7)
-o::Send(B_F8)
-p::Send(B_F9)
-h::Send(B_F1)
-j::Send(B_F2)
-k::Send(B_F3)
-l::Send(B_F4)
-sc027::Send(B_F5) ;; 
-n::Send(B_F10)
-m::Send(B_F11)
-sc033::Send(B_F12) ;,
-
-
+#HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+*u::Send(B_F1)
+*i::Send(B_F2)
+*o::Send(B_F3)
+*p::Send(B_F4)
+*j::Send(B_F5)
+*k::Send(B_F6)
+*l::Send(B_F7)
+*sc027::Send(B_F8) ;; 
+*n::Send(B_F9)
+*m::Send(B_F10)
+*sc033::Send(B_F11) ;,
+*.::Send(B_F12)
 
 ;*****************************************************************************
 #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
@@ -1489,7 +1482,7 @@ sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
 
 ;*****************************************************************************
-#HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+#HotIf e.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 u::Send(C_HAT)
 i::Send("+3") ;#
 o::Send("+4") ;$
@@ -1546,7 +1539,7 @@ p::p.SendShiftedKey()
 [::openbracket.SendShiftedKey()
 
 h::h.SendShiftedKey()
-j::j.SendShiftedKey(((ModifiedState(5) || f.IsPressed())) )
+j::j.SendShiftedKey()
 k::k.SendShiftedKey()
 l::l.SendShiftedKey()
 sc027::semicolon.SendShiftedKey()
@@ -1562,19 +1555,13 @@ sc073::backslash2.SendShiftedKey()
 
 ;#HotIf (c.IsPressed() || comma.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 #HotIf z.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; 1::k1.SendShiftedKey()
-; 2::k2.SendShiftedKey()
-; 3::k3.SendShiftedKey()
-; 4::k4.SendShiftedKey()
-; 5::k5.SendShiftedKey()
-
 q::^q
 w::^w
 e::^e
 r::^r
 t::^t
 
-a::^a
+;a::^a
 s::^s
 d::^d
 f::^f
