@@ -101,10 +101,10 @@ B_HOME  := "{Blind}{Home}"
 B_END   := "{Blind}{End}"
 B_PGUP  := "{Blind}{PgUp}"
 B_PGDN  := "{Blind}{PgDn}"
-B_HOME := "{Blind}^{Home}"
-B_END  := "{Blind}^{End}"
-B_PGUP := "{Blind}^{PgUp}"
-B_PGDN := "{Blind}^{PgDn}"
+B_CHOME := "{Blind}^{Home}"
+B_CEND  := "{Blind}^{End}"
+B_CPGUP := "{Blind}^{PgUp}"
+B_CPGDN := "{Blind}^{PgDn}"
 
 B_LEFT := "{Blind}{Left}"
 B_RIGHT := "{Blind}{Right}"
@@ -478,6 +478,7 @@ class RKey
 		}
 	}
 
+	;@param pressed_key: key to be sent, not includes "{}". 
 	_SendCAWKey(pressed_key)
 	{
 ;		shift := GetShiftState()
@@ -699,16 +700,17 @@ tab := MKey("TAB") ;m3
 noconv := MKey(S_ZENKAKU) ;m4
 f14 := MKey("ENTER") ;m5
 
-q := LKey("q","","none") ;
-w := LKey("w","","none") ;
-e := LKey("e","","none") ;
-a := LKey("a","","none") ;
+;q := LKey("q","","none") ;
+;w := LKey("w","","none") ;
+;e := LKey("e","","none") ;
+;a := LKey("a","","none") ;
 z := LKey("z","","none") ;
 x := LKey("x","","none") ;
 c := LKey("c","","none") ;
 v := LKey("v","","none") ;
-comma := LKey(C_COMMA,"","none")
+;comma := LKey(C_COMMA,"","none")
 ;semicolon := LKey("j","","none") ;
+slash := LKey("/","","none") ;
 
 /*============================================================================
 	Returns true if modifier key is pressed. 
@@ -731,9 +733,9 @@ minus := RKey("-")
 hat := RKey(C_HAT)
 backslash := RKey("\")
 ;
-;q := RKey("q")
-;w := RKey("w")
-;e := RKey("e")
+q := RKey("q")
+w := RKey("w")
+e := RKey("e")
 r := RKey("r")
 t := RKey("t")
 ;
@@ -745,7 +747,7 @@ p := RKey("p")
 at := RKey("@")
 openbracket := RKey("[")
 ;
-;a := RKey("a")
+a := RKey("a")
 s := RKey("s")
 d := RKey("d")
 f := RKey("f")
@@ -767,9 +769,9 @@ b := RKey("b")
 ;
 n := RKey("n")
 m := RKey("m")
-;comma := RKey(C_COMMA)
+comma := RKey(C_COMMA)
 period := RKey(".")
-slash := RKey("/")
+;slash := RKey("/")
 backslash2 := RKey(C_BACKSLASH2)
 ;
 up    := RKey(B_UP,"none")
@@ -1293,7 +1295,8 @@ ChangeHNTSKLayout()
 #HotIf
 
 ;***M1 or M2 *******************************************************************
-#HotIf (a.IsPressed() || ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+;#HotIf (a.IsPressed() || ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 *1::Send(B_F1)
 *2::Send(B_F2)
@@ -1314,8 +1317,8 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *i::Send(B_UP)
 *o::Send(B_PGUP)
 *p::Send(B_PGDN)
-*@::Send(B_HOME)
-*[::Send(B_END)
+*@::Send(B_CHOME)
+*[::Send(B_CEND)
 
 *h::Send(B_HOME)
 *j::Send(B_LEFT)
@@ -1342,17 +1345,15 @@ sc07D::Send("^+{sc07D}") ;\(|)
 ;***M1**************************************************************************
 #HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 *a::Send("{Blind}^a")
-#HotIf
-
-#HotIf (a.IsPressed() || ModifiedState(1)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+;#HotIf
+;#HotIf (a.IsPressed() || ModifiedState(1)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 ;Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 Esc::Reload
 
-q::!space
+q::#!space
 *e::Send(B_ESC)
 r::+F3
-*a::Send("{Blind}^a")
 *s::Send("{Blind}^s")
 *d::Send("{Blind}^{Space}") 
 *f::Send(B_TAB)
@@ -1397,7 +1398,7 @@ F14::Send(B_ZENKAKU)
 sc079::Send(B_ZENKAKU) ;conv
 #HotIf
  
-;***M4**************************************************************************
+;***Num**************************************************************************
 #HotIf v.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 6::Send("{Escape}")
 7::Send(C_N7)
@@ -1439,60 +1440,86 @@ space::Send(B_ENTER)
 ; left::Send(B_LEFT)
 ; right::Send(B_RIGHT)
 
-#HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-u::Send(C_BS)
-i::Send(C_N4)
-o::Send(C_N5)
-p::Send(C_N6)
-@::Send(B_NADD)
-j::Send(C_N0)
-k::Send(C_N1)
-l::Send(C_N2)
-sc027::Send(C_N3) ;; 
-h::Send("-")
-n::Send(C_DEL)
-m::Send(C_N7)
-sc033::Send(C_N8) ;,
-.::Send(C_N9)
-space::Send(B_ENTER)
+;***Num**************************************************************************
+#HotIf slash.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+q::Send("[")
+w::Send("]")
+e::Send("+7") ;'
+r::Send(":") ;'
 
-#HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-*u::Send(B_F1)
-*i::Send(B_F2)
-*o::Send(B_F3)
-*p::Send(B_F4)
-*j::Send(B_F5)
-*k::Send(B_F6)
-*l::Send(B_F7)
-*sc027::Send(B_F8) ;; 
-*n::Send(B_F9)
-*m::Send(B_F10)
-*sc033::Send(B_F11) ;,
-*.::Send(B_F12)
+a::Send("+[") ;{
+s::Send("+]") ;}
+d::Send("+2") ;"
+f::Send("+1") ;"
+g::Send("=") ;"
 
-;*****************************************************************************
-#HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-i::Send("[")
-o::Send("]")
-j::Send("+2") ;"
-k::Send("+[") ;{
-l::Send("+]") ;}
-m::Send("+7") ;'
+z::Send("") ;"
+x::Send("^") ;"
+c::Send("|") ;"
+v::Send("&") ;"
+b::Send("\") ;"
+
+u::send("{Backspace}") ;#
+h::Send(":") ;"
+j::Send("=") ;"
+m::Send("{Delete}") ;
 sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
 
+;#HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+; u::Send(C_BS)
+; i::Send(C_N4)
+; o::Send(C_N5)
+; p::Send(C_N6)
+; @::Send(B_NADD)
+; j::Send(C_N0)
+; k::Send(C_N1)
+; l::Send(C_N2)
+; sc027::Send(C_N3) ;; 
+; h::Send("-")
+; n::Send(C_DEL)
+; m::Send(C_N7)
+; sc033::Send(C_N8) ;,
+; .::Send(C_N9)
+; space::Send(B_ENTER)
+
+; #HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+; *u::Send(B_F1)
+; *i::Send(B_F2)
+; *o::Send(B_F3)
+; *p::Send(B_F4)
+; *j::Send(B_F5)
+; *k::Send(B_F6)
+; *l::Send(B_F7)
+; *sc027::Send(B_F8) ;; 
+; *n::Send(B_F9)
+; *m::Send(B_F10)
+; *sc033::Send(B_F11) ;,
+; *.::Send(B_F12)
+
 ;*****************************************************************************
-#HotIf e.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-u::Send(C_HAT)
-i::Send("+3") ;#
-o::Send("+4") ;$
-p::Send("+5") ;%
-h::Send("&")
-j::Send(":")
-k::Send("=")
-l::Send("+1") ;!
-m::Send(";")
-n::Send("|")
+; #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+; i::Send("[")
+; o::Send("]")
+; j::Send("+2") ;"
+; k::Send("+[") ;{
+; l::Send("+]") ;}
+; m::Send("+7") ;'
+; sc033::Send("<=") ; sc033 = ,
+; .::Send(">=")
+
+; ;*****************************************************************************
+; #HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+; u::Send(C_HAT)
+; i::Send("+3") ;#
+; o::Send("+4") ;$
+; p::Send("+5") ;%
+; h::Send("&")
+; j::Send(":")
+; k::Send("=")
+; l::Send("+1") ;!
+; m::Send(";")
+; n::Send("|")
 
 #HotIf ;needed to enable m5
 
@@ -1554,57 +1581,58 @@ sc035::slash.SendShiftedKey()
 sc073::backslash2.SendShiftedKey()
 
 ;#HotIf (c.IsPressed() || comma.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-#HotIf z.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-q::^q
-w::^w
-e::^e
-r::^r
-t::^t
+; #HotIf z.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+; q::^q
+; w::^w
+; e::^e
+; r::^r
+; t::^t
 
-;a::^a
-s::^s
-d::^d
-f::^f
-g::^g
+; ;a::^a
+; s::^s
+; d::^d
+; f::^f
+; g::^g
 
-; z::z.SendShiftedKey()
-; x::x.SendShiftedKey()
-; c::c.SendShiftedKey()
-; v::v.SendShiftedKey()
-b::^b
+; ; z::z.SendShiftedKey()
+; ; x::x.SendShiftedKey()
+; ; c::c.SendShiftedKey()
+; ; v::v.SendShiftedKey()
+; b::^b
 
-; 6::k6.SendShiftedKey()
-; 7::k7.SendShiftedKey()
-; 8::k8.SendShiftedKey()
-; 9::k9.SendShiftedKey()
-; -::minus.SendShiftedKey()
-; sc00D::hat.SendShiftedKey()
-; sc07D::backslash.SendShiftedKey()
+; ; 6::k6.SendShiftedKey()
+; ; 7::k7.SendShiftedKey()
+; ; 8::k8.SendShiftedKey()
+; ; 9::k9.SendShiftedKey()
+; ; -::minus.SendShiftedKey()
+; ; sc00D::hat.SendShiftedKey()
+; ; sc07D::backslash.SendShiftedKey()
 
-y::^y
-u::^u
-i::^i
-o::^o
-p::^p
-@::^@
-[::^[
+; y::^y
+; u::^u
+; i::^i
+; o::^o
+; p::^p
+; @::^@
+; [::^[
 
-h::^h
-j::^j
-k::^k
-l::^l
-sc027::^sc027
-sc028::^sc028
-]::^]
+; h::^h
+; j::^j
+; k::^k
+; l::^l
+; sc027::^sc027
+; sc028::^sc028
+; ]::^]
 
-n::^n
-m::^m
-sc033::^sc033 ;comma
-.::^.
-sc035::^sc035
-sc073::^sc073
+; n::^n
+; m::^m
+; sc033::^sc033 ;comma
+; .::^.
+; sc035::^sc035
+; sc073::^sc073
 
 #HotIf
+
 *1::k1.Down("1")
 *1 up::k1.Up()
 *2::k2.Down("2")
