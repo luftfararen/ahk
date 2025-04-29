@@ -458,7 +458,6 @@ class RKey
 		}
 	}
 
-	
 	SendShiftedKey(shift := true)
 	{
 		if  shift  {
@@ -494,7 +493,7 @@ class RKey
 
 	;Sends registered shift key when pressing only shift key.
 	;returns true if Ctrl is pressed
-	_SendModKey(pressed_key)
+	_SendSCAWKey(pressed_key)
 	{
 		if this._SendCAWKey(pressed_key) {
 			return true
@@ -516,7 +515,7 @@ class RKey
 		if RKey.use_registered_key_for_ctrl ||  pressed_key = ""{
 			pressed_key := this.key
 		}
-		this._SendModKey(pressed_key)
+		this._SendSCAWKey(pressed_key)
 	}
 
 /*============================================================================
@@ -653,7 +652,8 @@ class LKey extends RKey
 			pressed_key := this.key
 		}
 		this._Down(pressed_key)
-	}	
+	}
+
 	/*============================================================================
 	Assign this method to the hotkey as same as registered.  
 	See Down() method for the detail.
@@ -710,6 +710,7 @@ c := LKey("c","","none") ;
 v := LKey("v","","none") ;
 ;comma := LKey(C_COMMA,"","none")
 ;semicolon := LKey("j","","none") ;
+period := LKey(".","","none")
 slash := LKey("/","","none") ;
 
 /*============================================================================
@@ -770,7 +771,7 @@ b := RKey("b")
 n := RKey("n")
 m := RKey("m")
 comma := RKey(C_COMMA)
-period := RKey(".")
+;period := RKey(".")
 ;slash := RKey("/")
 backslash2 := RKey(C_BACKSLASH2)
 ;
@@ -779,40 +780,40 @@ down  := RKey(B_DOWN,"none")
 left  := RKey(B_LEFT,"none")
 right := RKey(B_RIGHT,"none")
 
-q_ime := ""
-w_ime := ""
-e_ime := ""
-r_ime := ""
-t_ime := ""
+; q_ime := ""
+; w_ime := ""
+; e_ime := ""
+; r_ime := ""
+; t_ime := ""
 
-a_ime := ""
-s_ime := ""
-d_ime := ""
-f_ime := ""
-g_ime := ""
+; a_ime := ""
+; s_ime := ""
+; d_ime := ""
+; f_ime := ""
+; g_ime := ""
 
-z_ime := ""
-x_ime := ""
-c_ime := ""
-v_ime := ""
-b_ime := ""
+; z_ime := ""
+; x_ime := ""
+; c_ime := ""
+; v_ime := ""
+; b_ime := ""
 
-y_ime := ""
-u_ime := ""
-i_ime := ""
-o_ime := ""
-p_ime := ""
+; y_ime := ""
+; u_ime := ""
+; i_ime := ""
+; o_ime := ""
+; p_ime := ""
 
-h_ime := ""
-j_ime := ""
-k_ime := ""
-l_ime := ""
-sc_ime := ""
+; h_ime := ""
+; j_ime := ""
+; k_ime := ""
+; l_ime := ""
+; sc_ime := ""
 
-n_ime := ""
-m_ime := ""
-comma_ime := ""
-period_ime := ""
+; n_ime := ""
+; m_ime := ""
+; comma_ime := ""
+; period_ime := ""
 
 ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 {
@@ -908,41 +909,41 @@ ResetIME()
 	slash.SetImeKey()
 
 
-	global q_ime := ""
-	global w_ime := ""
-	global e_ime := ""
-	global r_ime := ""
-	global t_ime := ""
+	; global q_ime := ""
+	; global w_ime := ""
+	; global e_ime := ""
+	; global r_ime := ""
+	; global t_ime := ""
 	
-	global a_ime := ""
-	global s_ime := ""
-	global d_ime := ""
-	global f_ime := ""
-	global g_ime := ""
+	; global a_ime := ""
+	; global s_ime := ""
+	; global d_ime := ""
+	; global f_ime := ""
+	; global g_ime := ""
 	
-	global z_ime := ""
-	global x_ime := ""
-	global c_ime := ""
-	global v_ime := ""
-	global b_ime := ""
+	; global z_ime := ""
+	; global x_ime := ""
+	; global c_ime := ""
+	; global v_ime := ""
+	; global b_ime := ""
 	
-	global y_ime := ""
-	global u_ime := ""
-	global i_ime := ""
-	global o_ime := ""
-	global p_ime := ""
+	; global y_ime := ""
+	; global u_ime := ""
+	; global i_ime := ""
+	; global o_ime := ""
+	; global p_ime := ""
 	
-	global h_ime := ""
-	global j_ime := ""
-	global k_ime := ""
-	global l_ime := ""
-	global sc_ime := ""
+	; global h_ime := ""
+	; global j_ime := ""
+	; global k_ime := ""
+	; global l_ime := ""
+	; global sc_ime := ""
 	
-	global n_ime := ""
-	global m_ime := ""
-	global comma_ime := ""
-	global period_ime := ""
-	global slash_ime := ""
+	; global n_ime := ""
+	; global m_ime := ""
+	; global comma_ime := ""
+	; global period_ime := ""
+	; global slash_ime := ""
 }
 
 
@@ -1383,13 +1384,13 @@ space::Send(C_ZENKAKU)
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
-*e::SendAccImeState("/",e_ime)
-*r::SendAccImeState(B_NMUL,r_ime) 
+*e::Send("/")
+*r::Send(B_NMUL) 
 *t::Send(B_NADD)
 
-*a::SendAccImeState("(",a_ime)
-*s::SendAccImeState(")",s_ime)
-*d::SendAccImeState("_",d_ime)
+*a::Send("(")
+*s::Send(")")
+*d::Send("_")
 *f::Send("{Blind}-")
 g::Send("=")
 
@@ -1444,24 +1445,29 @@ space::Send(B_ENTER)
 #HotIf slash.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 q::Send("[")
 w::Send("]")
-e::Send("+7") ;'
-r::Send(":") ;'
+e::Send("+1") ;'
+r::Send("+5") ;'
+t::Send("~") ;
 
-a::Send("+[") ;{
-s::Send("+]") ;}
+a::Send("+6") ;&
+s::Send("+7") ;''
 d::Send("+2") ;"
-f::Send("+1") ;"
-g::Send("=") ;"
+f::Send("") ;"
+g::Send("+4") ;"
 
-z::Send("") ;"
-x::Send("^") ;"
-c::Send("|") ;"
-v::Send("&") ;"
-b::Send("\") ;"
+z::Send("+[") ;{}
+x::Send("+]") ;}
+c::Send(":") ;:
+v::Send("|") ;|
+b::Send("\") ;\
 
-u::send("{Backspace}") ;#
-h::Send(":") ;"
+u::send("{Backspace}")
+h::Send("^") ;"
+i::Send("+4") ;"
 j::Send("=") ;"
+k::Send("[") ;"
+l::Send("]") ;"
+n::Send("+3") ;# Numbed Sign
 m::Send("{Delete}") ;
 sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
@@ -1483,19 +1489,19 @@ sc033::Send("<=") ; sc033 = ,
 ; .::Send(C_N9)
 ; space::Send(B_ENTER)
 
-; #HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; *u::Send(B_F1)
-; *i::Send(B_F2)
-; *o::Send(B_F3)
-; *p::Send(B_F4)
-; *j::Send(B_F5)
-; *k::Send(B_F6)
-; *l::Send(B_F7)
-; *sc027::Send(B_F8) ;; 
-; *n::Send(B_F9)
-; *m::Send(B_F10)
-; *sc033::Send(B_F11) ;,
-; *.::Send(B_F12)
+#HotIf period.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+*q::Send(B_F1)
+*w::Send(B_F2)
+*e::Send(B_F3)
+*r::Send(B_F4)
+*a::Send(B_F5)
+*s::Send(B_F6)
+*d::Send(B_F7)
+*f::Send(B_F8)  
+*z::Send(B_F9)
+*x::Send(B_F10)
+*c::Send(B_F11)
+*v::Send(B_F12)
 
 ;*****************************************************************************
 ; #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
