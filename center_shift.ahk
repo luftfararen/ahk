@@ -710,6 +710,7 @@ c := LKey("c","","none") ;
 v := LKey("v","","none") ;
 ;comma := LKey(C_COMMA,"","none")
 ;semicolon := LKey("j","","none") ;
+colon := LKey(C_COLON,"","none")
 period := LKey(".","","none")
 slash := LKey("/","","none") ;
 
@@ -759,7 +760,7 @@ j := RKey("j")
 k := RKey("k")
 l := RKey("l")
 semicolon := RKey(C_SEMICOLON)
-colon := RKey(C_COLON)
+;colon := RKey(C_COLON)
 closebracket := RKey("]")
 ;
 ;z := RKey("z")
@@ -1174,7 +1175,7 @@ ChangeFMIXR_VBD2Layout()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
 	global b,n,m,comma,period,slash
 
 	ResetIME()
@@ -1182,6 +1183,8 @@ ChangeFMIXR_VBD2Layout()
 	;e.SetKey("l")
 	;r.SetKey("d")
 	;d.SetKey("s")
+	p.SetKey(C_COLON)
+	colon.SetKey(C_SEMICOLON)
 	r.SetKey("p")
 	t.SetKey("k")
 	n.SetKey("d")
@@ -1441,8 +1444,9 @@ space::Send(B_ENTER)
 ; left::Send(B_LEFT)
 ; right::Send(B_RIGHT)
 
-;***Num**************************************************************************
-#HotIf slash.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+;***Symbol**************************************************************************
+#HotIf (slash.IsPressed() || period.IsPressed() || colon.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+2::Send("->")
 q::Send("[")
 w::Send("]")
 e::Send("+1") ;'
@@ -1458,13 +1462,13 @@ g::Send("+4") ;"
 z::Send("+[") ;{}
 x::Send("+]") ;}
 c::Send(":") ;:
-v::Send("|") ;|
+v::Send("|") ;| vertical bar
 b::Send("\") ;\
 
 u::send("{Backspace}")
-h::Send("^") ;"
-i::Send("+4") ;"
-j::Send("=") ;"
+h::Send(C_HAT) ;^
+i::Send("+4") ;$
+j::Send("=") ;
 k::Send("[") ;"
 l::Send("]") ;"
 n::Send("+3") ;# Numbed Sign
