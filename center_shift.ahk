@@ -1262,10 +1262,6 @@ ChangeHNTSKLayout()
 ; }
 
 ;***M3**************************************************************************
-;#HotIf ModifiedState(3) 
-;#HotIf (ModifiedState(1) && GetKeyState("Alt","P")) 
-
-
 #HotIf ModifiedState(3) || (ModifiedState(1) && (GetKeyState("Alt","P") || ModifiedState(4))) 
 ;#HotIf ModifiedState(3) 
 *1::Send("^z")
@@ -1301,7 +1297,6 @@ ChangeHNTSKLayout()
 ;***M1 or M2 *******************************************************************
 ;#HotIf (a.IsPressed() || ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 #HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
-
 *1::Send(B_F1)
 *2::Send(B_F2)
 *3::Send(B_F3)
@@ -1409,16 +1404,18 @@ sc079::Send(B_ZENKAKU) ;conv
 8::Send(C_N8)
 9::Send(C_N9)
 0::Send(B_NMUL)
-;-::Send("-")
+-::Send(B_NSUB)
 sc00D::Send(C_HAT)
 sc07D::Send("\")
 
+y::Send(C_BS)
 u::Send(C_N4)
 i::Send(C_N5)
 o::Send(C_N6)
 p::Send(B_NADD)
 @::Send(B_UP)
 
+h::Send(B_NSUB)
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
@@ -1426,15 +1423,10 @@ l::Send(C_N3)
 *sc028::Send(B_DOWN) ;:
 ]::Send(B_RIGHT)
 
-y::Send(C_BS)
-h::Send("-")
-
 n::Send(C_DEL)
 m::Send(C_N0)
 sc033::Send(C_COMMA) ;.
 .::Send(C_NDOT)
-+sc033::Send("<=") ;.
-+.::Send(">=")
 *sc035::Send(B_NDIV)
 *sc073::Send("\")
 space::Send(B_ENTER)
@@ -1445,7 +1437,7 @@ space::Send(B_ENTER)
 ; right::Send(B_RIGHT)
 
 ;***Symbol**************************************************************************
-#HotIf (slash.IsPressed() || period.IsPressed() || colon.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+#HotIf (period.IsPressed() || colon.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 2::Send("->")
 q::Send("[")
 w::Send("]")
@@ -1493,7 +1485,7 @@ sc033::Send("<=") ; sc033 = ,
 ; .::Send(C_N9)
 ; space::Send(B_ENTER)
 
-#HotIf period.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+#HotIf slash.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 *q::Send(B_F1)
 *w::Send(B_F2)
 *e::Send(B_F3)
