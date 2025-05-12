@@ -1198,6 +1198,36 @@ ChangeFMIXR_VBD2Layout()
 	TrayTip("FMIXR VBD2 layout","",0x11)
 }
 
+ChangeFMIXR_VBD3Layout()
+{
+	ChangeFMIXLayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	;e.SetKey("l")
+	;r.SetKey("d")
+	;d.SetKey("s")
+	p.SetKey(C_SEMICOLON)
+	colon.SetKey(B_ENTER)
+	r.SetKey("p")
+	t.SetKey("k")
+	n.SetKey("d")
+
+	e.SetImeKey("r","L")
+	;r.SetImeKey("p","P")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","R")
+	;n.SetImeKey("d","K")
+
+	TrayTip("FMIXR VBD3 layout","",0x11)
+}
+
+
 ChangeIME_HNTSKLayoutImpl()
 {
 	global minus
@@ -1325,7 +1355,7 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *l::Send(B_RIGHT)
 *sc027::Send(B_ENTER) ;vkBBsc027 = ; shift:+
 ;sc028::Return ;vkBAsc028 = ":" shift:*
-*]::Send("^]")
+*]::Send("{Blind}^]")
 
 *z::Send(B_UNDO) ;undo
 *x::Send(B_CUT) ;cut
@@ -1371,6 +1401,9 @@ space::Send(C_ZENKAKU)
 #t::ChangeFMIXR_TDLayout()
 #v::ChangeFMIXR_VBDLayout()
 #d::ChangeFMIXR_VBD2Layout()
+#1::ChangeFMIXR_VBDLayout()
+#2::ChangeFMIXR_VBD2Layout()
+#3::ChangeFMIXR_VBD3Layout()
 
 #o::ChangeOonishiLayout()
 #h::ChangeHNTSKLayout()
@@ -1382,7 +1415,7 @@ space::Send(C_ZENKAKU)
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
-*e::Send("/")
+*e::Send("{Blind}/")
 *r::Send(B_NMUL) 
 *t::Send(B_NADD)
 
@@ -1448,7 +1481,7 @@ t::Send("~") ;
 a::Send("+6") ;&
 s::Send("+7") ;''
 d::Send("+2") ;"
-f::Send("") ;"
+*f::Send("k") ;"
 g::Send("+4") ;"
 
 z::Send("+[") ;{}
@@ -1460,9 +1493,15 @@ b::Send("\") ;\
 u::send("{Backspace}")
 h::Send(C_HAT) ;^
 i::Send("+4") ;$
+o::Send("->")
+;p::Send("{Blind}y")
+
 j::Send("=") ;
 k::Send("[") ;"
 l::Send("]") ;"
+*sc027::Send("{Blind}y") ;; 
+
+
 n::Send("+3") ;# Numbed Sign
 m::Send("{Delete}") ;
 sc033::Send("<=") ; sc033 = ,
