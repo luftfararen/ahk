@@ -146,6 +146,10 @@ GetShiftState()
 
 last_ime_hwnd := 0
 last_active_hwnd := 0
+last_ime_status := -2
+last_ime_check_time := 0
+
+
 SearchWindowsToGetImeState(root,parent) 
 {
 	global last_ime_hwnd,last_active_hwnd
@@ -164,17 +168,95 @@ SearchWindowsToGetImeState(root,parent)
 	return false
 }
 
-IsImeOn()
+; IsImeOn()
+; {
+; 	global last_ime_hwnd,last_active_hwnd
+; 	hwnd := WinActive("A")
+; 	if hwnd = last_active_hwnd {
+; 		return DllCall("SendMessage", "UInt", last_ime_hwnd,
+; 		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+; 	}else{
+; 		last_active_hwnd := 0
+; 		return SearchWindowsToGetImeState(hwnd,hwnd)
+; 	}
+; }
+
+
+; GetIMEStatus(hwnd) 
+; {
+; 	if hwnd = 0 {
+; 		ToolTip("GetIMEStatus failed: hwnd is 0")
+; 		return -1 ;failed to get IME state
+; 	}
+; 	if DllCall("SendMessage", "UInt", hwnd,
+; 	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+; 	 		return 1
+; 	}else{
+; 		err := DllCall("GetLastError")
+; 		if (err != 0) {
+; 			ToolTip("GetIMEStatus failed: " . err)
+;    	 		return -1 ;failed to get IME state
+; 		} else {
+; 			ToolTip("GetIMEStatus success: " . err)
+;    	 		return 0
+; 		}	
+; 	}
+; }
+
+; SearchWindowsToGetImeState(root,parent) 
+; {
+; 	global last_ime_hwnd,last_active_hwnd
+; 	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
+; 	status := GetIMEStatus(hwnd)
+; 	if status = 1{
+; 			last_active_hwnd := root
+; 			last_ime_hwnd := hwnd
+; 	 		return 1
+; 	}else{
+; 			last_active_hwnd := root
+; 			last_ime_hwnd := hwnd
+; 	 		return 0
+; 	}
+;     for child in WinGetControlsHwnd(parent) { 
+; 		status := SearchWindowsToGetImeState(root,child) 
+;         if status >= 0{
+; 			return status
+; 		}
+;     }
+; 	return -1
+; }
+
+IsImeOnImpl()
 {
 	global last_ime_hwnd,last_active_hwnd
-	hwnd := WinActive("A")
+	hwnd := DllCall("GetForegroundWindow", "Ptr")
 	if hwnd = last_active_hwnd {
 		return DllCall("SendMessage", "UInt", last_ime_hwnd,
 		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
 	}else{
 		last_active_hwnd := 0
-		return SearchWindowsToGetImeState(hwnd,hwnd)
+		return SearchWindowsToGetImeState(hwnd,hwnd) == 1
 	}
+}
+
+IsImeOn()
+{
+	global last_ime_status,last_ime_check_time
+	time := A_TickCount
+	;ToolTip("IsImeOn: " . time - last_ime_check_time)
+	if time - last_ime_check_time > 1000{
+		last_ime_status := IsImeOnImpl()
+	}
+	last_ime_check_time := time
+	return last_ime_status
+}
+
+ChangeImeState()
+{
+	last_ime_check_time := 0
+	Send(B_ZENKAKU)	
+	;last_ime_check_time := A_TickCount
+	;last_ime_status := IsImeOnImpl()
 }
 
 SendAccImeState(key_ime_off,key_ime_on:="")
@@ -1035,7 +1117,7 @@ ChangeColemakLayout()
 }
 
 
-ChangeFMIXLayoutImpl()
+ChangeFMIX_LayoutImpl()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1077,25 +1159,25 @@ ChangeFMIXLayoutImpl()
 	slash.SetKey("/")
 }
 
-ChangeFMIXLayout()
+ChangeFMIX_Layout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 	ResetIME()
 	TrayTip("FMIX VBP layout","",0x11)
 }
 
-ChangeFMIXKLayout()
+ChangeFMIX_VBK_Layout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 	t.SetKey("p")
 	n.SetKey("k")
 	ResetIME()
 	TrayTip("FMIX VBK layout","",0x11)
 }
 
-ChangeFMIXDLayout()
+ChangeFMIX_VBD_Layout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 	r.SetKey("p")
 	t.SetKey("k")
 	n.SetKey("d")
@@ -1104,9 +1186,9 @@ ChangeFMIXDLayout()
 }
 
 
-ChangeFMIXRLayout()
+ChangeFMIXR_Layout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1122,29 +1204,9 @@ ChangeFMIXRLayout()
 	TrayTip("FMIXR layout","",0x11)
 }
 
-ChangeFMIXR_TDLayout()
+ChangeFMIXR_VBD_Layout()
 {
-	ChangeFMIXLayoutImpl()
-
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon
-	global b,n,m,comma,period,slash
-
-	ResetIME()
-	r.SetKey("g")
-	g.SetKey("d")
-	e.SetImeKey("r","L")
-	t.SetImeKey("l","K")
-	d.SetImeKey("k","R")
-
-	TrayTip("FMIXR_TD layout","",0x11)
-}
-
-
-ChangeFMIXR_VBDLayout()
-{
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1169,9 +1231,9 @@ ChangeFMIXR_VBDLayout()
 	TrayTip("FMIXR VBD layout","",0x11)
 }
 
-ChangeFMIXR_VBD2Layout()
+ChangeFMIXR_VBD2_Layout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1198,9 +1260,9 @@ ChangeFMIXR_VBD2Layout()
 	TrayTip("FMIXR VBD2 layout","",0x11)
 }
 
-ChangeFMIXR_VBD3Layout()
+ChangeFMIXR_VBD3_Layout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1275,7 +1337,7 @@ ChangeIME_HNTSKLayoutImpl()
 
 ChangeHNTSKLayout()
 {
-	ChangeFMIXLayoutImpl()
+	ChangeFMIX_LayoutImpl()
 	ChangeIME_HNTSKLayoutImpl()
 	TrayTip("HNTSK layout","",0x11)
 }
@@ -1388,22 +1450,21 @@ r::+F3
 *f::Send(B_TAB)
 g::Send("^f")
 
-F14::Send(C_ZENKAKU) 
-sc079::Send(C_ZENKAKU) ;conv
-space::Send(C_ZENKAKU)
+F14::ChangeImeState()
+sc079::ChangeImeState() ;conv
+space::ChangeImeState()
+
 
 ;*space::Send(B_BS)
-#f::ChangeFMIXLayout()
-#k::ChangeFMIXKLayout()
-#x::ChangeFMIXDLayout()
+#f::ChangeFMIX_Layout()
+#k::ChangeFMIX_VBK_Layout()
+#x::ChangeFMIX_VBD_Layout()
 
-#r::ChangeFMIXRLayout()
-#t::ChangeFMIXR_TDLayout()
-#v::ChangeFMIXR_VBDLayout()
-#d::ChangeFMIXR_VBD2Layout()
-#1::ChangeFMIXR_VBDLayout()
-#2::ChangeFMIXR_VBD2Layout()
-#3::ChangeFMIXR_VBD3Layout()
+#r::ChangeFMIXR_Layout()
+#v::ChangeFMIXR_VBD_Layout()
+#1::ChangeFMIXR_VBD_Layout()
+#2::ChangeFMIXR_VBD2_Layout()
+#3::ChangeFMIXR_VBD3_Layout()
 
 #o::ChangeOonishiLayout()
 #h::ChangeHNTSKLayout()
@@ -1426,8 +1487,8 @@ w::+F3
 g::Send("=")
 
  
-F14::Send(B_ZENKAKU) 
-sc079::Send(B_ZENKAKU) ;conv
+F14::ChangeImeState()
+sc079::ChangeImeState() ;conv
 #HotIf
  
 ;***Num**************************************************************************
@@ -1470,7 +1531,7 @@ space::Send(B_ENTER)
 ; right::Send(B_RIGHT)
 
 ;***Symbol**************************************************************************
-#HotIf (period.IsPressed() || colon.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+#HotIf colon.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 2::Send("->")
 q::Send("[")
 w::Send("]")
@@ -1481,8 +1542,8 @@ t::Send("~") ;
 a::Send("+6") ;&
 s::Send("+7") ;''
 d::Send("+2") ;"
-*f::Send("k") ;"
-g::Send("+4") ;"
+*f::Send("{Blind}k") ;"
+*g::Send("{Blind}y") ;"
 
 z::Send("+[") ;{}
 x::Send("+]") ;}
@@ -1499,7 +1560,7 @@ o::Send("->")
 j::Send("=") ;
 k::Send("[") ;"
 l::Send("]") ;"
-*sc027::Send("{Blind}y") ;; 
+sc027::Send(C_SEMICOLON) ;; 
 
 
 n::Send("+3") ;# Numbed Sign
@@ -1537,30 +1598,6 @@ sc033::Send("<=") ; sc033 = ,
 *x::Send(B_F10)
 *c::Send(B_F11)
 *v::Send(B_F12)
-
-;*****************************************************************************
-; #HotIf c.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; i::Send("[")
-; o::Send("]")
-; j::Send("+2") ;"
-; k::Send("+[") ;{
-; l::Send("+]") ;}
-; m::Send("+7") ;'
-; sc033::Send("<=") ; sc033 = ,
-; .::Send(">=")
-
-; ;*****************************************************************************
-; #HotIf x.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; u::Send(C_HAT)
-; i::Send("+3") ;#
-; o::Send("+4") ;$
-; p::Send("+5") ;%
-; h::Send("&")
-; j::Send(":")
-; k::Send("=")
-; l::Send("+1") ;!
-; m::Send(";")
-; n::Send("|")
 
 #HotIf ;needed to enable m5
 
@@ -1620,58 +1657,6 @@ sc033::comma.SendShiftedKey()
 .::period.SendShiftedKey()
 sc035::slash.SendShiftedKey()
 sc073::backslash2.SendShiftedKey()
-
-;#HotIf (c.IsPressed() || comma.IsPressed()) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; #HotIf z.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; q::^q
-; w::^w
-; e::^e
-; r::^r
-; t::^t
-
-; ;a::^a
-; s::^s
-; d::^d
-; f::^f
-; g::^g
-
-; ; z::z.SendShiftedKey()
-; ; x::x.SendShiftedKey()
-; ; c::c.SendShiftedKey()
-; ; v::v.SendShiftedKey()
-; b::^b
-
-; ; 6::k6.SendShiftedKey()
-; ; 7::k7.SendShiftedKey()
-; ; 8::k8.SendShiftedKey()
-; ; 9::k9.SendShiftedKey()
-; ; -::minus.SendShiftedKey()
-; ; sc00D::hat.SendShiftedKey()
-; ; sc07D::backslash.SendShiftedKey()
-
-; y::^y
-; u::^u
-; i::^i
-; o::^o
-; p::^p
-; @::^@
-; [::^[
-
-; h::^h
-; j::^j
-; k::^k
-; l::^l
-; sc027::^sc027
-; sc028::^sc028
-; ]::^]
-
-; n::^n
-; m::^m
-; sc033::^sc033 ;comma
-; .::^.
-; sc035::^sc035
-; sc073::^sc073
-
 #HotIf
 
 *1::k1.Down("1")
@@ -1820,7 +1805,7 @@ sc07B up::noconv.Up()
 >+Up::_
 ^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
 +sc029::Send(C_EISU) ;vkF3sc029 = 全角/半角 
-
+sc029::ChangeImeState() ;vkF3sc029 = 全角/半角
 ; rbutton_locked := 0
 ; ~RButton::{
 ; 	ToolTip "locked"
