@@ -234,7 +234,7 @@ zo	ぞ
 zu	ず
 zz	っ	z
 zya	じゃ
-zye	じぇ
+zye	じぇk
 zyi	じぃ
 kw	きゃ
 cw	きゃ
@@ -290,6 +290,19 @@ dq	ぢゅう
 bq	びゅう
 pq	ぴゅう
 jq	じゅう
+kp	きょ
+cp	きょ
+sp	しょ
+tp	ちょ
+np	にょ
+hp	ひょ
+mp	みょ
+rp	りょ
+gp	ぎょ
+zp	じょ
+dp	ぢょ
+bp	びょ
+ppp	ぴょ
 kj	きょ
 cj	きょ
 sj	しょ

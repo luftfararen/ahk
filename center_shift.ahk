@@ -143,120 +143,74 @@ GetShiftState()
 	return GetKeyState("Shift","P")
 }
 
-
-last_ime_hwnd := 0
-last_active_hwnd := 0
-last_ime_status := -2
-last_ime_check_time := 0
-
-
-SearchWindowsToGetImeState(root,parent) 
+class ImeState
 {
-	global last_ime_hwnd,last_active_hwnd
-	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
-	if DllCall("SendMessage", "UInt", hwnd,
-	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
-			last_active_hwnd := root
-			last_ime_hwnd := hwnd
-	 		return true
-	}
-    for child in WinGetControlsHwnd(parent) {
-        if SearchWindowsToGetImeState(root,child){
-			return true
+	static last_ime_hwnd := 0
+	static last_active_hwnd := 0
+	static last_ime_status := -2
+	static last_ime_check_time := 0
+
+	static SearchWindowsToGetImeState(root,parent) 
+	{
+		hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
+		if DllCall("SendMessage", "UInt", hwnd,
+			"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+				ImeState.last_ime_hwnd := hwnd
+				return true
 		}
-    }
-	return false
-}
-
-; IsImeOn()
-; {
-; 	global last_ime_hwnd,last_active_hwnd
-; 	hwnd := WinActive("A")
-; 	if hwnd = last_active_hwnd {
-; 		return DllCall("SendMessage", "UInt", last_ime_hwnd,
-; 		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
-; 	}else{
-; 		last_active_hwnd := 0
-; 		return SearchWindowsToGetImeState(hwnd,hwnd)
-; 	}
-; }
-
-
-; GetIMEStatus(hwnd) 
-; {
-; 	if hwnd = 0 {
-; 		ToolTip("GetIMEStatus failed: hwnd is 0")
-; 		return -1 ;failed to get IME state
-; 	}
-; 	if DllCall("SendMessage", "UInt", hwnd,
-; 	   	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
-; 	 		return 1
-; 	}else{
-; 		err := DllCall("GetLastError")
-; 		if (err != 0) {
-; 			ToolTip("GetIMEStatus failed: " . err)
-;    	 		return -1 ;failed to get IME state
-; 		} else {
-; 			ToolTip("GetIMEStatus success: " . err)
-;    	 		return 0
-; 		}	
-; 	}
-; }
-
-; SearchWindowsToGetImeState(root,parent) 
-; {
-; 	global last_ime_hwnd,last_active_hwnd
-; 	hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
-; 	status := GetIMEStatus(hwnd)
-; 	if status = 1{
-; 			last_active_hwnd := root
-; 			last_ime_hwnd := hwnd
-; 	 		return 1
-; 	}else{
-; 			last_active_hwnd := root
-; 			last_ime_hwnd := hwnd
-; 	 		return 0
-; 	}
-;     for child in WinGetControlsHwnd(parent) { 
-; 		status := SearchWindowsToGetImeState(root,child) 
-;         if status >= 0{
-; 			return status
-; 		}
-;     }
-; 	return -1
-; }
-
-IsImeOnImpl()
-{
-	global last_ime_hwnd,last_active_hwnd
-	hwnd := DllCall("GetForegroundWindow", "Ptr")
-	if hwnd = last_active_hwnd {
-		return DllCall("SendMessage", "UInt", last_ime_hwnd,
-		"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
-	}else{
-		last_active_hwnd := 0
-		return SearchWindowsToGetImeState(hwnd,hwnd) == 1
+		for child in WinGetControlsHwnd(parent) {
+			if ImeState.SearchWindowsToGetImeState(root,child){
+				return true
+			}
+		}
+		ImeState.last_ime_hwnd := 0
+		return false
 	}
+
+
+	static IsOnImpl()
+	{
+		hwnd := DllCall("GetForegroundWindow", "Ptr")
+		if hwnd = ImeState.last_active_hwnd {
+			return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
+			"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+		}else{
+			ImeState.last_active_hwnd := hwnd
+			return ImeState.SearchWindowsToGetImeState(hwnd,hwnd) == 1
+		}
+	}
+
+	static IsOn(th_time := 400)
+	{
+		time := A_TickCount
+		;ToolTip("IsImeOn: " . time - last_ime_check_time)
+		if time - ImeState.last_ime_check_time > th_time{
+			ImeState.last_ime_status := ImeState.IsOnImpl()
+		}
+		ImeState.last_ime_check_time := time
+		return ImeState.last_ime_status
+	}
+
+	static Reset()
+	{
+		ImeState.last_ime_hwnd := 0
+		ImeState.last_active_hwnd := 0
+		ImeState.last_ime_status := -2
+		ImeState.last_ime_check_time := 0
+	}
+
 }
 
 IsImeOn()
 {
-	global last_ime_status,last_ime_check_time
-	time := A_TickCount
-	;ToolTip("IsImeOn: " . time - last_ime_check_time)
-	if time - last_ime_check_time > 1000{
-		last_ime_status := IsImeOnImpl()
-	}
-	last_ime_check_time := time
-	return last_ime_status
+	return ImeState.IsOn()
 }
 
-ChangeImeState()
+
+ToggleImeState()
 {
-	last_ime_check_time := 0
+	ImeState.Reset()
 	Send(B_ZENKAKU)	
-	;last_ime_check_time := A_TickCount
-	;last_ime_status := IsImeOnImpl()
 }
 
 SendAccImeState(key_ime_off,key_ime_on:="")
@@ -1450,9 +1404,9 @@ r::+F3
 *f::Send(B_TAB)
 g::Send("^f")
 
-F14::ChangeImeState()
-sc079::ChangeImeState() ;conv
-space::ChangeImeState()
+F14::ToggleImeState()
+sc079::ToggleImeState() ;conv
+space::ToggleImeState()
 
 
 ;*space::Send(B_BS)
@@ -1487,8 +1441,8 @@ w::+F3
 g::Send("=")
 
  
-F14::ChangeImeState()
-sc079::ChangeImeState() ;conv
+F14::ToggleImeState()
+sc079::ToggleImeState() ;conv
 #HotIf
  
 ;***Num**************************************************************************
@@ -1805,7 +1759,7 @@ sc07B up::noconv.Up()
 >+Up::_
 ^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
 +sc029::Send(C_EISU) ;vkF3sc029 = 全角/半角 
-sc029::ChangeImeState() ;vkF3sc029 = 全角/半角
+sc029::ToggleImeState() ;vkF3sc029 = 全角/半角
 ; rbutton_locked := 0
 ; ~RButton::{
 ; 	ToolTip "locked"
