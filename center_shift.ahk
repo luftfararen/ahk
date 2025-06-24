@@ -149,37 +149,64 @@ class ImeState
 	static last_active_hwnd := 0
 	static last_ime_status := -2
 	static last_ime_check_time := 0
+	static force_map := Map()
 
-	static SearchWindowsToGetImeState(root,parent) 
+
+	static SearchWindowsToGetImeState(parent) 
 	{
-		hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
-		if DllCall("SendMessage", "UInt", hwnd,
-			"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
-				ImeState.last_ime_hwnd := hwnd
-				return true
-		}
-		for child in WinGetControlsHwnd(parent) {
-			if ImeState.SearchWindowsToGetImeState(root,child){
-				return true
+		ime_hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
+		if ime_hwnd != 0 {
+			;SetTimer(ToolTip,3000)
+			if DllCall("SendMessage", "UInt", ime_hwnd,
+				"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+					ImeState.last_ime_hwnd := ime_hwnd
+					return 1
 			}
+			;ToolTip("ImeState: " . ime_hwnd)
+			; else{
+			; 		ImeState.last_ime_hwnd := ime_hwnd
+			; 		return 0
+			; }
 		}
-		ImeState.last_ime_hwnd := 0
-		return false
+		; else{
+		; 	TrayTip("ImeState","ImeState: " . ime_hwnd,0x11)
+		; }
+		;index := 0
+		for child in WinGetControlsHwnd(parent) {
+			ret := ImeState.SearchWindowsToGetImeState(child)
+			if ret >= 0{
+				return ret
+			}
+			;index := index + 1
+		}
+		; if index = 0 { ;No child window found.
+		; 	ImeState.last_ime_hwnd := ime_hwnd
+		; 	return -1
+		; }
+	 	ImeState.last_ime_hwnd := 0
+		return -1
 	}
-
 
 	static IsOnImpl()
 	{
 		hwnd := DllCall("GetForegroundWindow", "Ptr")
-		if hwnd = ImeState.last_active_hwnd {
+		try {
+    		if ImeState.force_map[String(hwnd)]{
+				ImeState.last_active_hwnd := hwnd
+				return true
+			} 
+		} catch UnsetError {
+			ImeState.force_map[String(hwnd)] := false
+   		}
+		if hwnd = ImeState.last_active_hwnd && ImeState.last_ime_hwnd != 0 {
 			return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
 			"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
 		}else{
 			ImeState.last_active_hwnd := hwnd
-			return ImeState.SearchWindowsToGetImeState(hwnd,hwnd) == 1
+			return ImeState.SearchWindowsToGetImeState(hwnd) == 1
 		}
 	}
-
+	
 	static IsOn(th_time := 400)
 	{
 		time := A_TickCount
@@ -197,8 +224,19 @@ class ImeState
 		ImeState.last_active_hwnd := 0
 		ImeState.last_ime_status := -2
 		ImeState.last_ime_check_time := 0
+		ImeState.force_map.Clear()
 	}
-
+	
+	static ToggleForce()
+	{
+		hwnd := DllCall("GetForegroundWindow", "Ptr")
+		str := String(hwnd)
+		try {
+    		ImeState.force_map[str] := !ImeState.force_map[str] 
+		} catch UnsetError {
+    		ImeState.force_map[str] := true
+		}
+	}
 }
 
 IsImeOn()
@@ -1199,8 +1237,8 @@ ChangeFMIXR_VBD2_Layout()
 	;e.SetKey("l")
 	;r.SetKey("d")
 	;d.SetKey("s")
-	p.SetKey(C_COLON)
-	colon.SetKey(C_SEMICOLON)
+	p.SetKey(C_SEMICOLON)
+	colon.SetKey(C_COLON)
 	r.SetKey("p")
 	t.SetKey("k")
 	n.SetKey("d")
@@ -1381,7 +1419,7 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *n::Send(B_END)
 *m::Send(B_DEL)
 *sc033::Send("{Blind}^{Left}") ;vkBCsc033 = ,
-*.::Send("{Blind}^{Right}")
+sc035::Send("^+{sc07D}")
 
 *Enter::Send("{Blind}^{Enter}")
 
@@ -1423,6 +1461,9 @@ space::ToggleImeState()
 #o::ChangeOonishiLayout()
 #h::ChangeHNTSKLayout()
 #c::ChangeColemakLayout()
+
+#q::ImeState.ToggleForce()
+
 
 #HotIf
 
