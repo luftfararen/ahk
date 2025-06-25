@@ -143,16 +143,49 @@ GetShiftState()
 	return GetKeyState("Shift","P")
 }
 
+GetActiveWindowHandle() 
+{
+    hwnd := WinExist("A")
+    if WinActive("A") {
+        ptrSize := A_PtrSize
+        cbSize := 4 + 4 + (ptrSize * 6) + 16
+        stGTI := Buffer(cbSize, 0)
+        NumPut("UInt", cbSize, stGTI, 0)
+        if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", stGTI) {
+            hwnd := NumGet(stGTI, 8 + ptrSize, "UInt")
+        }
+    }
+    return hwnd
+}
+
+GetImeState(hwnd) 
+{
+    return DllCall("SendMessage"
+        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+        , "UInt", 0x0283  ; WM_IME_CONTROL
+        , "Ptr", 0x0005   ; IMC_GETOPENSTATUS
+        , "Ptr", 0)
+}
+
+SetImeState(hwnd,state) 
+{
+	return DllCall("SendMessage"
+        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+        , "UInt", 0x0283  ; WM_IME_CONTROL
+        , "Ptr", 0x006    ; IMC_SETOPENSTATUS
+        , "Ptr", state)  ; 1でON、0でOFF
+}
+
 class ImeState
 {
 	static last_ime_hwnd := 0
 	static last_active_hwnd := 0
 	static last_ime_status := -2
 	static last_ime_check_time := 0
-	static force_map := Map()
+	static state_map := Map()
 
 
-	static SearchWindowsToGetImeState(parent) 
+	static _SearchWindowsToGetImeState(parent) 
 	{
 		ime_hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
 		if ime_hwnd != 0 {
@@ -173,7 +206,7 @@ class ImeState
 		; }
 		;index := 0
 		for child in WinGetControlsHwnd(parent) {
-			ret := ImeState.SearchWindowsToGetImeState(child)
+			ret := ImeState._SearchWindowsToGetImeState(child)
 			if ret >= 0{
 				return ret
 			}
@@ -187,61 +220,85 @@ class ImeState
 		return -1
 	}
 
-	static IsOnImpl()
+	static _IsOnImpl()
 	{
-		hwnd := DllCall("GetForegroundWindow", "Ptr")
+		hwnd := GetActiveWindowHandle()
 		try {
-    		if ImeState.force_map[String(hwnd)]{
+    		state := ImeState.state_map[String(hwnd)]
+			if state >= 0{
 				ImeState.last_active_hwnd := hwnd
-				return true
+				return state > 0 ? true : false
 			} 
 		} catch UnsetError {
-			ImeState.force_map[String(hwnd)] := false
+			ImeState.state_map[String(hwnd)] := -1
    		}
-		if hwnd = ImeState.last_active_hwnd && ImeState.last_ime_hwnd != 0 {
-			return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
-			"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
-		}else{
-			ImeState.last_active_hwnd := hwnd
-			return ImeState.SearchWindowsToGetImeState(hwnd) == 1
-		}
+		return GetImeState(hwnd)
+		; if hwnd = ImeState.last_active_hwnd && ImeState.last_ime_hwnd != 0 {
+		; 	return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
+		; 	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+		; }else{
+		; 	ImeState.last_active_hwnd := hwnd
+		; 	return ImeState.SearchWindowsToGetImeState(hwnd) == 1
+		; }
 	}
 	
 	static IsOn(th_time := 400)
 	{
-		time := A_TickCount
-		;ToolTip("IsImeOn: " . time - last_ime_check_time)
-		if time - ImeState.last_ime_check_time > th_time{
-			ImeState.last_ime_status := ImeState.IsOnImpl()
-		}
-		ImeState.last_ime_check_time := time
-		return ImeState.last_ime_status
+		return ImeState._IsOnImpl()
+		;return GetImeState(GetActiveWindowHandle())
+		; time := A_TickCount
+		; ;ToolTip("IsImeOn: " . time - last_ime_check_time)
+		; if time - ImeState.last_ime_check_time > th_time{
+		; 	ImeState.last_ime_status := ImeState._IsOnImpl()
+		; }
+		; ImeState.last_ime_check_time := time
+		; return ImeState.last_ime_status
 	}
-
+	
 	static Reset()
 	{
 		ImeState.last_ime_hwnd := 0
 		ImeState.last_active_hwnd := 0
 		ImeState.last_ime_status := -2
 		ImeState.last_ime_check_time := 0
-		ImeState.force_map.Clear()
+		ImeState.state_map.Clear()
 	}
 	
 	static ToggleForce()
 	{
-		hwnd := DllCall("GetForegroundWindow", "Ptr")
-		str := String(hwnd)
-		try {
-    		ImeState.force_map[str] := !ImeState.force_map[str] 
-		} catch UnsetError {
-    		ImeState.force_map[str] := true
-		}
+		; hwnd := DllCall("GetForegroundWindow", "Ptr")
+		; str := String(hwnd)
+		; try {
+    	; 	ImeState.force_map[str] := !ImeState.force_map[str] 
+		; } catch UnsetError {
+    	; 	ImeState.force_map[str] := true
+		; }
 	}
+	
+	static On()
+	{
+		hwnd := GetActiveWindowHandle()
+		SetImeState(hwnd,1)
+		str := String(hwnd)
+    	ImeState.state_map[str] := 1
+		
+	}
+
+	static Off()
+	{
+		hwnd := GetActiveWindowHandle()
+		SetImeState(hwnd,0)
+		str := String(hwnd)
+    	ImeState.state_map[str] := 0
+	}
+
+
 }
 
 IsImeOn()
 {
 	return ImeState.IsOn()
+	;return GetImeState(GetActiveWindowHandle())
 }
 
 
@@ -1462,7 +1519,8 @@ space::ToggleImeState()
 #h::ChangeHNTSKLayout()
 #c::ChangeColemakLayout()
 
-#q::ImeState.ToggleForce()
+#q::ImeState.On()
+#w::ImeState.Off()
 
 
 #HotIf
