@@ -158,8 +158,11 @@ GetActiveWindowHandle()
     return hwnd
 }
 
-GetImeState(hwnd) 
+GetImeState(hwnd := 0) 
 {
+	if hwnd = 0 {
+		hwnd := GetActiveWindowHandle()
+	}
     return DllCall("SendMessage"
         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         , "UInt", 0x0283  ; WM_IME_CONTROL
@@ -176,135 +179,140 @@ SetImeState(hwnd,state)
         , "Ptr", state)  ; 1でON、0でOFF
 }
 
-class ImeState
-{
-	static last_ime_hwnd := 0
-	static last_active_hwnd := 0
-	static last_ime_status := -2
-	static last_ime_check_time := 0
-	static state_map := Map()
+; class ImeState
+; {
+; 	static last_ime_hwnd := 0
+; 	static last_active_hwnd := 0
+; 	static last_ime_status := -2
+; 	static last_ime_check_time := 0
+; 	static state_map := Map()
 
 
-	static _SearchWindowsToGetImeState(parent) 
-	{
-		ime_hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
-		if ime_hwnd != 0 {
-			;SetTimer(ToolTip,3000)
-			if DllCall("SendMessage", "UInt", ime_hwnd,
-				"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
-					ImeState.last_ime_hwnd := ime_hwnd
-					return 1
-			}
-			;ToolTip("ImeState: " . ime_hwnd)
-			; else{
-			; 		ImeState.last_ime_hwnd := ime_hwnd
-			; 		return 0
-			; }
-		}
-		; else{
-		; 	TrayTip("ImeState","ImeState: " . ime_hwnd,0x11)
-		; }
-		;index := 0
-		for child in WinGetControlsHwnd(parent) {
-			ret := ImeState._SearchWindowsToGetImeState(child)
-			if ret >= 0{
-				return ret
-			}
-			;index := index + 1
-		}
-		; if index = 0 { ;No child window found.
-		; 	ImeState.last_ime_hwnd := ime_hwnd
-		; 	return -1
-		; }
-	 	ImeState.last_ime_hwnd := 0
-		return -1
-	}
+; 	static _SearchWindowsToGetImeState(parent) 
+; 	{
+; 		ime_hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
+; 		if ime_hwnd != 0 {
+; 			;SetTimer(ToolTip,3000)
+; 			if DllCall("SendMessage", "UInt", ime_hwnd,
+; 				"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
+; 					ImeState.last_ime_hwnd := ime_hwnd
+; 					return 1
+; 			}
+; 			;ToolTip("ImeState: " . ime_hwnd)
+; 			; else{
+; 			; 		ImeState.last_ime_hwnd := ime_hwnd
+; 			; 		return 0
+; 			; }
+; 		}
+; 		; else{
+; 		; 	TrayTip("ImeState","ImeState: " . ime_hwnd,0x11)
+; 		; }
+; 		;index := 0
+; 		for child in WinGetControlsHwnd(parent) {
+; 			ret := ImeState._SearchWindowsToGetImeState(child)
+; 			if ret >= 0{
+; 				return ret
+; 			}
+; 			;index := index + 1
+; 		}
+; 		; if index = 0 { ;No child window found.
+; 		; 	ImeState.last_ime_hwnd := ime_hwnd
+; 		; 	return -1
+; 		; }
+; 	 	ImeState.last_ime_hwnd := 0
+; 		return -1
+; 	}
 
-	static _IsOnImpl()
-	{
-		hwnd := GetActiveWindowHandle()
-		try {
-    		state := ImeState.state_map[String(hwnd)]
-			if state >= 0{
-				ImeState.last_active_hwnd := hwnd
-				return state > 0 ? true : false
-			} 
-		} catch UnsetError {
-			ImeState.state_map[String(hwnd)] := -1
-   		}
-		return GetImeState(hwnd)
-		; if hwnd = ImeState.last_active_hwnd && ImeState.last_ime_hwnd != 0 {
-		; 	return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
-		; 	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
-		; }else{
-		; 	ImeState.last_active_hwnd := hwnd
-		; 	return ImeState.SearchWindowsToGetImeState(hwnd) == 1
-		; }
-	}
+; 	static _IsOnImpl()
+; 	{
+; 		hwnd := GetActiveWindowHandle()
+; 		try {
+;     		state := ImeState.state_map[String(hwnd)]
+; 			if state >= 0{
+; 				ImeState.last_active_hwnd := hwnd
+; 				return state > 0 ? true : false
+; 			} 
+; 		} catch UnsetError {
+; 			ImeState.state_map[String(hwnd)] := -1
+;    		}
+; 		return GetImeState(hwnd)
+; 		; if hwnd = ImeState.last_active_hwnd && ImeState.last_ime_hwnd != 0 {
+; 		; 	return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
+; 		; 	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
+; 		; }else{
+; 		; 	ImeState.last_active_hwnd := hwnd
+; 		; 	return ImeState.SearchWindowsToGetImeState(hwnd) == 1
+; 		; }
+; 	}
 	
-	static IsOn(th_time := 400)
-	{
-		return ImeState._IsOnImpl()
-		;return GetImeState(GetActiveWindowHandle())
-		; time := A_TickCount
-		; ;ToolTip("IsImeOn: " . time - last_ime_check_time)
-		; if time - ImeState.last_ime_check_time > th_time{
-		; 	ImeState.last_ime_status := ImeState._IsOnImpl()
-		; }
-		; ImeState.last_ime_check_time := time
-		; return ImeState.last_ime_status
-	}
+; 	static IsOn(th_time := 400)
+; 	{
+; 		return ImeState._IsOnImpl()
+; 		;return GetImeState(GetActiveWindowHandle())
+; 		; time := A_TickCount
+; 		; ;ToolTip("IsImeOn: " . time - last_ime_check_time)
+; 		; if time - ImeState.last_ime_check_time > th_time{
+; 		; 	ImeState.last_ime_status := ImeState._IsOnImpl()
+; 		; }
+; 		; ImeState.last_ime_check_time := time
+; 		; return ImeState.last_ime_status
+; 	}
 	
-	static Reset()
-	{
-		ImeState.last_ime_hwnd := 0
-		ImeState.last_active_hwnd := 0
-		ImeState.last_ime_status := -2
-		ImeState.last_ime_check_time := 0
-		ImeState.state_map.Clear()
-	}
+; 	static Reset()
+; 	{
+; 		ImeState.last_ime_hwnd := 0
+; 		ImeState.last_active_hwnd := 0
+; 		ImeState.last_ime_status := -2
+; 		ImeState.last_ime_check_time := 0
+; 		ImeState.state_map.Clear()
+; 	}
 	
-	static ToggleForce()
-	{
-		; hwnd := DllCall("GetForegroundWindow", "Ptr")
-		; str := String(hwnd)
-		; try {
-    	; 	ImeState.force_map[str] := !ImeState.force_map[str] 
-		; } catch UnsetError {
-    	; 	ImeState.force_map[str] := true
-		; }
-	}
+; 	static ToggleForce()
+; 	{
+; 		; hwnd := DllCall("GetForegroundWindow", "Ptr")
+; 		; str := String(hwnd)
+; 		; try {
+;     	; 	ImeState.force_map[str] := !ImeState.force_map[str] 
+; 		; } catch UnsetError {
+;     	; 	ImeState.force_map[str] := true
+; 		; }
+; 	}
 	
-	static On()
-	{
-		hwnd := GetActiveWindowHandle()
-		SetImeState(hwnd,1)
-		str := String(hwnd)
-    	ImeState.state_map[str] := 1
+; 	static On()
+; 	{
+; 		hwnd := GetActiveWindowHandle()
+; 		SetImeState(hwnd,1)
+; 		str := String(hwnd)
+;     	ImeState.state_map[str] := 1
 		
-	}
+; 	}
 
-	static Off()
-	{
-		hwnd := GetActiveWindowHandle()
-		SetImeState(hwnd,0)
-		str := String(hwnd)
-    	ImeState.state_map[str] := 0
-	}
+; 	static Off()
+; 	{
+; 		hwnd := GetActiveWindowHandle()
+; 		SetImeState(hwnd,0)
+; 		str := String(hwnd)
+;     	ImeState.state_map[str] := 0
+; 	}
 
-
-}
+; }
 
 IsImeOn()
 {
-	return ImeState.IsOn()
+	;return ImeState.IsOn()
 	;return GetImeState(GetActiveWindowHandle())
+	hwnd := GetActiveWindowHandle()
+    return DllCall("SendMessage"
+        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+        , "UInt", 0x0283  ; WM_IME_CONTROL
+        , "Ptr", 0x0005   ; IMC_GETOPENSTATUS
+        , "Ptr", 0)
 }
 
 
 ToggleImeState()
 {
-	ImeState.Reset()
+	;ImeState.Reset()
 	Send(B_ZENKAKU)	
 }
 
@@ -975,6 +983,8 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 	} if m = 5{
 		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
 		return F14.IsPressed()  || GetKeyState(S_CONV, "P") 
+	} if m = 6{
+		return colon.IsPressed()
 	}
 	return false
 }
@@ -1519,8 +1529,8 @@ space::ToggleImeState()
 #h::ChangeHNTSKLayout()
 #c::ChangeColemakLayout()
 
-#q::ImeState.On()
-#w::ImeState.Off()
+; #q::ImeState.On()
+; #w::ImeState.Off()
 
 
 #HotIf
