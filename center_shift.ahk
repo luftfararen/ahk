@@ -1,4 +1,4 @@
-﻿#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2.0
 
 ;Modifier symbol
 ;win #   ctrl ^   shift +   alt !
@@ -158,17 +158,17 @@ GetActiveWindowHandle()
     return hwnd
 }
 
-GetImeState(hwnd := 0) 
-{
-	if hwnd = 0 {
-		hwnd := GetActiveWindowHandle()
-	}
-    return DllCall("SendMessage"
-        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
-        , "UInt", 0x0283  ; WM_IME_CONTROL
-        , "Ptr", 0x0005   ; IMC_GETOPENSTATUS
-        , "Ptr", 0)
-}
+; GetImeState(hwnd := 0) 
+; {
+; 	if hwnd = 0 {
+; 		hwnd := GetActiveWindowHandle()
+; 	}
+;     return DllCall("SendMessage"
+;         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+;         , "UInt", 0x0283  ; WM_IME_CONTROL
+;         , "Ptr", 0x0005   ; IMC_GETOPENSTATUS
+;         , "Ptr", 0)
+; }
 
 SetImeState(hwnd,state) 
 {
@@ -316,6 +316,7 @@ ToggleImeState()
 	Send(B_ZENKAKU)	
 }
 
+
 SendAccImeState(key_ime_off,key_ime_on:="")
 {
 	if IsImeOn() && key_ime_on != ""{
@@ -445,7 +446,7 @@ class MKey
 	{
 		if key = ""{
 			this.key_str := ""
-			this.key := key
+			this.key := key ;registerd key
 		}else{
 			if SubStr(key,1,1) = "{"{
 				this.key := SubStr(key,2,StrLen(key)-2)
@@ -1287,7 +1288,7 @@ ChangeFMIXR_VBD_Layout()
 	d.SetImeKey("k","R")
 	n.SetImeKey("d","K")
 
-	TrayTip("FMIXR VBD layout","",0x11)
+	TrayTip("FMIXR VBK layout","",0x11)
 }
 
 ChangeFMIXR_VBD2_Layout()
@@ -1617,20 +1618,20 @@ b::Send("\") ;\
 u::send("{Backspace}")
 h::Send(C_HAT) ;^
 i::Send("+4") ;$
-o::Send("->")
-;p::Send("{Blind}y")
+o::Send("+k")
+p::Send("+y")
 
 j::Send("=") ;
-k::Send("[") ;"
-l::Send("]") ;"
+k::Send("0") ;"
+l::Send("{Enter}") ;"
 sc027::Send(C_SEMICOLON) ;; 
-
 
 n::Send("+3") ;# Numbed Sign
 m::Send("{Delete}") ;
 sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
 
+;space::Send("{") ; Enter
 ;#HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 ; u::Send(C_BS)
 ; i::Send(C_N4)
@@ -1864,6 +1865,7 @@ sc07B up::noconv.Up()
 
 ;NumLock::Return
 +F15::Send("{NumLock}")
+;*F15::Send("{NumLock}") ;NumLock
 
 >+Up::_
 ^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
