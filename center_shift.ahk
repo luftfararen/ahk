@@ -1595,8 +1595,7 @@ space::Send(B_ENTER)
 ; right::Send(B_RIGHT)
 
 ;***Symbol**************************************************************************
-#HotIf colon.IsPressed() && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-2::Send("->")
+#HotIf ModifiedState(6) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 q::Send("[")
 w::Send("]")
 e::Send("+1") ;'
@@ -1623,7 +1622,7 @@ p::Send("+y")
 
 j::Send("=") ;
 k::Send("0") ;"
-l::Send("{Enter}") ;"
+l::Send("->") ;"
 sc027::Send(C_SEMICOLON) ;; 
 
 n::Send("+3") ;# Numbed Sign
@@ -1631,7 +1630,7 @@ m::Send("{Delete}") ;
 sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
 
-;space::Send("{") ; Enter
+space::Send("{Enter}") ; Enter
 ;#HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 ; u::Send(C_BS)
 ; i::Send(C_N4)
