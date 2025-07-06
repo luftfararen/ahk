@@ -1245,7 +1245,6 @@ ChangeFMIX_VBD_Layout()
 	TrayTip("FMIX VBD layout","",0x11)
 }
 
-
 ChangeFMIXR_Layout()
 {
 	ChangeFMIX_LayoutImpl()
@@ -1256,8 +1255,6 @@ ChangeFMIXR_Layout()
 	global b,n,m,comma,period,slash
 
 	ResetIME()
-	r.SetKey("v")
-	v.SetKey("d")
 	e.SetImeKey("r","L")
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
@@ -1275,15 +1272,11 @@ ChangeFMIXR_VBD_Layout()
 
 	ResetIME()
 
-	;e.SetKey("l")
-	;r.SetKey("d")
-	;d.SetKey("s")
 	r.SetKey("p")
 	t.SetKey("d")
 	n.SetKey("k")
 
 	e.SetImeKey("r","L")
-	;r.SetImeKey("p","P")
 	t.SetImeKey("l","D")
 	d.SetImeKey("k","R")
 	n.SetImeKey("d","K")
@@ -1302,9 +1295,6 @@ ChangeFMIXR_VBD2_Layout()
 
 	ResetIME()
 
-	;e.SetKey("l")
-	;r.SetKey("d")
-	;d.SetKey("s")
 	p.SetKey(C_SEMICOLON)
 	colon.SetKey(C_COLON)
 	r.SetKey("p")
@@ -1312,10 +1302,8 @@ ChangeFMIXR_VBD2_Layout()
 	n.SetKey("d")
 
 	e.SetImeKey("r","L")
-	;r.SetImeKey("p","P")
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
-	;n.SetImeKey("d","K")
 
 	TrayTip("FMIXR VBD2 layout","",0x11)
 }
@@ -1348,6 +1336,31 @@ ChangeFMIXR_VBD3_Layout()
 
 	TrayTip("FMIXR VBD3 layout","",0x11)
 }
+
+ChangeFMIXR_VBJ_Layout()
+{
+	ChangeFMIX_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	o.SetKey("p")
+	p.SetKey(C_SEMICOLON)
+	r.SetKey("d")
+	t.SetKey("k")
+	n.SetKey("j")
+
+	e.SetImeKey("r","L")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","R")
+
+	TrayTip("FMIXR VBJ layout","",0x11)
+}
+
 
 
 ChangeIME_HNTSKLayoutImpl()
@@ -1525,6 +1538,7 @@ space::ToggleImeState()
 #1::ChangeFMIXR_VBD_Layout()
 #2::ChangeFMIXR_VBD2_Layout()
 #3::ChangeFMIXR_VBD3_Layout()
+#j::ChangeFMIXR_VBJ_Layout()
 
 #o::ChangeOonishiLayout()
 #h::ChangeHNTSKLayout()
