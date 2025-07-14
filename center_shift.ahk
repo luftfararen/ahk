@@ -297,11 +297,24 @@ SetImeState(hwnd,state)
 
 ; }
 
+force_ime_on := false ;If true, force to turn on IME.
+last_active_hwnd := 0 ;Last active window handle to check IME state.
+
 IsImeOn()
 {
 	;return ImeState.IsOn()
 	;return GetImeState(GetActiveWindowHandle())
+	global last_active_hwnd,force_ime_on
 	hwnd := GetActiveWindowHandle()
+	if last_active_hwnd = hwnd { 
+		if force_ime_on {
+			return true
+		}
+	}else{
+		force_ime_on := false
+	}
+
+	last_active_hwnd := hwnd 
     return DllCall("SendMessage"
         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         , "UInt", 0x0283  ; WM_IME_CONTROL
@@ -309,13 +322,17 @@ IsImeOn()
         , "Ptr", 0)
 }
 
+ToggleForceImeOn()
+{
+	global force_ime_on
+	force_ime_on := !force_ime_on
+}
 
 ToggleImeState()
 {
 	;ImeState.Reset()
 	Send(B_ZENKAKU)	
 }
-
 
 SendAccImeState(key_ime_off,key_ime_on:="")
 {
@@ -1337,6 +1354,27 @@ ChangeFMIXR_VBD3_Layout()
 	TrayTip("FMIXR VBD3 layout","",0x11)
 }
 
+ChangeFMIX_VBJ_Layout()
+{
+	ChangeFMIX_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	o.SetKey("p")
+	p.SetKey(C_SEMICOLON)
+	r.SetKey("d")
+	t.SetKey("k")
+	n.SetKey("j")
+
+	TrayTip("FMIX VBJ layout","",0x11)
+}
+
+
 ChangeFMIXR_VBJ_Layout()
 {
 	ChangeFMIX_LayoutImpl()
@@ -1513,6 +1551,7 @@ sc035::Send("^+{sc07D}")
 ;#HotIf (a.IsPressed() || ModifiedState(1)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 ;Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
++sc029::ToggleForceImeOn() ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 Esc::Reload
 
 q::#!space
@@ -1529,16 +1568,15 @@ space::ToggleImeState()
 
 
 ;*space::Send(B_BS)
-#f::ChangeFMIX_Layout()
 #k::ChangeFMIX_VBK_Layout()
 #x::ChangeFMIX_VBD_Layout()
 
-#r::ChangeFMIXR_Layout()
 #v::ChangeFMIXR_VBD_Layout()
 #1::ChangeFMIXR_VBD_Layout()
 #2::ChangeFMIXR_VBD2_Layout()
 #3::ChangeFMIXR_VBD3_Layout()
-#j::ChangeFMIXR_VBJ_Layout()
+#r::ChangeFMIXR_VBJ_Layout()
+#f::ChangeFMIX_VBJ_Layout()
 
 #o::ChangeOonishiLayout()
 #h::ChangeHNTSKLayout()
