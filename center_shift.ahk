@@ -1399,6 +1399,26 @@ ChangeFMIXR_VBJ_Layout()
 	TrayTip("FMIXR VBJ layout","",0x11)
 }
 
+ChangeFMIX12_VBJ_Layout()
+{
+	ChangeFMIX_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	o.SetKey("p")
+	p.SetKey(C_SEMICOLON)
+	r.SetKey("r")
+	t.SetKey("k")
+	d.SetKey("d")
+	n.SetKey("j")
+
+	TrayTip("FMIX12 VBJ layout","",0x11)
+}
 
 
 ChangeIME_HNTSKLayoutImpl()
@@ -1569,7 +1589,6 @@ space::ToggleImeState()
 
 ;*space::Send(B_BS)
 #k::ChangeFMIX_VBK_Layout()
-#x::ChangeFMIX_VBD_Layout()
 
 #v::ChangeFMIXR_VBD_Layout()
 #1::ChangeFMIXR_VBD_Layout()
@@ -1577,6 +1596,7 @@ space::ToggleImeState()
 #3::ChangeFMIXR_VBD3_Layout()
 #r::ChangeFMIXR_VBJ_Layout()
 #f::ChangeFMIX_VBJ_Layout()
+#x::ChangeFMIX12_VBJ_Layout()
 
 #o::ChangeOonishiLayout()
 #h::ChangeHNTSKLayout()
