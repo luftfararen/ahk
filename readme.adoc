@@ -215,10 +215,10 @@ F13
 M2修飾::
 space
 M3修飾::
-Tab or (F13 + Alt) or (F13 + 無変換) 
+ (F13 + Alt) or (F13 + 無変換) 
 M4修飾::
-vキー
-M5修飾(シフト)::
+Tab
+M5修飾::
 無変換 or 変換 or F14
 M6修飾::
 :(Colon)キー 
