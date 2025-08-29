@@ -983,12 +983,14 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 	} if m = 2{
 		return space.IsPressed() 
 	} if m = 3{
-		return tab.IsPressed() 	
+		;return tab.IsPressed() 
+		return false	
 	} if m = 4{
-		return GetKeyState(S_NOCONV, "P") 
+		return tab.IsPressed()  || GetKeyState(S_NOCONV, "P") 
 	} if m = 5{
-		;b5 := GetKeyState(S_CONV, "P") | F14.IsPressed()
-		return F14.IsPressed()  || GetKeyState(S_CONV, "P") 
+		;b5 := GetKeyState(S_CONV, "P") | F1m4.IsPressed()
+		;return F14.IsPressed()  || GetKeyState(S_CONV, "P") 
+		return F14.IsPressed()
 	} if m = 6{
 		return colon.IsPressed()
 	}
@@ -1255,7 +1257,7 @@ ChangeFMIX_LayoutImpl()
 }
 
 
-ChangeFMIX14_VBJ_Layout()
+ChangeFMIX12f_VBJ_Layout()
 {
 	ChangeFMIX_LayoutImpl()
 
@@ -1268,38 +1270,42 @@ ChangeFMIX14_VBJ_Layout()
 
 	o.SetKey("p")
 	p.SetKey(C_SEMICOLON)
-	r.SetKey("d")
-	t.SetKey("k")
-	n.SetKey("j")
-
-	TrayTip("FMIX14 VBJ layout","",0x11)
-}
-
-
-ChangeFMIX12R_VBJ_Layout()
-{
-	ChangeFMIX_LayoutImpl()
-
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon,colon
-	global b,n,m,comma,period,slash
-
-	ResetIME()
-
-	o.SetKey("p")
-	p.SetKey(C_SEMICOLON)
-	e.SetKey("l")
+	e.SetKey("f")
 	d.SetKey("d")
 	r.SetKey("r")
 	t.SetKey("k")
 	n.SetKey("j")
+	u.SetKey("l")
 
-	e.SetImeKey("d","L")
-	t.SetImeKey("l","K")
+	TrayTip("FMIX12f-FMIX13fR VBJ layout","",0x11)
+}
+
+
+ChangeFMIX12f_FMIX13fR_VBJ_Layout()
+{
+	ChangeFMIX_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	o.SetKey("p")
+	p.SetKey(C_SEMICOLON)
+	e.SetKey("f")
+	d.SetKey("d")
+	r.SetKey("r")
+	t.SetKey("k")
+	n.SetKey("j")
+	u.SetKey("l")
+
+	e.SetImeKey("d","F")
+	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX12-FMIX12R VBJ layout","",0x11)
+	TrayTip("FMIX12f-FMIX13fR VBJ layout","",0x11)
 }
 
 ChangeFMIX14R_VBJ_Layout()
@@ -1323,39 +1329,12 @@ ChangeFMIX14R_VBJ_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
 
-	TrayTip("FMIX14R VBJ layout","",0x11)
-}
-
-ChangeFMIX12_FMIX14R_VBJ_Layout()
-{
-	ChangeFMIX_LayoutImpl()
-
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon,colon
-	global b,n,m,comma,period,slash
-
-	ResetIME()
-
-	o.SetKey("p")
-	p.SetKey(C_SEMICOLON)
-	e.SetKey("l")
-	d.SetKey("d")
-	r.SetKey("r")
-	t.SetKey("k")
-	n.SetKey("j")
-
-	e.SetImeKey("r","L")
-	r.SetImeKey("d","R")
-	t.SetImeKey("l","K")
-	d.SetImeKey("k","D")
-
-	TrayTip("FMIX12-FMIX14R VBJ layout","",0x11)
+	TrayTip("FMIX14-FMIX14R VBJ layout","",0x11)
 }
 
 
 ;***M3**************************************************************************
-#HotIf (ModifiedState(1) && (GetKeyState("Alt","P") || ModifiedState(4))) 
+#HotIf ModifiedState(1) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
 ;#HotIf ModifiedState(3) 
 *1::Send("^z")
 *2::Send("^x")
@@ -1384,6 +1363,11 @@ ChangeFMIX12_FMIX14R_VBJ_Layout()
 *.::Send("+^{Right}")
 
 *space::Send(C_BS)
+
+*up::Send("+{Up}")
+*left::Send("+{Left}")
+*down::Send("+{Down}")
+*right::Send("+{Right}")
 
 #HotIf
 
@@ -1460,8 +1444,8 @@ space::ToggleImeState()
 
 ;*space::Send(B_BS)
 #r::ChangeFMIX14R_VBJ_Layout()
-#f::ChangeFMIX12_FMIX14R_VBJ_Layout()
-#d::ChangeFMIX12R_VBJ_Layout()
+#f::ChangeFMIX12f_FMIX13fR_VBJ_Layout()
+#d::ChangeFMIX12f_VBJ_Layout()
 
 #o::ChangeOonishiLayout()
 #c::ChangeColemakLayout()
@@ -1488,8 +1472,8 @@ F14::ToggleImeState()
 sc079::ToggleImeState() ;conv
 #HotIf
  
-;***Num**************************************************************************
-#HotIf tab.IsPressed() || (ModifiedState(4) && ModifiedState(2)) 
+;***M4**************************************************************************
+#HotIf !ModifiedState(1) && ModifiedState(4) 
 
 6::Send("{Escape}")
 7::Send(C_N7)
