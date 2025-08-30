@@ -1472,6 +1472,13 @@ sc079::ToggleImeState() ;conv
 sc00D::Send(C_HAT)
 sc07D::Send("\")
 
+t::Send(B_NADD)
+
+a::Send("(")
+s::Send(")")
+f::Send("-")
+g::Send("=")
+
 y::Send(C_BS)
 u::Send(C_N4)
 i::Send(C_N5)
@@ -1483,16 +1490,16 @@ h::Send("=")
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
-*sc027::Send(B_LEFT) ;; 
-*sc028::Send(B_DOWN) ;:
+sc027::Send(B_LEFT) ;; 
+sc028::Send(B_DOWN) ;:
 ]::Send(B_RIGHT)
 
 n::Send(C_DEL)
 m::Send(C_N0)
 sc033::Send(C_COMMA) ;.
 .::Send(C_NDOT)
-*sc035::Send(B_NDIV)
-*sc073::Send("\")
+sc035::Send(B_NDIV)
+sc073::Send("\")
 space::Send(B_ENTER)
 
 ; up::Send(B_UP)
