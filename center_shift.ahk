@@ -1214,7 +1214,7 @@ ChangeColemakLayout()
 }
 
 
-ChangeFMIX_LayoutImpl()
+ChangeFMIXVBJ_LayoutImpl()
 {
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1230,7 +1230,7 @@ ChangeFMIX_LayoutImpl()
 	y.SetKey("y")
 	u.SetKey("f")
 	i.SetKey("u")
-	o.SetKey("j")
+	o.SetKey("p")
 	p.SetKey(C_SEMICOLON)
 
 	a.SetKey("a")
@@ -1249,7 +1249,7 @@ ChangeFMIX_LayoutImpl()
 	c.SetKey("c")
 	v.SetKey("v")
 	b.SetKey("b")
-	n.SetKey("p")
+	n.SetKey("j")
 	m.SetKey("m")
 	comma.SetKey(C_COMMA)
 	period.SetKey(".")
@@ -1257,9 +1257,9 @@ ChangeFMIX_LayoutImpl()
 }
 
 
-ChangeFMIX12f_VBJ_Layout()
+ChangeFMIX12f_Layout()
 {
-	ChangeFMIX_LayoutImpl()
+	ChangeFMIXVBJ_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1268,22 +1268,19 @@ ChangeFMIX12f_VBJ_Layout()
 
 	ResetIME()
 
-	o.SetKey("p")
-	p.SetKey(C_SEMICOLON)
 	e.SetKey("f")
 	d.SetKey("d")
 	r.SetKey("r")
 	t.SetKey("k")
-	n.SetKey("j")
 	u.SetKey("l")
 
-	TrayTip("FMIX12f-FMIX13fR VBJ layout","",0x11)
+	TrayTip("FMIX12f VBJ layout","",0x11)
 }
 
 
-ChangeFMIX12f_FMIX13fR_VBJ_Layout()
+ChangeFMIX12f_FMIX13fR_Layout()
 {
-	ChangeFMIX_LayoutImpl()
+	ChangeFMIXVBJ_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1292,13 +1289,10 @@ ChangeFMIX12f_FMIX13fR_VBJ_Layout()
 
 	ResetIME()
 
-	o.SetKey("p")
-	p.SetKey(C_SEMICOLON)
 	e.SetKey("f")
 	d.SetKey("d")
 	r.SetKey("r")
 	t.SetKey("k")
-	n.SetKey("j")
 	u.SetKey("l")
 
 	e.SetImeKey("d","F")
@@ -1308,9 +1302,9 @@ ChangeFMIX12f_FMIX13fR_VBJ_Layout()
 	TrayTip("FMIX12f-FMIX13fR VBJ layout","",0x11)
 }
 
-ChangeFMIX14R_VBJ_Layout()
+ChangeFMIX14_FMIX14R_Layout()
 {
-	ChangeFMIX_LayoutImpl()
+	ChangeFMIXVBJ_LayoutImpl()
 
 	global minus
 	global q,w,e,r,t,y,u,i,o,p
@@ -1319,11 +1313,8 @@ ChangeFMIX14R_VBJ_Layout()
 
 	ResetIME()
 
-	o.SetKey("p")
-	p.SetKey(C_SEMICOLON)
 	r.SetKey("d")
 	t.SetKey("k")
-	n.SetKey("j")
 
 	e.SetImeKey("r","L")
 	t.SetImeKey("l","K")
@@ -1422,9 +1413,6 @@ sc035::Send("^+{sc07D}")
 ;#HotIf ModifiedStateX([1])
 #HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 *a::Send("{Blind}^a")
-;#HotIf
-;#HotIf (a.IsPressed() || ModifiedState(1)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
-;Tab::Send(C_EISU) ;vkF0sc03A = Eisu
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 +sc029::ToggleForceImeOn() ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
 Esc::Reload
@@ -1443,9 +1431,9 @@ space::ToggleImeState()
 
 
 ;*space::Send(B_BS)
-#r::ChangeFMIX14R_VBJ_Layout()
-#f::ChangeFMIX12f_FMIX13fR_VBJ_Layout()
-#d::ChangeFMIX12f_VBJ_Layout()
+#r::ChangeFMIX14_FMIX14R_Layout()
+#f::ChangeFMIX12f_FMIX13fR_Layout()
+#d::ChangeFMIX12f_Layout()
 
 #o::ChangeOonishiLayout()
 #c::ChangeColemakLayout()
