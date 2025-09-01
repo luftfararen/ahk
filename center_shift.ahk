@@ -1342,7 +1342,7 @@ ChangeFMIX13f_FMIX14fR_Layout()
 	d.SetKey("d")
 
 	;e.SetImeKey("r","L")
-	r.SetKey("d","F")
+	r.SetImeKey("d","F")
 	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
 
