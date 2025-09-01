@@ -1323,6 +1323,31 @@ ChangeFMIX14_FMIX14R_Layout()
 	TrayTip("FMIX14-FMIX14R VBJ layout","",0x11)
 }
 
+ChangeFMIX13f_FMIX14fR_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	e.SetKey("r")
+	u.SetKey("l")
+
+	r.SetKey("f")
+	t.SetKey("k")
+	d.SetKey("d")
+
+	;e.SetImeKey("r","L")
+	r.SetKey("d","F")
+	t.SetImeKey("f","K")
+	d.SetImeKey("k","D")
+
+	TrayTip("FMIX13f-FMIX14fR VBJ layout","",0x11)
+}
 
 ;***M3**************************************************************************
 #HotIf ModifiedState(1) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
@@ -1434,6 +1459,7 @@ space::ToggleImeState()
 #r::ChangeFMIX14_FMIX14R_Layout()
 #f::ChangeFMIX12f_FMIX13fR_Layout()
 #d::ChangeFMIX12f_Layout()
+#x::ChangeFMIX13f_FMIX14fR_Layout()
 
 #o::ChangeOonishiLayout()
 #c::ChangeColemakLayout()
