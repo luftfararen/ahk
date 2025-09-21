@@ -253,7 +253,7 @@ gj	ぎょ
 zj	じょ
 dj	ぢょ
 bj	びょ
-jjj	ぴょ
+pj	ぴょ
 kn	かん
 cn	かん
 sn	さん
