@@ -348,7 +348,7 @@ Class to ctrl mouse speed.
 ============================================================================*/
 class MouseSpeed
 {
-	static SPI_GETMOUSESPEED := 0x70e
+	static SPI_GETMOUSESPEED := 0x70
 	static SPI_SETMOUSESPEED := 0x71
 	static DefMouseSpeed := 10
 /*============================================================================
@@ -384,6 +384,7 @@ class MouseSpeed
 	{
 		v := MouseSpeed.GetSpeed()
 		if v = 0{
+		ToolTip("MouseSpeed: " . v)
 			return
 		}
 		MouseSpeed.SetSpeed(v+1)
@@ -400,55 +401,55 @@ class MouseSpeed
 		MouseSpeed.SetSpeed(v-1)
 	}
 
-/*============================================================================
-	Use it if chaing mouse speed temporally.
-	Stores system mouse speed to default value then makes system mouse speed slow.
-============================================================================*/
-	static MakeSlow()
-	{
-		val:=0
-		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0)
-		if val > 1{
-			MouseSpeed.DefMouseSpeed := val
-		}
-		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", 1, "UInt", 0)
-	}
+; /*============================================================================
+; 	Use it if chaing mouse speed temporally.
+; 	Stores system mouse speed to default value then makes system mouse speed slow.
+; ============================================================================*/
+; 	static MakeSlow()
+; 	{
+; 		val:=0
+; 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0)
+; 		if val > 1{
+; 			MouseSpeed.DefMouseSpeed := val
+; 		}
+; 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", 1, "UInt", 0)
+; 	}
 
-/*============================================================================
-	Resets system mouse speed to default value.
-============================================================================*/
-	static Reset()
-	{
-		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", MouseSpeed.DefMouseSpeed , "UInt", 0)
-	}
+; /*============================================================================
+; 	Resets system mouse speed to default value.
+; ============================================================================*/
+; 	static Reset()
+; 	{
+; 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", MouseSpeed.DefMouseSpeed , "UInt", 0)
+; 	}
 
-/*============================================================================
-	Increase default mouse speed value, this value is reflected after calling Reset().
-============================================================================*/
-	static IncDefSpeed()
-	{
-		temp := MouseSpeed.DefMouseSpeed + 1
-		if temp > 20 {
-			temp := 20
-		}
-		MouseSpeed.DefMouseSpeed := temp *2
-		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
-		SetTimer(ToolTip,3000)
-	}
+; /*============================================================================
+; 	Increase default mouse speed value, this value is reflected after calling Reset().
+; ============================================================================*/
+; 	static IncDefSpeed()
+; 	{
+; 		temp := MouseSpeed.DefMouseSpeed + 1
+; 		if temp > 20 {
+; 			temp := 20
+; 		}
+; 		MouseSpeed.DefMouseSpeed := temp *2
+; 		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
+; 		SetTimer(ToolTip,3000)
+; 	}
 
-/*============================================================================
-	Decrease default mouse speed value, this value is reflected after calling Reset().
-============================================================================*/
-	static DecDefSpeed()
-	{
-		temp := MouseSpeed.DefMouseSpeed - 1
-		if temp < 1 {
-			temp := 1
-		}
-		MouseSpeed.DefMouseSpeed := temp
-		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
-		SetTimer(ToolTip,3000)
-	}
+; /*============================================================================
+; 	Decrease default mouse speed value, this value is reflected after calling Reset().
+; ============================================================================*/
+; 	static DecDefSpeed()
+; 	{
+; 		temp := MouseSpeed.DefMouseSpeed - 1
+; 		if temp < 1 {
+; 			temp := 1
+; 		}
+; 		MouseSpeed.DefMouseSpeed := temp
+; 		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
+; 		SetTimer(ToolTip,3000)
+; 	}
 }	
 
 /*============================================================================
@@ -1520,6 +1521,9 @@ space::ToggleImeState()
 
 #o::ChangeOonishiLayout()
 #c::ChangeColemakLayout()
+
+#up::MouseSpeed.IncSpeed()
+#down::MouseSpeed.DecSpeed()
 
 
 #HotIf

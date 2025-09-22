@@ -214,7 +214,7 @@ gp	ぎゃ
 zp	じゃ
 dp	ぢゃ
 bp	びゃ
-jp	ぴゃ
+ppp	ぴゃ
 kf	きゅ
 cf	きゅ
 sf	しゅ
@@ -439,6 +439,8 @@ q	っ
 ;	ん
 two	とぅ
 dwo	どぅ
+px	っぴゃ
+ppj っぴょ
 kha	きゃ
 khu	きゅ
 kho	きょ
@@ -537,6 +539,15 @@ rhn	りゃん
 rhw	りゅん
 rhm	りぇん
 rhr	りょん
+ghn	ぎゃん
+ghw	ぎゅん
+ghr	ぎょん
+bhn	びゃん
+bhw	びゅん
+bhr	びょん
+phn	びゃん
+phw	びゅん
+phr	びょん
 kga	きゃ
 kgu	きゅ
 kgo	きょ
@@ -635,4 +646,9 @@ rgn	りゃん
 rgw	りゅん
 rgm	りぇん
 rgr	りょん
-ppj っぴょ
+bgn	びゃん
+bgw	びゅん
+bgr	びょん
+pgn	びゃん
+pgw	びゅん
+pgr	びょん
