@@ -332,7 +332,7 @@ tm	てい
 rm	ろん
 wm	うん
 zm	ざ
-dm	づん
+dm	でん
 kr	こん
 cr	こん
 sr	そん
