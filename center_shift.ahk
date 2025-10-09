@@ -1484,7 +1484,8 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *n::Send(B_END)
 *m::Send(B_DEL)
 *sc033::Send("{Blind}^{Left}") ;vkBCsc033 = ,
-sc035::Send("^+{sc07D}")
+*.::Send("{Blind}^{Right}")
+sc035::Send("^+{sc07D}") ;sc035 = "/" sc07D = \(|)
 
 *Enter::Send("{Blind}^{Enter}")
 
