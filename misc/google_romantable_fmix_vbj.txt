@@ -22,6 +22,7 @@ kk	っ	k
 gg	っ	g
 ss	っ	s
 zz	っ	z
+jj	っ	j
 tt	っ	t
 dd	っ	d
 hh	っ	h

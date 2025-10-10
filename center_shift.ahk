@@ -103,11 +103,18 @@ B_PGUP  := "{Blind}{PgUp}"
 B_PGDN  := "{Blind}{PgDn}"
 B_CHOME := "{Blind}^{Home}"
 B_CEND  := "{Blind}^{End}"
+CSHOME  := "^+{Home}"
+CSEND   := "^+{End}"
 B_CPGUP := "{Blind}^{PgUp}"
 B_CPGDN := "{Blind}^{PgDn}"
 
 B_LEFT := "{Blind}{Left}"
 B_RIGHT := "{Blind}{Right}"
+B_CLEFT := "{Blind}^{Left}"
+B_CRIGHT := "{Blind}^{Right}"
+CSLEFT := "^+{Left}"
+CSRIGHT := "^+{Right}"
+
 B_UP := "{Blind}{Up}"
 B_DOWN := "{Blind}{Down}"
 B_CLEFT := "{Blind}^{Left}"
@@ -1423,6 +1430,10 @@ ChangeFMIX13vbp_FMIX14R_Layout()
 *i::Send("+{Up}")
 *o::Send("+{PgUp}")
 *p::Send("+{PgDn}")
+
+*@::Send("^+{Home}")
+*[::Send("^+{End}")
+
 *h::Send("+{Home}")
 *j::Send("+{Left}")
 *k::Send("+{Down}")
@@ -1431,8 +1442,8 @@ ChangeFMIX13vbp_FMIX14R_Layout()
 *Enter::Send("{Enter}")
 *n::Send("+{End}")
 *m::Send(C_DEL)
-*sc033::Send("+^{Left}") ;vkBCsc033 = ,
-*.::Send("+^{Right}")
+*sc033::Send("^+{Left}") ;vkBCsc033 = ,
+*.::Send("^+{Right}")
 
 *space::Send(C_BS)
 
@@ -1483,8 +1494,8 @@ sc07D::Send("^+{sc07D}") ;\(|)
 *b::Send(B_UNDO) ;undo
 *n::Send(B_END)
 *m::Send(B_DEL)
-*sc033::Send("{Blind}^{Left}") ;vkBCsc033 = ,
-*.::Send("{Blind}^{Right}")
+*sc033::Send(B_CLEFT) ;vkBCsc033 = ,
+*.::Send(B_CRIGHT)
 sc035::Send("^+{sc07D}") ;sc035 = "/" sc07D = \(|)
 
 *Enter::Send("{Blind}^{Enter}")
