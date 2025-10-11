@@ -103,8 +103,8 @@ B_PGUP  := "{Blind}{PgUp}"
 B_PGDN  := "{Blind}{PgDn}"
 B_CHOME := "{Blind}^{Home}"
 B_CEND  := "{Blind}^{End}"
-CSHOME  := "^+{Home}"
-CSEND   := "^+{End}"
+C_CSHOME  := "^+{Home}"
+C_CSEND   := "^+{End}"
 B_CPGUP := "{Blind}^{PgUp}"
 B_CPGDN := "{Blind}^{PgDn}"
 
@@ -112,8 +112,8 @@ B_LEFT := "{Blind}{Left}"
 B_RIGHT := "{Blind}{Right}"
 B_CLEFT := "{Blind}^{Left}"
 B_CRIGHT := "{Blind}^{Right}"
-CSLEFT := "^+{Left}"
-CSRIGHT := "^+{Right}"
+C_CSLEFT := "^+{Left}"
+C_CSRIGHT := "^+{Right}"
 
 B_UP := "{Blind}{Up}"
 B_DOWN := "{Blind}{Down}"
@@ -934,40 +934,6 @@ down  := RKey(B_DOWN,"none")
 left  := RKey(B_LEFT,"none")
 right := RKey(B_RIGHT,"none")
 
-; q_ime := ""
-; w_ime := ""
-; e_ime := ""
-; r_ime := ""
-; t_ime := ""
-
-; a_ime := ""
-; s_ime := ""
-; d_ime := ""
-; f_ime := ""
-; g_ime := ""
-
-; z_ime := ""
-; x_ime := ""
-; c_ime := ""
-; v_ime := ""
-; b_ime := ""
-
-; y_ime := ""
-; u_ime := ""
-; i_ime := ""
-; o_ime := ""
-; p_ime := ""
-
-; h_ime := ""
-; j_ime := ""
-; k_ime := ""
-; l_ime := ""
-; sc_ime := ""
-
-; n_ime := ""
-; m_ime := ""
-; comma_ime := ""
-; period_ime := ""
 
 ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 {
@@ -996,8 +962,6 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 	} if m = 4{
 		return tab.IsPressed()  || GetKeyState(S_NOCONV, "P") 
 	} if m = 5{
-		;b5 := GetKeyState(S_CONV, "P") | F1m4.IsPressed()
-		;return F14.IsPressed()  || GetKeyState(S_CONV, "P") 
 		return F14.IsPressed()
 	} if m = 6{
 		return colon.IsPressed()
@@ -1005,56 +969,36 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 	return false
 }
 
-; ModifiedState2(m1:=false, m2:=false, m3:=false, m4:=false, m5:=false)
-; {
-; 	b := False
-; 	if m1 = true {
-; 		b |= ModifiedState(1)
-; 	}
-; 	if m2 = true{
-; 		b |= ModifiedState(2)
-; 	}
-; 	if  m3 = true{
-; 		b |= ModifiedState(3)
-; 	}
-; 	if  m4 = true {
-; 		b |= ModifiedState(4)
-; 	}
-; 	if m5 = true{
-; 		b |= ModifiedState(5)
-; 	}
-; }
-
 ;exclusive state
-ModifiedStateX(list)
-{
-	b := false
-	s := ""
+; ModifiedStateX(list)
+; {
+; 	b := false
+; 	s := ""
 
-	Loop 6 {
-		s := s . A_Index
-		bb := false
-		for k,v in list{
-			s := s . "["  . v . "," . k . "]"
-			if v = A_Index {
-				bb := true
-				break
-			}
-		}
-		if bb {
-			b |=  ModifiedState(A_Index)
-			s := s . "a:"
-		}else {
-			b &= !ModifiedState(A_Index)
-			s := s . "b:"
-		}	
-	}
-	  if b {
-	 	ToolTip "ModifiedState: " . s . b
-	 	;SetTimer(ToolTip,3000)
-	 }
-	return b
-}
+; 	Loop 6 {
+; 		s := s . A_Index
+; 		bb := false
+; 		for k,v in list{
+; 			s := s . "["  . v . "," . k . "]"
+; 			if v = A_Index {
+; 				bb := true
+; 				break
+; 			}
+; 		}
+; 		if bb {
+; 			b |=  ModifiedState(A_Index)
+; 			s := s . "a:"
+; 		}else {
+; 			b &= !ModifiedState(A_Index)
+; 			s := s . "b:"
+; 		}	
+; 	}
+; 	  if b {
+; 	 	ToolTip "ModifiedState: " . s . b
+; 	 	;SetTimer(ToolTip,3000)
+; 	 }
+; 	return b
+; }
 
 ResetIME()
 {   
@@ -1430,9 +1374,8 @@ ChangeFMIX13vbp_FMIX14R_Layout()
 *i::Send("+{Up}")
 *o::Send("+{PgUp}")
 *p::Send("+{PgDn}")
-
-*@::Send("^+{Home}")
-*[::Send("^+{End}")
+*@::Send(C_CSHOME)
+*[::Send(C_CSEND)
 
 *h::Send("+{Home}")
 *j::Send("+{Left}")
@@ -1455,7 +1398,6 @@ ChangeFMIX13vbp_FMIX14R_Layout()
 #HotIf
 
 ;***M1 or M2 *******************************************************************
-;#HotIf ModifiedStateX([1,2]) 
 #HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 *1::Send(B_F1)
 *2::Send(B_F2)
@@ -1503,7 +1445,6 @@ sc035::Send("^+{sc07D}") ;sc035 = "/" sc07D = \(|)
 #HotIf
 
 ;***M1**************************************************************************
-;#HotIf ModifiedStateX([1])
 #HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 *a::Send("{Blind}^a")
 sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
@@ -1606,6 +1547,7 @@ space::Send(B_ENTER)
 ; left::Send(B_LEFT)
 ; right::Send(B_RIGHT)
 #HotIf
+
 ;***Symbol**************************************************************************
 #HotIf ModifiedState(6) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 ;#HotIf ModifiedStateX([6])
@@ -1644,38 +1586,7 @@ sc033::Send("<=") ; sc033 = ,
 .::Send(">=")
 
 space::Send("{Enter}") ; Enter
-;#HotIf q.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; u::Send(C_BS)
-; i::Send(C_N4)
-; o::Send(C_N5)
-; p::Send(C_N6)
-; @::Send(B_NADD)
-; j::Send(C_N0)
-; k::Send(C_N1)
-; l::Send(C_N2)
-; sc027::Send(C_N3) ;; 
-; h::Send("-")
-; n::Send(C_DEL)
-; m::Send(C_N7)
-; sc033::Send(C_N8) ;,
-; .::Send(C_N9)
-; space::Send(B_ENTER)
-
-; #HotIf slash.IsPressed()  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-; *q::Send(B_F1)
-; *w::Send(B_F2)
-; *e::Send(B_F3)
-; *r::Send(B_F4)
-; *a::Send(B_F5)
-; *s::Send(B_F6)
-; *d::Send(B_F7)
-; *f::Send(B_F8)  
-; *z::Send(B_F9)
-; *x::Send(B_F10)
-; *c::Send(B_F11)
-; *v::Send(B_F12)
-
-#HotIf ;needed to enable m5
+#HotIf
 
 ;***shift**************************************************************************
 #HotIf (ModifiedState(5) || ModifiedState(4) ) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
@@ -1745,6 +1656,7 @@ sc073::backslash2.SendShiftedKey()
 *4 up::k4.Up()
 *5::k5.Down("5")
 *5 up::k5.Up()
+
 *6::k6.Down("6")
 *6 up::k6.Up()
 *7::k7.Down("7")
@@ -1772,6 +1684,7 @@ sc073::backslash2.SendShiftedKey()
 *r up::r.Up()
 *t::t.Down("t")
 *t up::t.Up()
+
 *y::y.Down("y")
 *y up::y.Up()
 *u::u.Down("u")
@@ -1786,7 +1699,6 @@ sc073::backslash2.SendShiftedKey()
 *@ up::at.Up()
 *[::openbracket.Down("[")
 *[ up::openbracket.Up()
-;
 
 *a::a.Down("a")
 *a up::a.Up()
@@ -1798,15 +1710,13 @@ sc073::backslash2.SendShiftedKey()
 *f up::f.Up()
 *g::g.Down("g")
 *g up::g.Up()
+
 *h::h.Down("h")
 *h up::h.Up()
-
 *j::j.Down("j")
 *j up::j.Up()
-
 *k::k.Down("k")
 *k up::k.Up()
-
 *l::l.Down("l")
 *l up::l.Up()
 
@@ -1816,7 +1726,7 @@ sc073::backslash2.SendShiftedKey()
 *sc028 up::colon.Up()
 *]::closebracket.Down("]")
 *] up::closebracket.Up()
-;
+
 
 *z::z.Down("z")
 *z up::z.Up()
@@ -1849,13 +1759,6 @@ left::left.Down()
 right::right.Down()
 
 #Hotif
-Esc::{
-	;MouseSpeed.Reset()
-;	MouseSpeed.Reset()
-	Send("{Escape}")
-	;Reload
-}
-
 *Space::space.Down()
 
 *Space up::space.Up()
@@ -1883,25 +1786,6 @@ sc07B up::noconv.Up()
 ^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
 +sc029::Send(C_EISU) ;vkF3sc029 = 全角/半角 
 sc029::ToggleImeState() ;vkF3sc029 = 全角/半角
-; rbutton_locked := 0
-; ~RButton::{
-; 	ToolTip "locked"
-; 	rbutton_locked := 1
-; }
-; ~RButton up::{
-; 	ToolTip "unlocked"
-; 	rbutton_locked := 0
-; }
-
-; RButton & WheelUp::{
-; 	rbutton_locked := 1
-; 	Send("^{WheelUp}")
-; }
-
-; RButton & WheelDown::{
-; 	rbutton_locked := 1
-; 	Send("^{WheelDown} ")
-; }
 
 #SuspendExempt
 #!Enter::Suspend
