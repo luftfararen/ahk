@@ -626,17 +626,25 @@ class RKey
 	SendShiftedKey(shift := true)
 	{
 		if  shift  {
-			if this.shift_ime_key_str != "" && IsImeOn() {
-				Send(this.shift_ime_key_str )
-			}else{
+			if this.shift_ime_key_str = this.shift_key_str{
 				Send(this.shift_key_str )
+			}else{ 
+				if this.shift_ime_key_str != "" && IsImeOn() {
+					Send(this.shift_ime_key_str )
+				}else{
+					Send(this.shift_key_str )
+				}
 			}
 			return true
 		}else{ 
-			if this.short_ime_key_str != "" && IsImeOn() {
-				Send(this.short_ime_key_str)
-			}else{
+			if this.short_ime_key_str = this.short_key_str{
 				Send(this.short_key_str) ;Sends key in blind mode
+			}else{
+				if this.short_ime_key_str != "" && IsImeOn() {
+					Send(this.short_ime_key_str)
+				}else{
+					Send(this.short_key_str) ;Sends key in blind mode
+				}
 			}
 			return false
 		}
@@ -1229,7 +1237,6 @@ ChangeFMIX12f_Layout()
 	TrayTip("FMIX12f VBJ layout","",0x11)
 }
 
-
 ChangeFMIX12f_FMIX13fR_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1253,6 +1260,32 @@ ChangeFMIX12f_FMIX13fR_Layout()
 
 	TrayTip("FMIX12f-FMIX13fR VBJ layout","",0x11)
 }
+
+ChangeFMIX13f_FMIX14R_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	e.SetKey("r")
+	d.SetKey("d")
+	r.SetKey("f")
+	t.SetKey("k")
+	u.SetKey("l")
+
+	r.SetImeKey("d","F")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","D")
+	u.SetImeKey("f")
+
+	TrayTip("FMIX13f-FMIX14R VBJ layout","",0x11)
+}
+
 
 ChangeFMIX14_FMIX14R_Layout()
 {
@@ -1468,9 +1501,8 @@ space::ToggleImeState()
 #r::ChangeFMIX14_FMIX14R_Layout()
 #f::ChangeFMIX12f_FMIX13fR_Layout()
 #d::ChangeFMIX12f_Layout()
-;#x::ChangeFMIX13f_FMIX14fR_Layout()
 #s::ChangeFMIX13_FMIX14R_Layout()
-#x::ChangeFMIX13vbp_FMIX14R_Layout()
+#x::ChangeFMIX13f_FMIX14R_Layout()
 
 #o::ChangeOonishiLayout()
 #c::ChangeColemakLayout()

@@ -277,7 +277,7 @@ kv	きん
 cv	きん
 sv	しん
 tv	ちん
-nv	にん
+qnv	にん
 hv	ひん
 mv	みん
 rv	りん
@@ -294,7 +294,7 @@ kw	くん
 cw	くん
 sw	すん
 tw	つん
-nw	ぬん
+qnw	ぬん
 hw	ふん
 mw	むん
 yw	ゆん
@@ -313,7 +313,7 @@ kd	けん
 cd	けん
 sd	せん
 td	てん
-nd	ねん
+qnd	ねん
 hd	へん
 md	めん
 rd	れん
@@ -338,7 +338,7 @@ kr	こん
 cr	こん
 sr	そん
 tr	とん
-nr	のん
+qnr	のん
 hr	ほん
 mr	もん
 yr	よん
@@ -376,7 +376,7 @@ ks	かい
 cs	かい
 sss	さい
 ts	たい
-ns	ない
+qns	ない
 hs	はい
 ms	まい
 ys	やい
@@ -395,7 +395,7 @@ kt	けい
 ct	けい
 st	せい
 ttt	てい
-nt	ねい
+qnt	ねい
 ht	へい
 mt	めい
 rt	れい
@@ -412,7 +412,7 @@ kkk	こう
 ck	こう
 sk	そう
 tk	とう
-nk	のう
+qnk	のう
 hk	ほう
 mk	もう
 rk	ろう
@@ -430,7 +430,7 @@ kc	くう
 ccc	くう
 sc	すう
 tc	つう
-nc	ぬう
+qnc	ぬう
 hc	ふう
 mc	むう
 rc	るう
