@@ -165,18 +165,6 @@ GetActiveWindowHandle()
     return hwnd
 }
 
-; GetImeState(hwnd := 0) 
-; {
-; 	if hwnd = 0 {
-; 		hwnd := GetActiveWindowHandle()
-; 	}
-;     return DllCall("SendMessage"
-;         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
-;         , "UInt", 0x0283  ; WM_IME_CONTROL
-;         , "Ptr", 0x0005   ; IMC_GETOPENSTATUS
-;         , "Ptr", 0)
-; }
-
 SetImeState(hwnd,state) 
 {
 	return DllCall("SendMessage"
@@ -186,123 +174,6 @@ SetImeState(hwnd,state)
         , "Ptr", state)  ; 1でON、0でOFF
 }
 
-; class ImeState
-; {
-; 	static last_ime_hwnd := 0
-; 	static last_active_hwnd := 0
-; 	static last_ime_status := -2
-; 	static last_ime_check_time := 0
-; 	static state_map := Map()
-
-
-; 	static _SearchWindowsToGetImeState(parent) 
-; 	{
-; 		ime_hwnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Uint",parent)
-; 		if ime_hwnd != 0 {
-; 			;SetTimer(ToolTip,3000)
-; 			if DllCall("SendMessage", "UInt", ime_hwnd,
-; 				"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) {
-; 					ImeState.last_ime_hwnd := ime_hwnd
-; 					return 1
-; 			}
-; 			;ToolTip("ImeState: " . ime_hwnd)
-; 			; else{
-; 			; 		ImeState.last_ime_hwnd := ime_hwnd
-; 			; 		return 0
-; 			; }
-; 		}
-; 		; else{
-; 		; 	TrayTip("ImeState","ImeState: " . ime_hwnd,0x11)
-; 		; }
-; 		;index := 0
-; 		for child in WinGetControlsHwnd(parent) {
-; 			ret := ImeState._SearchWindowsToGetImeState(child)
-; 			if ret >= 0{
-; 				return ret
-; 			}
-; 			;index := index + 1
-; 		}
-; 		; if index = 0 { ;No child window found.
-; 		; 	ImeState.last_ime_hwnd := ime_hwnd
-; 		; 	return -1
-; 		; }
-; 	 	ImeState.last_ime_hwnd := 0
-; 		return -1
-; 	}
-
-; 	static _IsOnImpl()
-; 	{
-; 		hwnd := GetActiveWindowHandle()
-; 		try {
-;     		state := ImeState.state_map[String(hwnd)]
-; 			if state >= 0{
-; 				ImeState.last_active_hwnd := hwnd
-; 				return state > 0 ? true : false
-; 			} 
-; 		} catch UnsetError {
-; 			ImeState.state_map[String(hwnd)] := -1
-;    		}
-; 		return GetImeState(hwnd)
-; 		; if hwnd = ImeState.last_active_hwnd && ImeState.last_ime_hwnd != 0 {
-; 		; 	return DllCall("SendMessage", "UInt", ImeState.last_ime_hwnd,
-; 		; 	"UInt", 0x0283,  "Int", 0x0005,  "Int", 0) 
-; 		; }else{
-; 		; 	ImeState.last_active_hwnd := hwnd
-; 		; 	return ImeState.SearchWindowsToGetImeState(hwnd) == 1
-; 		; }
-; 	}
-	
-; 	static IsOn(th_time := 400)
-; 	{
-; 		return ImeState._IsOnImpl()
-; 		;return GetImeState(GetActiveWindowHandle())
-; 		; time := A_TickCount
-; 		; ;ToolTip("IsImeOn: " . time - last_ime_check_time)
-; 		; if time - ImeState.last_ime_check_time > th_time{
-; 		; 	ImeState.last_ime_status := ImeState._IsOnImpl()
-; 		; }
-; 		; ImeState.last_ime_check_time := time
-; 		; return ImeState.last_ime_status
-; 	}
-	
-; 	static Reset()
-; 	{
-; 		ImeState.last_ime_hwnd := 0
-; 		ImeState.last_active_hwnd := 0
-; 		ImeState.last_ime_status := -2
-; 		ImeState.last_ime_check_time := 0
-; 		ImeState.state_map.Clear()
-; 	}
-	
-; 	static ToggleForce()
-; 	{
-; 		; hwnd := DllCall("GetForegroundWindow", "Ptr")
-; 		; str := String(hwnd)
-; 		; try {
-;     	; 	ImeState.force_map[str] := !ImeState.force_map[str] 
-; 		; } catch UnsetError {
-;     	; 	ImeState.force_map[str] := true
-; 		; }
-; 	}
-	
-; 	static On()
-; 	{
-; 		hwnd := GetActiveWindowHandle()
-; 		SetImeState(hwnd,1)
-; 		str := String(hwnd)
-;     	ImeState.state_map[str] := 1
-		
-; 	}
-
-; 	static Off()
-; 	{
-; 		hwnd := GetActiveWindowHandle()
-; 		SetImeState(hwnd,0)
-; 		str := String(hwnd)
-;     	ImeState.state_map[str] := 0
-; 	}
-
-; }
 
 force_ime_on := false ;If true, force to turn on IME.
 last_active_hwnd := 0 ;Last active window handle to check IME state.
@@ -329,6 +200,7 @@ IsImeOn()
         , "Ptr", 0)
 }
 
+;Toggle force IME-on on the current window.
 ToggleForceImeOn()
 {
 	global force_ime_on
@@ -337,10 +209,10 @@ ToggleForceImeOn()
 
 ToggleImeState()
 {
-	;ImeState.Reset()
 	Send(B_ZENKAKU)	
 }
 
+;Send key according to IME state.
 SendAccImeState(key_ime_off,key_ime_on:="")
 {
 	if IsImeOn() && key_ime_on != ""{
@@ -407,57 +279,7 @@ class MouseSpeed
 		}
 		MouseSpeed.SetSpeed(v-1)
 	}
-
-; /*============================================================================
-; 	Use it if chaing mouse speed temporally.
-; 	Stores system mouse speed to default value then makes system mouse speed slow.
-; ============================================================================*/
-; 	static MakeSlow()
-; 	{
-; 		val:=0
-; 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0)
-; 		if val > 1{
-; 			MouseSpeed.DefMouseSpeed := val
-; 		}
-; 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", 1, "UInt", 0)
-; 	}
-
-; /*============================================================================
-; 	Resets system mouse speed to default value.
-; ============================================================================*/
-; 	static Reset()
-; 	{
-; 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", MouseSpeed.DefMouseSpeed , "UInt", 0)
-; 	}
-
-; /*============================================================================
-; 	Increase default mouse speed value, this value is reflected after calling Reset().
-; ============================================================================*/
-; 	static IncDefSpeed()
-; 	{
-; 		temp := MouseSpeed.DefMouseSpeed + 1
-; 		if temp > 20 {
-; 			temp := 20
-; 		}
-; 		MouseSpeed.DefMouseSpeed := temp *2
-; 		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
-; 		SetTimer(ToolTip,3000)
-; 	}
-
-; /*============================================================================
-; 	Decrease default mouse speed value, this value is reflected after calling Reset().
-; ============================================================================*/
-; 	static DecDefSpeed()
-; 	{
-; 		temp := MouseSpeed.DefMouseSpeed - 1
-; 		if temp < 1 {
-; 			temp := 1
-; 		}
-; 		MouseSpeed.DefMouseSpeed := temp
-; 		ToolTip("MouseSpeed: " . MouseSpeed.DefMouseSpeed)
-; 		SetTimer(ToolTip,3000)
-; 	}
-}	
+}	 ;class MouseSpeed
 
 /*============================================================================
 Class to skip long press for modifier.
@@ -563,8 +385,7 @@ class RKey
 	__New(key, shift_key:="")
 	{
 		this.SetKey(key,shift_key)
-		this.short_ime_key_str := "" 
-		this.shift_ime_key_str := ""
+		this.SetImeKey(key, shift_key)
 	}
 
 /*============================================================================
@@ -576,7 +397,7 @@ class RKey
 	{
 		this.key := key
 		len := Strlen(key)
-		if SubStr(key,1,1) = "{" ||  len = 1 {
+		if (!InStr(key,"{Blind}") && SubStr(key,1,1) = "{") ||  len = 1 {
 			this.short_key_str := "{Blind}" .  key 
 			if shift_key = ""{
 				this.shift_key_str :=  "{Blind}+" . key
@@ -601,11 +422,11 @@ class RKey
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
-		; if key = "" {
-		; 	key  := this.key
-		; }
+		if key = "" {
+		 	key  := this.short_key_str
+		} 
 		len := Strlen(key)
-		if SubStr(key,1,1) = "{" ||  len = 1 {
+		if (!InStr(key,"{Blind}") && SubStr(key,1,1) = "{") ||  len = 1 {
 			this.short_ime_key_str := "{Blind}" .  key 
 			if shift_key = ""{
 				this.shift_ime_key_str :=  "{Blind}+" . key
@@ -616,7 +437,7 @@ class RKey
 			;Key is word.
 			this.short_ime_key_str := key 
 			if shift_key = ""{
-				this.shift_ime_key_str :=  key
+				this.shift_ime_key_str :=  this.shift_key_str 
 			}else{
 				this.shift_ime_key_str :=  shift_key 
 			}
@@ -637,6 +458,7 @@ class RKey
 			}
 			return true
 		}else{ 
+			ToolTip this.short_ime_key_str . "-" . this.short_key_str
 			if this.short_ime_key_str = this.short_key_str{
 				Send(this.short_key_str) ;Sends key in blind mode
 			}else{
@@ -1278,6 +1100,7 @@ ChangeFMIX13f_FMIX14R_Layout()
 	t.SetKey("k")
 	u.SetKey("l")
 
+	e.SetImeKey("r")
 	r.SetImeKey("d","F")
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","D")
@@ -1352,7 +1175,7 @@ ChangeFMIX13_FMIX14R_Layout()
 	t.SetKey("k")
 	d.SetKey("d")
 
-	;e.SetImeKey("r","L")
+	e.SetImeKey("r","R")
 	r.SetImeKey("d","L")
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","D")
