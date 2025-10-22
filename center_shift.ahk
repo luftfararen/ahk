@@ -379,8 +379,7 @@ class RKey
 
 /*============================================================================
 	key: 		base key, if it is a speial key, "{}" is needed.
-	long_key: 	long pressed key, which inclueds "{}". 
-				If blank, shifted key is generated automatically. If "none", does nothing.  
+	shift_key: 	shift key.	If blank, shifted key is generated automatically. If "none", does nothing.  
 ============================================================================*/
 	__New(key, shift_key:="")
 	{
@@ -388,27 +387,34 @@ class RKey
 		this.SetImeKey(key, shift_key)
 	}
 
+	isModified(text)
+	{
+		list := ["{Blind}","+","#","^","!"]
+		for index, item in list{
+			if InStr(text, item,'Off') > 0{
+				return true
+			}
+		}
+		return false
+	}
 /*============================================================================
 	key: 		base key, if it is a speial key, "{}" is needed.
-	shift_key: 	shift key, which inclueds "{}". 
-				If blank, shifted key is generated automatically.
+	shift_key: 	shift key.	If blank, shifted key is generated automatically.
 ============================================================================*/
 	SetKey(key, shift_key:="")
 	{
 		this.key := key
-		len := Strlen(key)
-		if (!InStr(key,"{Blind}") && SubStr(key,1,1) = "{") ||  len = 1 {
-			this.short_key_str := "{Blind}" .  key 
+		if this.isModified(key) {
+			this.short_key_str := key 
 			if shift_key = ""{
-				this.shift_key_str :=  "{Blind}+" . key
+				this.shift_key_str :=  key
 			}else{
 				this.shift_key_str :=  shift_key 
 			}
 		}else{
-			;word
-			this.short_key_str := key 
+			this.short_key_str := "{Blind}" .  key 
 			if shift_key = ""{
-				this.shift_key_str :=  key
+				this.shift_key_str :=  "{Blind}+" . key
 			}else{
 				this.shift_key_str :=  shift_key 
 			}
@@ -417,27 +423,24 @@ class RKey
 	
 /*============================================================================
 	key: 		base key when ime is on.
-	shift_key: 	shift key, which inclueds "{}". 
-				If blank, shifted key is generated automatically.
+	shift_key: 	shift key. If blank, shifted key is generated automatically.
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
 		if key = "" {
 		 	key  := this.short_key_str
 		} 
-		len := Strlen(key)
-		if (!InStr(key,"{Blind}") && SubStr(key,1,1) = "{") ||  len = 1 {
-			this.short_ime_key_str := "{Blind}" .  key 
+		if this.isModified(key) {
+			this.short_ime_key_str := key 
 			if shift_key = ""{
-				this.shift_ime_key_str :=  "{Blind}+" . key
+				this.shift_ime_key_str :=  this.shift_key_str 
 			}else{
 				this.shift_ime_key_str :=  shift_key 
 			}
 		}else{
-			;Key is word.
-			this.short_ime_key_str := key 
+			this.short_ime_key_str := "{Blind}" .  key 
 			if shift_key = ""{
-				this.shift_ime_key_str :=  this.shift_key_str 
+				this.shift_ime_key_str :=  "{Blind}+" . key
 			}else{
 				this.shift_ime_key_str :=  shift_key 
 			}
@@ -458,10 +461,11 @@ class RKey
 			}
 			return true
 		}else{ 
-			ToolTip this.short_ime_key_str . "-" . this.short_key_str
 			if this.short_ime_key_str = this.short_key_str{
+;				ToolTip "t:" . this.short_ime_key_str . "-" . this.short_key_str
 				Send(this.short_key_str) ;Sends key in blind mode
 			}else{
+;				ToolTip "f:" . this.short_ime_key_str . "-" . this.short_key_str
 				if this.short_ime_key_str != "" && IsImeOn() {
 					Send(this.short_ime_key_str)
 				}else{
@@ -475,7 +479,6 @@ class RKey
 	;@param pressed_key: key to be sent, not includes "{}". 
 	_SendCAWKey(pressed_key)
 	{
-;		shift := GetShiftState()
 		caw := GetKeyState("Ctrl","P") || GetKeyState("Alt","P") ||
 			GetKeyState("LWin","P") || GetKeyState("RWin","P")
 		if caw {
@@ -1038,7 +1041,6 @@ ChangeFMIXVBJ_LayoutImpl()
 	slash.SetKey("/")
 }
 
-
 ChangeFMIX12f_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1056,7 +1058,7 @@ ChangeFMIX12f_Layout()
 	t.SetKey("k")
 	u.SetKey("l")
 
-	TrayTip("FMIX12f VBJ layout","",0x11)
+	TrayTip("FMIX12f layout","",0x11)
 }
 
 ChangeFMIX12f_FMIX13fR_Layout()
@@ -1080,7 +1082,7 @@ ChangeFMIX12f_FMIX13fR_Layout()
 	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX12f-FMIX13fR VBJ layout","",0x11)
+	TrayTip("FMIX12f-FMIX13fR layout","",0x11)
 }
 
 ChangeFMIX13f_FMIX14R_Layout()
@@ -1106,7 +1108,7 @@ ChangeFMIX13f_FMIX14R_Layout()
 	d.SetImeKey("k","D")
 	u.SetImeKey("f")
 
-	TrayTip("FMIX13f-FMIX14R VBJ layout","",0x11)
+	TrayTip("FMIX13f-FMIX14R layout","",0x11)
 }
 
 
@@ -1128,7 +1130,7 @@ ChangeFMIX14_FMIX14R_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
 
-	TrayTip("FMIX14-FMIX14R VBJ layout","",0x11)
+	TrayTip("FMIX14-FMIX14R layout","",0x11)
 }
 
 ChangeFMIX13f_FMIX14fR_Layout()
@@ -1154,7 +1156,7 @@ ChangeFMIX13f_FMIX14fR_Layout()
 	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX13f-FMIX14fR VBJ layout","",0x11)
+	TrayTip("FMIX13f-FMIX14fR layout","",0x11)
 }
 
 ChangeFMIX13_FMIX14R_Layout()
@@ -1170,7 +1172,6 @@ ChangeFMIX13_FMIX14R_Layout()
 
 	e.SetKey("r")
 	u.SetKey("f")
-
 	r.SetKey("l")
 	t.SetKey("k")
 	d.SetKey("d")
@@ -1180,36 +1181,36 @@ ChangeFMIX13_FMIX14R_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX13-FMIX14R VBJ layout","",0x11)
+	TrayTip("FMIX13-FMIX14R layout","",0x11)
 }
 
-ChangeFMIX13vbp_FMIX14R_Layout()
-{
-	ChangeFMIXVBJ_LayoutImpl()
+; ChangeFMIX13vbp_FMIX14R_Layout()
+; {
+; 	ChangeFMIXVBJ_LayoutImpl()
 
-	global minus
-	global q,w,e,r,t,y,u,i,o,p
-	global a,s,d,f,g,h,j,k,l,semicolon,colon
-	global b,n,m,comma,period,slash
+; 	global minus
+; 	global q,w,e,r,t,y,u,i,o,p
+; 	global a,s,d,f,g,h,j,k,l,semicolon,colon
+; 	global b,n,m,comma,period,slash
 
-	ResetIME()
+; 	ResetIME()
 
-	e.SetKey("r")
-	u.SetKey("f")
-	o.SetKey("j")
-	n.SetKey("p")
+; 	e.SetKey("r")
+; 	u.SetKey("f")
+; 	o.SetKey("j")
+; 	n.SetKey("p")
 
-	r.SetKey("l")
-	t.SetKey("k")
-	d.SetKey("d")
+; 	r.SetKey("l")
+; 	t.SetKey("k")
+; 	d.SetKey("d")
 
-	;e.SetImeKey("r","L")
-	r.SetImeKey("d","L")
-	t.SetImeKey("l","K")
-	d.SetImeKey("k","D")
+; 	;e.SetImeKey("r","L")
+; 	r.SetImeKey("d","L")
+; 	t.SetImeKey("l","K")
+; 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX13vbp-FMIX14R VBJ layout","",0x11)
-}
+; 	TrayTip("FMIX13vbp-FMIX14R layout","",0x11)
+; }
 
 
 ;***M3**************************************************************************
