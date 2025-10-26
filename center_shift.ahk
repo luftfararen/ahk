@@ -400,23 +400,32 @@ class RKey
 /*============================================================================
 	key: 		base key, if it is a speial key, "{}" is needed.
 	shift_key: 	shift key.	If blank, shifted key is generated automatically.
+							If "none", does nothing.	
 ============================================================================*/
 	SetKey(key, shift_key:="")
 	{
 		this.key := key
 		if this.isModified(key) {
-			this.short_key_str := key 
-			if shift_key = ""{
-				this.shift_key_str :=  key
+			this.short_key_str := key
+			if shift_key = "none"{
+				this.shift_key_str := ""
 			}else{
-				this.shift_key_str :=  shift_key 
+				if shift_key = ""{
+					this.shift_key_str :=  ""
+				}else{
+					this.shift_key_str :=  shift_key 
+				}
 			}
 		}else{
 			this.short_key_str := "{Blind}" .  key 
-			if shift_key = ""{
-				this.shift_key_str :=  "{Blind}+" . key
+			if shift_key = "none"{
+				this.shift_key_str := ""
 			}else{
-				this.shift_key_str :=  shift_key 
+				if shift_key = ""{
+					this.shift_key_str :=  "{Blind}+" . key
+				}else{
+					this.shift_key_str :=  shift_key 
+				}
 			}
 		}
 	}
@@ -424,6 +433,7 @@ class RKey
 /*============================================================================
 	key: 		base key when ime is on.
 	shift_key: 	shift key. If blank, shifted key is generated automatically.
+						   If "none", does nothing.
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
@@ -432,17 +442,38 @@ class RKey
 		} 
 		if this.isModified(key) {
 			this.short_ime_key_str := key 
-			if shift_key = ""{
-				this.shift_ime_key_str :=  this.shift_key_str 
+			if shift_key = "none"{
+				this.shift_key_str := ""
 			}else{
-				this.shift_ime_key_str :=  shift_key 
+				if shift_key = ""{
+					this.shift_ime_key_str :=  this.shift_key_str 
+				}else{
+					this.shift_ime_key_str :=  shift_key 
+				}
 			}
 		}else{
 			this.short_ime_key_str := "{Blind}" .  key 
-			if shift_key = ""{
-				this.shift_ime_key_str :=  "{Blind}+" . key
+			if shift_key = "none"{
+				this.shift_key_str := ""
 			}else{
-				this.shift_ime_key_str :=  shift_key 
+				if shift_key = ""{
+					this.shift_ime_key_str :=  "{Blind}+" . key
+				}else{
+					this.shift_ime_key_str :=  shift_key 
+				}
+			}
+		}
+	}
+
+	_SendKey(ime_key,normal_key)
+	{
+		if ime_key = normal_key{
+			Send(normal_key) ;Sends key in blind mode
+		}else{
+			if ime_key != "" && IsImeOn() {
+				Send(ime_key)
+			}else{
+				Send(normal_key) ;Sends key in blind mode
 			}
 		}
 	}
@@ -450,28 +481,10 @@ class RKey
 	SendShiftedKey(shift := true)
 	{
 		if  shift  {
-			if this.shift_ime_key_str = this.shift_key_str{
-				Send(this.shift_key_str )
-			}else{ 
-				if this.shift_ime_key_str != "" && IsImeOn() {
-					Send(this.shift_ime_key_str )
-				}else{
-					Send(this.shift_key_str )
-				}
-			}
+			this._SendKey(this.shift_ime_key_str,this.shift_key_str)
 			return true
 		}else{ 
-			if this.short_ime_key_str = this.short_key_str{
-;				ToolTip "t:" . this.short_ime_key_str . "-" . this.short_key_str
-				Send(this.short_key_str) ;Sends key in blind mode
-			}else{
-;				ToolTip "f:" . this.short_ime_key_str . "-" . this.short_key_str
-				if this.short_ime_key_str != "" && IsImeOn() {
-					Send(this.short_ime_key_str)
-				}else{
-					Send(this.short_key_str) ;Sends key in blind mode
-				}
-			}
+			this._SendKey(this.short_ime_key_str,this.short_key_str)
 			return false
 		}
 	}
