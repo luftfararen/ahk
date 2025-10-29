@@ -383,6 +383,8 @@ class RKey
 ============================================================================*/
 	__New(key, shift_key:="")
 	{
+		this.shift_key_str := ""
+		this.shift_ime_key_str := ""
 		this.SetKey(key,shift_key)
 		this.SetImeKey(key, shift_key)
 	}
@@ -443,7 +445,7 @@ class RKey
 		if this.isModified(key) {
 			this.short_ime_key_str := key 
 			if shift_key = "none"{
-				this.shift_key_str := ""
+				this.shift_ime_key_str := ""
 			}else{
 				if shift_key = ""{
 					this.shift_ime_key_str :=  this.shift_key_str 
@@ -454,7 +456,7 @@ class RKey
 		}else{
 			this.short_ime_key_str := "{Blind}" .  key 
 			if shift_key = "none"{
-				this.shift_key_str := ""
+				this.shift_ime_key_str := ""
 			}else{
 				if shift_key = ""{
 					this.shift_ime_key_str :=  "{Blind}+" . key
