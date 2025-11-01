@@ -1,69 +1,102 @@
 #Requires AutoHotkey v2.0
 
-;Modifier symbol
-;win #   ctrl ^   shift +   alt !
+; ============================================================================
+; SCRIPT OVERVIEW
+; ============================================================================
+; This script provides advanced key customization for AutoHotkey v2.
+; Key features:
+; 1. Center Modifiers (MKey): Allows keys like Space, Enter, and Noconvert
+;    to act as normal keys on a short press (tap) and as modifier keys
+;    (layers) when held down.
+; 2. Key Remapping (RKey): Remaps keys, with different behaviors for
+;    Shift-pressed, IME-on, and IME-off states.
+; 3. Long Press Keys (LKey): Extends RKey to add functionality for long-pressing
+;    a key (e.g., tap ';' for ';', hold for ':').
+; 4. Key Layers (#HotIf): Uses the MKey modifiers to create multiple
+;    keyboard layers (e.g., a navigation layer, a numpad layer, a symbol layer).
+; 5. Layout Switching: Functions to dynamically change the keyboard layout
+;    (e.g., to Colemak, FMIX, Oonishi).
+; 6. IME Control: Functions to get, set, and toggle the Input Method Editor (IME) state.
+; 7. Mouse Speed Control: Uses a class to adjust system mouse speed via hotkeys.
+; ============================================================================
 
-;used directly
-;- ^ ¥ @ [ ] . /
 
-;used with {}
-;Space Tab Enter BS Del Ins Left  Right Up Down Home End PgUp PgDn Esc Pause PrintScreen
+; ============================================================================
+; MODIFIER SYMBOLS & CONSTANTS
+; ============================================================================
+; Modifier Symbols:
+; Win: #
+; Ctrl: ^
+; Shift: +
+; Alt: !
 
-;vk1Dsc07B = NoConvert 無変換
+; Keys that can be used directly in Send:
+; - ^ ¥ @ [ ] . /
+; Keys that require {}:
+; Space Tab Enter BS Del Ins Left Right Up Down Home End PgUp PgDn Esc Pause PrintScreen
+
+; --- Variable Naming Convention ---
+; S_... : Scan code string (e.g., "sc07B") for hotkey definitions.
+; C_... : Send-compatible string (e.g., "{sc07B}").
+; B_... : Blind-mode Send string (e.g., "{Blind}{sc07B}").
+
+; vk1Dsc07B = NoConvert (Noconvert key)
 S_NOCONV := "sc07B" 
 C_NOCONV := "{sc07B}" 
 
-;vk1Csc079 = Convert 変換
+; vk1Csc079 = Convert (Convert key)
 S_CONV := "sc079" 
 C_CONV := "{sc079}" 
 
-;sc07D = \; shift:|
+; sc07D = \ (Backslash/Yen key on JIS keyboards)
 ;S_BACKSLASH := "sc07D" 
 C_BACKSLASH := "{sc07D}"
 B_BACKSLASH := "{Blind}{sc07D}"
 
-;vkE2sc073 = \ shift:_
+; vkE2sc073 = \ (Underscore key on JIS keyboards)
 ;S_BACKSLASH2 := "sc073"
 C_BACKSLASH2 := "{sc073}" 
 
-;sc00D =^
+; sc00D = ^ (Hat/Caret key)
 ;S_HAT := "sc00D"
 C_HAT := "{sc00D}"
 
-;vkBBsc027 = ; shift:+
+; vkBBsc027 = ; (Semicolon)
 ;S_SEMICOLON := "sc027" 
 C_SEMICOLON := "{sc027}" 
 B_SEMICOLON := "{Blind}{sc027}" 
 C_PLUS := "+{sc027}" 
 
-;vkBAsc028 = : shift:*
+; vkBAsc028 = : (Colon)
 ;S_COLON := "sc028"
 C_COLON := "{sc028}"
 B_COLON := "{Blind}{sc028}"
 C_ASTERISK := "+{sc028}"
 
-;vkBCsc033 = ,
+; vkBCsc033 = , (Comma)
 ;S_COMMA := "sc033"
 C_COMMA := "{sc033}"
 
-;vkF0sc03A = Eisu
+; vkF0sc03A = Eisu (Eisu/Capslock key)
 S_EISU := "sc03A"
 C_EISU := "{sc03A}"
 
-;vkF2sc070 = Hiragana(ひらがな/カタカナ) It is unstable to assign other key to this key.
+; vkF2sc070 = Hiragana(Katakana/Hiragana key)
+; Note: Assigning other keys to this key can be unstable.
 S_HIRAGANA := "sc070"
 C_HIRAGANA := "{sc070}"
 
-;vkF3sc029 = 全角/半角 must be sent. Replace does not work.
-;vkF4sc029 = 全角/半角 must be sent
+; vkF3sc029 = Zenkaku/Hankaku (IME key)
+; Note: Must be sent; remapping (e.g., `sc029::x`) does not work.
 S_ZENKAKU := "sc029" 
 C_ZENKAKU := "{sc029}" 
 B_ZENKAKU := "{Blind}{sc029}"
 
-;S_SLASH := "sc035"
+;S_SLASH := "sc035" (Slash)
 C_SLASH := "{sc035}"
 B_SLASH := "{Blind}{sc035}"
 
+; --- Numpad Constants ---
 C_N0 := "{Numpad0}"
 C_N1 := "{Numpad1}"
 C_N2 := "{Numpad2}"
@@ -81,13 +114,14 @@ B_NMUL := "{Blind}{NumpadMult}"
 B_NSUB := "{Blind}{NumpadSub}"
 B_NDIV := "{Blind}{NumpadDiv}"
 
+; --- Blind Mode Key Constants ---
 C_DEL   := "{Delete}"
 B_DEL   := "{Blind}{Delete}"
 
 C_BS    := "{Backspace}"
 B_BS    := "{Blind}{Backspace}"
 
-C_REDO := "^y"
+C_REDO := "^y" ; Ctrl+Y (Redo)
 
 B_SPACE   := "{Blind}{Space}"
 B_ESC   := "{Blind}{Esc}"
@@ -98,27 +132,30 @@ B_COPY  := "{Blind}^{c}"
 B_PASTE := "{Blind}^{v}"
 B_ENTER := "{Blind}{Enter}"
 B_HOME  := "{Blind}{Home}"
-B_END   := "{Blind}{End}"
+B_END   := "{Blind}{End}" ; (Refactored: Fixed broken line)
 B_PGUP  := "{Blind}{PgUp}"
 B_PGDN  := "{Blind}{PgDn}"
-B_CHOME := "{Blind}^{Home}"
-B_CEND  := "{Blind}^{End}"
-C_CSHOME  := "^+{Home}"
-C_CSEND   := "^+{End}"
-B_CPGUP := "{Blind}^{PgUp}"
-B_CPGDN := "{Blind}^{PgDn}"
+B_CHOME := "{Blind}^{Home}" ; Ctrl+Home
+B_CEND  := "{Blind}^{End}" ; Ctrl+End
+C_CSHOME  := "^+{Home}" ; Ctrl+Shift+Home
+C_CSEND   := "^+{End}" ; Ctrl+Shift+End
+B_CPGUP := "{Blind}^{PgUp}" ; Ctrl+PgUp
+B_CPGDN := "{Blind}^{PgDn}" ; Ctrl+PgDn
 
 B_LEFT := "{Blind}{Left}"
 B_RIGHT := "{Blind}{Right}"
-B_CLEFT := "{Blind}^{Left}"
-B_CRIGHT := "{Blind}^{Right}"
-C_CSLEFT := "^+{Left}"
-C_CSRIGHT := "^+{Right}"
+B_CLEFT := "{Blind}^{Left}" ; Ctrl+Left
+B_CRIGHT := "{Blind}^{Right}" ; Ctrl+Right
+C_CSLEFT := "^+{Left}" ; Ctrl+Shift+Left
+C_CSRIGHT := "^+{Right}" ; Ctrl+Shift+Right
 
 B_UP := "{Blind}{Up}"
 B_DOWN := "{Blind}{Down}"
-B_CLEFT := "{Blind}^{Left}"
-B_CRIGHT := "{Blind}^{Right}"
+
+C_LEFT := "{Left}"
+C_RIGHT := "{Right}"
+C_UP := "{Up}"
+C_DOWN := "{Down}"
 
 B_F1 := "{Blind}{F1}"
 B_F2 := "{Blind}{F2}"
@@ -134,22 +171,38 @@ B_F11 := "{Blind}{F11}"
 B_F12 := "{Blind}{F12}"
 
 
-;SingleInstkance Force
-ProcessSetPriority "Realtime"
-SendMode "Input"
+; ============================================================================
+; SCRIPT SETTINGS
+; ============================================================================
+;SingleInstkance Force ; (Commented out) Allow multiple instances
+ProcessSetPriority "Realtime" ; Set high priority for max responsiveness
+SendMode "Input" ; Use "Input" mode for speed and reliability
 
-InstallKeybdHook true
-InstallMouseHook true
-#UseHook true
-#MaxThreadsBuffer True
-;#MaxThreadsPerHotkey 3 ;If enabled, it's unstable.
-SetKeyDelay 0
+InstallKeybdHook true ; Always install the keyboard hook
+InstallMouseHook true ; Always install the mouse hook (for MouseSpeed class)
+#UseHook true ; Force hotkeys to use the hook
+#MaxThreadsBuffer True ; Buffer hotkeys if interrupted
+;#MaxThreadsPerHotkey 3 ; (Commented out) Limit threads per hotkey
+SetKeyDelay 0 ; No delay after keystrokes
 
+; ============================================================================
+; GLOBAL FUNCTIONS
+; ============================================================================
+
+/**
+ * Gets the physical state of the Shift key.
+ * @returns {Boolean} True if Shift is pressed, false otherwise.
+ */
 GetShiftState()
 {
 	return GetKeyState("Shift","P")
 }
 
+/**
+ * Gets the handle (HWND) of the active window or focused control,
+ * which is necessary for accurate IME state detection.
+ * @returns {Ptr} The window handle (HWND).
+ */
 GetActiveWindowHandle() 
 {
     hwnd := WinExist("A")
@@ -160,59 +213,102 @@ GetActiveWindowHandle()
         NumPut("UInt", cbSize, stGTI, 0)
         if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", stGTI) {
             hwnd := NumGet(stGTI, 8 + ptrSize, "UInt")
-        }
+         }
     }
     return hwnd
 }
 
+/**
+ * Sets the IME (Input Method Editor) state for a specific window.
+ * @param {Ptr} hwnd - The target window handle.
+ * @param {Integer} state - The desired state (1 for ON, 0 for OFF).
+ * @returns {LParam} The result of the DllCall.
+ */
 SetImeState(hwnd,state) 
 {
 	return DllCall("SendMessage"
         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         , "UInt", 0x0283  ; WM_IME_CONTROL
-        , "Ptr", 0x006    ; IMC_SETOPENSTATUS
-        , "Ptr", state)  ; 1でON、0でOFF
+        , "Ptr", 0x006    ; IMC_SETOPENSTATUS (Set open status)
+        , "Ptr", state)  ; 1 = ON, 0 = OFF
 }
 
 
-force_ime_on := false ;If true, force to turn on IME.
-last_active_hwnd := 0 ;Last active window handle to check IME state.
+force_ime_on := false ; Global flag: If true, force IME status to ON.
+last_active_hwnd := 0 ; Global: Tracks the last active window to reset force_ime_on.
 
+/**
+ * Checks if the IME is currently ON for the active window.
+ * Also respects the `force_ime_on` global flag.
+ * @returns {Boolean} True if IME is (or is forced to be) ON.
+ */
 IsImeOn()
 {
 	;return ImeState.IsOn()
 	;return GetImeState(GetActiveWindowHandle())
 	global last_active_hwnd,force_ime_on
 	hwnd := GetActiveWindowHandle()
+	
+	; If window is the same, check the force flag
 	if last_active_hwnd = hwnd { 
 		if force_ime_on {
 			return true
 		}
 	}else{
+		; Window changed, reset the force flag
 		force_ime_on := false
 	}
 
 	last_active_hwnd := hwnd 
+	
+	; Check the actual IME state
     return DllCall("SendMessage"
         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         , "UInt", 0x0283  ; WM_IME_CONTROL
-        , "Ptr", 0x0005   ; IMC_GETOPENSTATUS
-        , "Ptr", 0)
+        , "Ptr", 0x0005   ; IMC_GETOPENSTATUS (Get open status)
+        , "Ptr", 0)      ; Returns 1 if ON, 0 if OFF
 }
 
-;Toggle force IME-on on the current window.
+/**
+ * Helper to check if a key string already contains modifiers.
+ * @param {String} text - The key string (e.g., "^c", "{Blind}a").
+ * @returns {Boolean} True if modifiers are present.
+ */
+isModified(text)
+{
+	list := ["{Blind}","+","#","^","!"]
+	for index, item in list{
+		if InStr(text, item,'Off') > 0{
+			return true
+		}
+	}
+	return false
+}
+
+
+/**
+ * Toggles the `force_ime_on` flag for the current window.
+ */
 ToggleForceImeOn()
 {
 	global force_ime_on
 	force_ime_on := !force_ime_on
 }
 
+/**
+ * Toggles the IME state by sending the Zenkaku/Hankaku key.
+ */
 ToggleImeState()
 {
-	Send(B_ZENKAKU)	
+	Send(B_ZENKAKU)	; Send {Blind}{sc029}
 }
 
-;Send key according to IME state.
+/**
+ * Sends a specific key based on the current IME state.
+ * @param {String} key_ime_off - The key string to send if IME is OFF.
+ * @param {String} [key_ime_on=""] - The key string to send if IME is ON.
+ * If omitted, `key_ime_off` is used.
+ */
 SendAccImeState(key_ime_off,key_ime_on:="")
 {
 	if IsImeOn() && key_ime_on != ""{
@@ -223,16 +319,18 @@ SendAccImeState(key_ime_off,key_ime_on:="")
 }
 
 /*============================================================================
-Class to ctrl mouse speed.
-============================================================================*/
+ [Class] MouseSpeed
+ A static class to control the system mouse speed.
+ ============================================================================*/
 class MouseSpeed
 {
-	static SPI_GETMOUSESPEED := 0x70
-	static SPI_SETMOUSESPEED := 0x71
+	static SPI_GETMOUSESPEED := 0x70 ; API constant
+	static SPI_SETMOUSESPEED := 0x71 ; API constant
 	static DefMouseSpeed := 10
+	
 /*============================================================================
-	Gets system mouse speed.
-============================================================================*/
+	Gets the current system mouse speed (value 1-20).
+ ============================================================================*/
 	static	GetSpeed()
 	{
 		val:=0
@@ -241,10 +339,11 @@ class MouseSpeed
 	}
 
 /*============================================================================
-	Sets system mouse speed.
-============================================================================*/
+	Sets the system mouse speed (value 1-20).
+ ============================================================================*/
 	static SetSpeed(val)
 	{
+		; Clamp value between 1 and 20
 		if val < 1{
 			val := 1
 		}else if val > 20{
@@ -252,29 +351,29 @@ class MouseSpeed
 		}
 		DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", val, "UInt", 0)
 		ToolTip("MouseSpeed: " . val)
-		SetTimer(ToolTip,3000)
+		SetTimer(ToolTip, 3000) ; Show ToolTip for 3 seconds
 		return val
 	}
 
 /*============================================================================
-	Increase mouse speed value.
-============================================================================*/
+	Increases the mouse speed by 1.
+ ============================================================================*/
 	static IncSpeed()
 	{
 		v := MouseSpeed.GetSpeed()
-		if v = 0{
+		if v = 0{ ; Failed to get speed
 		ToolTip("MouseSpeed: " . v)
 			return
 		}
 		MouseSpeed.SetSpeed(v+1)
 	}
 /*============================================================================
-	Decrease mouse speed value.
-============================================================================*/
+	Decreases the mouse speed by 1.
+ ============================================================================*/
 	static DecSpeed()
 	{
 		v := MouseSpeed.GetSpeed()
-		if v = 0{
+		if v = 0{ ; Failed to get speed
 			return
 		}
 		MouseSpeed.SetSpeed(v-1)
@@ -282,46 +381,57 @@ class MouseSpeed
 }	 ;class MouseSpeed
 
 /*============================================================================
-Class to skip long press for modifier.
-============================================================================*/
+ [Class] MKey (Modifier Key)
+ Implements "SpaceCadet" or "Dual-Role" key functionality.
+ - If pressed and released within `timeout` (short press), it sends the original key.
+ - If held longer than `timeout`, it acts as a modifier (layer) key.
+ ============================================================================*/
 class MKey
 {
 /*============================================================================
-	key: base key, not inclueds "{}".
+	Constructor
+	@param {String} key - The key to monitor (e.g., "SPACE", "sc07B").
+	                     Can be in "{...}" format or plain.
+	@param {Integer} [timeout=200] - The time (ms) to differentiate a short press.
 ============================================================================*/
 	__New(key,timeout:=200)
 	{
-		if key = ""{
+		if key = ""{ ; For "virtual" modifiers like F13
 			this.key_str := ""
-			this.key := key ;registerd key
+			this.key := key ; registerd key
 		}else{
-			if SubStr(key,1,1) = "{"{
-				this.key := SubStr(key,2,StrLen(key)-2)
-				this.key_str := key
-			}else{
+			if SubStr(key,1,1) = "{"{ ; Format: "{SPACE}"
+				this.key := SubStr(key,2,StrLen(key)-2) ; "SPACE"
+				this.key_str := key                     ; "{SPACE}"
+			}else{ ; Format: "SPACE"
 				this.key := key
 				this.key_str := "{" . key . "}"
 			}
 		}
-		this.pressed_time := 0
-		this.mod_str := ""
-		this.type := 0
+		this.pressed_time := 0 ; 0 = not pressed, >0 = press start time
+		this.mod_str := ""     ; Stores other modifiers held at press time (e.g., "+^")
+		this.type := 0         ; (Unused)
 		this.timeout := timeout
 	}
 /*============================================================================
-	Is registerd key presed or not.
+	Checks if the key is currently in a "held down" state (Down() called).
+	@returns {Boolean} 1 (true) if pressed, 0 (false) if not.
 ============================================================================*/
 	IsPressed()
 	{
 		if this.pressed_time != 0{
 			return 1
 		}
-;		if GetKeyState(this.key,"P"){
+;		if GetKeyState(this.key,"P"){ ; (Commented out) Use internal state, not physical
 ;			return 1
 ;		}
 		return 0
 	}
 
+	/**
+	 * Stores the state of other modifiers (Shift, Ctrl, Alt, Win)
+	 * at the moment this key was pressed.
+	 */
 	SetModStr( )
 	{
 		this.mod_str  := ""
@@ -329,41 +439,48 @@ class MKey
 			this.mod_str  := "+"
 		}
 		if GetKeyState("Ctrl","P"){
-			this.mod_str  := "^" . this.mod_str 
+			this.mod_str  := "^" . this.mod_str
 		}
 		if GetKeyState("Alt","P"){
 			this.mod_str  := "!" . this.mod_str 
 		}
-		if GetKeyState("LWin","P") || GetKeyState("LWin","P"){
+		; (Refactored: Fixed LWin/LWin bug)
+		if GetKeyState("LWin","P") || GetKeyState("RWin","P"){
 			this.mod_str  := "#" . this.mod_str 
 		}
 	}
 
 /*============================================================================
-	Assign this method to the hotkey as same as registered.  
+	Call this on the key-down hotkey (e.g., `*Space::space.Down()`).
+	@returns {Boolean} False if already pressed (prevents key-repeat), true otherwise.
 ============================================================================*/
 	Down()
 	{
-		if this.pressed_time != 0 {
+		if this.pressed_time != 0 { ; Already processing a press, ignore
 			return false
 		}
-		this.pressed_time := A_TickCount
-		this.SetModStr()
+		this.pressed_time := A_TickCount ; Record press time
+		this.SetModStr()                 ; Record other modifiers
 		return true
 	}
 
 /*============================================================================
-	Assign this method to the hotkey as same as registered.  
-	Code is sent in this method if short press.  
+	Call this on the key-up hotkey (e.g., `*Space up::space.Up()`).
+	If it was a short press, sends the original key (with modifiers).
 ============================================================================*/
 	Up()
 	{
 		if (A_TickCount - this.pressed_time < this.timeout) {
+			; Short press: send the original key, preserving other modifiers
 			SendInput("{Blind}" . this.mod_str . this.key_str)
 		}
-		this.pressed_time := 0
+		; Long press: do nothing (the key was used as a layer)
+		this.pressed_time := 0 ; Reset state
 	}
 
+	/**
+	 * Force-resets the key's pressed state.
+	 */
 	Reset()
 	{
 		this.pressed_time := 0
@@ -371,94 +488,97 @@ class MKey
 } ;class MKey
 
 /*============================================================================
-Class to assign different key.
-============================================================================*/
+ [Class] RKey (Remap Key)
+ Manages key remapping, handling different outputs for Shift,
+ IME-on, and IME-off states.
+ ============================================================================*/
 class RKey
 {
-	static use_registered_key_for_ctrl  := false ;for ctrl or alt
+	static use_registered_key_for_ctrl  := false ; (Unused?) for ctrl or alt
 
 /*============================================================================
-	key: 		base key, if it is a speial key, "{}" is needed.
-	shift_key: 	shift key.	If blank, shifted key is generated automatically. If "none", does nothing.  
+	Constructor
+	@param {String} key - The base key to send (e.g., "a", "{sc027}").
+	@param {String} [shift_key=""] - Key to send when Shift is held.
+	                                 "" = auto-generate (e.g., "+a")
+	                                 "none" = do nothing on Shift.
 ============================================================================*/
 	__New(key, shift_key:="")
 	{
-		this.shift_key_str := ""
-		this.shift_ime_key_str := ""
-		this.SetKey(key,shift_key)
-		this.SetImeKey(key, shift_key)
+		this.shift_key_str := ""     ; (IME OFF) Shifted key
+		this.shift_ime_key_str := "" ; (IME ON) Shifted key
+		this.SetKey(key,shift_key)   ; Set keys for IME OFF
+		this.SetImeKey(key, shift_key) ; Set keys for IME ON (defaults to OFF)
 	}
 
-	isModified(text)
-	{
-		list := ["{Blind}","+","#","^","!"]
-		for index, item in list{
-			if InStr(text, item,'Off') > 0{
-				return true
-			}
-		}
-		return false
-	}
 /*============================================================================
-	key: 		base key, if it is a speial key, "{}" is needed.
-	shift_key: 	shift key.	If blank, shifted key is generated automatically.
-							If "none", does nothing.	
+	Sets the key mapping for when IME is OFF.
+	@param {String} key - The base key to send.
+	@param {String} [shift_key=""] - Key for Shift. ""=auto, "none"=disable.
 ============================================================================*/
 	SetKey(key, shift_key:="")
 	{
-		this.key := key
-		if this.isModified(key) {
+		this.key := key ; Store original key
+		if isModified(key) {
+			; Key already has modifiers (e.g., "^c")
 			this.short_key_str := key
 			if shift_key = "none"{
-				this.shift_key_str := ""
+				this.shift_key_str := "" ; Do nothing
 			}else{
 				if shift_key = ""{
-					this.shift_key_str :=  ""
+					this.shift_key_str :=  "" ; Default: do nothing if base is modified
 				}else{
-					this.shift_key_str :=  shift_key 
+					this.shift_key_str :=  shift_key ; User-defined
 				}
 			}
 		}else{
-			this.short_key_str := "{Blind}" .  key 
+			; Key is simple (e.g., "a")
+			this.short_key_str := "{Blind}" . key
 			if shift_key = "none"{
-				this.shift_key_str := ""
+				this.shift_key_str := "" ; Do nothing
 			}else{
 				if shift_key = ""{
+					; Auto-generate shift key
 					this.shift_key_str :=  "{Blind}+" . key
 				}else{
-					this.shift_key_str :=  shift_key 
+					this.shift_key_str :=  shift_key ; User-defined
 				}
 			}
 		}
 	}
 	
 /*============================================================================
-	key: 		base key when ime is on.
-	shift_key: 	shift key. If blank, shifted key is generated automatically.
-						   If "none", does nothing.
+	Sets the key mapping for when IME is ON.
+	@param {String} [key=""] - Base key for IME ON. If blank, uses IME OFF key.
+	@param {String} [shift_key=""] - Shift key for IME ON.
+	                                ""=auto/default, "none"=disable.
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
 		if key = "" {
-		 	key  := this.short_key_str
+		 	key  := this.short_key_str ; Default to IME OFF key
 		} 
-		if this.isModified(key) {
+		if isModified(key) {
+			; Key already has modifiers
 			this.short_ime_key_str := key 
 			if shift_key = "none"{
 				this.shift_ime_key_str := ""
 			}else{
 				if shift_key = ""{
+					; Default to IME OFF shifted key
 					this.shift_ime_key_str :=  this.shift_key_str 
 				}else{
 					this.shift_ime_key_str :=  shift_key 
 				}
 			}
 		}else{
-			this.short_ime_key_str := "{Blind}" .  key 
+			; Key is simple
+			this.short_ime_key_str := "{Blind}" . key
 			if shift_key = "none"{
 				this.shift_ime_key_str := ""
 			}else{
 				if shift_key = ""{
+					; Auto-generate shift key
 					this.shift_ime_key_str :=  "{Blind}+" . key
 				}else{
 					this.shift_ime_key_str :=  shift_key 
@@ -467,36 +587,56 @@ class RKey
 		}
 	}
 
+	/**
+	 * Internal helper: Sends the correct key based on IME state.
+	 * @param {String} ime_key - Key to send if IME is ON.
+	 * @param {String} normal_key - Key to send if IME is OFF.
+	 */
 	_SendKey(ime_key,normal_key)
 	{
 		if ime_key = normal_key{
-			Send(normal_key) ;Sends key in blind mode
+			Send(normal_key) ; No difference, just send
 		}else{
 			if ime_key != "" && IsImeOn() {
-				Send(ime_key)
+				Send(ime_key) ; Send IME ON key
 			}else{
-				Send(normal_key) ;Sends key in blind mode
+				Send(normal_key) ; Send IME OFF key
 			}
 		}
 	}
 
+	/**
+	 * Sends the remapped key, choosing between short or shifted version.
+	 * Also accounts for IME state via `_SendKey`.
+	 * @param {Boolean} [shift=true] - If true, send shifted key. If false, send base key.
+	 * @returns {Boolean} The value of the `shift` parameter.
+	 */
 	SendShiftedKey(shift := true)
 	{
 		if  shift  {
+			; Send the shifted key (IME-aware)
 			this._SendKey(this.shift_ime_key_str,this.shift_key_str)
 			return true
 		}else{ 
+			; Send the base key (IME-aware)
 			this._SendKey(this.short_ime_key_str,this.short_key_str)
 			return false
 		}
 	}
 
-	;@param pressed_key: key to be sent, not includes "{}". 
+	/**
+	 * Handles Ctrl, Alt, Win (CAW) passthrough.
+	 * If any of these modifiers are held, bypass remapping and send
+	 * the original physical key.
+	 * @param {String} pressed_key - The physical key pressed (e.g., "x", "sc027").
+	 * @returns {Boolean} True if CAW was pressed (passthrough happened), false otherwise.
+	 */
 	_SendCAWKey(pressed_key)
 	{
 		caw := GetKeyState("Ctrl","P") || GetKeyState("Alt","P") ||
 			GetKeyState("LWin","P") || GetKeyState("RWin","P")
 		if caw {
+			; Passthrough: send the original key
 			Send("{Blind}" . "{" . pressed_key . "}")
 			;ToolTip pressed_key
 			return true
@@ -504,24 +644,26 @@ class RKey
 		return false
 	}
 
-	;Sends registered shift key when pressing only shift key.
-	;returns true if Ctrl is pressed
+	/**
+	 * Main key-sending logic.
+	 * 1. Checks for Ctrl/Alt/Win (passthrough).
+	 * 2. If no CAW, checks for Shift and sends the correct remapped key (base or shifted).
+	 * @param {String} pressed_key - The physical key pressed.
+	 * @returns {Boolean} True if CAW passthrough occurred.
+	 */
 	_SendSCAWKey(pressed_key)
 	{
 		if this._SendCAWKey(pressed_key) {
-			return true
+			return true ; CAW was pressed, logic is done.
 		}
+		; No CAW, so check Shift state
 		shift := GetShiftState()
-		this.SendShiftedKey(shift) ;Sends key in blind mode
+		this.SendShiftedKey(shift) ; Send the remapped key (base or shifted)
 		return false
 	}
 
 /*============================================================================
-	Assign this method to the hotkey as same as registered.  
-	ex)
-	x := LKey("x")
-	x::x.Down("x")
-	x::x.Up()
+	Call this on the key-down hotkey (e.g., `*x::x.Down("x")`).
 ============================================================================*/
 	Down(pressed_key := "")
 	{
@@ -532,7 +674,8 @@ class RKey
 	}
 
 /*============================================================================
-	Assign this method to the hotkey as same as registered.  
+	Call this on the key-up hotkey (e.g., `*x up::x.Up()`).
+	(Unused by RKey, but required by LKey inheritance).
 ============================================================================*/
 	Up()
 	{
@@ -540,31 +683,41 @@ class RKey
 } ;class RKey
 
 /*============================================================================
-Class to assign different key for long press.
-============================================================================*/
+ [Class] LKey (Long-press Key)
+ Extends RKey to add a "long press" action.
+ - Short Press: Acts like RKey (sends base or shifted key).
+ - Long Press: Sends a different, specified key.
+ ============================================================================*/
 class LKey extends RKey
 {
-	;static use_registered_key_for_ctrl  := false ;for ctrl or alt
-	static long_press_th := 300 ;if pressing for more this time, long press process runs in Up()
-	static last_key := ""
-	static long_press_enabled  := true
-	long_key_str := ""
-	pressing := False
+	;static use_registered_key_for_ctrl  := false ; (Inherited)
+	static long_press_th := 300 ; Threshold (ms) for a long press
+	static last_key := ""       ; Tracks last key to prevent repeats
+	static long_press_enabled  := true ; Global toggle for this feature
+	
+	long_key_str := ""  ; The key to send on a long press
+	pressing := False   ; Is this key currently held down?
+
 /*============================================================================
-	key: 		base key, if it is a speial key, "{}" is needed.
-	long_key: 	long pressed key, which inclueds "{}". 
-				If blank, shifted key is generated automatically. If "none", does nothing.  
+	Constructor
+	@param {String} key - The base key to send (short press).
+	@param {String} [shift_key=""] - Key for Shift (short press).
+	@param {String} [long_key=""] - Key for long press.
+	                                "" = defaults to `shift_key`
+	                                "none" = disable long press for this key.
 ============================================================================*/
 	__New(key, shift_key:="", long_key:="")
 	{
-		super.__New(key,shift_key)
-		this.SetLongKey(long_key)
-		this.send_time := 0
-		this.pressed_time := 0
+		super.__New(key,shift_key) ; Init RKey (base/shift keys)
+		this.SetLongKey(long_key)  ; Init long_key
+		this.send_time := 0        ; Time long_key was last sent
+		this.pressed_time := 0     ; Time key was pressed down
 	}
 
 /*============================================================================
-	m: 		0:disable 1:enable 2:toggle
+	Globally enables, disables, or toggles the long-press feature.
+	@param {Integer} [m=2] - Mode: 0=disable, 1=enable, 2=toggle.
+	@param {Boolean} [show_info=False] - Show a TrayTip notification.
 ============================================================================*/
 	static EnableLongPress(m := 2, show_info := False)
 	{
@@ -573,7 +726,7 @@ class LKey extends RKey
 		} else if m == 1{
 			LKey.long_press_enabled := True
 		}else{
-			LKey.long_press_enabled := !LKey.long_press_enabled
+			LKey.long_press_enabled := !LKey.long_press_enabled ; Toggle
 		}
 		if show_info {
 			if LKey.long_press_enabled {
@@ -585,30 +738,32 @@ class LKey extends RKey
 	}
 
 /*============================================================================
-	key: 		base key, if it is a speial key, "{}" is needed.
-	shift_key: 	shift key, which inclueds "{}". 
-				If blank, shifted key is generated automatically.
-	long_key: 	long pressed key, which inclueds "{}". 
-				If blank, shifted key is generated automatically. If "none", does nothing.  
+	(Override) Sets the key mapping for when IME is OFF.
+	@param {String} key - The base key to send.
+	@param {String} [shift_key=""] - Key for Shift.
 ============================================================================*/
 	SetKey(key, shift_key:="")
 	{
 		super.SetKey(key, shift_key)
 	}
 
+	/**
+	 * Sets the long-press key string.
+	 * @param {String} [long_key=""]
+	 */
 	SetLongKey(long_key:="")
 	{
 		if long_key = ""{
-			this.long_key_str :=  this.shift_key_str
+			this.long_key_str :=  this.shift_key_str ; Default to the shifted key
 		}else if long_key = "none"{
-			this.long_key_str := "none"
+			this.long_key_str := "none" ; Disable long press
 		}else{	
-			this.long_key_str := long_key
+			this.long_key_str := long_key ; Use specified key
 		}
 	}
 
 	/*============================================================================
-	Is registerd key presed or not.
+	(Override) Checks if the key is currently held down.
 	============================================================================*/
 	IsPressed()
 	{
@@ -616,35 +771,49 @@ class LKey extends RKey
 	}
 
 
-	;Sends registered shift key when pressing only shift key.
+	/**
+	 * Internal key-down logic for LKey.
+	 * @param {String} pressed_key - The physical key pressed.
+	 */
 	_Down(pressed_key)
 	{
 		if this.long_key_str = "none" {
-			if super._SendCAWKey(pressed_key){
-				this.pressed_time  := 0
+			; --- Long press is disabled ("none") for this key ---
+			if super._SendCAWKey(pressed_key){ ; Check for Ctrl/Alt/Win passthrough
+				this.pressed_time  := 0 ; Not a long-press candidate
 				return
 			}
-			if this.pressing {
+			if this.pressing { ; Prevent key-repeat
 				return
 			}
 			this.pressing := True
 			LKey.last_key := this.key
-			this.pressed_time  := A_TickCount
+			; This key *doesn't* send on Down. It sends on Up (if short press).
+			this.pressed_time  := A_TickCount ; Start timer for Up()
 			;tooltip	this.pressed_time
 		}else{
+			; --- Long press is enabled for this key ---
 			this.pressing := True
-			if LKey.long_press_enabled {
+			if LKey.long_press_enabled { ; Check global toggle
+				; (Key repeat handling?)
 				if LKey.last_key = this.key && this.send_time > 0{
 					if A_TickCount - this.send_time < LKey.long_press_th{
 						return
 					}
 				}
 				LKey.last_key := this.key
-				if ! super._SendModKey(pressed_key){
+				
+				; (Refactored: Fixed bug, was `_SendModKey`)
+				; Call RKey's main send logic. This sends the SHORT key immediately.
+				; If it was a passthrough (Ctrl/Alt/Win), it returns true.
+				if !super._SendSCAWKey(pressed_key){
+					; Not a passthrough, so start the long-press timer.
 					this.pressed_time  := A_TickCount
 				}
 			}else{
-				super.SendModKey(pressed_key)
+				; Long press feature is globally disabled
+				; (Refactored: Fixed bug, was `SendModKey`)
+				super._SendSCAWKey(pressed_key) ; Act as a normal RKey
 			}
 		}
 	}
@@ -652,76 +821,89 @@ class LKey extends RKey
 
 
 /*============================================================================
-	Assign this method to the hotkey as same as registered.  
-	ex)
-	x := LKey("x")
-	x::x.Down("x")
-	x::x.Up()
+	(Override) Call this on the key-down hotkey (e.g., `*x::x.Down("x")`).
 ============================================================================*/
 	Down(pressed_key := "")
 	{
 		;LayerKey.ChangeLayer(0)
-		if LKey.use_registered_key_for_ctrl ||  pressed_key = ""{
+		if LKey.use_registered_key_for_ctrl || pressed_key = ""{
 			pressed_key := this.key
 		}
 		this._Down(pressed_key)
 	}
 
 	/*============================================================================
-	Assign this method to the hotkey as same as registered.  
-	See Down() method for the detail.
-	return value short:true  long:falsem
+	(Override) Call this on the key-up hotkey (e.g., `*x up::x.Up()`).
+	Handles the short-press vs long-press logic.
+	@returns {Boolean} True if a long press was actioned, false if short press.
 	============================================================================*/
 	Up()
 	{
-		if this.pressed_time >0 && this.long_key_str != ""{
+		if this.pressed_time > 0 && this.long_key_str != ""{
 			time := A_TickCount
 			if this.long_key_str = "none"{
+				; --- Long press "none" (sends on Up) ---
 				if time - this.pressed_time  >= LKey.long_press_th {
+					; Held for a long time, but "none" means do nothing.
 				}else{
+					; Short press: send the key now.
 					if this.pressing {
 						if LKey.last_key = this.key {
 							shift := GetShiftState()
-							this.SendShiftedKey(shift) ;Sends key in blind mode
+							this.SendShiftedKey(shift) ; Send base/shifted key
 						}
 					}
 				}
 				this.pressed_time  := 0
 			}else{
+				; --- Long press enabled ---
 				if time - this.pressed_time  >= LKey.long_press_th {
+					; Long press detected!
 					if LKey.last_key = this.key {
 						this.send_time := time
-						Send("{Backspace}" . this.long_key_str )
+						; Backspace the short-press key (sent on Down) and send the long-press key.
+						Send("{Backspace}" . this.long_key_str ) 
 						this.pressed_time  := 0
 						this.pressing := false 
-						return true
+						return true ; Long press actioned
 					}
 				}
 			}
 		}
+		; This was a short press (or timer not set), and Down() already sent the key.
 		this.pressing := false 
 		this.send_time := 0
 		this.pressed_time  := 0
-		return false
+		return false ; Short press
 	}
 } ;class LKey
 
-;f13 := ModKey(S_ZENKAKU,200) ;m1
+
+; ============================================================================
+; KEY OBJECT INSTANTIATION
+; ============================================================================
+
+; --- Modifier Keys (MKey) ---
+; M1: F13 (Virtual/Physical key)
 f13 := MKey("",200) ;m1
+; M2: Space
 space := MKey("SPACE") ;m2
+; M3: Tab
 tab := MKey("TAB") ;m3
-noconv := MKey(S_ZENKAKU) ;m4
+; M4: Noconvert (sc07B)
+; (Refactored: Was MKey(S_ZENKAKU), now correctly MKey(S_NOCONV))
+noconv := MKey(S_NOCONV) ;m4
+; M5: Enter (or F14 / Convert)
 f14 := MKey("ENTER") ;m5
 
+; --- Long Press Keys (LKey) ---
+; M6: Colon (acts as M6 modifier, but is short-press only)
 colon := LKey(C_COLON,"","none")
+;colon := MKey(C_COLON)
 
-/*============================================================================
-	Returns true if modifier key is pressed. 
-	m: modifier num
-	alt: if value is true and alt key is pressed, returns false.  
-	ctrl: if value is true and ctrl key is pressed, returns false.
-	shift: if value is true and shift key is pressed, returns false.
-============================================================================*/
+
+; --- Remap Keys (RKey) ---
+; (Number Row)
 k1 := RKey("1")
 k2 := RKey("2")
 k3 := RKey("3")
@@ -731,11 +913,12 @@ k6 := RKey("6")
 k7 := RKey("7")
 k8 := RKey("8")
 k9 := RKey("9")
-k0 := RKey("0","none")
+k0 := RKey("0","none") ; '0' has no shifted key
 minus := RKey("-")
-hat := RKey(C_HAT)
-backslash := RKey("\")
+hat := RKey(C_HAT) ; ^
+backslash := RKey("\") ; ¥
 ;
+; (QWERTY Row)
 q := RKey("q")
 w := RKey("w")
 e := RKey("e")
@@ -750,6 +933,7 @@ p := RKey("p")
 at := RKey("@")
 openbracket := RKey("[")
 ;
+; (ASDF Row)
 a := RKey("a")
 s := RKey("s")
 d := RKey("d")
@@ -760,10 +944,11 @@ h := RKey("h")
 j := RKey("j")
 k := RKey("k")
 l := RKey("l")
-semicolon := RKey(C_SEMICOLON)
-;colon := RKey(C_COLON)
+semicolon := RKey(C_SEMICOLON) ; ;
+;colon := RKey(C_COLON) ; (Defined as LKey above)
 closebracket := RKey("]")
 ;
+; (ZXCV Row)
 z := RKey("z")
 x := RKey("x")
 c := RKey("c")
@@ -772,21 +957,42 @@ b := RKey("b")
 ;
 n := RKey("n")
 m := RKey("m")
-comma := RKey(C_COMMA)
-period := RKey(".")
-slash := RKey("/")
-backslash2 := RKey(C_BACKSLASH2)
+comma := RKey(C_COMMA) ; ,
+period := RKey(".") ; .
+slash := RKey("/") ; /
+backslash2 := RKey(C_BACKSLASH2) ; _
 ;
-up    := RKey(B_UP,"none")
-down  := RKey(B_DOWN,"none")
-left  := RKey(B_LEFT,"none")
-right := RKey(B_RIGHT,"none")
+; (Arrow Keys - for remapping)
+up    := RKey(C_UP)
+down  := RKey(C_DOWN)
+left  := RKey(C_LEFT)
+right := RKey(C_RIGHT)
 
 
+; ============================================================================
+; LAYER STATE FUNCTIONS
+; ============================================================================
+
+/**
+ * Checks if a specific modifier layer (M1-M6) is active.
+ * @param {Integer} m - Modifier layer number to check:
+ * 1 = F13 (f13)
+ * 2 = Space (space)
+ * 3 = Tab (tab) - (Currently disabled)
+ * 4 = Tab (tab) OR Noconvert (sc07B)
+ * 5 = Enter (f14)
+ * 6 = Colon (colon)
+ * @param {Boolean} [alt=false] - If true, return false if Alt is pressed.
+ * @param {Boolean} [ctrl=false] - If true, return false if Ctrl is pressed.
+ * @param {Boolean} [shift=false] - If true, return false if Shift is pressed.
+ * @returns {Boolean} True if the specified layer is active and exclusions are met.
+ */
 ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 {
+	; Check exclusion keys
 	if ctrl {
-		if GetKeyState("Ctll","P") {
+		; (Refactored: Fixed typo "Ctll")
+		if GetKeyState("Ctrl","P") {
 			return false
 		}
 	} 
@@ -800,54 +1006,36 @@ ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
 			return false
 		}
 	} 
+	
+	; Check the specified layer
 	if m = 1{
-		return GetKeyState("F13","P") 
+		return GetKeyState("F13","P") ; M1: F13 (Physical state)
 	} if m = 2{
-		return space.IsPressed() 
+		return space.IsPressed()     ; M2: Space (MKey state)
 	} if m = 3{
-		;return tab.IsPressed() 
-		return false	
+		;return tab.IsPressed()     ; M3: Tab (MKey state)
+		return false	; M3 is currently disabled
 	} if m = 4{
-		return tab.IsPressed()  || GetKeyState(S_NOCONV, "P") 
+		return tab.IsPressed()  ||   ; M4: Tab (MKey state) OR
+			GetKeyState(S_NOCONV, "P") ;     Noconvert (Physical state)
 	} if m = 5{
-		return F14.IsPressed()
+		return F14.IsPressed()       ; M5: Enter (MKey state)
 	} if m = 6{
-		return colon.IsPressed()
+		return colon.IsPressed()     ; M6: Colon (LKey state)
 	}
 	return false
 }
 
-;exclusive state
-; ModifiedStateX(list)
-; {
-; 	b := false
-; 	s := ""
 
-; 	Loop 6 {
-; 		s := s . A_Index
-; 		bb := false
-; 		for k,v in list{
-; 			s := s . "["  . v . "," . k . "]"
-; 			if v = A_Index {
-; 				bb := true
-; 				break
-; 			}
-; 		}
-; 		if bb {
-; 			b |=  ModifiedState(A_Index)
-; 			s := s . "a:"
-; 		}else {
-; 			b &= !ModifiedState(A_Index)
-; 			s := s . "b:"
-; 		}	
-; 	}
-; 	  if b {
-; 	 	ToolTip "ModifiedState: " . s . b
-; 	 	;SetTimer(ToolTip,3000)
-; 	 }
-; 	return b
-; }
 
+; ============================================================================
+; KEY LAYOUT SWITCHING FUNCTIONS
+; ============================================================================
+
+/**
+ * Resets all IME-ON key definitions (SetImeKey)
+ * back to their IME-OFF (SetKey) defaults.
+ */
 ResetIME()
 {   
 	global minus
@@ -888,45 +1076,12 @@ ResetIME()
 	period.SetImeKey()
 	slash.SetImeKey()
 
-
-	; global q_ime := ""
-	; global w_ime := ""
-	; global e_ime := ""
-	; global r_ime := ""
-	; global t_ime := ""
-	
-	; global a_ime := ""
-	; global s_ime := ""
-	; global d_ime := ""
-	; global f_ime := ""
-	; global g_ime := ""
-	
-	; global z_ime := ""
-	; global x_ime := ""
-	; global c_ime := ""
-	; global v_ime := ""
-	; global b_ime := ""
-	
-	; global y_ime := ""
-	; global u_ime := ""
-	; global i_ime := ""
-	; global o_ime := ""
-	; global p_ime := ""
-	
-	; global h_ime := ""
-	; global j_ime := ""
-	; global k_ime := ""
-	; global l_ime := ""
-	; global sc_ime := ""
-	
-	; global n_ime := ""
-	; global m_ime := ""
-	; global comma_ime := ""
-	; global period_ime := ""
-	; global slash_ime := ""
 }
 
 
+/**
+ * Changes the current key layout to "Oonishi Layout".
+ */
 ChangeOonishiLayout()
 {
 	global minus
@@ -965,10 +1120,12 @@ ChangeOonishiLayout()
 	slash.SetKey("b")
 
 	ResetIME()
-
 	TrayTip("Oonish layout","",0x11)
 }
 
+/**
+ * Changes the current key layout to "Colemak Layout".
+ */
 ChangeColemakLayout()
 {
 	global minus
@@ -986,7 +1143,7 @@ ChangeColemakLayout()
 	u.SetKey("l")
 	i.SetKey("u")
 	o.SetKey("y")
-	p.SetKey(C_SEMICOLON)
+	p.SetKey(C_SEMICOLON) ; ;
 
 	a.SetKey("a")
 	s.SetKey("r")
@@ -1006,14 +1163,16 @@ ChangeColemakLayout()
 	b.SetKey("b")
 	n.SetKey("k")
 	m.SetKey("m")
-	comma.SetKey(C_COMMA)
+	comma.SetKey(C_COMMA) ; ,
 	period.SetKey(".")
 	slash.SetKey("/")
 
 	TrayTip("Colemak layout","",0x11)
 }
 
-
+/**
+ * Base layout for FMIX variants.
+ */
 ChangeFMIXVBJ_LayoutImpl()
 {
 	global minus
@@ -1056,6 +1215,9 @@ ChangeFMIXVBJ_LayoutImpl()
 	slash.SetKey("/")
 }
 
+/**
+ * Changes layout to "FMIX12f".
+ */
 ChangeFMIX12f_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1067,6 +1229,7 @@ ChangeFMIX12f_Layout()
 
 	ResetIME()
 
+	; Diffs from base
 	e.SetKey("f")
 	d.SetKey("d")
 	r.SetKey("r")
@@ -1076,6 +1239,9 @@ ChangeFMIX12f_Layout()
 	TrayTip("FMIX12f layout","",0x11)
 }
 
+/**
+ * Changes layout to "FMIX12f-FMIX13fR".
+ */
 ChangeFMIX12f_FMIX13fR_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1087,12 +1253,14 @@ ChangeFMIX12f_FMIX13fR_Layout()
 
 	ResetIME()
 
+	; Diffs from base (IME OFF)
 	e.SetKey("f")
 	d.SetKey("d")
 	r.SetKey("r")
 	t.SetKey("k")
 	u.SetKey("l")
 
+	; Diffs for IME ON
 	e.SetImeKey("d","F")
 	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
@@ -1100,6 +1268,9 @@ ChangeFMIX12f_FMIX13fR_Layout()
 	TrayTip("FMIX12f-FMIX13fR layout","",0x11)
 }
 
+/**
+ * Changes layout to "FMIX13f-FMIX14R".
+ */
 ChangeFMIX13f_FMIX14R_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1111,12 +1282,14 @@ ChangeFMIX13f_FMIX14R_Layout()
 
 	ResetIME()
 
+	; Diffs from base (IME OFF)
 	e.SetKey("r")
 	d.SetKey("d")
 	r.SetKey("f")
 	t.SetKey("k")
 	u.SetKey("l")
 
+	; Diffs for IME ON
 	e.SetImeKey("r")
 	r.SetImeKey("d","F")
 	t.SetImeKey("l","K")
@@ -1126,7 +1299,9 @@ ChangeFMIX13f_FMIX14R_Layout()
 	TrayTip("FMIX13f-FMIX14R layout","",0x11)
 }
 
-
+/**
+ * Changes layout to "FMIX14-FMIX14R".
+ */
 ChangeFMIX14_FMIX14R_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1138,9 +1313,11 @@ ChangeFMIX14_FMIX14R_Layout()
 
 	ResetIME()
 
+	; Diffs from base (IME OFF)
 	r.SetKey("d")
 	t.SetKey("k")
 
+	; Diffs for IME ON
 	e.SetImeKey("r","L")
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
@@ -1148,6 +1325,9 @@ ChangeFMIX14_FMIX14R_Layout()
 	TrayTip("FMIX14-FMIX14R layout","",0x11)
 }
 
+/**
+ * Changes layout to "FMIX13f-FMIX14fR".
+ */
 ChangeFMIX13f_FMIX14fR_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1159,13 +1339,14 @@ ChangeFMIX13f_FMIX14fR_Layout()
 
 	ResetIME()
 
+	; Diffs from base (IME OFF)
 	e.SetKey("r")
 	u.SetKey("l")
-
 	r.SetKey("f")
 	t.SetKey("k")
 	d.SetKey("d")
 
+	; Diffs for IME ON
 	;e.SetImeKey("r","L")
 	r.SetImeKey("d","F")
 	t.SetImeKey("f","K")
@@ -1174,6 +1355,9 @@ ChangeFMIX13f_FMIX14fR_Layout()
 	TrayTip("FMIX13f-FMIX14fR layout","",0x11)
 }
 
+/**
+ * Changes layout to "FMIX13-FMIX14R".
+ */
 ChangeFMIX13_FMIX14R_Layout()
 {
 	ChangeFMIXVBJ_LayoutImpl()
@@ -1185,12 +1369,14 @@ ChangeFMIX13_FMIX14R_Layout()
 
 	ResetIME()
 
+	; Diffs from base (IME OFF)
 	e.SetKey("r")
 	u.SetKey("f")
 	r.SetKey("l")
 	t.SetKey("k")
 	d.SetKey("d")
 
+	; Diffs for IME ON
 	e.SetImeKey("r","R")
 	r.SetImeKey("d","L")
 	t.SetImeKey("l","K")
@@ -1199,78 +1385,59 @@ ChangeFMIX13_FMIX14R_Layout()
 	TrayTip("FMIX13-FMIX14R layout","",0x11)
 }
 
-; ChangeFMIX13vbp_FMIX14R_Layout()
-; {
-; 	ChangeFMIXVBJ_LayoutImpl()
-
-; 	global minus
-; 	global q,w,e,r,t,y,u,i,o,p
-; 	global a,s,d,f,g,h,j,k,l,semicolon,colon
-; 	global b,n,m,comma,period,slash
-
-; 	ResetIME()
-
-; 	e.SetKey("r")
-; 	u.SetKey("f")
-; 	o.SetKey("j")
-; 	n.SetKey("p")
-
-; 	r.SetKey("l")
-; 	t.SetKey("k")
-; 	d.SetKey("d")
-
-; 	;e.SetImeKey("r","L")
-; 	r.SetImeKey("d","L")
-; 	t.SetImeKey("l","K")
-; 	d.SetImeKey("k","D")
-
-; 	TrayTip("FMIX13vbp-FMIX14R layout","",0x11)
-; }
 
 
-;***M3**************************************************************************
+; ============================================================================
+; HOTKEY DEFINITIONS (LAYERS)
+; ============================================================================
+
+;*** LAYER M3 (Shifted Editing) ***
+; Activation: M1 (F13) AND (Alt OR Noconvert)
 #HotIf ModifiedState(1) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
-;#HotIf ModifiedState(3) 
-*1::Send("^z")
-*2::Send("^x")
-*3::Send("^c")
-*4::Send("^v")
-*z::Send("^z")
-*x::Send("^x")
-*c::Send("^c")
-*v::Send("^v")
-*b::Send("^z")
 
-*y::Send(C_REDO)
-*u::Send(C_BS)
-*i::Send("+{Up}")
-*o::Send("+{PgUp}")
-*p::Send("+{PgDn}")
-*@::Send(C_CSHOME)
-*[::Send(C_CSEND)
+; --- Editing (with Shift) ---
+*1::Send("^z") ; Undo
+*2::Send("^x") ; Cut
+*3::Send("^c") ; Copy
+*4::Send("^v") ; Paste
+*z::Send("^z") ; Undo
+*x::Send("^x") ; Cut
+*c::Send("^c") ; Copy
+*v::Send("^v") ; Paste
+*b::Send("^z") ; Undo
 
-*h::Send("+{Home}")
-*j::Send("+{Left}")
-*k::Send("+{Down}")
-*l::Send("+{Right}")
-*sc027::Send("+{Enter}") ;vkBBsc027 = ; shift:+
-*Enter::Send("{Enter}")
-*n::Send("+{End}")
-*m::Send(C_DEL)
-*sc033::Send("^+{Left}") ;vkBCsc033 = ,
-*.::Send("^+{Right}")
+; --- Navigation (with Shift) ---
+*y::Send(C_REDO) ; Redo (^y)
+*u::Send(C_BS)   ; Backspace
+*i::Send("+{Up}")   ; Shift+Up
+*o::Send("+{PgUp}") ; Shift+PgUp
+*p::Send("+{PgDn}") ; Shift+PgDn
+*@::Send(C_CSHOME) ; Ctrl+Shift+Home
+*[::Send(C_CSEND)  ; Ctrl+Shift+End
 
-*space::Send(C_BS)
+*h::Send("+{Home}")  ; Shift+Home
+*j::Send("+{Left}")  ; Shift+Left
+*k::Send("+{Down}")  ; Shift+Down
+*l::Send("+{Right}") ; Shift+Right
+*sc027::Send("+{Enter}") ; Semicolon (;) -> Shift+Enter
+*Enter::Send("{Blind}{Enter}")
+*n::Send("+{End}")   ; Shift+End
+*m::Send(C_DEL)    ; Delete
+*sc033::Send("^+{Left}") ; Comma (,) -> Ctrl+Shift+Left
+*.::Send("^+{Right}") ; Period (.)
+
+*space::Send(C_BS) ; Space -> Backspace
 
 *up::Send("+{Up}")
 *left::Send("+{Left}")
 *down::Send("+{Down}")
 *right::Send("+{Right}")
-
 #HotIf
 
-;***M1 or M2 *******************************************************************
+;*** LAYER M1 (F13) or M2 (Space) (Navigation/Editing) ***
+; Activation: (M1 OR M2) AND (NOT M3, M4, M5)
 #HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+; --- F-Keys ---
 *1::Send(B_F1)
 *2::Send(B_F2)
 *3::Send(B_F3)
@@ -1282,184 +1449,193 @@ ChangeFMIX13_FMIX14R_Layout()
 *9::Send(B_F9)
 *0::Send(B_F10)
 *-::Send(B_F11)
-*sc00D::Send(B_F12) ; sc00D = "^"
-sc07D::Send("^+{sc07D}") ;\(|)
+*sc00D::Send(B_F12) ; ^ -> F12
+sc07D::Send("^+{sc07D}") ; \ -> |
 
-*y::Send(B_UNDO)
-*u::Send(B_BS)
-*i::Send(B_UP)
-*o::Send(B_PGUP)
-*p::Send(B_PGDN)
-*@::Send(B_CHOME)
-*[::Send(B_CEND)
+; --- Editing & Navigation (no Shift) ---
+*y::Send(B_UNDO)  ; Undo (^z)
+*u::Send(B_BS)    ; Backspace
+*i::Send(B_UP)    ; Up
+*o::Send(B_PGUP)  ; PgUp
+*p::Send(B_PGDN)  ; PgDn
+*@::Send(B_CHOME) ; Ctrl+Home
+*[::Send(B_CEND)  ; Ctrl+End
 
-*h::Send(B_HOME)
-*j::Send(B_LEFT)
-*k::Send(B_DOWN)
-*l::Send(B_RIGHT)
-*sc027::Send(B_ENTER) ;vkBBsc027 = ; shift:+
-;sc028::Return ;vkBAsc028 = ":" shift:*
+*h::Send(B_HOME)  ; Home
+*j::Send(B_LEFT)  ; Left
+*k::Send(B_DOWN)  ; Down
+*l::Send(B_RIGHT) ; Right
+*sc027::Send(B_ENTER) ; Semicolon (;) -> Enter
+;sc028::Return ; Colon (:) -> Disabled
 *]::Send("{Blind}^]")
 
-*z::Send(B_UNDO) ;undo
-*x::Send(B_CUT) ;cut
-*c::Send(B_COPY) ;copy
-*v::Send(B_PASTE) ;paste
-*b::Send(B_UNDO) ;undo
-*n::Send(B_END)
-*m::Send(B_DEL)
-*sc033::Send(B_CLEFT) ;vkBCsc033 = ,
-*.::Send(B_CRIGHT)
-sc035::Send("^+{sc07D}") ;sc035 = "/" sc07D = \(|)
+*z::Send(B_UNDO)  ; Undo
+*x::Send(B_CUT)   ; Cut
+*c::Send(B_COPY)  ; Copy
+*v::Send(B_PASTE) ; Paste
+*b::Send(B_UNDO)  ; Undo
+*n::Send(B_END)   ; End
+*m::Send(B_DEL)   ; Delete
+*sc033::Send(B_CLEFT) ; Comma (,) -> Ctrl+Left
+*.::Send(B_CRIGHT) ; Period (.) -> Ctrl+Right
+sc035::Send("^+{sc07D}") ; / -> |
 
-*Enter::Send("{Blind}^{Enter}")
-
+*Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
 #HotIf
 
-;***M1**************************************************************************
+;*** LAYER M1 (F13) (System/App Control) ***
+; Activation: M1 AND (NOT M3, M4, M5)
 #HotIf ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
-*a::Send("{Blind}^a")
-sc029::Send(C_EISU) ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
-+sc029::ToggleForceImeOn() ; vkF3sc029 = 全角/半角 vkF0sc03A = Eisu
-Esc::Reload
+*a::Send("{Blind}^a") ; Select All
+sc029::Send(C_EISU) ; Zen/Han -> Eisu
++sc029::ToggleForceImeOn() ; Shift+Zen/Han -> Toggle Force IME ON
+Esc::Reload ; Esc -> Reload Script
 
-q::#!space
-*e::Send(B_ESC)
-r::+F3
-*s::Send("{Blind}^s")
-*d::Send("{Blind}^{Space}") 
-*f::Send(B_TAB)
-g::Send("^f")
+q::#!space ; Win+Alt+Space
+*e::Send(B_ESC) ; Esc
+r::+F3 ; Shift+F3
+*s::Send("{Blind}^s") ; Save
+*d::Send("{Blind}^{Space}") ; Ctrl+Space (IME toggle, etc.)
+*f::Send(B_TAB) ; Tab
+g::Send("^f") ; Find
 
-F14::ToggleImeState()
-sc079::ToggleImeState() ;conv
-space::ToggleImeState()
+; --- IME Toggles while M1 is held ---
+F14::ToggleImeState() ; F14/Enter
+sc079::ToggleImeState() ; Convert
+space::ToggleImeState() ; Space
 
+;*space::Send(B_BS) ; (Commented out)
 
-;*space::Send(B_BS)
-#r::ChangeFMIX14_FMIX14R_Layout()
-#f::ChangeFMIX12f_FMIX13fR_Layout()
-#d::ChangeFMIX12f_Layout()
-#s::ChangeFMIX13_FMIX14R_Layout()
-#x::ChangeFMIX13f_FMIX14R_Layout()
+; --- Layout Switching ---
+#r::ChangeFMIX14_FMIX14R_Layout() ; Win+r
+#f::ChangeFMIX12f_FMIX13fR_Layout() ; Win+f
+#d::ChangeFMIX12f_Layout() ; Win+d
+#s::ChangeFMIX13_FMIX14R_Layout() ; Win+s
+#x::ChangeFMIX13f_FMIX14R_Layout() ; Win+x
 
-#o::ChangeOonishiLayout()
-#c::ChangeColemakLayout()
+#o::ChangeOonishiLayout() ; Win+o
+#c::ChangeColemakLayout() ; Win+c
 
-#up::MouseSpeed.IncSpeed()
-#down::MouseSpeed.DecSpeed()
-
-
+; --- Mouse Speed ---
+#up::MouseSpeed.IncSpeed() ; Win+Up
+#down::MouseSpeed.DecSpeed() ; Win+Down
 #HotIf
 
-;***M2**************************************************************************
+;*** LAYER M2 (Space) (Misc Symbols) ***
+; Activation: M2 (Space)
 #HotIf ModifiedState(2)
 q::Send("?")
 w::+F3
 *e::Send("{Blind}/")
-*r::Send(B_NMUL) 
-*t::Send(B_NADD)
+*r::Send(B_NMUL) ; Numpad *
+*t::Send(B_NADD) ; Numpad +
 
 *a::Send("(")
 *s::Send(")")
 *d::Send("_")
 *f::Send("{Blind}-")
 g::Send("=")
-
  
-F14::ToggleImeState()
-sc079::ToggleImeState() ;conv
+; --- IME Toggles while M2 is held ---
+F14::ToggleImeState() ; F14/Enter
+sc079::ToggleImeState() ; Convert
 #HotIf
  
-;***M4**************************************************************************
+;*** LAYER M4 (Tab or Noconvert) (Numpad Layer) ***
+; Activation: M4 AND (NOT M1)
 #HotIf !ModifiedState(1) && ModifiedState(4) 
-
+; --- Left Hand ---
 6::Send("{Escape}")
-7::Send(C_N7)
-8::Send(C_N8)
-9::Send(C_N9)
-0::Send(B_NMUL)
--::Send(B_NSUB)
-sc00D::Send(C_HAT)
-sc07D::Send("\")
-
-t::Send(B_NADD)
-
+t::Send(B_NADD) ; Numpad +
 a::Send("(")
 s::Send(")")
 f::Send("-")
 g::Send("=")
 
-y::Send(C_BS)
+; --- Right Hand (Numpad) ---
+7::Send(C_N7)
+8::Send(C_N8)
+9::Send(C_N9)
+0::Send(B_NMUL) ; Numpad *
+-::Send(B_NSUB) ; Numpad -
+sc00D::Send(C_HAT) ; ^
+sc07D::Send("\") ; \
+
+y::Send(C_BS) ; Backspace
 u::Send(C_N4)
 i::Send(C_N5)
 o::Send(C_N6)
-p::Send(B_NADD)
-@::Send(B_UP)
+p::Send(B_NADD) ; Numpad +
+@::Send(B_UP)   ; Up
 
 h::Send("=")
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
-sc027::Send(B_LEFT) ;; 
-sc028::Send(B_DOWN) ;:
-]::Send(B_RIGHT)
+sc027::Send(B_LEFT)  ; ; -> Left
+sc028::Send(B_DOWN)  ; : -> Down
+]::Send(B_RIGHT) ; ] -> Right
 
-n::Send(C_DEL)
+n::Send(C_DEL) ; Delete
 m::Send(C_N0)
-sc033::Send(C_COMMA) ;.
-.::Send(C_NDOT)
-sc035::Send(B_NDIV)
-sc073::Send("\")
-space::Send(B_ENTER)
+sc033::Send(C_COMMA) ; ,
+.::Send(C_NDOT)  ; . -> Numpad .
+sc035::Send(B_NDIV) ; / -> Numpad /
+sc073::Send("\") ; _
+space::Send(B_ENTER) ; Space -> Enter
 
+; (Arrows passthrough)
 ; up::Send(B_UP)
 ; down::Send(B_DOWN)
 ; left::Send(B_LEFT)
 ; right::Send(B_RIGHT)
 #HotIf
 
-;***Symbol**************************************************************************
+;*** LAYER M6 (Colon) (Symbol Layer) ***
+; Activation: M6 AND (NOT M1, M2, M3, M4, M5)
 #HotIf ModifiedState(6) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-;#HotIf ModifiedStateX([6])
+;#HotIf ModifiedStateX([6]) ; (Old definition)
+; --- Symbols ---
 q::Send("[")
 w::Send("]")
-e::Send("+1") ;'
-r::Send("+5") ;'
-t::Send("~") ;
+e::Send("+1") ; !
+r::Send("+5") ; %
+t::Send("~")  ; ~
 
-a::Send("+6") ;&
-s::Send("+7") ;''
-d::Send("+2") ;"
-*f::Send("{Blind}k") ;"
-*g::Send("{Blind}y") ;"
+a::Send("+6") ; &
+s::Send("+7") ; '
+d::Send("+2") ; "
+*f::Send("{Blind}k") ; f -> k
+*g::Send("{Blind}y") ; g -> y
 
-z::Send("+[") ;{}
-x::Send("+]") ;}
-c::Send(":") ;:
-v::Send("|") ;| vertical bar
-b::Send("\") ;\
+z::Send("+[") ; {
+x::Send("+]") ; }
+c::Send(":") ; :
+v::Send("|") ; |
+b::Send("\") ; \
 
 u::send("{Backspace}")
-h::Send(C_HAT) ;^
-i::Send("+4") ;$
+h::Send(C_HAT) ; ^
+i::Send("+4") ; $
 o::Send("+k")
 p::Send("+y")
 
-j::Send("=") ;
-k::Send("0") ;"
-l::Send("->") ;"
-sc027::Send(C_SEMICOLON) ;; 
+j::Send("=") ; =
+k::Send("0") ; 0
+l::Send("->") ; ->
+sc027::Send(C_SEMICOLON) ; ;
 
-n::Send("+3") ;# Numbed Sign
-m::Send("{Delete}") ;
-sc033::Send("<=") ; sc033 = ,
-.::Send(">=")
+n::Send("+3") ; #
+m::Send("{Delete}")
+sc033::Send("<=") ; , -> <=
+.::Send(">=") ; . -> >=
 
-space::Send("{Enter}") ; Enter
+space::Send("{Enter}") ; Space -> Enter
 #HotIf
 
-;***shift**************************************************************************
+;*** LAYER M5 (Enter) or M4 (Tab/Noconvert) (Shift Layer) ***
+; Activation: (M5 OR M4) AND (NOT M1, M2, M3)
+; This layer simulates holding the Shift key for all RKey objects.
 #HotIf (ModifiedState(5) || ModifiedState(4) ) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
 1::k1.SendShiftedKey()
 2::k2.SendShiftedKey()
@@ -1506,8 +1682,8 @@ j::j.SendShiftedKey()
 k::k.SendShiftedKey()
 l::l.SendShiftedKey()
 sc027::semicolon.SendShiftedKey()
-sc028::+sc028
-]::+]
+sc028::+sc028 ; : -> * (Not using RKey object)
+]::+]         ; ] -> } (Not using RKey object)
 
 n::n.SendShiftedKey()
 m::m.SendShiftedKey()
@@ -1515,7 +1691,20 @@ sc033::comma.SendShiftedKey()
 .::period.SendShiftedKey()
 sc035::slash.SendShiftedKey()
 sc073::backslash2.SendShiftedKey()
+Up::up.SendShiftedKey()
+Down::down.SendShiftedKey()
+Left::left.SendShiftedKey()
+Right::right.SendShiftedKey()
+
 #HotIf
+
+
+; ============================================================================
+; GLOBAL HOTKEYS (RKey / LKey Bindings)
+; ============================================================================
+; These hotkeys are active when no layers are pressed.
+; They call the Down() and Up() methods of their respective RKey/LKey objects
+; to handle remapping, modifier passthrough, and long-press logic.
 
 *1::k1.Down("1")
 *1 up::k1.Up()
@@ -1540,9 +1729,9 @@ sc073::backslash2.SendShiftedKey()
 *0 up::k0.Up()
 *-::minus.Down("-")
 *- up::minus.Up()
-*sc00D::hat.Down("{sc00D}")
+*sc00D::hat.Down("{sc00D}") ; ^
 *sc00D up::hat.Up()
-*sc07D::backslash.Down("{sc07D}")
+*sc07D::backslash.Down("{sc07D}") ; ¥
 *sc07D up::backslash.Up()
 
 *q::q.Down("q")
@@ -1591,13 +1780,12 @@ sc073::backslash2.SendShiftedKey()
 *l::l.Down("l")
 *l up::l.Up()
 
-*sc027::semicolon.Down("sc027")
+*sc027::semicolon.Down("sc027") ; ;
 *sc027 up::semicolon.Up()
-*sc028::colon.Down("sc028")
+*sc028::colon.Down("sc028")     ; : (This is the LKey M6 modifier)
 *sc028 up::colon.Up()
-*]::closebracket.Down("]")
+*]::closebracket.Down("]")     ; ]
 *] up::closebracket.Up()
-
 
 *z::z.Down("z")
 *z up::z.Up()
@@ -1613,53 +1801,72 @@ sc073::backslash2.SendShiftedKey()
 *n up::n.Up()
 *m::m.Down("m")
 *m up::m.Up()
-*sc033::comma.Down("sc033")
+*sc033::comma.Down("sc033") ; ,
 *sc033 up::comma.Up()
-*.::period.Down(".")
+*.::period.Down(".")        ; .
 *. up::period.Up()
 
-*sc035::slash.Down("sc035")
+*sc035::slash.Down("sc035") ; /
 *sc035 up::slash.Up()
-*sc073::backslash2.Down("sc073")
+*sc073::backslash2.Down("sc073") ; _
 *sc073 up::backslash2.Up()
-;
 
-down::down.Down()
-up::up.Down()
-left::left.Down()
-right::right.Down()
+; (Refactored: Added bindings for arrow RKey objects)
+*Down::down.Down("Down")
+*Down up::down.Up()
+*Up::up.Down("Up")
+*Up up::up.Up()
+*Left::left.Down("Left")
+*Left up::left.Up()
+*Right::right.Down("Right")
+*Right up::right.Up()
 
-#Hotif
+#Hotif ; End context-sensitive hotkeys
+
+; ============================================================================
+; GLOBAL HOTKEYS (MKey Bindings)
+; ============================================================================
+; These hotkeys are always active and bind the physical keys
+; to their MKey (modifier) objects.
+
 *Space::space.Down()
-
 *Space up::space.Up()
+
 *tab::tab.Down()
 *tab up::tab.Up()
 
 *F13::f13.Down()
 *F13 up::f13.Up()
 
-*F14:: f14.Down()
+*F14:: f14.Down() ; M5
 *F14 up::f14.Up() 
 
-*sc079:: f14.Down() ;conv
-*sc079 up::f14.Up() ;conv
+*sc079:: f14.Down() ; M5 (Convert key)
+*sc079 up::f14.Up() 
 	
-sc07B::noconv.Down() ;vk1Dsc07B = 無変換
-sc07B up::noconv.Up() 
+*sc07B::noconv.Down() ; M4 (Noconvert key)
+*sc07B up::noconv.Up() 
 
+; ============================================================================
+; MISCELLANEOUS GLOBAL HOTKEYS
+; ============================================================================
 
-;NumLock::Return
-+F15::Send("{NumLock}")
-;*F15::Send("{NumLock}") ;NumLock
+;NumLock::Return ; Disable NumLock key
++F15::Send("{NumLock}") ; Shift+F15 sends NumLock
+;*F15::Send("{NumLock}")
 
->+Up::_
-^+F13::Send("+{CapsLock}") ;Change CapsLock off setting to shift on Windows setting
-+sc029::Send(C_EISU) ;vkF3sc029 = 全角/半角 
-sc029::ToggleImeState() ;vkF3sc029 = 全角/半角
+>+Up::_ ; RShift+Up -> _
 
-#SuspendExempt
-#!Enter::Suspend
+; Fix for CapsLock state
+^+F13::Send("+{CapsLock}") 
+
+; Standard IME Toggles (Zenkaku/Hankaku key)
++sc029::Send(C_EISU) ; Shift + Zen/Han -> Eisu
+sc029::ToggleImeState() ; Zen/Han -> Toggle IME
+
+; --- Suspend Hotkey ---
+#SuspendExempt ; Allow suspend hotkey to work even if suspended
+#!Enter::Suspend ; Win+Alt+Enter toggles script suspend
 #SuspendExempt False
 
 #MaxThreadsBuffer False
