@@ -978,10 +978,13 @@ right := RKey(C_RIGHT)
  * @param {Integer} m - Modifier layer number to check:
  * 1 = F13 (f13)
  * 2 = Space (space)
- * 3 = reserved (always false)
+ * 3 = Tab (tab) - (Currently disabled)
  * 4 = Tab (tab) OR Noconvert (sc07B)
- * 5 = F14
+ * 5 = Enter (f14)
  * 6 = Colon (colon)
+ * @param {Boolean} [alt=false] - If true, return false if Alt is pressed.
+ * @param {Boolean} [ctrl=false] - If true, return false if Ctrl is pressed.
+ * @param {Boolean} [shift=false] - If true, return false if Shift is pressed.
  * @returns {Boolean} True if the specified layer is active and exclusions are met.
  */
 ;ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
@@ -1015,9 +1018,9 @@ ModifiedState(m)
 	} if m = 3{
 		return false
 	} if m = 4{ ;num
-		return tab.IsPressed() ; || GetKeyState(S_NOCONV, "P") ;
+		return tab.IsPressed()  ||	GetKeyState(S_NOCONV, "P") 
 	} if m = 5{
-		return F14.IsPressed()  || GetKeyState(S_NOCONV, "P")   
+		return F14.IsPressed() ; || GetKeyState(S_NOCONV, "P")   
 	} if m = 6{
 		return colon.IsPressed()  
 	}
@@ -1457,10 +1460,10 @@ ChangeFMIX13_FMIX14R_Layout()
 #HotIf
 
 ;*** LAYER M1 (F13) or M2 (Space) (Navigation/Editing) ***
-;#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 ;*** LAYER M1 (F13) (System/App Control) ***
-#HotIf ModifiedStateX(1) 
+;#HotIf ModifiedStateX(1) 
 
 ; --- F-Keys ---
 *1::Send(B_F1)
@@ -1506,10 +1509,10 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 sc035::Send("^+{sc07D}") ; / -> |
 
 *Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
-;#HotIf
 
+#HotIf
 ;*** LAYER M1 (F13) (System/App Control) ***
-;#HotIf ModifiedStateX(1) 
+#HotIf ModifiedStateX(1) 
 
 *a::Send("{Blind}^a") ; Select All
 sc029::Send(C_EISU) ; Zen/Han -> Eisu
@@ -1549,11 +1552,11 @@ space::ToggleImeState() ; Space
 ;*** LAYER M2 (Space) (Misc Symbols) ***
 #HotIf ModifiedStateX(2)
 ; --- F-Keys ---
-*1::Send(B_F1)
-*2::Send(B_F2)
-*3::Send(B_F3)
-*4::Send(B_F4)
-*5::Send(B_F5)
+; *1::Send(B_F1)
+; *2::Send(B_F2)
+; *3::Send(B_F3)
+; *4::Send(B_F4)
+; *5::Send(B_F5)
 
 
 q::Send("?")
@@ -1566,7 +1569,7 @@ w::+F3
 *s::Send(")")
 *d::Send("_")
 *f::Send("{Blind}-")
-g::Send(C_ENTER)
+g::Send("=")
  
 ; --- IME Toggles while M2 is held ---
 F14::ToggleImeState() ; F14/Enter
@@ -1599,7 +1602,7 @@ o::Send(C_N6)
 p::Send(B_NADD) ; Numpad +
 @::Send(B_UP)   ; Up
 
-;h::Send(C_ENTER)
+h::Send("=")
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
@@ -1613,8 +1616,7 @@ sc033::Send(C_COMMA) ; ,
 .::Send(C_NDOT)  ; . -> Numpad .
 sc035::Send(B_NDIV) ; / -> Numpad /
 sc073::Send("\") ; _
-
-;space::Send(B_ENTER) ; Space -> Enter 	In space num mode , this definition must be disabled to allow space to work normally. 
+space::Send(B_ENTER) ; Space -> Enter
 
 ; (Arrows passthrough)
 ; up::Send(B_UP)
@@ -1660,16 +1662,8 @@ m::Send("{Delete}")
 sc033::Send("<=") ; , -> <=
 .::Send(">=") ; . -> >=
 
-;space::Send("{Enter}") ; Space -> Enter
-#HotIf
-#HotIf ModifiedStateX(2)
-h::Send("{Enter}")
-#HotIf
-#HotIf ModifiedStateX(4)
-h::Send(C_ENTER) ; Enter
 space::Send("{Enter}") ; Space -> Enter
 #HotIf
-
 
 ;*** LAYER M5 (Enter) or M4 (Tab/Noconvert) (Shift Layer) ***
 ; This layer simulates holding the Shift key for all RKey objects.

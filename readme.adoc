@@ -197,7 +197,7 @@ ShiftやCtrlと同様に、他のキーの同時押しで特殊な動作が行�
 // image::img/m2.webp[]
 // FuncLock未対応
 
-== center_shift.ahk
+== space_navi.ahk
 === 概要
 「無変換 or 変換 or F14」の同時押しでシフト押下と同じ効果がある +
 また、左右のシフトも使える +
@@ -231,6 +231,58 @@ image::img/m1.webp[]
 
 === M2修飾
 image::img/m2.webp[]
+
+=== M3修飾 
+image::img/m3.webp[]
+
+=== M4修飾
+image::img/m4.webp[]
+
+=== M5修飾
+image::img/shift.webp[]
+
+=== M6修飾
+image::img/m6.webp[]
+
+=== その他
+* Win + Alt + Enter: AutoHotkeyのsuspend/resumeの切り替え
+* Shift + 全角: 英数
+* Ctrl + Shift + F13: CapsLock-On 
+
+== center_shift.ahk
+=== 概要
+「無変換 or 変換 or F14」の同時押しでシフト押下と同じ効果がある +
+また、左右のシフトも使える +
+// 基本はlong_press_shift.ahkと同じだが、 以下が排除されている
+
+// * 長押しシフト
+// * モード（レイヤー）固定機能
+// * マウス関連機能
+
+=== 動作詳細
+* 以下を修飾キーとして取り扱う +
+
+M1修飾::
+F13
+M2修飾::
+space
+M3修飾::
+ (F13 + Alt) or (F13 + 無変換) 
+M4修飾::
+Tab
+M5修飾::
+無変換 or 変換 or F14
+M6修飾::
+:(Colon)キー 
+
+=== Autohotkey有効時の標準状態
+image::img/stdahk.webp[]
+
+=== M1修飾
+image::img/m1.webp[]
+
+=== M2修飾
+image::img/m2a.webp[]
 
 === M3修飾 
 image::img/m3.webp[]
