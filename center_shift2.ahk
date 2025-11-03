@@ -1036,11 +1036,11 @@ ModifiedStateX(m)
 	if m = 1{
 		return ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 	} if m = 2{
-		return ModifiedState(2) && !GetKeyState(S_NOCONV, "P")
+		return ModifiedState(2)   
 	} if m = 3{
 		return ModifiedState(1) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
 	} if m = 4{ ;num 
-		return (ModifiedState(4) && !ModifiedState(1) ) || (ModifiedState(2) && GetKeyState(S_NOCONV, "P"))
+		return ModifiedState(4) && !ModifiedState(1)  
 	} if m = 5{ ;shift
 		return ModifiedState(5)  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
 	} if m = 6{ ;symbol
@@ -1460,7 +1460,7 @@ ChangeFMIX13_FMIX14R_Layout()
 ;#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 ;*** LAYER M1 (F13) (System/App Control) ***
-#HotIf ModifiedStateX(1) || ModifiedStateX(2)   
+#HotIf ModifiedStateX(1) 
 
 ; --- F-Keys ---
 *1::Send(B_F1)
@@ -1506,9 +1506,10 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 sc035::Send("^+{sc07D}") ; / -> |
 
 *Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
-#HotIf
+;#HotIf
+
 ;*** LAYER M1 (F13) (System/App Control) ***
-#HotIf ModifiedStateX(1) 
+;#HotIf ModifiedStateX(1) 
 
 *a::Send("{Blind}^a") ; Select All
 sc029::Send(C_EISU) ; Zen/Han -> Eisu
@@ -1548,11 +1549,11 @@ space::ToggleImeState() ; Space
 ;*** LAYER M2 (Space) (Misc Symbols) ***
 #HotIf ModifiedStateX(2)
 ; --- F-Keys ---
-; *1::Send(B_F1)
-; *2::Send(B_F2)
-; *3::Send(B_F3)
-; *4::Send(B_F4)
-; *5::Send(B_F5)
+*1::Send(B_F1)
+*2::Send(B_F2)
+*3::Send(B_F3)
+*4::Send(B_F4)
+*5::Send(B_F5)
 
 
 q::Send("?")
@@ -1565,7 +1566,7 @@ w::+F3
 *s::Send(")")
 *d::Send("_")
 *f::Send("{Blind}-")
-g::Send("=")
+g::Send(C_ENTER)
  
 ; --- IME Toggles while M2 is held ---
 F14::ToggleImeState() ; F14/Enter
@@ -1573,7 +1574,7 @@ sc079::ToggleImeState() ; Convert
 #HotIf
  
 ;*** LAYER M4 (Tab or Noconvert) (Numpad Layer) ***
-#HotIf ModifiedStateX(4)
+#HotIf ModifiedStateX(4) || ModifiedStateX(2)
 ; --- Left Hand ---
 6::Send("{Escape}")
 t::Send(B_NADD) ; Numpad +
@@ -1661,11 +1662,11 @@ sc033::Send("<=") ; , -> <=
 
 ;space::Send("{Enter}") ; Space -> Enter
 #HotIf
-;#HotIf ModifiedStateX(2)
-;h::Send("{Enter}")
-;#HotIf
+#HotIf ModifiedStateX(2)
+h::Send("{Enter}")
+#HotIf
 #HotIf ModifiedStateX(4)
-h::Send(C_ENTER) 
+h::Send(C_ENTER) ; Enter
 space::Send("{Enter}") ; Space -> Enter
 #HotIf
 

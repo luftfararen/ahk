@@ -1463,7 +1463,7 @@ ChangeFMIX13_FMIX14R_Layout()
 #HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 ;*** LAYER M1 (F13) (System/App Control) ***
-;#HotIf ModifiedStateX(1) 
+#HotIf ModifiedStateX(1) || ModifiedStateX(2)   
 
 ; --- F-Keys ---
 *1::Send(B_F1)
@@ -1509,7 +1509,6 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 sc035::Send("^+{sc07D}") ; / -> |
 
 *Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
-
 #HotIf
 ;*** LAYER M1 (F13) (System/App Control) ***
 #HotIf ModifiedStateX(1) 
@@ -1577,7 +1576,7 @@ sc079::ToggleImeState() ; Convert
 #HotIf
  
 ;*** LAYER M4 (Tab or Noconvert) (Numpad Layer) ***
-#HotIf ModifiedStateX(4) || ModifiedStateX(2)
+#HotIf ModifiedStateX(4) 
 ; --- Left Hand ---
 6::Send("{Escape}")
 t::Send(B_NADD) ; Numpad +
