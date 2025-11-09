@@ -525,8 +525,8 @@ pha	ぴゃ
 phu	ぴゅ
 pho	ぴょ
 phc	ぴゅう
-phs	ぴょう
-pht	ぴゃい
+phk	ぴょう
+phs	ぴゃい
 khn	きゃん
 khw	きゅん
 khr	きょん
@@ -632,8 +632,8 @@ pga	ぴゃ
 pgu	ぴゅ
 pgo	ぴょ
 pgc	ぴゅう
-pgs	ぴょう
-pgt	ぴゃい
+pgk	ぴょう
+pgs	ぴゃい
 kgn	きゃん
 kgw	きゅん
 kgr	きょん
