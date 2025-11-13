@@ -1408,6 +1408,65 @@ ChangeFMIX13_FMIX14R_Layout()
 	TrayTip("FMIX13-FMIX14R layout","",0x11)
 }
 
+/**
+ * Changes layout to "FMIX12-FMIX14R".
+ */
+ChangeFMIX12_FMIX14R_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	; Diffs from base (IME OFF)
+	e.SetKey("l")
+	u.SetKey("f")
+	r.SetKey("r")
+	t.SetKey("k")
+	d.SetKey("d")
+
+	; Diffs for IME ON
+	e.SetImeKey("r","L")
+	r.SetImeKey("d","R")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","D")
+
+	TrayTip("FMIX12-FMIX14R layout","",0x11)
+}
+
+/**
+ * Changes layout to "FMIX12-FMIX14R".
+ */
+ChangeFMIX12_FMIX13R_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	; Diffs from base (IME OFF)
+	e.SetKey("l")
+	u.SetKey("f")
+	r.SetKey("r")
+	t.SetKey("k")
+	d.SetKey("d")
+
+	; Diffs for IME ON
+	e.SetImeKey("d","L")
+	r.SetImeKey("r","R")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","D")
+
+	TrayTip("FMIX12-FMIX13R layout","",0x11)
+}
 
 
 ; ============================================================================
@@ -1531,14 +1590,16 @@ space::ToggleImeState() ; Space
 ;*space::Send(B_BS) ; (Commented out)
 
 ; --- Layout Switching ---
-#r::ChangeFMIX14_FMIX14R_Layout() ; Win+r
-#f::ChangeFMIX12f_FMIX13fR_Layout() ; Win+f
-#d::ChangeFMIX12f_Layout() ; Win+d
-#s::ChangeFMIX13_FMIX14R_Layout() ; Win+s
-#x::ChangeFMIX13f_FMIX14R_Layout() ; Win+x
+#r::ChangeFMIX14_FMIX14R_Layout() 
+#f::ChangeFMIX12f_FMIX13fR_Layout()
+#d::ChangeFMIX12f_Layout()
+#s::ChangeFMIX13_FMIX14R_Layout() 
+#v::ChangeFMIX13f_FMIX14R_Layout() 
+#z::ChangeFMIX12_FMIX14R_Layout() 
+#x::ChangeFMIX12_FMIX13R_Layout() 
 
-#o::ChangeOonishiLayout() ; Win+o
-#c::ChangeColemakLayout() ; Win+c
+#o::ChangeOonishiLayout() 
+#c::ChangeColemakLayout() 
 
 ; --- Mouse Speed ---
 #up::MouseSpeed.IncSpeed() ; Win+Up
