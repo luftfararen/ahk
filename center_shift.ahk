@@ -1536,6 +1536,11 @@ ChangeFMIX12_FMIX13R_Layout()
 *sc00D::Send(B_F12) ; ^ -> F12
 sc07D::Send("^+{sc07D}") ; \ -> |
 
+*z::Send(B_UNDO)  ; Undo
+*x::Send(B_CUT)   ; Cut
+*c::Send(B_COPY)  ; Copy
+*v::Send(B_PASTE) ; Paste
+*b::Send(B_UNDO)  ; Undo
 ; --- Editing & Navigation (no Shift) ---
 *y::Send(B_UNDO)  ; Undo (^z)
 *u::Send(B_BS)    ; Backspace
@@ -1553,11 +1558,6 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 ;sc028::Return ; Colon (:) -> Disabled
 *]::Send("{Blind}^]")
 
-*z::Send(B_UNDO)  ; Undo
-*x::Send(B_CUT)   ; Cut
-*c::Send(B_COPY)  ; Copy
-*v::Send(B_PASTE) ; Paste
-*b::Send(B_UNDO)  ; Undo
 *n::Send(B_END)   ; End
 *m::Send(B_DEL)   ; Delete
 *sc033::Send(B_CLEFT) ; Comma (,) -> Ctrl+Left
@@ -1566,6 +1566,7 @@ sc035::Send("^+{sc07D}") ; / -> |
 
 *Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
 #HotIf
+
 ;*** LAYER M1 (F13) (System/App Control) ***
 #HotIf ModifiedStateX(1) 
 
@@ -1608,14 +1609,6 @@ space::ToggleImeState() ; Space
 
 ;*** LAYER M2 (Space) (Misc Symbols) ***
 #HotIf ModifiedStateX(2)
-; --- F-Keys ---
-; *1::Send(B_F1)
-; *2::Send(B_F2)
-; *3::Send(B_F3)
-; *4::Send(B_F4)
-; *5::Send(B_F5)
-
-
 q::Send("?")
 w::+F3
 *e::Send("{Blind}/")

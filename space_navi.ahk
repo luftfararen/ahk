@@ -978,13 +978,10 @@ right := RKey(C_RIGHT)
  * @param {Integer} m - Modifier layer number to check:
  * 1 = F13 (f13)
  * 2 = Space (space)
- * 3 = Tab (tab) - (Currently disabled)
+ * 3 = reserved (always false)
  * 4 = Tab (tab) OR Noconvert (sc07B)
- * 5 = Enter (f14)
+ * 5 = F14
  * 6 = Colon (colon)
- * @param {Boolean} [alt=false] - If true, return false if Alt is pressed.
- * @param {Boolean} [ctrl=false] - If true, return false if Ctrl is pressed.
- * @param {Boolean} [shift=false] - If true, return false if Shift is pressed.
  * @returns {Boolean} True if the specified layer is active and exclusions are met.
  */
 ;ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
@@ -1018,9 +1015,9 @@ ModifiedState(m)
 	} if m = 3{
 		return false
 	} if m = 4{ ;num
-		return tab.IsPressed()  ||	GetKeyState(S_NOCONV, "P") 
+		return tab.IsPressed() ; || GetKeyState(S_NOCONV, "P") ;
 	} if m = 5{
-		return F14.IsPressed() ; || GetKeyState(S_NOCONV, "P")   
+		return F14.IsPressed()  || GetKeyState(S_NOCONV, "P")   
 	} if m = 6{
 		return colon.IsPressed()  
 	}
@@ -1039,11 +1036,11 @@ ModifiedStateX(m)
 	if m = 1{
 		return ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 	} if m = 2{
-		return ModifiedState(2)   
+		return ModifiedState(2) && !GetKeyState(S_NOCONV, "P")
 	} if m = 3{
 		return ModifiedState(1) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
 	} if m = 4{ ;num 
-		return ModifiedState(4) && !ModifiedState(1)  
+		return (ModifiedState(4) && !ModifiedState(1) ) || (ModifiedState(2) && GetKeyState(S_NOCONV, "P"))
 	} if m = 5{ ;shift
 		return ModifiedState(5)  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
 	} if m = 6{ ;symbol
@@ -1411,6 +1408,65 @@ ChangeFMIX13_FMIX14R_Layout()
 	TrayTip("FMIX13-FMIX14R layout","",0x11)
 }
 
+/**
+ * Changes layout to "FMIX12-FMIX14R".
+ */
+ChangeFMIX12_FMIX14R_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	; Diffs from base (IME OFF)
+	e.SetKey("l")
+	u.SetKey("f")
+	r.SetKey("r")
+	t.SetKey("k")
+	d.SetKey("d")
+
+	; Diffs for IME ON
+	e.SetImeKey("r","L")
+	r.SetImeKey("d","R")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","D")
+
+	TrayTip("FMIX12-FMIX14R layout","",0x11)
+}
+
+/**
+ * Changes layout to "FMIX12-FMIX14R".
+ */
+ChangeFMIX12_FMIX13R_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	; Diffs from base (IME OFF)
+	e.SetKey("l")
+	u.SetKey("f")
+	r.SetKey("r")
+	t.SetKey("k")
+	d.SetKey("d")
+
+	; Diffs for IME ON
+	e.SetImeKey("d","L")
+	r.SetImeKey("r","R")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","D")
+
+	TrayTip("FMIX12-FMIX13R layout","",0x11)
+}
 
 
 ; ============================================================================
@@ -1460,7 +1516,7 @@ ChangeFMIX13_FMIX14R_Layout()
 #HotIf
 
 ;*** LAYER M1 (F13) or M2 (Space) (Navigation/Editing) ***
-#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
+;#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
 ;*** LAYER M1 (F13) (System/App Control) ***
 #HotIf ModifiedStateX(1) || ModifiedStateX(2)   
@@ -1480,6 +1536,11 @@ ChangeFMIX13_FMIX14R_Layout()
 *sc00D::Send(B_F12) ; ^ -> F12
 sc07D::Send("^+{sc07D}") ; \ -> |
 
+*z::Send(B_UNDO)  ; Undo
+*x::Send(B_CUT)   ; Cut
+*c::Send(B_COPY)  ; Copy
+*v::Send(B_PASTE) ; Paste
+*b::Send(B_UNDO)  ; Undo
 ; --- Editing & Navigation (no Shift) ---
 *y::Send(B_UNDO)  ; Undo (^z)
 *u::Send(B_BS)    ; Backspace
@@ -1497,11 +1558,6 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 ;sc028::Return ; Colon (:) -> Disabled
 *]::Send("{Blind}^]")
 
-*z::Send(B_UNDO)  ; Undo
-*x::Send(B_CUT)   ; Cut
-*c::Send(B_COPY)  ; Copy
-*v::Send(B_PASTE) ; Paste
-*b::Send(B_UNDO)  ; Undo
 *n::Send(B_END)   ; End
 *m::Send(B_DEL)   ; Delete
 *sc033::Send(B_CLEFT) ; Comma (,) -> Ctrl+Left
@@ -1510,6 +1566,7 @@ sc035::Send("^+{sc07D}") ; / -> |
 
 *Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
 #HotIf
+
 ;*** LAYER M1 (F13) (System/App Control) ***
 #HotIf ModifiedStateX(1) 
 
@@ -1534,14 +1591,16 @@ space::ToggleImeState() ; Space
 ;*space::Send(B_BS) ; (Commented out)
 
 ; --- Layout Switching ---
-#r::ChangeFMIX14_FMIX14R_Layout() ; Win+r
-#f::ChangeFMIX12f_FMIX13fR_Layout() ; Win+f
-#d::ChangeFMIX12f_Layout() ; Win+d
-#s::ChangeFMIX13_FMIX14R_Layout() ; Win+s
-#x::ChangeFMIX13f_FMIX14R_Layout() ; Win+x
+#r::ChangeFMIX14_FMIX14R_Layout() 
+#f::ChangeFMIX12f_FMIX13fR_Layout()
+#d::ChangeFMIX12f_Layout()
+#s::ChangeFMIX13_FMIX14R_Layout() 
+#v::ChangeFMIX13f_FMIX14R_Layout() 
+#z::ChangeFMIX12_FMIX14R_Layout() 
+#x::ChangeFMIX12_FMIX13R_Layout() 
 
-#o::ChangeOonishiLayout() ; Win+o
-#c::ChangeColemakLayout() ; Win+c
+#o::ChangeOonishiLayout() 
+#c::ChangeColemakLayout() 
 
 ; --- Mouse Speed ---
 #up::MouseSpeed.IncSpeed() ; Win+Up
@@ -1550,14 +1609,6 @@ space::ToggleImeState() ; Space
 
 ;*** LAYER M2 (Space) (Misc Symbols) ***
 #HotIf ModifiedStateX(2)
-; --- F-Keys ---
-; *1::Send(B_F1)
-; *2::Send(B_F2)
-; *3::Send(B_F3)
-; *4::Send(B_F4)
-; *5::Send(B_F5)
-
-
 q::Send("?")
 w::+F3
 *e::Send("{Blind}/")
@@ -1576,7 +1627,7 @@ sc079::ToggleImeState() ; Convert
 #HotIf
  
 ;*** LAYER M4 (Tab or Noconvert) (Numpad Layer) ***
-#HotIf ModifiedStateX(4) 
+#HotIf ModifiedStateX(4)
 ; --- Left Hand ---
 6::Send("{Escape}")
 t::Send(B_NADD) ; Numpad +
@@ -1601,7 +1652,7 @@ o::Send(C_N6)
 p::Send(B_NADD) ; Numpad +
 @::Send(B_UP)   ; Up
 
-h::Send("=")
+;h::Send(C_ENTER)
 j::Send(C_N1)
 k::Send(C_N2)
 l::Send(C_N3)
@@ -1615,7 +1666,8 @@ sc033::Send(C_COMMA) ; ,
 .::Send(C_NDOT)  ; . -> Numpad .
 sc035::Send(B_NDIV) ; / -> Numpad /
 sc073::Send("\") ; _
-space::Send(B_ENTER) ; Space -> Enter
+
+;space::Send(B_ENTER) ; Space -> Enter 	In space num mode , this definition must be disabled to allow space to work normally. 
 
 ; (Arrows passthrough)
 ; up::Send(B_UP)
@@ -1661,8 +1713,16 @@ m::Send("{Delete}")
 sc033::Send("<=") ; , -> <=
 .::Send(">=") ; . -> >=
 
+;space::Send("{Enter}") ; Space -> Enter
+#HotIf
+;#HotIf ModifiedStateX(2)
+;h::Send("{Enter}")
+;#HotIf
+#HotIf ModifiedStateX(4)
+h::Send(C_ENTER) 
 space::Send("{Enter}") ; Space -> Enter
 #HotIf
+
 
 ;*** LAYER M5 (Enter) or M4 (Tab/Noconvert) (Shift Layer) ***
 ; This layer simulates holding the Shift key for all RKey objects.
