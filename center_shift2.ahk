@@ -1624,21 +1624,20 @@ w::+F3
 *f::Send("{Blind}-")
 g::Send("=")
 
-h::Send(B_SPACE)
+;/h::Send(B_SPACE)
 j::Send(C_N0)
 k::Send(C_N1)
 l::Send(C_N2)
 sc027::Send(B_ENTER)
 u::Send(B_BS)
-i::Send(C_N3)
-o::Send(C_N4)
-p::Send(C_N5)
-#n::Send(C_N7)
-m::Send(C_N6)
-sc033::Send(C_N7)
-.::Send(C_N8)
-sc035::Send(C_N9)
-;.::
+i::Send(C_N8)
+o::Send(C_N9)
+;p::Send(C_N5)
+;#n::Send(C_N7)
+m::Send(C_N4)
+sc033::Send(C_N5)
+.::Send(C_N6)
+sc035::Send(C_N7)
  
 ; --- IME Toggles while M2 is held ---
 F14::ToggleImeState() ; F14/Enter
