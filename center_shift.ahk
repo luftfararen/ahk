@@ -1534,6 +1534,9 @@ ChangeFMIX12_FMIX13R_Layout()
 *0::Send(B_F10)
 *-::Send(B_F11)
 *sc00D::Send(B_F12) ; ^ -> F12
+#HotIf
+
+#HotIf ModifiedStateX(1)
 sc07D::Send("^+{sc07D}") ; \ -> |
 
 *z::Send(B_UNDO)  ; Undo
@@ -1541,6 +1544,8 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 *c::Send(B_COPY)  ; Copy
 *v::Send(B_PASTE) ; Paste
 *b::Send(B_UNDO)  ; Undo
+
+
 ; --- Editing & Navigation (no Shift) ---
 *y::Send(B_UNDO)  ; Undo (^z)
 *u::Send(B_BS)    ; Backspace
@@ -1620,7 +1625,27 @@ w::+F3
 *d::Send("_")
 *f::Send("{Blind}-")
 g::Send("=")
- 
+
+y::Send("]")
+h::Send("[")
+j::Send(C_N0)
+k::Send(C_N1)
+l::Send(C_N2)
+sc027::Send(B_ENTER)
+u::Send(B_BS)
+i::Send(C_N7)
+o::Send(C_N8)
+p::Send(C_N9)
+n::Send("+3")
+
+z::Send("+[")  ; Undo
+x::Send("+]")   ; Cut
+c::Send(":")  ; Copy
+v::Send("+2") ; Paste
+b::Send(C_BACKSLASH)  ; Undo
+
+
+
 ; --- IME Toggles while M2 is held ---
 F14::ToggleImeState() ; F14/Enter
 sc079::ToggleImeState() ; Convert
