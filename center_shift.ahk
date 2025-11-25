@@ -1627,22 +1627,29 @@ w::+F3
 g::Send("=")
 
 y::Send("]")
+u::Send(B_BS)
+i::Send(C_N7)
+o::Send(C_N8)
+p::Send(C_N9)
+
 h::Send("[")
 j::Send(C_N0)
 k::Send(C_N1)
 l::Send(C_N2)
 sc027::Send(B_ENTER)
-u::Send(B_BS)
-i::Send(C_N7)
-o::Send(C_N8)
-p::Send(C_N9)
+
 n::Send("+3")
+m::Send(C_N3)
+sc033::Send(C_N4)
+.::Send(C_N5)
+sc035::Send(C_N6) 
 
 z::Send("+[")  ; Undo
 x::Send("+]")   ; Cut
 c::Send(":")  ; Copy
 v::Send("+2") ; Paste
 b::Send(C_BACKSLASH)  ; Undo
+
 
 
 
