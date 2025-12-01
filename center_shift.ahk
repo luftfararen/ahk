@@ -1322,6 +1322,8 @@ ChangeFMIX13f_FMIX14R_Layout()
 	TrayTip("FMIX13f-FMIX14R layout","",0x11)
 }
 
+
+
 /**
  * Changes layout to "FMIX14-FMIX14R".
  */
@@ -1406,6 +1408,39 @@ ChangeFMIX13_FMIX14R_Layout()
 	d.SetImeKey("k","D")
 
 	TrayTip("FMIX13-FMIX14R layout","",0x11)
+}
+
+/**
+ * Changes layout to "FMIX13-FMIX14R".
+ */
+ChangeFMIX13_FMIX14Rfep_Layout()
+{
+	ChangeFMIXVBJ_LayoutImpl()
+
+	global minus
+	global q,w,e,r,t,y,u,i,o,p
+	global a,s,d,f,g,h,j,k,l,semicolon,colon
+	global b,n,m,comma,period,slash
+
+	ResetIME()
+
+	; Diffs from base (IME OFF)
+	e.SetKey("r")
+	u.SetKey("f")
+	r.SetKey("l")
+	t.SetKey("k")
+	d.SetKey("d")
+
+	; Diffs for IME ON
+	e.SetImeKey("r","R")
+	r.SetImeKey("d","L")
+	t.SetImeKey("l","K")
+	d.SetImeKey("k","D")
+
+	i.SetImeKey("e","U")
+	k.SetImeKey("u","E")
+
+	TrayTip("FMIX13-FMIX14Rfep layout","",0x11)
 }
 
 /**
@@ -1600,6 +1635,7 @@ space::ToggleImeState() ; Space
 #f::ChangeFMIX12f_FMIX13fR_Layout()
 #d::ChangeFMIX12f_Layout()
 #s::ChangeFMIX13_FMIX14R_Layout() 
+#e::ChangeFMIX13_FMIX14Rfep_Layout() 
 #v::ChangeFMIX13f_FMIX14R_Layout() 
 #z::ChangeFMIX12_FMIX14R_Layout() 
 #x::ChangeFMIX12_FMIX13R_Layout() 
@@ -1626,13 +1662,13 @@ w::+F3
 *f::Send("{Blind}-")
 g::Send("=")
 
-y::Send("]")
+y::Send("2+")
 u::Send(B_BS)
 i::Send(C_N7)
 o::Send(C_N8)
 p::Send(C_N9)
 
-h::Send("[")
+h::Send("=")
 j::Send(C_N0)
 k::Send(C_N1)
 l::Send(C_N2)
@@ -1644,10 +1680,10 @@ sc033::Send(C_N4)
 .::Send(C_N5)
 sc035::Send(C_N6) 
 
-z::Send("+[")  ; Undo
-x::Send("+]")   ; Cut
-c::Send(":")  ; Copy
-v::Send("+2") ; Paste
+z::Send("+[") 
+x::Send("+]") 
+c::Send("[")  
+v::Send("]") 
 b::Send(C_BACKSLASH)  ; Undo
 
 
