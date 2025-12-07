@@ -555,6 +555,7 @@ class RKey
 ============================================================================*/
 	SetImeKey(key := "", shift_key:="")
 	{
+		shift_key := ""
 		if key = "" {
 		 	key  := this.short_key_str ; Default to IME OFF key
 		} 
@@ -973,15 +974,16 @@ right := RKey(C_RIGHT)
 ; LAYER STATE FUNCTIONS
 ; ============================================================================
 
+M_F13 := 1
+M_SPACE := 2
+M_TAB :=  4
+M_F14 := 5
+M_COLON := 6
+M_NOCONV := 7
+
 /**
  * Checks if a specific modifier layer (M1-M6) is active.
  * @param {Integer} m - Modifier layer number to check:
- * 1 = F13 (f13)
- * 2 = Space (space)
- * 3 = reserved (always false)
- * 4 = Tab (tab) OR Noconvert (sc07B)
- * 5 = F14
- * 6 = Colon (colon)
  * @returns {Boolean} True if the specified layer is active and exclusions are met.
  */
 ;ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
@@ -1006,45 +1008,56 @@ ModifiedState(m)
 	; 		return false
 	; 	}
 	; } 
-	
 	; Check the specified layer
-	if m = 1{
+	if m = M_F13{
 		return GetKeyState("F13","P") ; 
-	} if m = 2{
+	} if m = M_SPACE{
 		return space.IsPressed()   
 	} if m = 3{
 		return false
-	} if m = 4{ ;num
+	} if m = M_TAB{ ;num
 		return tab.IsPressed() ; || GetKeyState(S_NOCONV, "P") ;
-	} if m = 5{
+	} if m = M_F14{
 		return F14.IsPressed()  || GetKeyState(S_NOCONV, "P")   
-	} if m = 6{
+	} if m = M_NOCONV{
+		return GetKeyState(S_NOCONV, "P")   
+	} if m = M_COLON{
 		return colon.IsPressed()  
 	}
 	return false
 }
 
+L_CTRL := 1
+L_SYMBOL_NUM := 2
+L_SYMBOL1 := 7
+L_SYMBOL2 := 6
+L_SELECT := 3
+L_NUMPAD := 4
+L_SHIFT := 5
+
 /**
  * Checks if a specific modifier layer (M1-M6) is active,
  * ensuring no other layers are active simultaneously.
- * @param {Integer} m - Modifier layer number to check:
+ * @param {Integer} layer - Modifier layer number to check:
  * @returns {Boolean} True if only the specified layer is active.
  */
-ModifiedStateX(m)
+LayerState(layer)
 {
 	; Check the specified layer
-	if m = 1{
-		return ModifiedState(1) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
-	} if m = 2{
-		return ModifiedState(2) && !GetKeyState(S_NOCONV, "P")
-	} if m = 3{
-		return ModifiedState(1) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
-	} if m = 4{ ;num 
-		return (ModifiedState(4) && !ModifiedState(1) ) || (ModifiedState(2) && GetKeyState(S_NOCONV, "P"))
-	} if m = 5{ ;shift
-		return ModifiedState(5)  && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3)
-	} if m = 6{ ;symbol
-		return ModifiedState(6) && !ModifiedState(1) && !ModifiedState(2) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
+	if layer = L_CTRL{
+		return ModifiedState(M_F13)  && !ModifiedState(M_TAB) && !ModifiedState(M_F14)
+	} if layer = L_SYMBOL1{
+		return ModifiedState(M_F14)  && !ModifiedState(M_F13) && !ModifiedState(M_SPACE) 
+	} if layer = L_SYMBOL_NUM{
+		return ModifiedState(M_NOCONV)  && !ModifiedState(M_F13) && !ModifiedState(M_SPACE) 
+	} if layer = L_SELECT{
+		return ModifiedState(M_F13) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
+	} if layer = L_NUMPAD{  
+		return (ModifiedState(M_TAB) && !ModifiedState(M_F13) ) || (ModifiedState(M_SPACE) && GetKeyState(S_NOCONV, "P"))
+	} if layer = L_SHIFT{ 
+		return ModifiedState(M_SPACE) && !GetKeyState(S_NOCONV, "P")
+	} if layer = L_SYMBOL2{ 
+		return ModifiedState(M_COLON) && !ModifiedState(1) && !ModifiedState(M_SPACE) && !ModifiedState(M_TAB) && !ModifiedState(M_F14)
 	}
 	return false
 }
@@ -1508,8 +1521,8 @@ ChangeFMIX12_FMIX13R_Layout()
 ; HOTKEY DEFINITIONS (LAYERS)
 ; ============================================================================
 
-;*** LAYER M3 (Shifted Editing) ***
-#HotIf ModifiedStateX(3) 
+;*** LAYER3 (Shifted Editing) ***
+#HotIf LayerState(3) 
 
 ; --- Editing (with Shift) ---
 *1::Send("^z") ; Undo
@@ -1550,11 +1563,11 @@ ChangeFMIX12_FMIX13R_Layout()
 *right::Send("+{Right}")
 #HotIf
 
-;*** LAYER M1 (F13) or M2 (Space) (Navigation/Editing) ***
+;*** LAYER1  or LAYER2 (Navigation/Editing) ***
 ;#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
-;*** LAYER M1 (F13) (System/App Control) ***
-#HotIf ModifiedStateX(1) || ModifiedStateX(2)   
+;*** LAYER1 (System/App Control) ***
+#HotIf LayerState(1) || LayerState(2)   
 
 ; --- F-Keys ---
 *1::Send(B_F1)
@@ -1571,7 +1584,7 @@ ChangeFMIX12_FMIX13R_Layout()
 *sc00D::Send(B_F12) ; ^ -> F12
 #HotIf
 
-#HotIf ModifiedStateX(1)
+#HotIf LayerState(1)
 sc07D::Send("^+{sc07D}") ; \ -> |
 
 *z::Send(B_UNDO)  ; Undo
@@ -1579,7 +1592,6 @@ sc07D::Send("^+{sc07D}") ; \ -> |
 *c::Send(B_COPY)  ; Copy
 *v::Send(B_PASTE) ; Paste
 *b::Send(B_UNDO)  ; Undo
-
 
 ; --- Editing & Navigation (no Shift) ---
 *y::Send(B_UNDO)  ; Undo (^z)
@@ -1607,8 +1619,8 @@ sc035::Send("^+{sc07D}") ; / -> |
 *Enter::Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
 #HotIf
 
-;*** LAYER M1 (F13) (System/App Control) ***
-#HotIf ModifiedStateX(1) 
+;*** LAYER1(System/App Control) ***
+#HotIf LayerState(1) 
 
 *a::Send("{Blind}^a") ; Select All
 sc029::Send(C_EISU) ; Zen/Han -> Eisu
@@ -1648,8 +1660,50 @@ space::ToggleImeState() ; Space
 #down::MouseSpeed.DecSpeed() ; Win+Down
 #HotIf
 
-;*** LAYER M2 (Space) (Misc Symbols) ***
-#HotIf ModifiedStateX(2)
+;*** LAYER2 (Symbols and Num ) ***
+#HotIf LayerState(L_SYMBOL_NUM)
+q::Send("?")
+*w::Send("{Blind}/")
+*e::Send(B_NMUL) ; Numpad *
+*r::Send(B_NADD) ; Numpad +
+
+*a::Send("(")
+*s::Send(")")
+*d::Send("_")
+*f::Send("{Blind}-")
+g::Send("=")
+
+y::Send(B_BS)
+u::Send(C_N7)
+i::Send(C_N8)
+o::Send(C_N9)
+p::Send("+2")
+
+h::Send("=")
+j::Send(C_N0)
+k::Send(C_N1)
+l::Send(C_N2)
+sc027::Send(B_ENTER)
+
+n::Send("+3")
+m::Send(C_N3)
+sc033::Send(C_N4)
+.::Send(C_N5)
+sc035::Send(C_N6) 
+
+z::Send("+[") 
+x::Send("+]") 
+c::Send("[")  
+v::Send("]") 
+b::Send(C_BACKSLASH)  ; Undo
+
+; --- IME Toggles while M2 is held ---
+;F14::ToggleImeState() ; F14/Enter
+;sc079::ToggleImeState() ; Convert
+#HotIf
+
+;*** LAYER2 (Symbols) ***
+#HotIf LayerState(L_SYMBOL1)
 q::Send("?")
 w::+F3
 *e::Send("{Blind}/")
@@ -1686,16 +1740,14 @@ c::Send("[")
 v::Send("]") 
 b::Send(C_BACKSLASH)  ; Undo
 
-
-
-
 ; --- IME Toggles while M2 is held ---
-F14::ToggleImeState() ; F14/Enter
-sc079::ToggleImeState() ; Convert
+;F14::ToggleImeState() ; F14/Enter
+;sc079::ToggleImeState() ; Convert
 #HotIf
- 
-;*** LAYER M4 (Tab or Noconvert) (Numpad Layer) ***
-#HotIf ModifiedStateX(4)
+
+
+;*** LAYER4 (Tab or Noconvert) (Numpad Layer) ***
+#HotIf LayerState(4)
 ; --- Left Hand ---
 6::Send("{Escape}")
 t::Send(B_NADD) ; Numpad +
@@ -1744,8 +1796,8 @@ sc073::Send("\") ; _
 ; right::Send(B_RIGHT)
 #HotIf
 
-;*** LAYER M6 (Colon) (Symbol Layer) ***
-#HotIf ModifiedStateX(6)
+;*** LAYER6 (Symbol Layer) ***
+#HotIf LayerState(6)
 ; --- Symbols ---
 q::Send("[")
 w::Send("]")
@@ -1783,23 +1835,30 @@ sc033::Send("<=") ; , -> <=
 
 ;space::Send("{Enter}") ; Space -> Enter
 #HotIf
-;#HotIf ModifiedStateX(2)
+;#HotIf LayerState(2)
 ;h::Send("{Enter}")
 ;#HotIf
-#HotIf ModifiedStateX(4)
+#HotIf LayerState(4)
 h::Send(C_ENTER) 
 space::Send("{Enter}") ; Space -> Enter
 #HotIf
 
 
-;*** LAYER M5 (Enter) or M4 (Tab/Noconvert) (Shift Layer) ***
+;*** LAYER 5 (Enter) or LAYER 4 (Tab/Noconvert) (Shift Layer) ***
 ; This layer simulates holding the Shift key for all RKey objects.
-#HotIf ModifiedStateX(5) 
-1::k1.SendShiftedKey()
-2::k2.SendShiftedKey()
-3::k3.SendShiftedKey()
-4::k4.SendShiftedKey()
-5::k5.SendShiftedKey()
+#HotIf LayerState(5) 
+; 1::k1.SendShiftedKey()
+; 2::k2.SendShiftedKey()
+; 3::k3.SendShiftedKey()
+; 4::k4.SendShiftedKey()
+; 5::k5.SendShiftedKey()
+
+*1::Send(B_F1)
+*2::Send(B_F2)
+*3::Send(B_F3)
+*4::Send(B_F4)
+*5::Send(B_F5)
+
 
 q::q.SendShiftedKey()
 w::w.SendShiftedKey()
@@ -1819,13 +1878,22 @@ c::c.SendShiftedKey()
 v::v.SendShiftedKey()
 b::b.SendShiftedKey()
 
-6::k6.SendShiftedKey()
-7::k7.SendShiftedKey()
-8::k8.SendShiftedKey()
-9::k9.SendShiftedKey()
--::minus.SendShiftedKey()
-sc00D::hat.SendShiftedKey()
+; 6::k6.SendShiftedKey()
+; 7::k7.SendShiftedKey()
+; 8::k8.SendShiftedKey()
+; 9::k9.SendShiftedKey()
+; -::minus.SendShiftedKey()
+; sc00D::hat.SendShiftedKey()
 sc07D::backslash.SendShiftedKey()
+
+*6::Send(B_F6)
+*7::Send(B_F7)
+*8::Send(B_F8)
+*9::Send(B_F9)
+*0::Send(B_F10)
+*-::Send(B_F11)
+*sc00D::Send(B_F12) ; ^ -> F12
+
 
 y::y.SendShiftedKey()
 u::u.SendShiftedKey()

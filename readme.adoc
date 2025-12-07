@@ -209,41 +209,34 @@ ShiftやCtrlと同様に、他のキーの同時押しで特殊な動作が行�
 // * マウス関連機能
 
 === 動作詳細
-* 以下を修飾キーとして取り扱う +
-
-M1修飾（ナビゲーション）::
-F13
-M2修飾（記号）::
-space
-M3修飾（選択）::
- (F13 + Alt) or (F13 + 無変換) 
-M4修飾（１０キー）::
-Tab or (無変換 + space)
-M5修飾（シフト）::
-無変換 or 変換 or F14
-M6修飾（記号）::
-:(Colon)キー 
+* 以下を修飾キーとして取り扱う 
+** M1: F13 
+** M2: space 
+** M3: (F13 + Alt) or (F13 + 無変換) 
+** M4: Tab or (無変換 + space) 
+** M5: 無変換 or 変換 or F14 
+** M6: Colon(:) 
 
 === Autohotkey有効時の標準状態
 image::img/stdahk.webp[]
 
-=== M1修飾
+=== シフトレイヤー M5修飾
+image::img/shift_func.webp[]
+
+=== ナビゲートレイヤー M1修飾
 image::img/m1.webp[]
 
-=== M2修飾
+=== 選択レイヤー M3修飾 
+image::img/m3.webp[]
+
+=== 記号・数値レイヤー M2修飾
 image::img/m2a.webp[]
 
-=== M3修飾 
-image::img/m3.webp[]
-
-=== M4修飾
-image::img/m4.webp[]
-
-=== M5修飾
-image::img/shift.webp[]
-
-=== M6修飾
+=== 記号レイヤー M6修飾
 image::img/m6.webp[]
+
+=== １０キーレイヤー M4修飾
+image::img/m4.webp[]
 
 === その他
 * Win + Alt + Enter: AutoHotkeyのsuspend/resumeの切り替え
@@ -251,54 +244,44 @@ image::img/m6.webp[]
 * Ctrl + Shift + F13: CapsLock-On 
 
 
-== space_navi.ahk
+== saas.ahk
 === 概要
-「無変換 or 変換 or F14」の同時押しでシフト押下と同じ効果がある +
+スペース長押しの同時押しでシフト押下と同じ効果がある +
 また、左右のシフトも使える +
-// 基本はlong_press_shift.ahkと同じだが、 以下が排除されている
-
-// * 長押しシフト
-// * モード（レイヤー）固定機能
-// * マウス関連機能
 
 === 動作詳細
-* 以下を修飾キーとして取り扱う +
-
-M1修飾（ナビゲーション）::
-F13
-M2修飾（記号+ナビゲーション）::
-space
-M3修飾（選択）::
- (F13 + Alt) or (F13 + 無変換) 
-M4修飾（１０キー）::
-Tab or (無変換 + space)
-M5修飾（シフト）::
-無変換 or 変換 or F14
-M6修飾（記号）::
-:(Colon)キー 
+* 以下を修飾キーとして取り扱う 
+** M1: F13 
+** M2: space 
+** M3: (F13 + Alt) or (F13 + 無変換) 
+** M4: Tab or (無変換 + space) 
+** M5: 無変換 or 変換 or F14 
+** M6: Colon(:) 
 
 === Autohotkey有効時の標準状態
 image::img/stdahk.webp[]
 
-=== M1修飾
+=== ナビゲートレイヤー M1修飾
 image::img/m1.webp[]
 
-=== M2修飾
-image::img/m2.webp[]
+=== 記号・数値レイヤー M5修飾
+image::img/m2a.webp[]
 
-=== M3修飾 
+=== 選択レイヤー M3修飾 
 image::img/m3.webp[]
 
-=== M4修飾
+=== １０キーレイヤー M4修飾
 image::img/m4.webp[]
 
-=== M5修飾
-image::img/shift.webp[]
+=== シフトレイヤー M2修飾
+image::img/shift_func.webp[]
 
-=== M6修飾
+=== 記号レイヤー M6修飾
 image::img/m6.webp[]
 
 === その他
 * Win + Alt + Enter: AutoHotkeyのsuspend/resumeの切り替え
 * Shift + 全角: 英数
 * Ctrl + Shift + F13: CapsLock-On 
+
+
