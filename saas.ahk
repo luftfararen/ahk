@@ -1680,6 +1680,7 @@ q::Send("?")
 *w::Send("{Blind}/")
 *e::Send(B_NMUL) ; Numpad *
 *r::Send(B_NADD) ; Numpad +
+t::+F3
 
 *a::Send("(")
 *s::Send(")")
@@ -1731,10 +1732,10 @@ b::Send(C_BACKSLASH)  ; Undo
 *sc00D::Send(B_F12) ; ^ -> F12
 
 q::Send("?")
-w::+F3
-*e::Send("{Blind}/")
-*r::Send(B_NMUL) ; Numpad *
-*t::Send(B_NADD) ; Numpad +
+*w::Send("{Blind}/")
+*e::Send(B_NMUL) ; Numpad *
+*r::Send(B_NADD) ; Numpad +
+t::+F3
 
 *a::Send("(")
 *s::Send(")")
