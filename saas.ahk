@@ -1002,6 +1002,15 @@ M_F14 := 5
 M_COLON := 6
 M_NOCONV := 7
 
+; GlobalState := 0
+; STATE_F13   := 1 << 0 ; 1
+; STATE_SPACE := 1 << 1 ; 2
+; STATE_TAB   := 1 << 2 ; 4
+; STATE_F14 	:= 1 << 3 ; 8
+; STATE_COLON   := 1 << 4 ; 16
+; STATE_NOCONV   := 1 << 5 ; 32
+
+
 /**
  * Checks if a specific modifier layer (M1-M6) is active.
  * @param {Integer} m - Modifier layer number to check:
@@ -1032,17 +1041,19 @@ ModifiedState(m)
 	; Check the specified layer
 	if m = M_F13{
 		return GetKeyState("F13","P") ; 
+		;f13.IsPressed()
 	} if m = M_SPACE{
-		;return space.IsPressed()   
-		return GetKeyState("Space", "P")
+		;return GetKeyState("Space", "P")
+		return space.IsPressed()   
 	} if m = 3{
 		return false
 	} if m = M_TAB{ ;num
 		return tab.IsPressed() ; || GetKeyState(S_NOCONV, "P") ;
 	} if m = M_F14{
-		return F14.IsPressed()  || GetKeyState(S_NOCONV, "P")   
+		return F14.IsPressed()  || GetKeyState(S_CONV, "P")   
 	} if m = M_NOCONV{
-		return GetKeyState(S_NOCONV, "P")   
+		;return GetKeyState(S_NOCONV, "P")   
+		return noconv.IsPressed()
 	} if m = M_COLON{
 		return colon.IsPressed()  
 	}
