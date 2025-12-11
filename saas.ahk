@@ -187,6 +187,22 @@ InstallMouseHook true ; Always install the mouse hook (for MouseSpeed class)
 ;#MaxThreadsPerHotkey 3 ; (Commented out) Limit threads per hotkey
 SetKeyDelay 0 ; No delay after keystrokes
 
+ShowOSD(text, duration := 3000) 
+{
+    MyGui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
+    MyGui.BackColor := "333333"
+    MyGui.SetFont("s12 cWhite w700", "Segoe UI")
+    
+    ; 【修正点】テキスト周囲の余白はここで設定します
+    MyGui.MarginX := 20
+    MyGui.MarginY := 15
+    
+    ; 第2引数の "Padding10" を削除しました
+    MyGui.Add("Text", "Center", text) 
+    
+    MyGui.Show("NoActivate xCenter y900") ; 画面下部中央に表示
+    SetTimer(() => MyGui.Destroy(), -duration)
+}
 ; ============================================================================
 ; GLOBAL FUNCTIONS
 ; ============================================================================
@@ -734,9 +750,9 @@ class LKey extends RKey
 		}
 		if show_info {
 			if LKey.long_press_enabled {
-				TrayTip("LKey is enabled","",0x11)
+				ShowOSD("LKey is enabled")
 			} else {
-				TrayTip("LKey is disabled","",0x11)
+				ShowOSD("LKey is disabled")
 			}
 		}
 	}
@@ -1162,7 +1178,7 @@ ChangeOonishiLayout()
 	slash.SetKey("b")
 
 	ResetIME()
-	TrayTip("Oonish layout","",0x11)
+	ShowOSD("Oonish layout")
 }
 
 /**
@@ -1209,7 +1225,7 @@ ChangeColemakLayout()
 	period.SetKey(".")
 	slash.SetKey("/")
 
-	TrayTip("Colemak layout","",0x11)
+	ShowOSD("Colemak layouto")
 }
 
 /**
@@ -1278,7 +1294,7 @@ ChangeFMIX12f_Layout()
 	t.SetKey("k")
 	u.SetKey("l")
 
-	TrayTip("FMIX12f layout","",0x11)
+	ShowOSD("FMIX12f layout")
 }
 
 /**
@@ -1307,7 +1323,7 @@ ChangeFMIX12f_FMIX13fR_Layout()
 	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX12f-FMIX13fR layout","",0x11)
+	ShowOSD("FMIX12f-FMIX13fR layout")
 }
 
 /**
@@ -1338,7 +1354,7 @@ ChangeFMIX13f_FMIX14R_Layout()
 	d.SetImeKey("k","D")
 	u.SetImeKey("f")
 
-	TrayTip("FMIX13f-FMIX14R layout","",0x11)
+	ShowOSD("FMIX13f-FMIX14R layout")
 }
 
 
@@ -1366,7 +1382,7 @@ ChangeFMIX14_FMIX14R_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","R")
 
-	TrayTip("FMIX14-FMIX14R layout","",0x11)
+	ShowOSD("FMIX14-FMIX14R layout")
 }
 
 /**
@@ -1396,7 +1412,7 @@ ChangeFMIX13f_FMIX14fR_Layout()
 	t.SetImeKey("f","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX13f-FMIX14fR layout","",0x11)
+	ShowOSD("FMIX13f-FMIX14fR layout")
 }
 
 /**
@@ -1426,7 +1442,7 @@ ChangeFMIX13_FMIX14R_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX13-FMIX14R layout","",0x11)
+	ShowOSD("FMIX13-FMIX14R layout")
 }
 
 /**
@@ -1459,7 +1475,7 @@ ChangeFMIX13_FMIX14Rfep_Layout()
 	i.SetImeKey("e","U")
 	k.SetImeKey("u","E")
 
-	TrayTip("FMIX13-FMIX14Rfep layout","",0x11)
+	ShowOSD("FMIX13-FMIX14Rfep layout")
 }
 
 /**
@@ -1489,7 +1505,7 @@ ChangeFMIX12_FMIX14R_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX12-FMIX14R layout","",0x11)
+	ShowOSD("FMIX12-FMIX14R layout")
 }
 
 /**
@@ -1519,7 +1535,7 @@ ChangeFMIX12_FMIX13R_Layout()
 	t.SetImeKey("l","K")
 	d.SetImeKey("k","D")
 
-	TrayTip("FMIX12-FMIX13R layout","",0x11)
+	ShowOSD("FMIX12-FMIX13R layout")
 }
 
 
