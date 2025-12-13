@@ -215,6 +215,7 @@ shift_lambda := () => GetKeyState("Shift","P")
  */
 GetShiftState()
 {
+	global shift_lambda
 	return shift_lambda()
 }
 
@@ -264,8 +265,6 @@ last_active_hwnd := 0 ; Global: Tracks the last active window to reset force_ime
  */
 IsImeOn()
 {
-	;return ImeState.IsOn()
-	;return GetImeState(GetActiveWindowHandle())
 	global last_active_hwnd,force_ime_on
 	hwnd := GetActiveWindowHandle()
 	
@@ -313,6 +312,7 @@ ToggleForceImeOn()
 {
 	global force_ime_on
 	force_ime_on := !force_ime_on
+	ShowOSD("Force IME: " . (force_ime_on ? "On" : "Off"))
 }
 
 /**
@@ -904,24 +904,14 @@ class LKey extends RKey
 ; ============================================================================
 
 ; --- Modifier Keys (MKey) ---
-; M1: F13 (Virtual/Physical key)
 f13 := MKey("",200) ;m1
-; M2: Space
 space := MKey("SPACE") ;m2
 ;shift_lambda := () => (GetKeyState("Shift","P") || space.IsPressed())
-
-; M3: Tab
 tab := MKey("TAB") ;m3
-; M4: Noconvert (sc07B)
-; (Refactored: Was MKey(S_ZENKAKU), now correctly MKey(S_NOCONV))
 noconv := MKey(S_NOCONV) ;m4
-; M5: Enter (or F14 / Convert)
-f14 := MKey("ENTER") ;m5
-
-; --- Long Press Keys (LKey) ---
-; M6: Colon (acts as M6 modifier, but is short-press only)
+f14 := MKey("ENTER") 
+conv := MKey(S_CONV) 
 colon := LKey(C_COLON,"","none")
-;colon := MKey(C_COLON)
 
 
 ; --- Remap Keys (RKey) ---
@@ -995,72 +985,7 @@ right := RKey(C_RIGHT)
 ; LAYER STATE FUNCTIONS
 ; ============================================================================
 
-M_F13 := 1
-M_SPACE := 2
-M_TAB :=  4
-M_F14 := 5
-M_COLON := 6
-M_NOCONV := 7
-
-; GlobalState := 0
-; STATE_F13   := 1 << 0 ; 1
-; STATE_SPACE := 1 << 1 ; 2
-; STATE_TAB   := 1 << 2 ; 4
-; STATE_F14 	:= 1 << 3 ; 8
-; STATE_COLON   := 1 << 4 ; 16
-; STATE_NOCONV   := 1 << 5 ; 32
-
-
-/**
- * Checks if a specific modifier layer (M1-M6) is active.
- * @param {Integer} m - Modifier layer number to check:
- * @returns {Boolean} True if the specified layer is active and exclusions are met.
- */
-;ModifiedState(m, alt:=false, ctrl:=false,shift:=false)
-ModifiedState(m)
-{
-;  * @param {Boolean} [alt=false] - If true, return false if Alt is pressed.
-;  * @param {Boolean} [ctrl=false] - If true, return false if Ctrl is pressed.
-;  * @param {Boolean} [shift=false] - If true, return false if Shift is pressed.
- 	; Check exclusion keys
-	; if ctrl {
-	; 	if GetKeyState("Ctrl","P") {
-	; 		return false
-	; 	}
-	; } 
-	; if alt {
-	; 	if GetKeyState("Alt","P") {
-	; 		return false
-	; 	}
-	; } 
-	; if shift {
-	; 	if GetShiftState(){
-	; 		return false
-	; 	}
-	; } 
-	; Check the specified layer
-	if m = M_F13{
-		return GetKeyState("F13","P") ; 
-		;f13.IsPressed()
-	} if m = M_SPACE{
-		;return GetKeyState("Space", "P")
-		return space.IsPressed()   
-	} if m = 3{
-		return false
-	} if m = M_TAB{ ;num
-		return tab.IsPressed() ; || GetKeyState(S_NOCONV, "P") ;
-	} if m = M_F14{
-		return F14.IsPressed()  || GetKeyState(S_CONV, "P")   
-	} if m = M_NOCONV{
-		;return GetKeyState(S_NOCONV, "P")   
-		return noconv.IsPressed()
-	} if m = M_COLON{
-		return colon.IsPressed()  
-	}
-	return false
-}
-
-L_CTRL := 1
+L_NAVL_CTRL := 1
 L_SYMBOL_NUM := 2
 L_SYMBOL1 := 7
 L_SYMBOL2 := 6
@@ -1077,20 +1002,20 @@ L_SHIFT := 5
 LayerState(layer)
 {
 	; Check the specified layer
-	if layer = L_CTRL{
-		return ModifiedState(M_F13)  && !ModifiedState(M_TAB) && !ModifiedState(M_F14)
+	if layer = L_NAVL_CTRL{
+		return f13.IsPressed() && !(GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P"))
 	} if layer = L_SYMBOL1{
-		return ModifiedState(M_F14)  && !ModifiedState(M_F13) ;&& !ModifiedState(M_SPACE) 
-	} if layer = L_SYMBOL_NUM{
-		return ModifiedState(M_NOCONV)  && !ModifiedState(M_F13) ;&& !ModifiedState(M_SPACE) 
-	} if layer = L_SELECT{
-		return ModifiedState(M_F13) && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
-	} if layer = L_NUMPAD{  
-		return (ModifiedState(M_TAB) && !ModifiedState(M_F13) ) || (ModifiedState(M_SPACE) && GetKeyState(S_NOCONV, "P"))
-	} if layer = L_SHIFT{ 
-		return ModifiedState(M_SPACE) && !GetKeyState(S_NOCONV, "P")
+		return f14.IsPressed() || conv.IsPressed() 
 	} if layer = L_SYMBOL2{ 
-		return ModifiedState(M_COLON) && !ModifiedState(M_F13) && !ModifiedState(M_SPACE) && !ModifiedState(M_TAB) && !ModifiedState(M_F14)
+		return colon.IsPressed()
+	} if layer = L_SYMBOL_NUM{
+		return conv.IsPressed() && !(GetKeyState("F13","P") || GetKeyState("Alt", "P")) 
+	} if layer = L_NUMPAD{  
+		return tab.IsPressed() 
+	} if layer = L_SELECT{
+		return f13.IsPressed() && (GetKeyState("Alt","P") || GetKeyState(S_NOCONV, "P")) 
+	} if layer = L_SHIFT{ 
+		return space.IsPressed()
 	}
 	return false
 }
@@ -1554,7 +1479,7 @@ ChangeFMIX12_FMIX13R_Layout()
 ; HOTKEY DEFINITIONS (LAYERS)
 ; ============================================================================
 
-;*** LAYER3 (Shifted Editing) ***
+;*** LAYER (Shifted Editing) ***
 #HotIf LayerState(L_SELECT) 
 
 ; --- Editing (with Shift) ---
@@ -1599,8 +1524,8 @@ ChangeFMIX12_FMIX13R_Layout()
 ;*** LAYER1  or LAYER2 (Navigation/Editing) ***
 ;#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5) 
 
-;*** LAYER1 (System/App Control) ***
-#HotIf LayerState(L_CTRL)
+;*** LAYER (System/App Control) ***
+#HotIf LayerState(L_NAVL_CTRL)
 
 *1::Send(B_F1)
 *2::Send(B_F2)
@@ -1662,13 +1587,9 @@ r::+F3 ; Shift+F3
 g::Send("^f") ; Find
 
 ; --- IME Toggles while M1 is held ---
-;F14::ToggleImeState() ; F14/Enter
-;sc079::ToggleImeState() ; Convert
-;space::ToggleImeState() ; Space
-F14::Send(C_ESC)
-sc079::Send(C_ESC)	
+F14::ToggleImeState() ; F14/Enter
+sc079::ToggleImeState() ; Convert
 space::Send(C_BS) 
-;*space::Send(B_BS) ; (Commented out)
 
 ; --- Layout Switching ---
 #r::ChangeFMIX14_FMIX14R_Layout() 
@@ -1797,7 +1718,7 @@ b::Send(C_BACKSLASH)  ; Undo
 space::Send(C_BS) 
 #HotIf
 
-;*** LAYER4  (Numpad Layer) ***
+;*** LAYER  (Numpad Layer) ***
 #HotIf LayerState(L_NUMPAD)
 ; --- Left Hand ---
 6::Send("{Escape}")
@@ -1839,12 +1760,6 @@ sc035::Send(B_NDIV) ; / -> Numpad /
 sc073::Send("\") ; _
 
 space::Send(C_BS)
-
-; (Arrows passthrough)
-; up::Send(B_UP)
-; down::Send(B_DOWN)
-; left::Send(B_LEFT)
-; right::Send(B_RIGHT)
 #HotIf
 
 ;*** LAYER6 (Symbol Layer) ***
@@ -1867,51 +1782,8 @@ c::Send(":")
 v::Send("|") ; |
 b::Send("\") ; \
 
-
-; q::Send("[")
-; w::Send("]")
-; e::Send("+1") ; !
-; r::Send("+5") ; %
-; t::Send("~")  ; ~
-
-; a::Send("+6") ; &
-; s::Send("+7") ; '
-; d::Send("+2") ; "
-; *f::Send("{Blind}k") ; f -> k
-; *g::Send("{Blind}y") ; g -> y
-
-; z::Send("+[") ; {
-; x::Send("+]") ; }
-; c::Send(":") ; :
-; v::Send("|") ; |
-; b::Send("\") ; \
-
-; u::send("{Backspace}")
-; h::Send(C_HAT) ; ^
-; i::Send("+4") ; $
-; o::Send("+k")
-; p::Send("+y")
-
-; j::Send("=") ; =
-; k::Send("0") ; 0
-; l::Send("->") ; ->
-; sc027::Send(C_SEMICOLON) ; ;
-
-; n::Send("+3") ; #
-; m::Send("{Delete}")
-; sc033::Send("<=") ; , -> <=
-; .::Send(">=") ; . -> >=
-
-;space::Send("{Enter}") ; Space -> Enter
 #HotIf
-;#HotIf LayerState(2)
-;h::Send("{Enter}")
-;#HotIf
 
-
-
-;*** LAYER 5 (Enter) or LAYER 4 (Tab/Noconvert) (Shift Layer) ***
-; This layer simulates holding the Shift key for all RKey objects.
 #HotIf LayerState(L_SHIFT) 
 ; 1::k1.SendShiftedKey()
 ; 2::k2.SendShiftedKey()
@@ -1959,7 +1831,6 @@ sc07D::backslash.SendShiftedKey()
 *0::Send(B_F10)
 *-::Send(B_F11)
 *sc00D::Send(B_F12) ; ^ -> F12
-
 
 y::y.SendShiftedKey()
 u::u.SendShiftedKey()
@@ -2072,11 +1943,11 @@ Right::right.SendShiftedKey()
 *l::l.Down("l")
 *l up::l.Up()
 
-*sc027::semicolon.Down("sc027") ; ;
+*sc027::semicolon.Down("sc027") 
 *sc027 up::semicolon.Up()
-*sc028::colon.Down("sc028")     ; : (This is the LKey M6 modifier)
+*sc028::colon.Down("sc028")     
 *sc028 up::colon.Up()
-*]::closebracket.Down("]")     ; ]
+*]::closebracket.Down("]")     
 *] up::closebracket.Up()
 
 *z::z.Down("z")
@@ -2130,13 +2001,13 @@ Right::right.SendShiftedKey()
 *F13::f13.Down()
 *F13 up::f13.Up()
 
-*F14:: f14.Down() ; M5
+*F14:: f14.Down() 
 *F14 up::f14.Up() 
 
-*sc079:: f14.Down() ; M5 (Convert key)
+*sc079:: f14.Down() ; Convert key
 *sc079 up::f14.Up() 
 	
-*sc07B::noconv.Down() ; M4 (Noconvert key)
+*sc07B::noconv.Down() ; Noconvert key
 *sc07B up::noconv.Up() 
 
 ; ============================================================================
