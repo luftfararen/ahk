@@ -29,220 +29,6 @@ image::img/CapsLock.webp[]
 ShiftやCtrlと同様に、他のキーの同時押しで特殊な動作が行われるキー +
 修飾キーを押している間、レイヤーが切り替わる
 
-// モード::
-// （修飾キーが押されていなくても）レイヤーが切り替わり固定されている状態
-
-// == long_press_shift.ahk
-// === 概要
-// * 各キーの長押しでシフト同時押しと同じ動作可能
-
-// === 動作詳細
-// * 以下を修飾キーとして取り扱う +
-// M1修飾::
-// F13
-// M2修飾::
-// space
-// M3修飾::
-// Tab or (Alt + F13) 
-// M4修飾::
-// 無変換 
-// M5修飾::
-// 変換 or F14
-
-// * 各キーの長押しでシフト押し動作、連打はできないので、そのときは従来通りShiftキーで行うこと
-// * M1+Escで、Reloadだが同時にリセットになる、不安定なときに押すとよい
-// ////
-// * M1+"/"で、テンキー入力モードへの切り替え、該当キー以外のキー押下で解除
-// * M1+"."で、キーマウスモードへの切り替え、該当キー以外のキー押下で解除
-// * M1+":"で、Funcモードへの切り替え、キー押下で解除
-
-// * M1 + Tで、Ctrl Lock、Ctrl Lock状態で、Ctrlを押さずに何かキーを押すと、Ctrl+キー同時押しを再現、Lockはその後解除される +
-// M1 + Tを押すごとに、Win Lock、Alt Lock、Shift Lockと切り替わる、動作はCtrl Lockと同様 +
-
-// ** 例1) M1+T(Ctrl Lock)=>M1を離して=>c → Ctrl+c、ロック解除r + 
-// ** 例2) M1+T(Ctrl Lock)=>M1を押したまま=>T(Win Lock)=>M1を離して=>v → Win+v、ロック解除 + 
-// * M2+Tで、TS Mode(Two Stroke Mode)、TS Mode状態にして、何かキーを押すと、Ctrlとそのキーの同時押しを再現した動作になる +
-// ** 2回キーを押したあとに、モードは解除される + 
-// 例) M2+T(TS Mode)=>M1を離して=>k、x → Ctrl+k、Ctrl+x、モード解除 
-// ////
-// * M1 + PgUp/PgDnで、それぞれ、マウススピードアップ/ダウン
-// * 一部のアプリのテキストボックスで誤動作が発生することがある
-// ////
-// * M1を押したままの状態で、マウスを動かすと低速で移動
-// * M1を押すと、モードやロックを解除I
-// * 下記の色付きのキーで多くの操作ができ、手の移動、とくに小指の移動を最小限にしている
-// ** ただし、Shift+Ctrl+Win+キーなどの、複数の修飾キーによる操作は、手の移動が必要になることもある
-// ** これは、60%キーボードでFnを使わずに多くの操作ができることを示す
-// *** 数値が小さいほど打ちやすい
-// image::img/marker.webp[]
-// ////
-
-// *  おまけでM1+Win+aでASRT配列、Reloadすれば元に戻る。他の配列も実装してあるのでスクリプト参照
-
-// === 表記法
-// キーの説明::
-// S+ Shift修飾 +
-// C+ Ctrl修飾 +
-// A+ Alt修飾 +
-// W+ Win修飾 +
-// SC+ Shift+Ctrl修飾 +
-// N[x] NumPadのキー ex)N5 NumPadの5
-
-// 色::
-// 緑地:shiftキーなど修飾キーを押しながらの効果は無効
-
-// === 初期状態
-// image::img/std.webp[]
-
-// === 標準(レジストリ書き換え)
-// image::img/stdreg.webp[]
-
-// === long_press_shift有効時の標準状態
-// image::img/stdahk.webp[]
-
-// === キー長押し
-// image::img/shift.webp[]
-
-// === M1修飾
-// image::img/m1.webp[]
-
-// === M2修飾
-// image::img/m2.webp[]
-
-// === M3修飾 
-// image::img/m3.webp[]
-
-// === M4修飾
-// image::img/m4.webp[]
-
-// === M5修飾
-// image::img/m5.webp[]
-
-// ////
-// === テンキー入力モード
-// image::img/num.webp[]
-// Esc or M1でモード解除
-
-// === カーソルモード
-// image::img/cur_mode.webp[]
-// Esc or M1でモード解除 +
-
-// === 選択モード
-// image::img/sel_mode.webp[]
-// Esc or M1でモード解除 +
-// ////
-
-// === Funcモード
-// image::img/func.webp[]
-// 一度キーを押せば解除 +
-// Esc or M1 or M2でモード解除
-
-// === キーマウスモード
-// image::img/mouse.webp[]
-// Esc or M1でモード解除 +
-
-// === その他 
-// * 右Shift+↑: _
-// * Ctrl+Shift+M1(CapsLock): CapsLock-On 
-// * Win + Alt + Enter: AutoHotkeyのsuspend/resumeの切り替え
-// * Shift+全角: 英数
-// ////
-// === おまけ
-// ==== Colemak
-// image::img/colemak.webp[]
-
-// ==== FMIX
-// image::img/fmix.webp[]
-// ColemakよりもQwertyからの入れ替えが少なく覚えやすい
-// ////
-
-// == saas.ahk
-// === 概要
-// スペースとの同時押しでシフトコンビネーションを実現 +
-// 基本はlong_press_shift.ahkと同じだが、 以下が排除されている
-
-// * 長押しシフト
-// * モード（レイヤー）固定機能
-// * マウス関連機能
-
-// === 動作詳細
-// * 以下を修飾キーとして取り扱う +
-// M1修飾::
-// F13
-// M2修飾::
-// space
-// M3修飾::
-// Tab or (F13 + Alt) or (F13 + 無変換) 
-// M4修飾::
-// 無変換 
-// M5修飾::
-// 変換 or F14
-
-// * 長押しシフトがない分、動作が安定
-
-// === M1修飾
-// image::img/m1.webp[]
-// FuncLock未対応
-
-// === M2修飾
-// image::img/shift.webp[]
-
-// === M3修飾 
-// image::img/m3.webp[]
-
-// === M4修飾
-// image::img/m4.webp[]
-
-// === M5修飾
-// image::img/m2.webp[]
-// FuncLock未対応
-
-
-== center_shift.ahk
-=== 概要
-「無変換 or 変換 or F14」の同時押しでシフト押下と同じ効果がある +
-また、左右のシフトも使える +
-// 基本はlong_press_shift.ahkと同じだが、 以下が排除されている
-
-// * 長押しシフト
-// * モード（レイヤー）固定機能
-// * マウス関連機能
-
-=== 動作詳細
-* 以下を修飾キーとして取り扱う 
-** M1: F13 
-** M2: space 
-** M3: (F13 + Alt) or (F13 + 無変換) 
-** M4: Tab or (無変換 + space) 
-** M5: 無変換 or 変換 or F14 
-** M6: Colon(:) 
-
-=== Autohotkey有効時の標準状態
-image::img/stdahk.webp[]
-
-=== シフトレイヤー M5修飾
-image::img/shift_func.webp[]
-
-=== ナビゲートレイヤー M1修飾
-image::img/m1.webp[]
-
-=== 選択レイヤー M3修飾 
-image::img/m3.webp[]
-
-=== 記号・数値レイヤー M2修飾
-image::img/m2a.webp[]
-
-=== 記号レイヤー M6修飾
-image::img/m6.webp[]
-
-=== １０キーレイヤー M4修飾
-image::img/m4.webp[]
-
-=== その他
-* Win + Alt + Enter: AutoHotkeyのsuspend/resumeの切り替え
-* Shift + 全角: 英数
-* Ctrl + Shift + F13: CapsLock-On 
-
 
 == saas.ahk
 === 概要
@@ -261,22 +47,22 @@ image::img/m4.webp[]
 === Autohotkey有効時の標準状態
 image::img/stdahk.webp[]
 
-=== ナビゲートレイヤー M1修飾
+=== ナビゲートレイヤー (F13)
 image::img/m1.webp[]
 
-=== 記号・数値レイヤー M5修飾
-image::img/m2a.webp[]
+=== 記号・数値レイヤー(無変換 or 変換 or F14)
+image::img/m2.webp[]
 
-=== 選択レイヤー M3修飾 
+=== 選択レイヤー (F13 + Alt) or (F13 + 無変換)
 image::img/m3.webp[]
 
-=== １０キーレイヤー M4修飾
+=== １０キーレイヤー (Tab))
 image::img/m4.webp[]
 
-=== シフトレイヤー M2修飾
+=== シフトレイヤー (space)
 image::img/shift_func.webp[]
 
-=== 記号レイヤー M6修飾
+=== 記号レイヤー (colon)
 image::img/m6.webp[]
 
 === その他
