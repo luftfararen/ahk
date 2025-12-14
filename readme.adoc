@@ -21,6 +21,7 @@ image::img/key_prop.png[]
 * ShiftでCapsLock-Offできる環境以外の動作は不定（以下の設定を推奨）
 
 image::img/CapsLock.webp[]
+
 === 用語
 レイヤー::
 キーに押下することで標準外の文字入力やコマンド発行がなされるキー配列
@@ -33,41 +34,56 @@ ShiftやCtrlと同様に、他のキーの同時押しで特殊な動作が行�
 == saas.ahk
 === 概要
 スペース長押しの同時押しでシフト押下と同じ効果がある +
-また、左右のシフトも使える +
-
-=== 動作詳細
-* 以下を修飾キーとして取り扱う 
-** M1: F13 
-** M2: space 
-** M3: (F13 + Alt) or (F13 + 無変換) 
-** M4: Tab or (無変換 + space) 
-** M5: 無変換 or 変換 or F14 
-** M6: Colon(:) 
+キー配列の動的切り替え（配列スイッチャー）機能を搭載し、大西配列やColemakなどに瞬時に変更可能。 []の中にある修飾キーを長押している間、レイヤー切り替え。
 
 === Autohotkey有効時の標準状態
 image::img/stdahk.webp[]
 
-=== ナビゲートレイヤー (F13)
+=== ナビゲートレイヤー [F13]
+カーソル移動、編集操作、Fキーなど
+
 image::img/m1.webp[]
 
-=== 記号・数値レイヤー(無変換 or 変換 or F14)
+=== 記号・数値レイヤー [無変換]
+数字、演算記号など (旧:記号・数値レイヤー)
+
 image::img/m2.webp[]
 
-=== 選択レイヤー (F13 + Alt) or (F13 + 無変換)
+=== 記号レイヤー [F14 or 変換]
+プログラム頻出記号など
+
+image::img/m2.webp[]
+
+=== 選択レイヤー [(F13 + Alt) or (F13 + 無変換)]
+範囲選択を伴うカーソル移動など
+
 image::img/m3.webp[]
 
-=== １０キーレイヤー (Tab))
+=== １０キーレイヤー [Tab]
+右手系テンキー
+
 image::img/m4.webp[]
 
-=== シフトレイヤー (space)
+=== シフトレイヤー [Space]
+通常のShiftキー動作に加え、カーソル移動などを割り当て
+
 image::img/shift_func.webp[]
 
-=== 記号レイヤー (colon)
+=== 記号レイヤー2 [Colon]
+その他の記号
+
 image::img/m6.webp[]
 
-=== その他
-* Win + Alt + Enter: AutoHotkeyのsuspend/resumeの切り替え
-* Shift + 全角: 英数
-* Ctrl + Shift + F13: CapsLock-On 
+=== 配列切り替え
+マウス操作不要でキー配列を変更可能。変更時にOSDで通知。 
 
+* Win + o : 大西配列 (Oonishi)
+* Win + c : Colemak
+* Win + z/x/c/v/b/d/f/e/r/s : FMIX配列バリエーション
 
+=== その他機能
+* **サスペンド** : Win + Alt + Enterでスクリプトの一時停止 
+* **マウス速度制御**: Win + Up/Down でマウスカーソル速度を変更
+* **IME制御**:
+** F14 / 変換 でIME トグル
+** Shift + 全角 で 英数
