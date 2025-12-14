@@ -545,7 +545,6 @@ class RKey {
     	                                ""=auto/default, "none"=disable.
     ============================================================================*/
     SetImeKey(key := "", shift_key := "") {
-        shift_key := ""
         if key = "" {
             key := this.short_key_str ; Default to IME OFF key
         }
@@ -1156,7 +1155,7 @@ StoreLayout(layout, num_layout := "1234567890-") {
  * Changes the current key layout to "Oonishi Layout".
  */
 ChangeOonishiLayout() {
-    StoreLayout("qlu,.fwrypeiao-ktnshzxcv;gdmnb", "1234567890/")
+    StoreLayout("qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
     ResetIME()
     ShowOSD("Oonish layout")
 }
@@ -1167,36 +1166,15 @@ ChangeOonishiLayout() {
 ChangeColemakLayout() {
     StoreLayout("qwfpgjluy;arstdhneiozxcvbkm,./")
     ResetIME()
-    ShowOSD("Colemak layouto")
-}
-
-/**
- * Base layout for FMIX variants.
- */
-ChangeFMIXVBJ_LayoutImpl() {
-    StoreLayout("qwldkyfup;asrtghneiozxcvbjm,./")
+    ShowOSD("Colemak layout")
 }
 
 /**
  * Changes layout to "FMIX12f".
  */
 ChangeFMIX12f_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
-
-    ; Diffs from base
-    e.SetKey("f")
-    d.SetKey("d")
-    r.SetKey("r")
-    t.SetKey("k")
-    u.SetKey("l")
-
     ShowOSD("FMIX12f layout")
 }
 
@@ -1204,26 +1182,15 @@ ChangeFMIX12f_Layout() {
  * Changes layout to "FMIX12f-FMIX13fR".
  */
 ChangeFMIX12f_FMIX13fR_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("f")
-    d.SetKey("d")
-    r.SetKey("r")
-    t.SetKey("k")
-    u.SetKey("l")
+    global e, r, t, u, d
 
     ; Diffs for IME ON
-    e.SetImeKey("d", "F")
-    t.SetImeKey("f", "K")
-    d.SetImeKey("k", "D")
+    e.SetImeKey("d")
+    t.SetImeKey("f")
+    d.SetImeKey("k")
 
     ShowOSD("FMIX12f-FMIX13fR layout")
 }
@@ -1232,27 +1199,16 @@ ChangeFMIX12f_FMIX13fR_Layout() {
  * Changes layout to "FMIX13f-FMIX14R".
  */
 ChangeFMIX13f_FMIX14R_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwrfkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("r")
-    d.SetKey("d")
-    r.SetKey("f")
-    t.SetKey("k")
-    u.SetKey("l")
-
+    global e, r, t, u, d
+    
     ; Diffs for IME ON
     e.SetImeKey("r")
-    r.SetImeKey("d", "F")
-    t.SetImeKey("l", "K")
-    d.SetImeKey("k", "D")
+    r.SetImeKey("d")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
     u.SetImeKey("f")
 
     ShowOSD("FMIX13f-FMIX14R layout")
@@ -1262,23 +1218,15 @@ ChangeFMIX13f_FMIX14R_Layout() {
  * Changes layout to "FMIX14-FMIX14R".
  */
 ChangeFMIX14_FMIX14R_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwldkylup;asrtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    r.SetKey("d")
-    t.SetKey("k")
-
+    global e, r, t, u, d
+ 
     ; Diffs for IME ON
-    e.SetImeKey("r", "L")
-    t.SetImeKey("l", "K")
-    d.SetImeKey("k", "R")
+    e.SetImeKey("r")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
 
     ShowOSD("FMIX14-FMIX14R layout")
 }
@@ -1287,27 +1235,15 @@ ChangeFMIX14_FMIX14R_Layout() {
  * Changes layout to "FMIX13f-FMIX14fR".
  */
 ChangeFMIX13f_FMIX14fR_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwrfkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("r")
-    u.SetKey("l")
-    r.SetKey("f")
-    t.SetKey("k")
-    d.SetKey("d")
+    global e, r, t, u, d
 
     ; Diffs for IME ON
-    ;e.SetImeKey("r","L")
-    r.SetImeKey("d", "F")
-    t.SetImeKey("f", "K")
-    d.SetImeKey("k", "D")
+    r.SetImeKey("d")
+    t.SetImeKey("f")
+    d.SetImeKey("k")
 
     ShowOSD("FMIX13f-FMIX14fR layout")
 }
@@ -1316,27 +1252,15 @@ ChangeFMIX13f_FMIX14fR_Layout() {
  * Changes layout to "FMIX13-FMIX14R".
  */
 ChangeFMIX13_FMIX14R_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("r")
-    u.SetKey("f")
-    r.SetKey("l")
-    t.SetKey("k")
-    d.SetKey("d")
+    global e, r, t, u, d
 
     ; Diffs for IME ON
-    e.SetImeKey("r", "R")
-    r.SetImeKey("d", "L")
-    t.SetImeKey("l", "K")
-    d.SetImeKey("k", "D")
+    r.SetImeKey("d")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
 
     ShowOSD("FMIX13-FMIX14R layout")
 }
@@ -1345,30 +1269,17 @@ ChangeFMIX13_FMIX14R_Layout() {
  * Changes layout to "FMIX13-FMIX14R".
  */
 ChangeFMIX13_FMIX14Rfep_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("r")
-    u.SetKey("f")
-    r.SetKey("l")
-    t.SetKey("k")
-    d.SetKey("d")
+    global e, r, t, u, d
 
     ; Diffs for IME ON
-    e.SetImeKey("r", "R")
-    r.SetImeKey("d", "L")
-    t.SetImeKey("l", "K")
-    d.SetImeKey("k", "D")
-
-    i.SetImeKey("e", "U")
-    k.SetImeKey("u", "E")
+    r.SetImeKey("d")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
+    i.SetImeKey("e")
+    k.SetImeKey("u")
 
     ShowOSD("FMIX13-FMIX14Rfep layout")
 }
@@ -1377,27 +1288,16 @@ ChangeFMIX13_FMIX14Rfep_Layout() {
  * Changes layout to "FMIX12-FMIX14R".
  */
 ChangeFMIX12_FMIX14R_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwlrkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("l")
-    u.SetKey("f")
-    r.SetKey("r")
-    t.SetKey("k")
-    d.SetKey("d")
+    global e, r, t, u, d
 
     ; Diffs for IME ON
-    e.SetImeKey("r", "L")
-    r.SetImeKey("d", "R")
-    t.SetImeKey("l", "K")
-    d.SetImeKey("k", "D")
+    e.SetImeKey("r")
+    r.SetImeKey("d")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
 
     ShowOSD("FMIX12-FMIX14R layout")
 }
@@ -1406,27 +1306,16 @@ ChangeFMIX12_FMIX14R_Layout() {
  * Changes layout to "FMIX12-FMIX14R".
  */
 ChangeFMIX12_FMIX13R_Layout() {
-    ChangeFMIXVBJ_LayoutImpl()
-
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon, colon
-    global b, n, m, comma, period, slash
-
+    StoreLayout("qwlrkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
-    ; Diffs from base (IME OFF)
-    e.SetKey("l")
-    u.SetKey("f")
-    r.SetKey("r")
-    t.SetKey("k")
-    d.SetKey("d")
+    global e, r, t, u, d
 
     ; Diffs for IME ON
-    e.SetImeKey("d", "L")
-    r.SetImeKey("r", "R")
-    t.SetImeKey("l", "K")
-    d.SetImeKey("k", "D")
+    e.SetImeKey("d")
+    r.SetImeKey("r")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
 
     ShowOSD("FMIX12-FMIX13R layout")
 }
