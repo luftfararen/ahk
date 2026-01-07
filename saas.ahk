@@ -11,7 +11,7 @@
 ; 2. Key Remapping (RKey): Remaps keys, with different behaviors for
 ;    Shift-pressed, IME-on, and IME-off states.
 ; 3. Long Press Keys (LKey): Extends RKey to add functionality for long-pressing
-;    a key (e.g., tap ';' for ';', hold for ':').
+;    a key (e.g., tap ';' for ';', hold for ':').S
 ; 4. Key Layers (#HotIf): Uses the MKey modifiers to create multiple
 ;    keyboard layers (e.g., a navigation layer, a numpad layer, a symbol layer).
 ; 5. Layout Switching: Functions to dynamically change the keyboard layout
@@ -35,65 +35,68 @@
 ; Space Tab Enter BS Del Ins Left Right Up Down Home End PgUp PgDn Esc Pause PrintScreen
 
 ; --- Variable Naming Convention ---
-; S_... : Scan code string (e.g., "sc07B") for hotkey definitions.
+; R_... : Raw string (e.g., "sc07B") for hotkey definitions.
 ; C_... : Send-compatible string (e.g., "{sc07B}").
 ; B_... : Blind-mode Send string (e.g., "{Blind}{sc07B}").
 
 ; vk1Dsc07B = NoConvert (Noconvert key)
-S_NOCONV := "sc07B"
+R_NOCONV := "sc07B"
 C_NOCONV := "{sc07B}"
 
 ; vk1Csc079 = Convert (Convert key)
-S_CONV := "sc079"
+R_CONV := "sc079"
 C_CONV := "{sc079}"
 
 ; sc07D = \ (Backslash/Yen key on JIS keyboards)
-;S_BACKSLASH := "sc07D"
+;R_BACKSLASH := "sc07D"
 C_BACKSLASH := "{sc07D}"
 B_BACKSLASH := "{Blind}{sc07D}"
 
 ; vkE2sc073 = \ (Underscore key on JIS keyboards)
-;S_BACKSLASH2 := "sc073"
+;R_BACKSLASH2 := "sc073"
 C_BACKSLASH2 := "{sc073}"
 
 ; sc00D = ^ (Hat/Caret key)
-;S_HAT := "sc00D"
+;R_HAT := "sc00D"
 C_HAT := "{sc00D}"
 
 ; vkBBsc027 = ; (Semicolon)
-;S_SEMICOLON := "sc027"
+;R_SEMICOLON := "sc027"
 C_SEMICOLON := "{sc027}"
 B_SEMICOLON := "{Blind}{sc027}"
 C_PLUS := "+{sc027}"
 
 ; vkBAsc028 = : (Colon)
-;S_COLON := "sc028"
+;R_COLON := "sc028"
 C_COLON := "{sc028}"
 B_COLON := "{Blind}{sc028}"
 C_ASTERISK := "+{sc028}"
 
 ; vkBCsc033 = , (Comma)
-;S_COMMA := "sc033"
+;R_COMMA := "sc033"
 C_COMMA := "{sc033}"
 
 ; vkF0sc03A = Eisu (Eisu/Capslock key)
-S_EISU := "sc03A"
+R_EISU := "sc03A"
 C_EISU := "{sc03A}"
 
 ; vkF2sc070 = Hiragana(Katakana/Hiragana key)
 ; Note: Assigning other keys to this key can be unstable.
-S_HIRAGANA := "sc070"
+R_HIRAGANA := "sc070"
 C_HIRAGANA := "{sc070}"
 
 ; vkF3sc029 = Zenkaku/Hankaku (IME key)
 ; Note: Must be sent; remapping (e.g., `sc029::x`) does not work.
-S_ZENKAKU := "sc029"
+R_ZENKAKU := "sc029"
 C_ZENKAKU := "{sc029}"
 B_ZENKAKU := "{Blind}{sc029}"
 
-;S_SLASH := "sc035" (Slash)
+;R_SLASH := "sc035" (Slash)
 C_SLASH := "{sc035}"
 B_SLASH := "{Blind}{sc035}"
+
+
+R_ENTER :="ENTER"
 
 ; --- Numpad Constants ---
 C_N0 := "{Numpad0}"
@@ -395,7 +398,7 @@ class MKey {
     	                     Can be in "{...}" format or plain.
     	@param {Integer} [timeout=200] - The time (ms) to differentiate a short press.
     ============================================================================*/
-    __New(key, timeout := 200) {
+    __New(key, timeout := 150) {
         if key = "" { ; For "virtual" modifiers like F13
             this.key_str := ""
             this.key := key ; registerd key
@@ -855,13 +858,13 @@ class LKey extends RKey {
 ; ============================================================================
 
 ; --- Modifier Keys (MKey) ---
-f13 := MKey("", 200) ;m1
-space := MKey("SPACE") ;m2
+f13 := MKey("", 200) 
+space := MKey("SPACE") 
 ;shift_lambda := () => (GetKeyState("Shift","P") || space.IsPressed())
 tab := MKey("TAB") ;m3
-noconv := MKey(S_NOCONV) ;m4
-f14 := MKey("ENTER")
-conv := MKey(S_CONV)
+noconv := MKey(R_NOCONV) 
+f14 := MKey(R_ENTER)
+conv := MKey(R_ENTER)
 colon := LKey(C_COLON, "", "none")
 
 ; --- Remap Keys (RKey) ---
@@ -951,7 +954,7 @@ L_SHIFT := 5
 LayerState(layer) {
     ; Check the specified layer
     if layer = L_NAVL_CTRL {
-        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(S_NOCONV, "P"))
+        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
     }
     if layer = L_SYMBOL1 {
         return f14.IsPressed() || conv.IsPressed()
@@ -966,7 +969,7 @@ LayerState(layer) {
         return tab.IsPressed()
     }
     if layer = L_SELECT {
-        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(S_NOCONV, "P"))
+        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
     }
     if layer = L_SHIFT {
         return space.IsPressed()
@@ -1352,7 +1355,7 @@ ChangeFMIX12_FMIX13R_Layout() {
 *k:: Send("+{Down}")  ; Shift+Down
 *l:: Send("+{Right}") ; Shift+Right
 *sc027:: Send("+{Enter}") ; Semicolon (;) -> Shift+Enter
-*Enter:: Send("{Blind}{Enter}")
+*Enter:: Send(B_ENTER)
 *n:: Send("+{End}")   ; Shift+End
 *m:: Send(C_DEL)    ; Delete
 *sc033:: Send("^+{Left}") ; Comma (,) -> Ctrl+Shift+Left
@@ -1365,9 +1368,6 @@ ChangeFMIX12_FMIX13R_Layout() {
 *down:: Send("+{Down}")
 *right:: Send("+{Right}")
 #HotIf
-
-;*** LAYER1  or LAYER2 (Navigation/Editing) ***
-;#HotIf (ModifiedState(1) || ModifiedState(2)) && !ModifiedState(3) && !ModifiedState(4) && !ModifiedState(5)
 
 ;*** LAYER (System/App Control) ***
 #HotIf LayerState(L_NAVL_CTRL)
@@ -1847,8 +1847,8 @@ Right:: right.SendShiftedKey()
 *F14:: f14.Down()
 *F14 up:: f14.Up()
 
-*sc079:: f14.Down() ; Convert key
-*sc079 up:: f14.Up()
+*sc079:: conv.Down() ; Convert key
+*sc079 up:: conv.Up()
 
 *sc07B:: noconv.Down() ; Noconvert key
 *sc07B up:: noconv.Up()
