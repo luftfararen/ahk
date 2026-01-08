@@ -34,69 +34,73 @@
 ; Keys that require {}:
 ; Space Tab Enter BS Del Ins Left Right Up Down Home End PgUp PgDn Esc Pause PrintScreen
 
+; ============================================================================
+; MODIFIER SYMBOLS & CONSTANTS
+; ============================================================================
 ; --- Variable Naming Convention ---
 ; R_... : Raw string (e.g., "sc07B") for hotkey definitions.
 ; C_... : Send-compatible string (e.g., "{sc07B}").
 ; B_... : Blind-mode Send string (e.g., "{Blind}{sc07B}").
 
-; vk1Dsc07B = NoConvert (Noconvert key)
+; --- Noconvert key ---
 R_NOCONV := "sc07B"
 C_NOCONV := "{sc07B}"
 
-; vk1Csc079 = Convert (Convert key)
+; --- Convert key ---
 R_CONV := "sc079"
 C_CONV := "{sc079}"
 
-; sc07D = \ (Backslash/Yen key on JIS keyboards)
+; --- Backslash/Yen key (\) ---
 ;R_BACKSLASH := "sc07D"
 C_BACKSLASH := "{sc07D}"
 B_BACKSLASH := "{Blind}{sc07D}"
 
-; vkE2sc073 = \ (Underscore key on JIS keyboards)
+; --- Underscore key (\) ---
 ;R_BACKSLASH2 := "sc073"
 C_BACKSLASH2 := "{sc073}"
 
-; sc00D = ^ (Hat/Caret key)
+; --- Hat/Caret key (^) ---
 ;R_HAT := "sc00D"
 C_HAT := "{sc00D}"
 
-; vkBBsc027 = ; (Semicolon)
+; --- Semicolon (;) ---
 ;R_SEMICOLON := "sc027"
 C_SEMICOLON := "{sc027}"
 B_SEMICOLON := "{Blind}{sc027}"
 C_PLUS := "+{sc027}"
 
-; vkBAsc028 = : (Colon)
+; --- Colon (:) ---
 ;R_COLON := "sc028"
 C_COLON := "{sc028}"
 B_COLON := "{Blind}{sc028}"
 C_ASTERISK := "+{sc028}"
 
-; vkBCsc033 = , (Comma)
+; --- Comma (,) ---
 ;R_COMMA := "sc033"
 C_COMMA := "{sc033}"
 
-; vkF0sc03A = Eisu (Eisu/Capslock key)
+; --- Eisu (Capslock) ---
 R_EISU := "sc03A"
 C_EISU := "{sc03A}"
 
-; vkF2sc070 = Hiragana(Katakana/Hiragana key)
-; Note: Assigning other keys to this key can be unstable.
+; --- Hiragana/Katakana ---
 R_HIRAGANA := "sc070"
 C_HIRAGANA := "{sc070}"
 
-; vkF3sc029 = Zenkaku/Hankaku (IME key)
-; Note: Must be sent; remapping (e.g., `sc029::x`) does not work.
+; --- Zenkaku/Hankaku (IME) ---
 R_ZENKAKU := "sc029"
 C_ZENKAKU := "{sc029}"
 B_ZENKAKU := "{Blind}{sc029}"
 
-;R_SLASH := "sc035" (Slash)
+; --- Slash (/) ---
+;R_SLASH := "sc035"
 C_SLASH := "{sc035}"
 B_SLASH := "{Blind}{sc035}"
 
-
-R_ENTER :="ENTER"
+; --- Enter ---
+R_ENTER := "ENTER"
+C_ENTER := "{Enter}"
+B_ENTER := "{Blind}{Enter}"
 
 ; --- Numpad Constants ---
 C_N0 := "{Numpad0}"
@@ -111,56 +115,64 @@ C_N8 := "{Numpad8}"
 C_N9 := "{Numpad9}"
 C_NDOT := "{NumpadDot}"
 
+; --- Numpad Operators (Blind only) ---
 B_NADD := "{Blind}{NumpadAdd}"
 B_NMUL := "{Blind}{NumpadMult}"
 B_NSUB := "{Blind}{NumpadSub}"
 B_NDIV := "{Blind}{NumpadDiv}"
 
-; --- Blind Mode Key Constants ---
+; --- Functional Keys ---
 C_DEL := "{Delete}"
 B_DEL := "{Blind}{Delete}"
 
 C_BS := "{Backspace}"
 B_BS := "{Blind}{Backspace}"
 
-C_REDO := "^y" ; Ctrl+Y (Redo)
-
-B_SPACE := "{Blind}{Space}"
 C_ESC := "{Esc}"
 B_ESC := "{Blind}{Esc}"
+
+R_TAB := "Tab"
 B_TAB := "{Blind}{Tab}"
+
+R_SPACE := "Space"
+;C_SPACE := "{Space}"
+B_SPACE := "{Blind}{Space}"
+
+; --- Edit/Navi Shortcuts ---
+R_REDO := "^y"
 B_UNDO := "{Blind}^{z}"
 B_CUT := "{Blind}^{x}"
 B_COPY := "{Blind}^{c}"
 B_PASTE := "{Blind}^{v}"
-B_ENTER := "{Blind}{Enter}"
+
+; --- Navigation ---
 B_HOME := "{Blind}{Home}"
-B_END := "{Blind}{End}" ; (Refactored: Fixed broken line)
+B_END := "{Blind}{End}"
 B_PGUP := "{Blind}{PgUp}"
 B_PGDN := "{Blind}{PgDn}"
-B_CHOME := "{Blind}^{Home}" ; Ctrl+Home
-B_CEND := "{Blind}^{End}" ; Ctrl+End
-C_CSHOME := "^+{Home}" ; Ctrl+Shift+Home
-C_CSEND := "^+{End}" ; Ctrl+Shift+End
-B_CPGUP := "{Blind}^{PgUp}" ; Ctrl+PgUp
-B_CPGDN := "{Blind}^{PgDn}" ; Ctrl+PgDn
 
-B_LEFT := "{Blind}{Left}"
-B_RIGHT := "{Blind}{Right}"
-B_CLEFT := "{Blind}^{Left}" ; Ctrl+Left
-B_CRIGHT := "{Blind}^{Right}" ; Ctrl+Right
-C_CSLEFT := "^+{Left}" ; Ctrl+Shift+Left
-C_CSRIGHT := "^+{Right}" ; Ctrl+Shift+Right
-
-B_UP := "{Blind}{Up}"
-B_DOWN := "{Blind}{Down}"
+B_CHOME := "{Blind}^{Home}"
+B_CEND := "{Blind}^{End}"
+C_CSHOME := "^+{Home}"
+C_CSEND := "^+{End}"
+B_CPGUP := "{Blind}^{PgUp}"
+B_CPGDN := "{Blind}^{PgDn}"
 
 C_LEFT := "{Left}"
+B_LEFT := "{Blind}{Left}"
 C_RIGHT := "{Right}"
+B_RIGHT := "{Blind}{Right}"
 C_UP := "{Up}"
+B_UP := "{Blind}{Up}"
 C_DOWN := "{Down}"
-C_ENTER := "{Enter}"
+B_DOWN := "{Blind}{Down}"
 
+B_CLEFT := "{Blind}^{Left}"
+B_CRIGHT := "{Blind}^{Right}"
+C_CSLEFT := "^+{Left}"
+C_CSRIGHT := "^+{Right}"
+
+; --- Function Keys (Blind only) ---
 B_F1 := "{Blind}{F1}"
 B_F2 := "{Blind}{F2}"
 B_F3 := "{Blind}{F3}"
@@ -858,11 +870,11 @@ class LKey extends RKey {
 ; ============================================================================
 
 ; --- Modifier Keys (MKey) ---
-f13 := MKey("", 200) 
-space := MKey("SPACE") 
+f13 := MKey("", 150)
+space := MKey(R_SPACE)
 ;shift_lambda := () => (GetKeyState("Shift","P") || space.IsPressed())
-tab := MKey("TAB") ;m3
-noconv := MKey(R_NOCONV) 
+tab := MKey(R_TAB)
+noconv := MKey(R_NOCONV)
 f14 := MKey(R_ENTER)
 conv := MKey(R_ENTER)
 colon := LKey(C_COLON, "", "none")
@@ -1206,7 +1218,7 @@ ChangeFMIX13f_FMIX14R_Layout() {
     ResetIME()
 
     global e, r, t, u, d
-    
+
     ; Diffs for IME ON
     e.SetImeKey("r")
     r.SetImeKey("d")
@@ -1225,7 +1237,7 @@ ChangeFMIX14_FMIX14R_Layout() {
     ResetIME()
 
     global e, r, t, u, d
- 
+
     ; Diffs for IME ON
     e.SetImeKey("r")
     t.SetImeKey("l")
@@ -1342,7 +1354,7 @@ ChangeFMIX12_FMIX13R_Layout() {
 *b:: Send("^z") ; Undo
 
 ; --- Navigation (with Shift) ---
-*y:: Send(C_REDO) ; Redo (^y)
+*y:: Send(R_REDO) ; Redo (^y)
 *u:: Send(C_BS)   ; Backspace
 *i:: Send("+{Up}")   ; Shift+Up
 *o:: Send("+{PgUp}") ; Shift+PgUp
