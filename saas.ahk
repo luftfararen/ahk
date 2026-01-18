@@ -410,15 +410,15 @@ class MKey {
     	                     Can be in "{...}" format or plain.
     	@param {Integer} [timeout=200] - The time (ms) to differentiate a short press.
     ============================================================================*/
-    __New(key, timeout := 150) {
+    __New(key, timeout := 180) {
         if key = "" { ; For "virtual" modifiers like F13
             this.key_str := ""
             this.key := key ; registerd key
         } else {
-            if SubStr(key, 1, 1) = "{" { ; Format: "{SPACE}"
-                this.key := SubStr(key, 2, StrLen(key) - 2) ; "SPACE"
-                this.key_str := key                     ; "{SPACE}"
-            } else { ; Format: "SPACE"
+            if SubStr(key, 1, 1) = "{" { 
+                this.key := SubStr(key, 2, StrLen(key) - 2)
+                this.key_str := key  
+            } else { 
                 this.key := key
                 this.key_str := "{" . key . "}"
             }
@@ -870,13 +870,13 @@ class LKey extends RKey {
 ; ============================================================================
 
 ; --- Modifier Keys (MKey) ---
-f13 := MKey("", 150)
+f13 := MKey("")
 space := MKey(R_SPACE)
 ;shift_lambda := () => (GetKeyState("Shift","P") || space.IsPressed())
 tab := MKey(R_TAB)
 noconv := MKey(R_NOCONV)
-f14 := MKey(R_ENTER)
 conv := MKey(R_ENTER)
+f14 := MKey(R_ENTER)
 colon := LKey(C_COLON, "", "none")
 
 ; --- Remap Keys (RKey) ---
@@ -1048,8 +1048,13 @@ ResetIME() {
     comma.SetImeKey()
     period.SetImeKey()
     slash.SetImeKey()
-
 }
+
+
+ExtractChar(text,idx){
+    return SubStr(text, idx, 1)
+}
+
 /**
  * Stores a new IME-ON key layout (SetImeKey)
  * @param {String} layout - New IME-ON key layout
@@ -1062,50 +1067,50 @@ StoreIMELayout(layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "123456
     global a, s, d, f, g, h, j, k, l, semicolon
     global b, n, m, comma, period, slash
 
-    k1.SetIMEKey(SubStr(num_layout, 1, 1))
-    k2.SetIMEKey(SubStr(num_layout, 2, 1))
-    k3.SetIMEKey(SubStr(num_layout, 3, 1))
-    k4.SetIMEKey(SubStr(num_layout, 4, 1))
-    k5.SetIMEKey(SubStr(num_layout, 5, 1))
-    k6.SetIMEKey(SubStr(num_layout, 6, 1))
-    k7.SetIMEKey(SubStr(num_layout, 7, 1))
-    k8.SetIMEKey(SubStr(num_layout, 8, 1))
-    k9.SetIMEKey(SubStr(num_layout, 9, 1))
-    k0.SetIMEKey(SubStr(num_layout, 10, 1))
-    minus.SetIMEKey(SubStr(num_layout, 11, 1))
+    k1.SetIMEKey(ExtractChar(num_layout, 1))
+    k2.SetIMEKey(ExtractChar(num_layout, 2))
+    k3.SetIMEKey(ExtractChar(num_layout, 3))
+    k4.SetIMEKey(ExtractChar(num_layout, 4))
+    k5.SetIMEKey(ExtractChar(num_layout, 5))
+    k6.SetIMEKey(ExtractChar(num_layout, 6))
+    k7.SetIMEKey(ExtractChar(num_layout, 7))
+    k8.SetIMEKey(ExtractChar(num_layout, 8))
+    k9.SetIMEKey(ExtractChar(num_layout, 9))
+    k0.SetIMEKey(ExtractChar(num_layout, 10))
+    minus.SetIMEKey(ExtractChar(num_layout, 11))
 
-    q.SetIMEKey(SubStr(layout, 1, 1))
-    w.SetIMEKey(SubStr(layout, 2, 1))
-    e.SetIMEKey(SubStr(layout, 3, 1))
-    r.SetIMEKey(SubStr(layout, 4, 1))
-    t.SetIMEKey(SubStr(layout, 5, 1))
-    y.SetIMEKey(SubStr(layout, 6, 1))
-    u.SetIMEKey(SubStr(layout, 7, 1))
-    i.SetIMEKey(SubStr(layout, 8, 1))
-    o.SetIMEKey(SubStr(layout, 9, 1))
-    p.SetIMEKey(SubStr(layout, 10, 1))
+    q.SetIMEKey(ExtractChar(layout, 1))
+    w.SetIMEKey(ExtractChar(layout, 2))
+    e.SetIMEKey(ExtractChar(layout, 3))
+    r.SetIMEKey(ExtractChar(layout, 4))
+    t.SetIMEKey(ExtractChar(layout, 5))
+    y.SetIMEKey(ExtractChar(layout, 6))
+    u.SetIMEKey(ExtractChar(layout, 7))
+    i.SetIMEKey(ExtractChar(layout, 8))
+    o.SetIMEKey(ExtractChar(layout, 9))
+    p.SetIMEKey(ExtractChar(layout, 10))
 
-    a.SetIMEKey(SubStr(layout, 11, 1))
-    s.SetIMEKey(SubStr(layout, 12, 1))
-    d.SetIMEKey(SubStr(layout, 13, 1))
-    f.SetIMEKey(SubStr(layout, 14, 1))
-    g.SetIMEKey(SubStr(layout, 15, 1))
-    h.SetIMEKey(SubStr(layout, 16, 1))
-    j.SetIMEKey(SubStr(layout, 17, 1))
-    k.SetIMEKey(SubStr(layout, 18, 1))
-    l.SetIMEKey(SubStr(layout, 19, 1))
-    semicolon.SetIMEKey(SubStr(layout, 20, 1))
+    a.SetIMEKey(ExtractChar(layout, 11))
+    s.SetIMEKey(ExtractChar(layout, 12))
+    d.SetIMEKey(ExtractChar(layout, 13))
+    f.SetIMEKey(ExtractChar(layout, 14))
+    g.SetIMEKey(ExtractChar(layout, 15))
+    h.SetIMEKey(ExtractChar(layout, 16))
+    j.SetIMEKey(ExtractChar(layout, 17))
+    k.SetIMEKey(ExtractChar(layout, 18))
+    l.SetIMEKey(ExtractChar(layout, 19))
+    semicolon.SetIMEKey(ExtractChar(layout, 20))
 
-    z.SetIMEKey(SubStr(layout, 21, 1))
-    x.SetIMEKey(SubStr(layout, 22, 1))
-    c.SetIMEKey(SubStr(layout, 23, 1))
-    v.SetIMEKey(SubStr(layout, 24, 1))
-    b.SetIMEKey(SubStr(layout, 25, 1))
-    n.SetIMEKey(SubStr(layout, 26, 1))
-    m.SetIMEKey(SubStr(layout, 27, 1))
-    comma.SetIMEKey(SubStr(layout, 28, 1))
-    period.SetIMEKey(SubStr(layout, 29, 1))
-    slash.SetIMEKey(SubStr(layout, 30, 1))
+    z.SetIMEKey(ExtractChar(layout, 21))
+    x.SetIMEKey(ExtractChar(layout, 22))
+    c.SetIMEKey(ExtractChar(layout, 23))
+    v.SetIMEKey(ExtractChar(layout, 24))
+    b.SetIMEKey(ExtractChar(layout, 25))
+    n.SetIMEKey(ExtractChar(layout, 26))
+    m.SetIMEKey(ExtractChar(layout, 27))
+    comma.SetIMEKey(ExtractChar(layout, 28))
+    period.SetIMEKey(ExtractChar(layout, 29))
+    slash.SetIMEKey(ExtractChar(layout, 30))
 }
 
 /**
@@ -1120,50 +1125,50 @@ StoreLayout(layout, num_layout := "1234567890-") {
     global a, s, d, f, g, h, j, k, l, semicolon
     global b, n, m, comma, period, slash
 
-    k1.SetKey(SubStr(num_layout, 1, 1))
-    k2.SetKey(SubStr(num_layout, 2, 1))
-    k3.SetKey(SubStr(num_layout, 3, 1))
-    k4.SetKey(SubStr(num_layout, 4, 1))
-    k5.SetKey(SubStr(num_layout, 5, 1))
-    k6.SetKey(SubStr(num_layout, 6, 1))
-    k7.SetKey(SubStr(num_layout, 7, 1))
-    k8.SetKey(SubStr(num_layout, 8, 1))
-    k9.SetKey(SubStr(num_layout, 9, 1))
-    k0.SetKey(SubStr(num_layout, 10, 1))
-    minus.SetKey(SubStr(num_layout, 11, 1))
+    k1.SetKey(ExtractChar(num_layout, 1))
+    k2.SetKey(ExtractChar(num_layout, 2))
+    k3.SetKey(ExtractChar(num_layout, 3))
+    k4.SetKey(ExtractChar(num_layout, 4))
+    k5.SetKey(ExtractChar(num_layout, 5))
+    k6.SetKey(ExtractChar(num_layout, 6))
+    k7.SetKey(ExtractChar(num_layout, 7))
+    k8.SetKey(ExtractChar(num_layout, 8))
+    k9.SetKey(ExtractChar(num_layout, 9))
+    k0.SetKey(ExtractChar(num_layout, 10))
+    minus.SetKey(ExtractChar(num_layout, 11))
 
-    q.SetKey(SubStr(layout, 1, 1))
-    w.SetKey(SubStr(layout, 2, 1))
-    e.SetKey(SubStr(layout, 3, 1))
-    r.SetKey(SubStr(layout, 4, 1))
-    t.SetKey(SubStr(layout, 5, 1))
-    y.SetKey(SubStr(layout, 6, 1))
-    u.SetKey(SubStr(layout, 7, 1))
-    i.SetKey(SubStr(layout, 8, 1))
-    o.SetKey(SubStr(layout, 9, 1))
-    p.SetKey(SubStr(layout, 10, 1))
+    q.SetKey(ExtractChar(layout, 1))
+    w.SetKey(ExtractChar(layout, 2))
+    e.SetKey(ExtractChar(layout, 3))
+    r.SetKey(ExtractChar(layout, 4))
+    t.SetKey(ExtractChar(layout, 5))
+    y.SetKey(ExtractChar(layout, 6))
+    u.SetKey(ExtractChar(layout, 7))
+    i.SetKey(ExtractChar(layout, 8))
+    o.SetKey(ExtractChar(layout, 9))
+    p.SetKey(ExtractChar(layout, 10))
 
-    a.SetKey(SubStr(layout, 11, 1))
-    s.SetKey(SubStr(layout, 12, 1))
-    d.SetKey(SubStr(layout, 13, 1))
-    f.SetKey(SubStr(layout, 14, 1))
-    g.SetKey(SubStr(layout, 15, 1))
-    h.SetKey(SubStr(layout, 16, 1))
-    j.SetKey(SubStr(layout, 17, 1))
-    k.SetKey(SubStr(layout, 18, 1))
-    l.SetKey(SubStr(layout, 19, 1))
-    semicolon.SetKey(SubStr(layout, 20, 1))
+    a.SetKey(ExtractChar(layout, 11))
+    s.SetKey(ExtractChar(layout, 12))
+    d.SetKey(ExtractChar(layout, 13))
+    f.SetKey(ExtractChar(layout, 14))
+    g.SetKey(ExtractChar(layout, 15))
+    h.SetKey(ExtractChar(layout, 16))
+    j.SetKey(ExtractChar(layout, 17))
+    k.SetKey(ExtractChar(layout, 18))
+    l.SetKey(ExtractChar(layout, 19))
+    semicolon.SetKey(ExtractChar(layout, 20))
 
-    z.SetKey(SubStr(layout, 21, 1))
-    x.SetKey(SubStr(layout, 22, 1))
-    c.SetKey(SubStr(layout, 23, 1))
-    v.SetKey(SubStr(layout, 24, 1))
-    b.SetKey(SubStr(layout, 25, 1))
-    n.SetKey(SubStr(layout, 26, 1))
-    m.SetKey(SubStr(layout, 27, 1))
-    comma.SetKey(SubStr(layout, 28, 1))
-    period.SetKey(SubStr(layout, 29, 1))
-    slash.SetKey(SubStr(layout, 30, 1))
+    z.SetKey(ExtractChar(layout, 21))
+    x.SetKey(ExtractChar(layout, 22))
+    c.SetKey(ExtractChar(layout, 23))
+    v.SetKey(ExtractChar(layout, 24))
+    b.SetKey(ExtractChar(layout, 25))
+    n.SetKey(ExtractChar(layout, 26))
+    m.SetKey(ExtractChar(layout, 27))
+    comma.SetKey(ExtractChar(layout, 28))
+    period.SetKey(ExtractChar(layout, 29))
+    slash.SetKey(ExtractChar(layout, 30))
 }
 
 /**
