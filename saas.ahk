@@ -340,6 +340,50 @@ SendAccImeState(key_ime_off, key_ime_on := "") {
     }
 }
 
+; --- 設定 ---
+ColorJapanese := "Red"    ; 日本語ON時の色
+ColorEnglish := "Black"   ; 日本語OFF時の色
+DotSize := 8
+; ------------
+
+; キャレット表示用のGUI作成
+CaretGui := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20 ") ; E0x20はクリック透過
+; 描画用のウィンドウ（GUI）作成
+MyGui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+MyGui.BackColor := ColorJapanese
+WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MyGui)
+
+SetTimer(UpdateCaret, 16) ;
+DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr") ; DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+
+UpdateCaret() {
+    static LastX := 0, LastY := 0, LastStatus := -1
+
+    ImeOn := IsImeOn()
+
+    cX := -1, cY := 0
+    ; キャレット位置を取得 (v2標準関数)
+    CoordMode "Caret", "Screen"
+    if CaretGetPos(&cX, &cY) {
+        if (cX != LastX || cY != LastY || ImeOn != LastStatus) {
+            CaretGui.BackColor := ImeOn ? ColorJapanese : ColorEnglish
+            CaretGui.Show("NA x" cX " y" cY " w1 h20")
+            LastX := cX
+            LastY := cY
+            LastStatus := ImeOn
+        }
+        MyGui.Hide()
+    } else {
+        CaretGui.Hide()
+        if ImeOn {
+            my := 0, mx := 0
+            MouseGetPos(&mx, &my)
+            ; カーソルの少し右下に表示
+            MyGui.Show("x" (mx + 40) " y" (my + 40) " w" DotSize " h" DotSize " NoActivate")
+        }
+    }
+}
+
 /*============================================================================
  [Class] MouseSpeed
  A static class to control the system mouse speed.
@@ -415,10 +459,10 @@ class MKey {
             this.key_str := ""
             this.key := key ; registerd key
         } else {
-            if SubStr(key, 1, 1) = "{" { 
+            if SubStr(key, 1, 1) = "{" {
                 this.key := SubStr(key, 2, StrLen(key) - 2)
-                this.key_str := key  
-            } else { 
+                this.key_str := key
+            } else {
                 this.key := key
                 this.key_str := "{" . key . "}"
             }
@@ -1050,8 +1094,7 @@ ResetIME() {
     slash.SetImeKey()
 }
 
-
-ExtractChar(text,idx){
+ExtractChar(text, idx) {
     return SubStr(text, idx, 1)
 }
 
