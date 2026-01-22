@@ -263,36 +263,45 @@ SetImeState(hwnd, state) {
         , "Ptr", state)  ; 1 = ON, 0 = OFF
 }
 
-force_ime_on := false ; Global flag: If true, force IME status to ON.
-last_active_hwnd := 0 ; Global: Tracks the last active window to reset force_ime_on.
+class ImeState {
+    static force_ime_on := false
 
-/**
- * Checks if the IME is currently ON for the active window.
- * Also respects the `force_ime_on` global flag.
- * @returns {Boolean} True if IME is (or is forced to be) ON.
- */
-IsImeOn() {
-    global last_active_hwnd, force_ime_on
-    hwnd := GetActiveWindowHandle()
+    /**
+     * Checks if the IME is currently ON for the active window.
+     * Also respects the `force_ime_on` global flag.
+     * @returns {Boolean} True if IME is (or is forced to be) ON.
+     */
+    static IsOn() {
+        static last_active_hwnd := 0
+        hwnd := GetActiveWindowHandle()
 
-    ; If window is the same, check the force flag
-    if last_active_hwnd = hwnd {
-        if force_ime_on {
-            return true
+        ; If window is the same, check the force flag
+        if last_active_hwnd = hwnd {
+            if ImeState.force_ime_on {
+                return true
+            }
         }
-    } else {
-        ; Window changed, reset the force flag
-        force_ime_on := false
+        else {
+            ; Window changed, reset the force flag
+            ImeState.force_ime_on := false
+        }
+
+        last_active_hwnd := hwnd
+
+        ; Check the actual IME state
+        return DllCall("SendMessage"
+            , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+            , "UInt", 0x0283  ; WM_IME_CONTROL
+            , "Ptr", 0x0005   ; IMC_GETOPENSTATUS (Get open status)
+            , "Ptr", 0)      ; Returns 1 if ON, 0 if OFF
     }
 
-    last_active_hwnd := hwnd
-
-    ; Check the actual IME state
-    return DllCall("SendMessage"
-        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
-        , "UInt", 0x0283  ; WM_IME_CONTROL
-        , "Ptr", 0x0005   ; IMC_GETOPENSTATUS (Get open status)
-        , "Ptr", 0)      ; Returns 1 if ON, 0 if OFF
+    static ToggleForce() {
+        ImeState.force_ime_on := !ImeState.force_ime_on
+    }
+    static MakeForceStateWord() {
+        return ImeState.force_ime_on ? "On" : "Off"
+    }
 }
 
 /**
@@ -314,9 +323,8 @@ IsModified(text) {
  * Toggles the `force_ime_on` flag for the current window.
  */
 ToggleForceImeOn() {
-    global force_ime_on
-    force_ime_on := !force_ime_on
-    ShowOSD("Force IME: " . (force_ime_on ? "On" : "Off"))
+    ImeState.ToggleForce()
+    ShowOSD("Force IME: " . ImeState.MakeForceStateWord())
 }
 
 /**
@@ -333,7 +341,7 @@ ToggleImeState() {
  * If omitted, `key_ime_off` is used.
  */
 SendAccImeState(key_ime_off, key_ime_on := "") {
-    if IsImeOn() && key_ime_on != "" {
+    if ImeState.IsOn() && key_ime_on != "" {
         Send(key_ime_on)
     } else {
         Send(key_ime_off)
@@ -341,46 +349,40 @@ SendAccImeState(key_ime_off, key_ime_on := "") {
 }
 
 ; --- 設定 ---
-ColorJapanese := "Red"    ; 日本語ON時の色
-ColorEnglish := "Black"   ; 日本語OFF時の色
+ColorJapanese := "Red"
 DotSize := 8
 ; ------------
 
 ; キャレット表示用のGUI作成
-CaretGui := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20 ") ; E0x20はクリック透過
 ; 描画用のウィンドウ（GUI）作成
-MyGui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
-MyGui.BackColor := ColorJapanese
-WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MyGui)
+MGui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+MGui.BackColor := ColorJapanese
+WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MGui)
 
-SetTimer(UpdateCaret, 16) ;
-DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr") ; DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+SetTimer(ShowIMEState, 100) ;
+;DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr") ; DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
 
-UpdateCaret() {
-    static LastX := 0, LastY := 0, LastStatus := -1
+ShowIMEState() {
+    static LastX := -2, LastY := 0, LastStatus := -1
 
-    ImeOn := IsImeOn()
-
-    cX := -1, cY := 0
-    ; キャレット位置を取得 (v2標準関数)
-    CoordMode "Caret", "Screen"
-    if CaretGetPos(&cX, &cY) {
-        if (cX != LastX || cY != LastY || ImeOn != LastStatus) {
-            CaretGui.BackColor := ImeOn ? ColorJapanese : ColorEnglish
-            CaretGui.Show("NA x" cX " y" cY " w1 h20")
-            LastX := cX
-            LastY := cY
-            LastStatus := ImeOn
+    mx := -1, my := 0
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    if (mx = LastX && my = LastY) {
+        ime_on := ImeState.IsOn()
+        if ime_on {
+            if ime_on != LastStatus {
+                MGui.Show("x" (mx + 36) " y" (my + 36) " w" DotSize " h" DotSize " NoActivate")
+            }
+        } else {
+            MGui.Hide()
         }
-        MyGui.Hide()
+        LastStatus := ime_on
     } else {
-        CaretGui.Hide()
-        if ImeOn {
-            my := 0, mx := 0
-            MouseGetPos(&mx, &my)
-            ; カーソルの少し右下に表示
-            MyGui.Show("x" (mx + 40) " y" (my + 40) " w" DotSize " h" DotSize " NoActivate")
-        }
+        MGui.Hide()
+        LastX := mx
+        LastY := my
+        LastStatus := -1
     }
 }
 
@@ -645,7 +647,7 @@ class RKey {
         if ime_key = normal_key {
             Send(normal_key) ; No difference, just send
         } else {
-            if ime_key != "" && IsImeOn() {
+            if ime_key != "" && ImeState.IsOn() {
                 Send(ime_key) ; Send IME ON key
             } else {
                 Send(normal_key) ; Send IME OFF key
@@ -1000,6 +1002,7 @@ L_SYMBOL2 := 6
 L_SELECT := 3
 L_NUMPAD := 4
 L_SHIFT := 5
+L_FUNC := 6
 
 /**
  * Checks if a specific modifier layer (M1-M6) is active,
@@ -1013,10 +1016,10 @@ LayerState(layer) {
         return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
     }
     if layer = L_SYMBOL1 {
-        return f14.IsPressed() || conv.IsPressed()
+        return conv.IsPressed()
     }
     if layer = L_SYMBOL2 {
-        return colon.IsPressed()
+        return colon.IsPressed() || f14.IsPressed()
     }
     if layer = L_SYMBOL_NUM {
         return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
@@ -1030,6 +1033,9 @@ LayerState(layer) {
     if layer = L_SHIFT {
         return space.IsPressed()
     }
+    ; if layer = L_FUNC {
+    ;     return f14.IsPressed()
+    ; }
     return false
 }
 
@@ -1494,7 +1500,7 @@ g:: Send("^f") ; Find
 ; --- IME Toggles while M1 is held ---
 F14:: ToggleImeState() ; F14/Enter
 sc079:: ToggleImeState() ; Convert
-space:: Send(C_BS)
+space:: ToggleImeState() ;Send(C_BS)
 
 ; --- Layout Switching ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
@@ -1667,9 +1673,7 @@ sc073:: Send("\") ; _
 space:: Send(C_BS)
 #HotIf
 
-;*** LAYER6 (Symbol Layer) ***
 #HotIf LayerState(L_SYMBOL2)
-; --- Symbols ---
 q:: Send("+1")
 w:: Send("+2")
 e:: Send("+3")
@@ -1686,7 +1690,23 @@ x:: Send("@")
 c:: Send(":")
 v:: Send("|") ; |
 b:: Send("\") ; \
+#HotIf
 
+#HotIf LayerState(L_FUNC)
+q:: Send(B_F1)
+w:: Send(B_F2)
+e:: Send(B_F3)
+r:: Send(B_F4)
+
+a:: Send(B_F5)
+s:: Send(B_F6)
+d:: Send(B_F7)
+f:: Send(B_F8)
+
+z:: Send(B_F9)
+x:: Send(B_F10)
+c:: Send(B_F11)
+v:: Send(B_F12)
 #HotIf
 
 #HotIf LayerState(L_SHIFT)
