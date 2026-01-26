@@ -28,8 +28,13 @@ z]	』
 va	ゔぁ
 vi	ゔぃ
 vu	ゔ
-ve	ゔぇa
+ve	ゔぇ
 vo	ゔぉ
+Ma	ゔぁ
+Mi	ゔぃ
+Mu	ゔ
+Me	ゔぇ
+Mo	ゔぉ
 kk	っ	k
 gg	っ	g
 ss	っ	s
@@ -62,6 +67,7 @@ zya	じゃ
 zyi	じぃ
 zyu	じゅ
 zye	じぇ
+zxe	じぇ
 zyo	じょ
 tya	ちゃ
 tyi	ちぃ
@@ -519,6 +525,7 @@ gho	ぎょ
 ghc	ぎゅう
 ghk	ぎょう
 ghs	ぎゃい
+zhe	じぇ
 dha	ぢゃ
 dhi	でぃ
 dhu	ぢゅ

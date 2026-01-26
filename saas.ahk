@@ -922,7 +922,7 @@ space := MKey(R_SPACE)
 tab := MKey(R_TAB)
 noconv := MKey(R_NOCONV)
 conv := MKey(R_ENTER)
-f14 := MKey(R_ENTER)
+f14 := MKey(R_ZENKAKU)
 colon := LKey(C_COLON, "", "none")
 
 ; --- Remap Keys (RKey) ---
@@ -1334,6 +1334,94 @@ ChangeFMIX13_FMIX14R_Layout() {
     ShowOSD("FMIX13-FMIX14R layout")
 }
 
+ChangeFMIX13_minato_Layout() {
+    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
+    ResetIME()
+
+    global e, r, t, u, d
+
+    ; Diffs for IME ON
+    ;q.SetImeKey("q")
+    ;w.SetImeKey("w)
+    e.SetImeKey("r")
+    r.SetImeKey("d")
+    t.SetImeKey("l")
+
+    a.SetImeKey("n")
+    ;s.SetImeKey("s")
+    d.SetImeKey("k")
+    f.SetImeKey("t")
+    ;g.SetImeKey("h")
+
+    ;z.SetImeKey("g")
+    ;x.SetImeKey("m")
+    c.SetImeKey("h")
+    v.SetImeKey("m")
+    ;b.SetImeKey("b")
+
+    y.SetImeKey("f")
+    u.SetImeKey("yu")
+    i.SetImeKey("u")
+    o.SetImeKey("yo")
+    ;p.SetImeKey(";")
+
+    h.SetImeKey("nn")
+    j.SetImeKey("a")
+    ;k.SetImeKey("i")
+    ;l.SetImeKey("e")
+    ;semicolon.SetImeKey("o")
+
+    n.SetImeKey("-")
+    m.SetImeKey("ya")
+    ;slash.SetImeKey("f")
+
+    ShowOSD("FMIX13-湊 layout")
+}
+
+ChangeFMIX13_kanade_Layout() {
+    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
+    ResetIME()
+
+    ;global e, r, t, u, d
+
+    ; Diffs for IME ON
+    q.SetImeKey("w")
+    w.SetImeKey("ltu")
+    e.SetImeKey("r")
+    r.SetImeKey("m")
+    t.SetImeKey("p")
+
+    a.SetImeKey("k")
+    s.SetImeKey("s")
+    d.SetImeKey("t")
+    f.SetImeKey("n")
+    g.SetImeKey("h")
+
+    z.SetImeKey("g")
+    x.SetImeKey("z")
+    c.SetImeKey("d")
+    v.SetImeKey("nn")
+    b.SetImeKey("b")
+
+    y.SetImeKey("?")
+    u.SetImeKey("yu")
+    i.SetImeKey("u")
+    o.SetImeKey("yo")
+    p.SetImeKey("j")
+
+    h.SetImeKey("x")
+    j.SetImeKey("a")
+    k.SetImeKey("i")
+    l.SetImeKey("e")
+    semicolon.SetImeKey("o")
+
+    n.SetImeKey("-")
+    m.SetImeKey("ya")
+    slash.SetImeKey("f")
+
+    ShowOSD("FMIX13-奏 layout")
+}
+
 /**
  * Changes layout to "FMIX13-FMIX14R".
  */
@@ -1508,10 +1596,10 @@ space:: ToggleImeState() ;Send(C_BS)
 #d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13_FMIX14R_Layout()
 #e:: ChangeFMIX13_FMIX14Rfep_Layout()
-#v:: ChangeFMIX13f_FMIX14R_Layout()
+#k:: ChangeFMIX13_kanade_Layout()
+#m:: ChangeFMIX13_minato_Layout()
 #z:: ChangeFMIX12_FMIX14R_Layout()
 #x:: ChangeFMIX12_FMIX13R_Layout()
-
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
 
