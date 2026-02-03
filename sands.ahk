@@ -1339,40 +1339,40 @@ ChangeFMIX13_minato_Layout() {
     ResetIME()
 
     global e, r, t, u, d
-
+    
     ; Diffs for IME ON
-    q.SetImeKey("q","-")
-    ;w.SetImeKey("w","w")
+    q.SetImeKey("?","-")
+    w.SetImeKey("p","wo")
     e.SetImeKey("r","de")
-    r.SetImeKey("d")
-    t.SetImeKey("l")
+    r.SetImeKey("h")
+    t.SetImeKey("w")
 
-    a.SetImeKey("n")
+    a.SetImeKey("n","no")
     ;s.SetImeKey("s")
-    d.SetImeKey("k")
+    d.SetImeKey("k","da")
     f.SetImeKey("t","-")
     ;g.SetImeKey("h")
 
-    ;z.SetImeKey("g")
-    ;x.SetImeKey("m")
-    c.SetImeKey("h")
+    z.SetImeKey("l")
+    x.SetImeKey("z")
+    c.SetImeKey("d")
     v.SetImeKey("m","V")
     b.SetImeKey("b","V")
 
     y.SetImeKey("f")
     u.SetImeKey("yu")
-    i.SetImeKey("u")
+    i.SetImeKey("u","yu")
     o.SetImeKey("yo")
-    p.SetImeKey("un")
+    p.SetImeKey("v")
 
-    h.SetImeKey(";")
-    j.SetImeKey("a","-")
-    k.SetImeKey("i")
-    l.SetImeKey("e")
-    semicolon.SetImeKey("o")
+    h.SetImeKey(";") ;nn
+    j.SetImeKey("a","ya")
+    k.SetImeKey("i","ya")
+    l.SetImeKey("e","he") 
+    semicolon.SetImeKey("o","yo")
 
-    n.SetImeKey("ya")
-    m.SetImeKey("ltu")
+    n.SetImeKey("-")
+    m.SetImeKey(":") ;ltu
     ;slash.SetImeKey("f")
 
     ShowOSD("FMIX13-湊 layout")
