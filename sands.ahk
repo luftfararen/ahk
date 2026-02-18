@@ -200,6 +200,9 @@ InstallMouseHook true ; Always install the mouse hook (for MouseSpeed class)
 ;#MaxThreadsPerHotkey 3 ; (Commented out) Limit threads per hotkey
 SetKeyDelay 0 ; No delay after keystrokes
 
+KeyLogger.Load()
+OnExit((*) => KeyLogger.Save()) ; 終了・リロード時に保存
+
 ShowOSD(text, duration := 3000) {
     MyGui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
     MyGui.BackColor := "333333"
@@ -301,6 +304,97 @@ class ImeState {
     }
     static MakeForceStateWord() {
         return ImeState.force_ime_on ? "On" : "Off"
+    }
+}
+
+class KeyLogger {
+    static log_file := A_ScriptDir . "\log.txt"
+    static stats := Map() ; Map of LayoutName -> {char -> count}
+    static total_count := 0
+    static current_layout := "Qwerty" ; Default
+
+    static Load() {
+        if !FileExist(this.log_file)
+            return
+
+        try {
+            content := FileRead(this.log_file)
+            current_sec := ""
+            for line in StrSplit(content, "`n", "`r") {
+                line := Trim(line)
+                if line = ""
+                    continue
+                if SubStr(line, 1, 1) = "[" && SubStr(line, -1) = "]" {
+                    current_sec := SubStr(line, 2, StrLen(line) - 2)
+                    if !this.stats.Has(current_sec)
+                        this.stats[current_sec] := Map()
+                } else if current_sec != "" {
+                    pos := InStr(line, " : ")
+                    if pos {
+                        char := SubStr(line, 1, pos - 1)
+                        count := SubStr(line, pos + 3)
+                        this.stats[current_sec][char] := Integer(count)
+                    }
+                }
+            }
+        } catch {
+        }
+    }
+
+    static Save() {
+        if this.stats.Count = 0
+            return
+
+        output := ""
+        for layout, char_map in this.stats {
+            output .= "[" . layout . "]`r`n"
+            for char, count in char_map {
+                output .= char . " : " . count . "`r`n"
+            }
+            output .= "`r`n"
+        }
+        try {
+            f := FileOpen(this.log_file, "w", "UTF-8")
+            f.Write(output)
+            f.Close()
+        } catch {
+        }
+    }
+
+    static Log(char) {
+        if char = ""
+            return
+
+        ; {Blind} 等の接頭辞を除去して中身を判定
+        char := StrReplace(char, "{Blind}", "")
+
+        ; {sc033} のようなスキャンコードは括弧を外して記録を許可
+        if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
+            char := SubStr(char, 2, -1)
+
+        ; よく使う記号のスキャンコードを文字に変換
+        static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
+            "sc073", "_", "sc00D", "^")
+        if sc_map.Has(char)
+            char := sc_map[char]
+
+        if InStr(char, "{")
+            return
+
+        ; Layout名にIMEの状態（ON/OFF）を付与してキーにする
+        section_name := this.current_layout . (ImeState.IsOn() ? ":ON" : ":OFF")
+
+        if !this.stats.Has(section_name)
+            this.stats[section_name] := Map()
+
+        char_map := this.stats[section_name]
+        char_map[char] := (char_map.Has(char) ? char_map[char] : 0) + 1
+
+        ; this.total_count += 1
+        ; if this.total_count >= 100 {
+        ;     this.Save()
+        ;     this.total_count := 0
+        ; }
     }
 }
 
@@ -528,7 +622,9 @@ class MKey {
     Up() {
         if (A_TickCount - this.pressed_time < this.timeout) {
             ; Short press: send the original key, preserving other modifiers
-            SendInput("{Blind}" . this.mod_str . this.key_str)
+            text := "{Blind}" . this.mod_str . this.key_str
+            SendInput(text)
+            KeyLogger.Log(text)
         }
         ; Long press: do nothing (the key was used as a layer)
         this.pressed_time := 0 ; Reset state
@@ -646,11 +742,14 @@ class RKey {
     _SendKey(ime_key, normal_key) {
         if ime_key = normal_key {
             Send(normal_key) ; No difference, just send
+            KeyLogger.Log(normal_key)
         } else {
             if ime_key != "" && ImeState.IsOn() {
                 Send(ime_key) ; Send IME ON key
+                KeyLogger.Log(ime_key)
             } else {
                 Send(normal_key) ; Send IME OFF key
+                KeyLogger.Log(normal_key)
             }
         }
     }
@@ -685,7 +784,9 @@ class RKey {
         GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
         if caw {
             ; Passthrough: send the original key
-            Send("{Blind}" . "{" . pressed_key . "}")
+            text := "{Blind}" . "{" . pressed_key . "}"
+            Send(text)
+            KeyLogger.Log(text)
             ;ToolTip pressed_key
             return true
         }
@@ -896,6 +997,7 @@ class LKey extends RKey {
                         this.send_time := time
                         ; Backspace the short-press key (sent on Down) and send the long-press key.
                         Send("{Backspace}" . this.long_key_str)
+                        KeyLogger.Log(this.long_key_str)
                         this.pressed_time := 0
                         this.pressing := false
                         return true ; Long press actioned
@@ -1106,10 +1208,14 @@ ExtractChar(text, idx) {
 
 /**
  * Stores a new IME-ON key layout (SetImeKey)
+ * @param {String} name - Name of the layout
  * @param {String} layout - New IME-ON key layout
  * @param {String} num_layout - New IME-ON number key layout
  */
-StoreIMELayout(layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-") {
+StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-") {
+    KeyLogger.Save() ; Flush current stats before change
+    if name != ""
+        KeyLogger.current_layout := name
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
     global minus
     global q, w, e, r, t, y, u, i, o, p
@@ -1164,10 +1270,14 @@ StoreIMELayout(layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "123456
 
 /**
  * Stores the current key layout to the specified layout.
+ * @param {String} name - Name of the layout
  * @param {String} layout - The layout to store the current key layout to.
  * @param {String} num_layout - The layout to store the current number row layout to.
  */
-StoreLayout(layout, num_layout := "1234567890-") {
+StoreLayout(name, layout, num_layout := "1234567890-") {
+    KeyLogger.Save() ; Flush current stats before change
+    if name != ""
+        KeyLogger.current_layout := name
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
     global minus
     global q, w, e, r, t, y, u, i, o, p
@@ -1224,34 +1334,34 @@ StoreLayout(layout, num_layout := "1234567890-") {
  * Changes the current key layout to "Oonishi Layout".
  */
 ChangeOonishiLayout() {
-    StoreLayout("qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
+    StoreLayout("Oonishi", "qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
     ResetIME()
-    ShowOSD("Oonish layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes the current key layout to "Colemak Layout".
  */
 ChangeColemakLayout() {
-    StoreLayout("qwfpgjluy;arstdhneiozxcvbkm,./")
+    StoreLayout("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./")
     ResetIME()
-    ShowOSD("Colemak layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX12f".
  */
 ChangeFMIX12f_Layout() {
-    StoreLayout("qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
-    ShowOSD("FMIX12f layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX12f-FMIX13fR".
  */
 ChangeFMIX12f_FMIX13fR_Layout() {
-    StoreLayout("qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12f-13fR", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1261,14 +1371,14 @@ ChangeFMIX12f_FMIX13fR_Layout() {
     t.SetImeKey("f")
     d.SetImeKey("k")
 
-    ShowOSD("FMIX12f-FMIX13fR layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX13f-FMIX14R".
  */
 ChangeFMIX13f_FMIX14R_Layout() {
-    StoreLayout("qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f-14R", "qwrfkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1280,14 +1390,14 @@ ChangeFMIX13f_FMIX14R_Layout() {
     d.SetImeKey("k")
     u.SetImeKey("f")
 
-    ShowOSD("FMIX13f-FMIX14R layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX14-FMIX14R".
  */
 ChangeFMIX14_FMIX14R_Layout() {
-    StoreLayout("qwldkylup;asrtghneiozxcvbjm,./")
+    StoreLayout("FMIX14-14R", "qwldkylup;asrtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1297,14 +1407,14 @@ ChangeFMIX14_FMIX14R_Layout() {
     t.SetImeKey("l")
     d.SetImeKey("k")
 
-    ShowOSD("FMIX14-FMIX14R layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX13f-FMIX14fR".
  */
 ChangeFMIX13f_FMIX14fR_Layout() {
-    StoreLayout("qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f-14fR", "qwrfkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1314,14 +1424,14 @@ ChangeFMIX13f_FMIX14fR_Layout() {
     t.SetImeKey("f")
     d.SetImeKey("k")
 
-    ShowOSD("FMIX13f-FMIX14fR layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX13-FMIX14R".
  */
 ChangeFMIX13_FMIX14R_Layout() {
-    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13-14R", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1331,87 +1441,87 @@ ChangeFMIX13_FMIX14R_Layout() {
     t.SetImeKey("l")
     d.SetImeKey("k")
 
-    ShowOSD("FMIX13-FMIX14R layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 ChangeFMIX13_minato_Layout() {
-    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13-Minato", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
-    
+
     ; Diffs for IME ON
-    q.SetImeKey("w","?")
-    w.SetImeKey("p","wo")
-    e.SetImeKey("r","de")
-    r.SetImeKey("d","da")
+    q.SetImeKey("w", "?")
+    w.SetImeKey("p", "wo")
+    e.SetImeKey("r", "de")
+    r.SetImeKey("d", "da")
     t.SetImeKey("l")
 
-    a.SetImeKey("n","(")
-    s.SetImeKey("s",")")
-    d.SetImeKey("k","de")
-    f.SetImeKey("t","-")
+    a.SetImeKey("n", "(")
+    s.SetImeKey("s", ")")
+    d.SetImeKey("k", "de")
+    f.SetImeKey("t", "-")
     ;g.SetImeKey("h")
 
     z.SetImeKey("f")
     x.SetImeKey("z")
-    c.SetImeKey("m","[")
-    v.SetImeKey("h","]")
-    b.SetImeKey("b","V")
+    c.SetImeKey("m", "[")
+    v.SetImeKey("h", "]")
+    b.SetImeKey("b", "V")
 
     y.SetImeKey("ya")
     u.SetImeKey("yu")
-    i.SetImeKey("u","yu")
+    i.SetImeKey("u", "yu")
     o.SetImeKey("yo")
     p.SetImeKey("v")
 
     h.SetImeKey(";") ;nn
-    j.SetImeKey("a","ya")
-    k.SetImeKey("i","hi")
-    l.SetImeKey("e","he") 
-    semicolon.SetImeKey("o","yo")
+    j.SetImeKey("a", "ya")
+    k.SetImeKey("i", "hi")
+    l.SetImeKey("e", "he")
+    semicolon.SetImeKey("o", "yo")
 
     n.SetImeKey("-")
     m.SetImeKey(":") ;ltu
     ;slash.SetImeKey("f")
 
-    ShowOSD("FMIX13-湊 layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 ChangeFMIX13_kanade_Layout() {
-    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13-Kanade", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     ;global e, r, t, u, d
 
     ; Diffs for IME ON
-    q.SetImeKey("q","-")
+    q.SetImeKey("q", "-")
     ;w.SetImeKey("w","w")
-    e.SetImeKey("r","de")
-    r.SetImeKey("p","z:dot")
+    e.SetImeKey("r", "de")
+    r.SetImeKey("p", "z:dot")
     t.SetImeKey("l")
 
-    a.SetImeKey("k","A")
-    s.SetImeKey("s","S")
-    d.SetImeKey("t","da")
-    f.SetImeKey("n","-")
-    g.SetImeKey("h","ga")
+    a.SetImeKey("k", "A")
+    s.SetImeKey("s", "S")
+    d.SetImeKey("t", "da")
+    f.SetImeKey("n", "-")
+    g.SetImeKey("h", "ga")
 
-    z.SetImeKey("g","Z")
-    x.SetImeKey("z","X")
-    c.SetImeKey("d","C")
-    v.SetImeKey("m","V")
-    b.SetImeKey("b","v")
+    z.SetImeKey("g", "Z")
+    x.SetImeKey("z", "X")
+    c.SetImeKey("d", "C")
+    v.SetImeKey("m", "V")
+    b.SetImeKey("b", "v")
 
-    y.SetImeKey("f","Y")
-    u.SetImeKey("yu","U")
-    i.SetImeKey("u","I")
-    o.SetImeKey("yo","O")
+    y.SetImeKey("f", "Y")
+    u.SetImeKey("yu", "U")
+    i.SetImeKey("u", "I")
+    o.SetImeKey("yo", "O")
     p.SetImeKey("-")
 
     h.SetImeKey(";")
-    j.SetImeKey("a","-")
-    k.SetImeKey("i","ka")
+    j.SetImeKey("a", "-")
+    k.SetImeKey("i", "ka")
     l.SetImeKey("e")
     semicolon.SetImeKey("o")
 
@@ -1419,14 +1529,14 @@ ChangeFMIX13_kanade_Layout() {
     m.SetImeKey("ltu")
     slash.SetImeKey("/")
 
-    ShowOSD("FMIX13-奏 layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX13-FMIX14R".
  */
 ChangeFMIX13_FMIX14Rfep_Layout() {
-    StoreLayout("qwrlkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13-14Rfep", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1438,14 +1548,14 @@ ChangeFMIX13_FMIX14Rfep_Layout() {
     i.SetImeKey("e")
     k.SetImeKey("u")
 
-    ShowOSD("FMIX13-FMIX14Rfep layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX12-FMIX14R".
  */
 ChangeFMIX12_FMIX14R_Layout() {
-    StoreLayout("qwlrkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12-14R", "qwlrkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1456,14 +1566,14 @@ ChangeFMIX12_FMIX14R_Layout() {
     t.SetImeKey("l")
     d.SetImeKey("k")
 
-    ShowOSD("FMIX12-FMIX14R layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
  * Changes layout to "FMIX12-FMIX14R".
  */
 ChangeFMIX12_FMIX13R_Layout() {
-    StoreLayout("qwlrkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12-13R", "qwlrkyfup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -1474,7 +1584,7 @@ ChangeFMIX12_FMIX13R_Layout() {
     t.SetImeKey("l")
     d.SetImeKey("k")
 
-    ShowOSD("FMIX12-FMIX13R layout")
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 ; ============================================================================
