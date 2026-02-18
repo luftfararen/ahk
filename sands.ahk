@@ -1341,25 +1341,25 @@ ChangeFMIX13_minato_Layout() {
     global e, r, t, u, d
     
     ; Diffs for IME ON
-    q.SetImeKey("?","-")
+    q.SetImeKey("w","?")
     w.SetImeKey("p","wo")
     e.SetImeKey("r","de")
-    r.SetImeKey("h")
-    t.SetImeKey("w")
+    r.SetImeKey("d","da")
+    t.SetImeKey("l")
 
-    a.SetImeKey("n","no")
-    ;s.SetImeKey("s")
-    d.SetImeKey("k","da")
+    a.SetImeKey("n","(")
+    s.SetImeKey("s",")")
+    d.SetImeKey("k","de")
     f.SetImeKey("t","-")
     ;g.SetImeKey("h")
 
-    z.SetImeKey("l")
+    z.SetImeKey("f")
     x.SetImeKey("z")
-    c.SetImeKey("d")
-    v.SetImeKey("m","V")
+    c.SetImeKey("m","[")
+    v.SetImeKey("h","]")
     b.SetImeKey("b","V")
 
-    y.SetImeKey("f")
+    y.SetImeKey("ya")
     u.SetImeKey("yu")
     i.SetImeKey("u","yu")
     o.SetImeKey("yo")
@@ -1367,7 +1367,7 @@ ChangeFMIX13_minato_Layout() {
 
     h.SetImeKey(";") ;nn
     j.SetImeKey("a","ya")
-    k.SetImeKey("i","ya")
+    k.SetImeKey("i","hi")
     l.SetImeKey("e","he") 
     semicolon.SetImeKey("o","yo")
 
