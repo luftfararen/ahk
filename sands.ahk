@@ -1475,14 +1475,14 @@ ChangeFMIX13_minato_Layout() {
     o.SetImeKey("yo")
     p.SetImeKey("v")
 
-    h.SetImeKey(";") ;nn
+    h.SetImeKey(";") ; ;=nn
     j.SetImeKey("a", "ya")
     k.SetImeKey("i", "hi")
     l.SetImeKey("e", "he")
     semicolon.SetImeKey("o", "yo")
 
     n.SetImeKey("-")
-    m.SetImeKey(":") ;ltu
+    m.SetImeKey(":") ; :=ltu
     ;slash.SetImeKey("f")
 
     ShowOSD(KeyLogger.current_layout . " layout")
@@ -1763,10 +1763,10 @@ sc033:: Send(C_N4)
 .:: Send(C_N5)
 sc035:: Send(C_N6)
 
-z:: Send("+[")
-x:: Send("+]")
-c:: Send("[")
-v:: Send("]")
+z:: Send("[")
+x:: Send("]")
+c:: Send("+[")
+v:: Send("+]")
 b:: Send(C_BACKSLASH)  ; Undo
 
 *space:: Send(B_BS)
