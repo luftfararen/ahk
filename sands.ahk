@@ -203,20 +203,43 @@ SetKeyDelay 0 ; No delay after keystrokes
 KeyLogger.Load()
 OnExit((*) => KeyLogger.Save()) ; 終了・リロード時に保存
 
-ShowOSD(text, duration := 3000) {
+ShowOSD(text, duration := 3000, key_close := False) {
+    ; \n を `n に置換して改行を有効にする
+    ;text := StrReplace(text, "\n", "`n")
+
     MyGui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
     MyGui.BackColor := "333333"
     MyGui.SetFont("s12 cWhite w700", "Segoe UI")
 
-    ; 【修正点】テキスト周囲の余白はここで設定します
+    ; テキスト周囲の余白
     MyGui.MarginX := 20
     MyGui.MarginY := 15
 
-    ; 第2引数の "Padding10" を削除しました
+    ; 改行を含むテキストを中央寄せで表示
     MyGui.Add("Text", "Center", text)
 
     MyGui.Show("NoActivate xCenter y900") ; 画面下部中央に表示
-    SetTimer(() => MyGui.Destroy(), -duration)
+
+    if key_close {
+        ; 全てのキーが離された状態（物理的に何も押されていない状態）になったら閉じる
+        fn_close(*) {
+            SetTimer(CheckNoKeys, 0)
+            try MyGui.Destroy()
+        }
+
+        CheckNoKeys() {
+            loop 255 {
+                if GetKeyState(Format("vk{:02X}", A_Index), "P")
+                    return ; 何か押されているので待機継続
+            }
+            fn_close()
+        }
+
+        SetTimer(CheckNoKeys, 50)
+        SetTimer(fn_close, -duration) ; タイムアウトでも閉じる
+    } else {
+        SetTimer(() => (MyGui.Destroy()), -duration)
+    }
 }
 ; ============================================================================
 ; GLOBAL FUNCTIONS
@@ -1451,11 +1474,11 @@ ChangeFMIX13_minato_Layout() {
     global e, r, t, u, d
 
     ; Diffs for IME ON
-    q.SetImeKey("w", "?")
-    w.SetImeKey("p", "wo")
+    q.SetImeKey("l", "?")
+    w.SetImeKey("w", "wo")
     e.SetImeKey("r", "de")
     r.SetImeKey("d", "da")
-    t.SetImeKey("l")
+    t.SetImeKey("f")
 
     a.SetImeKey("n", "(")
     s.SetImeKey("s", ")")
@@ -1463,11 +1486,11 @@ ChangeFMIX13_minato_Layout() {
     f.SetImeKey("t", "-")
     ;g.SetImeKey("h")
 
-    z.SetImeKey("f")
-    x.SetImeKey("z")
-    c.SetImeKey("m", "[")
-    v.SetImeKey("h", "]")
-    b.SetImeKey("b", "V")
+    z.SetImeKey("p", "[")
+    x.SetImeKey("z", "]")
+    c.SetImeKey("m")
+    v.SetImeKey("h", "v")
+    b.SetImeKey("b", "v")
 
     y.SetImeKey("ya")
     u.SetImeKey("yu")
@@ -1712,12 +1735,14 @@ space:: ToggleImeState() ;Send(C_BS)
 #x:: ChangeFMIX12_FMIX13R_Layout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
-
+#h:: ShowOSD("Help`n"
+    . "Sys+Win+Alt+Enter: toggles script suspend.`n"
+    . "Sys+Win+Up: increse mouse speed.`n"
+    . "Sys+Win+Down: decrese mouse speed.", 3000, True)
 ; --- Mouse Speed ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
 #HotIf
-
 ;*** LAYER2 (Symbols and Num ) ***
 #HotIf LayerState(L_SYMBOL_NUM)
 *1:: Send(B_F1)
@@ -1732,47 +1757,38 @@ space:: ToggleImeState() ;Send(C_BS)
 *0:: Send(B_F10)
 *-:: Send(B_F11)
 *sc00D:: Send(B_F12) ; ^ -> F12
-
 q:: Send("?")
 *w:: Send("{Blind}/")
 *e:: Send(B_NMUL) ; Numpad *
 *r:: Send(B_NADD) ; Numpad +
 t::+F3
-
 *a:: Send("(")
 *s:: Send(")")
 *d:: Send("_")
 *f:: Send("{Blind}-")
 g:: Send("=")
-
 y:: Send(B_BS)
 u:: Send(C_N7)
 i:: Send(C_N8)
 o:: Send(C_N9)
 p:: Send("+^p")
-
 h:: Send("=")
 j:: Send(C_N0)
 k:: Send(C_N1)
 l:: Send(C_N2)
 sc027:: Send(B_ENTER)
-
 n:: Send("+3")
 m:: Send(C_N3)
 sc033:: Send(C_N4)
 .:: Send(C_N5)
 sc035:: Send(C_N6)
-
 z:: Send("[")
 x:: Send("]")
 c:: Send("+[")
 v:: Send("+]")
 b:: Send(C_BACKSLASH)  ; Undo
-
 *space:: Send(B_BS)
-
 #HotIf
-
 ;*** LAYER (Symbols) ***
 #HotIf LayerState(L_SYMBOL1)
 *1:: Send(B_F1)
@@ -1787,46 +1803,38 @@ b:: Send(C_BACKSLASH)  ; Undo
 *0:: Send(B_F10)
 *-:: Send(B_F11)
 *sc00D:: Send(B_F12) ; ^ -> F12
-
 q:: Send("?")
 *w:: Send("{Blind}/")
 *e:: Send(B_NMUL) ; Numpad *
 *r:: Send(B_NADD) ; Numpad +
 t::+F3
-
 *a:: Send("(")
 *s:: Send(")")
 *d:: Send("_")
 *f:: Send("{Blind}-")
 g:: Send("=")
-
 y:: Send(B_BS)
 u:: Send(C_N7)
 i:: Send(C_N8)
 o:: Send(C_N9)
 p:: Send("+^p")
-
 h:: Send("=")
 j:: Send(C_N0)
 k:: Send(C_N1)
 l:: Send(C_N2)
 sc027:: Send(B_ENTER)
-
 n:: Send("+3")
 m:: Send(C_N3)
 sc033:: Send(C_N4)
 .:: Send(C_N5)
 sc035:: Send(C_N6)
-
 z:: Send("+[")
 x:: Send("+]")
 c:: Send("[")
 v:: Send("]")
 b:: Send(C_BACKSLASH)  ; Undo
-
 space:: Send(C_BS)
 #HotIf
-
 ;*** LAYER  (Numpad Layer) ***
 #HotIf LayerState(L_NUMPAD)
 ; --- Left Hand ---
@@ -1836,7 +1844,6 @@ a:: Send("(")
 s:: Send(")")
 f:: Send("-")
 g:: Send("=")
-
 ; --- Right Hand (Numpad) ---
 7:: Send(C_N7)
 8:: Send(C_N8)
@@ -1845,14 +1852,12 @@ g:: Send("=")
 -:: Send(B_NSUB) ; Numpad -
 sc00D:: Send(C_HAT) ; ^
 sc07D:: Send("\") ; \
-
 y:: Send(C_BS) ; Backspace
 u:: Send(C_N4)
 i:: Send(C_N5)
 o:: Send(C_N6)
 p:: Send(B_NADD) ; Numpad +
 @:: Send(B_UP)   ; Up
-
 h:: Send("=")
 j:: Send(C_N1)
 k:: Send(C_N2)
@@ -1860,84 +1865,70 @@ l:: Send(C_N3)
 sc027:: Send(B_LEFT)  ; ; -> Left
 sc028:: Send(B_DOWN)  ; : -> Down
 ]:: Send(B_RIGHT) ; ] -> Right
-
 n:: Send(C_DEL) ; Delete
 m:: Send(C_N0)
 sc033:: Send(C_COMMA) ; ,
 .:: Send(C_NDOT)  ; . -> Numpad .
 sc035:: Send(B_NDIV) ; / -> Numpad /
 sc073:: Send("\") ; _
-
 space:: Send(C_BS)
 #HotIf
-
 #HotIf LayerState(L_SYMBOL2)
 q:: Send("+1")
 w:: Send("+2")
 e:: Send("+3")
 r:: Send("+4")
 t:: Send("~")
-
 a:: Send("+5") ;
 s:: Send("+6") ;
 d:: Send("+7") ;
 f:: Send(C_HAT) ; ^
 g:: Send("+@") ;
-
 x:: Send("@")
 c:: Send(":")
 v:: Send("|") ; |
 b:: Send("\") ; \
 #HotIf
-
 #HotIf LayerState(L_FUNC)
 q:: Send(B_F1)
 w:: Send(B_F2)
 e:: Send(B_F3)
 r:: Send(B_F4)
-
 a:: Send(B_F5)
 s:: Send(B_F6)
 d:: Send(B_F7)
 f:: Send(B_F8)
-
 z:: Send(B_F9)
 x:: Send(B_F10)
 c:: Send(B_F11)
 v:: Send(B_F12)
 #HotIf
-
 #HotIf LayerState(L_SHIFT)
 ; 1::k1.SendShiftedKey()
 ; 2::k2.SendShiftedKey()
 ; 3::k3.SendShiftedKey()
 ; 4::k4.SendShiftedKey()
 ; 5::k5.SendShiftedKey()
-
 *1:: Send(B_F1)
 *2:: Send(B_F2)
 *3:: Send(B_F3)
 *4:: Send(B_F4)
 *5:: Send(B_F5)
-
 q:: q.SendShiftedKey()
 w:: w.SendShiftedKey()
 e:: e.SendShiftedKey()
 r:: r.SendShiftedKey()
 t:: t.SendShiftedKey()
-
 a:: a.SendShiftedKey()
 s:: s.SendShiftedKey()
 d:: d.SendShiftedKey()
 f:: f.SendShiftedKey()
 g:: g.SendShiftedKey()
-
 z:: z.SendShiftedKey()
 x:: x.SendShiftedKey()
 c:: c.SendShiftedKey()
 v:: v.SendShiftedKey()
 b:: b.SendShiftedKey()
-
 ; 6::k6.SendShiftedKey()
 ; 7::k7.SendShiftedKey()
 ; 8::k8.SendShiftedKey()
@@ -1945,7 +1936,6 @@ b:: b.SendShiftedKey()
 ; -::minus.SendShiftedKey()
 ; sc00D::hat.SendShiftedKey()
 sc07D:: backslash.SendShiftedKey()
-
 *6:: Send(B_F6)
 *7:: Send(B_F7)
 *8:: Send(B_F8)
@@ -1953,7 +1943,6 @@ sc07D:: backslash.SendShiftedKey()
 *0:: Send(B_F10)
 *-:: Send(B_F11)
 *sc00D:: Send(B_F12) ; ^ -> F12
-
 y:: y.SendShiftedKey()
 u:: u.SendShiftedKey()
 i:: i.SendShiftedKey()
@@ -1961,7 +1950,6 @@ o:: o.SendShiftedKey()
 p:: p.SendShiftedKey()
 @:: at.SendShiftedKey()
 [:: openbracket.SendShiftedKey()
-
 h:: h.SendShiftedKey()
 j:: j.SendShiftedKey()
 k:: k.SendShiftedKey()
@@ -1969,7 +1957,6 @@ l:: l.SendShiftedKey()
 sc027:: semicolon.SendShiftedKey()
 sc028::+sc028 ; : -> * (Not using RKey object)
 ]::+]         ; ] -> } (Not using RKey object)
-
 n:: n.SendShiftedKey()
 m:: m.SendShiftedKey()
 sc033:: comma.SendShiftedKey()
@@ -1980,16 +1967,13 @@ Up:: up.SendShiftedKey()
 Down:: down.SendShiftedKey()
 Left:: left.SendShiftedKey()
 Right:: right.SendShiftedKey()
-
 #HotIf
-
 ; ============================================================================
 ; GLOBAL HOTKEYS (RKey / LKey Bindings)
 ; ============================================================================
 ; These hotkeys are active when no layers are pressed.
 ; They call the Down() and Up() methods of their respective RKey/LKey objects
 ; to handle remapping, modifier passthrough, and long-press logic.
-
 *1:: k1.Down("1")
 *1 up:: k1.Up()
 *2:: k2.Down("2")
@@ -2000,7 +1984,6 @@ Right:: right.SendShiftedKey()
 *4 up:: k4.Up()
 *5:: k5.Down("5")
 *5 up:: k5.Up()
-
 *6:: k6.Down("6")
 *6 up:: k6.Up()
 *7:: k7.Down("7")
@@ -2017,7 +2000,6 @@ Right:: right.SendShiftedKey()
 *sc00D up:: hat.Up()
 *sc07D:: backslash.Down("{sc07D}") ; ¥
 *sc07D up:: backslash.Up()
-
 *q:: q.Down("q")
 *q up:: q.Up()
 *w:: w.Down("w")
@@ -2028,7 +2010,6 @@ Right:: right.SendShiftedKey()
 *r up:: r.Up()
 *t:: t.Down("t")
 *t up:: t.Up()
-
 *y:: y.Down("y")
 *y up:: y.Up()
 *u:: u.Down("u")
@@ -2043,7 +2024,6 @@ Right:: right.SendShiftedKey()
 *@ up:: at.Up()
 *[:: openbracket.Down("[")
 *[ up:: openbracket.Up()
-
 *a:: a.Down("a")
 *a up:: a.Up()
 *s:: s.Down("s")
@@ -2054,7 +2034,6 @@ Right:: right.SendShiftedKey()
 *f up:: f.Up()
 *g:: g.Down("g")
 *g up:: g.Up()
-
 *h:: h.Down("h")
 *h up:: h.Up()
 *j:: j.Down("j")
@@ -2063,14 +2042,12 @@ Right:: right.SendShiftedKey()
 *k up:: k.Up()
 *l:: l.Down("l")
 *l up:: l.Up()
-
 *sc027:: semicolon.Down("sc027")
 *sc027 up:: semicolon.Up()
 *sc028:: colon.Down("sc028")
 *sc028 up:: colon.Up()
 *]:: closebracket.Down("]")
 *] up:: closebracket.Up()
-
 *z:: z.Down("z")
 *z up:: z.Up()
 *x:: x.Down("x")
@@ -2089,12 +2066,10 @@ Right:: right.SendShiftedKey()
 *sc033 up:: comma.Up()
 *.:: period.Down(".")        ; .
 *. up:: period.Up()
-
 *sc035:: slash.Down("sc035") ; /
 *sc035 up:: slash.Up()
 *sc073:: backslash2.Down("sc073") ; _
 *sc073 up:: backslash2.Up()
-
 ; (Refactored: Added bindings for arrow RKey objects)
 *Down:: down.Down("Down")
 *Down up:: down.Up()
@@ -2104,53 +2079,38 @@ Right:: right.SendShiftedKey()
 *Left up:: left.Up()
 *Right:: right.Down("Right")
 *Right up:: right.Up()
-
 #Hotif ; End context-sensitive hotkeys
-
 ; ============================================================================
 ; GLOBAL HOTKEYS (MKey Bindings)
 ; ============================================================================
 ; These hotkeys are always active and bind the physical keys
 ; to their MKey (modifier) objects.
-
 *Space:: space.Down()
 *Space up:: space.Up()
-
 *tab:: tab.Down()
 *tab up:: tab.Up()
-
 *F13:: f13.Down()
 *F13 up:: f13.Up()
-
 *F14:: f14.Down()
 *F14 up:: f14.Up()
-
 *sc079:: conv.Down() ; Convert key
 *sc079 up:: conv.Up()
-
 *sc07B:: noconv.Down() ; Noconvert key
 *sc07B up:: noconv.Up()
-
 ; ============================================================================
 ; MISCELLANEOUS GLOBAL HOTKEYS
 ; ============================================================================
-
 ;NumLock::Return ; Disable NumLock key
 +F15:: Send("{NumLock}") ; Shift+F15 sends NumLock
 ;*F15::Send("{NumLock}")
-
 >+Up::_ ; RShift+Up -> _
-
 ; Fix for CapsLock state
 ^+F13:: Send("+{CapsLock}")
-
 ; Standard IME Toggles (Zenkaku/Hankaku key)
 +sc029:: Send(C_EISU) ; Shift + Zen/Han -> Eisu
 sc029:: ToggleImeState() ; Zen/Han -> Toggle IME
-
 ; --- Suspend Hotkey ---
 #SuspendExempt ; Allow suspend hotkey to work even if suspended
 #!Enter:: Suspend ; Win+Alt+Enter toggles script suspend
 #SuspendExempt False
-
 #MaxThreadsBuffer False
