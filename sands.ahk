@@ -203,44 +203,6 @@ SetKeyDelay 0 ; No delay after keystrokes
 KeyLogger.Load()
 OnExit((*) => KeyLogger.Save()) ; 終了・リロード時に保存
 
-ShowOSD(text, duration := 3000, key_close := False) {
-    ; \n を `n に置換して改行を有効にする
-    ;text := StrReplace(text, "\n", "`n")
-
-    MyGui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
-    MyGui.BackColor := "333333"
-    MyGui.SetFont("s12 cWhite w700", "Segoe UI")
-
-    ; テキスト周囲の余白
-    MyGui.MarginX := 20
-    MyGui.MarginY := 15
-
-    ; 改行を含むテキストを中央寄せで表示
-    MyGui.Add("Text", "Center", text)
-
-    MyGui.Show("NoActivate xCenter y900") ; 画面下部中央に表示
-
-    if key_close {
-        ; 全てのキーが離された状態（物理的に何も押されていない状態）になったら閉じる
-        fn_close(*) {
-            SetTimer(CheckNoKeys, 0)
-            try MyGui.Destroy()
-        }
-
-        CheckNoKeys() {
-            loop 255 {
-                if GetKeyState(Format("vk{:02X}", A_Index), "P")
-                    return ; 何か押されているので待機継続
-            }
-            fn_close()
-        }
-
-        SetTimer(CheckNoKeys, 50)
-        SetTimer(fn_close, -duration) ; タイムアウトでも閉じる
-    } else {
-        SetTimer(() => (MyGui.Destroy()), -duration)
-    }
-}
 ; ============================================================================
 ; GLOBAL FUNCTIONS
 ; ============================================================================
@@ -388,12 +350,18 @@ class KeyLogger {
         if char = ""
             return
 
-        ; {Blind} 等の接頭辞を除去して中身を判定
-        char := StrReplace(char, "{Blind}", "")
+        ; {Blind} や {sc033} のような括弧付き文字列の高速パース（通常の文字入力を妨げない）
+        if InStr(char, "{") {
+            if SubStr(char, 1, 7) = "{Blind}"
+                char := SubStr(char, 8) ; {Blind} を除去
 
-        ; {sc033} のようなスキャンコードは括弧を外して記録を許可
-        if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
-            char := SubStr(char, 2, -1)
+            if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
+                if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
+                    char := SubStr(char, 2, -1) ; {sc033} を sc033 に
+                else
+                    return ; 記録対象外の特殊キー ({Enter} 等) は無視
+            }
+        }
 
         ; よく使う記号のスキャンコードを文字に変換
         static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
@@ -401,7 +369,7 @@ class KeyLogger {
         if sc_map.Has(char)
             char := sc_map[char]
 
-        if InStr(char, "{")
+        if char = ""
             return
 
         ; Layout名にIMEの状態（ON/OFF）を付与してキーにする
@@ -465,6 +433,67 @@ SendAccImeState(key_ime_off, key_ime_on := "") {
     }
 }
 
+; --- リモートデスクトップ使用時の自動無効化 ---
+GroupAdd("RemoteDesktops", "ahk_class TscShellContainerClass") ; Windows 標準RDP
+;GroupAdd("RemoteDesktops", "ahk_exe AnyDesk.exe")              ; AnyDesk
+;GroupAdd("RemoteDesktops", "ahk_exe TeamViewer.exe")           ; TeamViewer
+;GroupAdd("RemoteDesktops", "ahk_exe tvnviewer.exe")            ; TightVNC
+;GroupAdd("RemoteDesktops", "ahk_exe vncviewer.exe")            ; RealVNC / UltraVNC
+
+AutoSuspendForRemoteDesktop() {
+    static autoSuspended := false
+    if WinActive("ahk_group RemoteDesktops") {
+        if !A_IsSuspended {
+            Suspend(true)
+            autoSuspended := true
+        }
+    } else {
+        if autoSuspended {
+            Suspend(false)
+            autoSuspended := false
+        }
+    }
+}
+
+ShowOSD(text, duration := 3000, key_close := False) {
+    ; \n を `n に置換して改行を有効にする
+    ;text := StrReplace(text, "\n", "`n")
+
+    MyGui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
+    MyGui.BackColor := "333333"
+    MyGui.SetFont("s12 cWhite w700", "Segoe UI")
+
+    ; テキスト周囲の余白
+    MyGui.MarginX := 20
+    MyGui.MarginY := 15
+
+    ; 改行を含むテキストを中央寄せで表示
+    MyGui.Add("Text", "Center", text)
+
+    MyGui.Show("NoActivate xCenter y900") ; 画面下部中央に表示
+
+    if key_close {
+        ; 全てのキーが離された状態（物理的に何も押されていない状態）になったら閉じる
+        fn_close(*) {
+            SetTimer(CheckNoKeys, 0)
+            try MyGui.Destroy()
+        }
+
+        CheckNoKeys() {
+            loop 255 {
+                if GetKeyState(Format("vk{:02X}", A_Index), "P")
+                    return ; 何か押されているので待機継続
+            }
+            fn_close()
+        }
+
+        SetTimer(CheckNoKeys, 50)
+        SetTimer(fn_close, -duration) ; タイムアウトでも閉じる
+    } else {
+        SetTimer(() => (MyGui.Destroy()), -duration)
+    }
+}
+
 ; --- 設定 ---
 ColorJapanese := "Red"
 DotSize := 8
@@ -476,11 +505,15 @@ MGui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
 MGui.BackColor := ColorJapanese
 WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MGui)
 
-SetTimer(ShowIMEState, 100) ;
 ;DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr") ; DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
 
 ShowIMEState() {
     static LastX := -2, LastY := 0, LastStatus := -1
+
+    ; 無操作時は処理をスキップしてCPU負荷を軽減
+    if A_TimeIdle > 500 {
+        return
+    }
 
     mx := -1, my := 0
     CoordMode("Mouse", "Screen")
@@ -492,16 +525,35 @@ ShowIMEState() {
                 MGui.Show("x" (mx + 36) " y" (my + 36) " w" DotSize " h" DotSize " NoActivate")
             }
         } else {
-            MGui.Hide()
+            ; 既に非表示の場合は Hide しない（余計な負荷削減）
+            if LastStatus != 0 {
+                MGui.Hide()
+            }
         }
         LastStatus := ime_on
     } else {
-        MGui.Hide()
+        if LastStatus != -1 {
+            MGui.Hide()
+        }
         LastX := mx
         LastY := my
         LastStatus := -1
     }
 }
+
+;SetTimer(AutoSuspendForRemoteDesktop, 500)
+;SetTimer(ShowIMEState, 100) ;
+
+TimerEvent() {
+    static counter := 0
+    if (mod(counter, 5) == 0) {
+        AutoSuspendForRemoteDesktop()
+    }
+    ShowIMEState()
+    counter++
+}
+
+SetTimer(TimerEvent, 100) ;
 
 /*============================================================================
  [Class] MouseSpeed
@@ -1498,14 +1550,14 @@ ChangeFMIX13_minato_Layout() {
     o.SetImeKey("yo")
     p.SetImeKey("v")
 
-    h.SetImeKey(";") ; ;=nn
+    h.SetImeKey(";", "ann") ; ;=nn
     j.SetImeKey("a", "ya")
     k.SetImeKey("i", "hi")
     l.SetImeKey("e", "he")
     semicolon.SetImeKey("o", "yo")
 
-    n.SetImeKey("-")
-    m.SetImeKey(":") ; :=ltu
+    n.SetImeKey("-", "a-")
+    m.SetImeKey(":", "altu") ; :=ltu
     ;slash.SetImeKey("f")
 
     ShowOSD(KeyLogger.current_layout . " layout")

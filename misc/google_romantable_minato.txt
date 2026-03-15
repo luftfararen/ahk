@@ -29,6 +29,7 @@ xn	や
 fn	ふぁ
 vn	ゔぁ
 jn	じゃ
+kt	こ
 st	し
 sk	し
 tk	と
