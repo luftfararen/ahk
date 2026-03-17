@@ -294,11 +294,36 @@ class ImeState {
 
 class KeyLogger {
     static log_file := A_ScriptDir . "\log.txt"
+    static config_file := A_ScriptDir . "\config.ini"
+    static is_logging_enabled := false
     static stats := Map() ; Map of LayoutName -> {char -> count}
     static total_count := 0
     static current_layout := "Qwerty" ; Default
 
+    static ToggleLogging() {
+        this.is_logging_enabled := !this.is_logging_enabled
+        this.SaveConfig()
+        ShowOSD("KeyLogger: " . (this.is_logging_enabled ? "ON" : "OFF"))
+    }
+
+    static LoadConfig() {
+        try {
+            val := IniRead(this.config_file, "Settings", "LogEnabled", "0")
+            this.is_logging_enabled := (val == "1")
+        } catch {
+            this.is_logging_enabled := false
+        }
+    }
+
+    static SaveConfig() {
+        try {
+            IniWrite(this.is_logging_enabled ? "1" : "0", this.config_file, "Settings", "LogEnabled")
+        } catch {
+        }
+    }
+
     static Load() {
+        this.LoadConfig()
         if !FileExist(this.log_file)
             return
 
@@ -347,6 +372,9 @@ class KeyLogger {
     }
 
     static Log(char) {
+        if !this.is_logging_enabled
+            return
+
         if char = ""
             return
 
@@ -1787,10 +1815,12 @@ space:: ToggleImeState() ;Send(C_BS)
 #x:: ChangeFMIX12_FMIX13R_Layout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
+#.:: KeyLogger.ToggleLogging()
 #h:: ShowOSD("Help`n"
     . "Sys+Win+Alt+Enter: toggles script suspend.`n"
     . "Sys+Win+Up: increse mouse speed.`n"
-    . "Sys+Win+Down: decrese mouse speed.", 3000, True)
+    . "Sys+Win+Down: decrese mouse speed.`n"
+    . "Sys+Win+L: toggle keylogger.", 3000, True)
 ; --- Mouse Speed ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
