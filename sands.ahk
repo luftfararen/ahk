@@ -42,6 +42,13 @@
 ; C_... : Send-compatible string (e.g., "{sc07B}").
 ; B_... : Blind-mode Send string (e.g., "{Blind}{sc07B}").
 
+~^#!v:: {
+
+}
+~#!v:: {
+
+}
+
 ; --- Noconvert key ---
 R_NOCONV := "sc07B"
 C_NOCONV := "{sc07B}"
@@ -1196,6 +1203,8 @@ down := RKey(C_DOWN)
 left := RKey(C_LEFT)
 right := RKey(C_RIGHT)
 
+LoadLayoutConfig()
+
 ; ============================================================================
 ; LAYER STATE FUNCTIONS
 ; ============================================================================
@@ -1309,6 +1318,29 @@ ExtractChar(text, idx) {
     return SubStr(text, idx, 1)
 }
 
+LoadLayoutConfig() {
+    try {
+        layoutName := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
+        switch layoutName {
+            case "Qwerty": ChangeQwertyLayout()
+            case "Oonishi": ChangeOonishiLayout()
+            case "Colemak": ChangeColemakLayout()
+            case "FMIX12f": ChangeFMIX12f_Layout()
+            case "FMIX12f-13fR": ChangeFMIX12f_FMIX13fR_Layout()
+            case "FMIX13f-14R": ChangeFMIX13f_FMIX14R_Layout()
+            case "FMIX14-14R": ChangeFMIX14_FMIX14R_Layout()
+            case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
+            case "FMIX13-14R": ChangeFMIX13_FMIX14R_Layout()
+            case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
+            case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
+            case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
+            case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
+            case "FMIX12-13R": ChangeFMIX12_FMIX13R_Layout()
+        }
+    } catch {
+    }
+}
+
 /**
  * Stores a new IME-ON key layout (SetImeKey)
  * @param {String} name - Name of the layout
@@ -1317,8 +1349,13 @@ ExtractChar(text, idx) {
  */
 StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-") {
     KeyLogger.Save() ; Flush current stats before change
-    if name != ""
+    if name != "" {
         KeyLogger.current_layout := name
+        try {
+            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+        } catch {
+        }
+    }
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
     global minus
     global q, w, e, r, t, y, u, i, o, p
@@ -1379,8 +1416,13 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
  */
 StoreLayout(name, layout, num_layout := "1234567890-") {
     KeyLogger.Save() ; Flush current stats before change
-    if name != ""
+    if name != "" {
         KeyLogger.current_layout := name
+        try {
+            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+        } catch {
+        }
+    }
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
     global minus
     global q, w, e, r, t, y, u, i, o, p
@@ -1431,6 +1473,15 @@ StoreLayout(name, layout, num_layout := "1234567890-") {
     comma.SetKey(ExtractChar(layout, 28))
     period.SetKey(ExtractChar(layout, 29))
     slash.SetKey(ExtractChar(layout, 30))
+}
+
+/**
+ * Changes the current key layout to "Qwerty Layout".
+ */
+ChangeQwertyLayout() {
+    StoreLayout("Qwerty", "qwertyuiopasdfghjkl;zxcvbnm,./")
+    ResetIME()
+    ShowOSD(KeyLogger.current_layout . " layout")
 }
 
 /**
@@ -1813,6 +1864,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #m:: ChangeFMIX13_minato_Layout()
 #z:: ChangeFMIX12_FMIX14R_Layout()
 #x:: ChangeFMIX12_FMIX13R_Layout()
+#q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
 #.:: KeyLogger.ToggleLogging()
