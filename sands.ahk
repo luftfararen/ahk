@@ -554,9 +554,14 @@ ShowIMEState() {
     CoordMode("Mouse", "Screen")
     MouseGetPos(&mx, &my)
     if (mx = LastX && my = LastY) {
-        ime_on := ImeState.IsOn()
-        if ime_on {
-            if ime_on != LastStatus {
+        ime_state_value := 0
+        if ImeState.IsOn() {
+            ime_state_value := ImeState.force_ime_on ? 2 : 1
+        }
+
+        if ime_state_value > 0 {
+            if ime_state_value != LastStatus {
+                MGui.BackColor := (ime_state_value == 2) ? "Green" : ColorJapanese
                 MGui.Show("x" (mx + 36) " y" (my + 36) " w" DotSize " h" DotSize " NoActivate")
             }
         } else {
@@ -565,7 +570,7 @@ ShowIMEState() {
                 MGui.Hide()
             }
         }
-        LastStatus := ime_on
+        LastStatus := ime_state_value
     } else {
         if LastStatus != -1 {
             MGui.Hide()
@@ -1870,9 +1875,11 @@ space:: ToggleImeState() ;Send(C_BS)
 #.:: KeyLogger.ToggleLogging()
 #h:: ShowOSD("Help`n"
     . "Sys+Win+Alt+Enter: toggles script suspend.`n"
-    . "Sys+Win+Up: increse mouse speed.`n"
-    . "Sys+Win+Down: decrese mouse speed.`n"
-    . "Sys+Win+L: toggle keylogger.", 3000, True)
+    . "Sys+Shift+Zen/Han: toggles Force IME ON/OFF.`n"
+    . "Sys+Win+Up: increases mouse speed.`n"
+    . "Sys+Win+Down: decreases mouse speed.`n"
+    . "Sys+Win+.: toggles keylogger.", 3000, True)
+
 ; --- Mouse Speed ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
@@ -1999,12 +2006,7 @@ l:: Send(C_N3)
 sc027:: Send(B_LEFT)  ; ; -> Left
 sc028:: Send(B_DOWN)  ; : -> Down
 ]:: Send(B_RIGHT) ; ] -> Right
-n:: Send(C_DEL) ; Delete
-m:: Send(C_N0)
-sc033:: Send(C_COMMA) ; ,
-.:: Send(C_NDOT)  ; . -> Numpad .
-sc035:: Send(B_NDIV) ; / -> Numpad /
-sc073:: Send("\") ; _
+n:: Send(C_DEL) ; DeleteH ; _
 space:: Send(C_BS)
 #HotIf
 #HotIf LayerState(L_SYMBOL2)
