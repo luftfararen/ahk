@@ -45,10 +45,11 @@ xn	や
 fn	ふぁ
 vn	ゔぁ
 jn	じゃ
-kt	こと
+ks	こと
 st	して
 mt	みて
 rt	りて
+kt	こ
 nt	の
 sk	し
 xi	し
@@ -58,7 +59,7 @@ tk	と
 tr	て
 dr	で
 wr	を
-nk	の
+nk	に
 hm	は
 zm	じ
 mh	も

@@ -306,6 +306,7 @@ class KeyLogger {
     static stats := Map() ; Map of LayoutName -> {char -> count}
     static total_count := 0
     static current_layout := "Qwerty" ; Default
+    static key_history := []
 
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
@@ -346,7 +347,7 @@ class KeyLogger {
                     if !this.stats.Has(current_sec)
                         this.stats[current_sec] := Map()
                 } else if current_sec != "" {
-                    pos := InStr(line, " : ")
+                    pos := InStr(line, " : ", false, -1)
                     if pos {
                         char := SubStr(line, 1, pos - 1)
                         count := SubStr(line, pos + 3)
@@ -393,8 +394,10 @@ class KeyLogger {
             if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
                 if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
                     char := SubStr(char, 2, -1) ; {sc033} を sc033 に
-                else
+                else {
+                    this.key_history := []
                     return ; 記録対象外の特殊キー ({Enter} 等) は無視
+                }
             }
         }
 
@@ -413,8 +416,16 @@ class KeyLogger {
         if !this.stats.Has(section_name)
             this.stats[section_name] := Map()
 
-        char_map := this.stats[section_name]
-        char_map[char] := (char_map.Has(char) ? char_map[char] : 0) + 1
+        this.key_history.Push(char)
+        if this.key_history.Length > 3 {
+            this.key_history.RemoveAt(1)
+        }
+
+        if this.key_history.Length == 3 {
+            seq := this.key_history[1] . " " . this.key_history[2] . " " . this.key_history[3]
+            char_map := this.stats[section_name]
+            char_map[seq] := (char_map.Has(seq) ? char_map[seq] : 0) + 1
+        }
 
         ; this.total_count += 1
         ; if this.total_count >= 100 {
