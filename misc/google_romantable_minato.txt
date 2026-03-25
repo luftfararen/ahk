@@ -54,9 +54,10 @@ nt	の
 sk	し
 xi	し
 xe	せ
-sr	する
-tk	と
 tr	て
+sr	する
+sh	する
+tk	と
 dr	で
 wr	を
 nk	に

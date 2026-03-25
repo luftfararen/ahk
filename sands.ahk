@@ -307,6 +307,7 @@ class KeyLogger {
     static total_count := 0
     static current_layout := "Qwerty" ; Default
     static key_history := []
+    static last_key_time := 0
 
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
@@ -366,8 +367,28 @@ class KeyLogger {
         output := ""
         for layout, char_map in this.stats {
             output .= "[" . layout . "]`r`n"
+
+            sortStr := ""
             for char, count in char_map {
-                output .= char . " : " . count . "`r`n"
+                ; 頻度降順（カウントの反転値を0埋め10桁）と文字（アルファベット昇順）を連結してソート用文字列を作成
+                sortStr .= Format("{:010}|{}", 9999999999 - count, char) . "`n"
+            }
+            
+            if sortStr != "" {
+                sortStr := SubStr(sortStr, 1, -1) ; 末尾の改行を削除
+                sortedStr := Sort(sortStr, "D`n") ; 昇順ソート（反転値が小さい＝元のカウントが大きい順になる）
+                
+                for line in StrSplit(sortedStr, "`n") {
+                    if line = ""
+                        continue
+                    pos := InStr(line, "|")
+                    if pos {
+                        invCount := Integer(SubStr(line, 1, pos - 1))
+                        count := 9999999999 - invCount
+                        char := SubStr(line, pos + 1)
+                        output .= char . " : " . count . "`r`n"
+                    }
+                }
             }
             output .= "`r`n"
         }
@@ -385,6 +406,11 @@ class KeyLogger {
 
         if char = ""
             return
+
+        if (A_TickCount - this.last_key_time >= 3000) {
+            this.key_history := []
+        }
+        this.last_key_time := A_TickCount
 
         ; {Blind} や {sc033} のような括弧付き文字列の高速パース（通常の文字入力を妨げない）
         if InStr(char, "{") {
