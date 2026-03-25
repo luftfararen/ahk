@@ -1636,12 +1636,12 @@ ChangeFMIX13_minato_Layout() {
 
     h.SetImeKey(";", "ann") ; ;=nn
     j.SetImeKey("a", "ya")
-    k.SetImeKey("i", "hi")
-    l.SetImeKey("e", "he")
+    k.SetImeKey("i", "yi")
+    l.SetImeKey("e", "ye")
     semicolon.SetImeKey("o", "yo")
 
     n.SetImeKey("-", "a-")
-    m.SetImeKey(":", "altu") ; :=ltu
+    m.SetImeKey("ou", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
 
     ShowOSD(KeyLogger.current_layout . " layout")
