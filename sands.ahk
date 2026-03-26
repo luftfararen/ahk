@@ -373,11 +373,11 @@ class KeyLogger {
                 ; 頻度降順（カウントの反転値を0埋め10桁）と文字（アルファベット昇順）を連結してソート用文字列を作成
                 sortStr .= Format("{:010}|{}", 9999999999 - count, char) . "`n"
             }
-            
+
             if sortStr != "" {
                 sortStr := SubStr(sortStr, 1, -1) ; 末尾の改行を削除
                 sortedStr := Sort(sortStr, "D`n") ; 昇順ソート（反転値が小さい＝元のカウントが大きい順になる）
-                
+
                 for line in StrSplit(sortedStr, "`n") {
                     if line = ""
                         continue
@@ -1673,8 +1673,8 @@ ChangeFMIX13_minato_Layout() {
 
     h.SetImeKey(";", "ann") ; ;=nn
     j.SetImeKey("a", "ya")
-    k.SetImeKey("i", "yi")
-    l.SetImeKey("e", "ye")
+    k.SetImeKey("i", "xi")
+    l.SetImeKey("e", "xe")
     semicolon.SetImeKey("o", "yo")
 
     n.SetImeKey("-", "a-")
