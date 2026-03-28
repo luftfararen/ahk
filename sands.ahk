@@ -211,9 +211,9 @@ KeyLogger.Load()
 OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig())) ; 終了・リロード時に保存
 
 class WorkingState {
-    static last_action_time := 0
+    ;static last_action_time := 0
     static Action() {
-        WorkingState.last_action_time := A_TickCount
+        ;WorkingState.last_action_time := A_TickCount
     }
 
     /**
@@ -221,7 +221,8 @@ class WorkingState {
      * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
      */
     static IsBusy(timeout_ms := 400) {
-        return A_TickCount - WorkingState.last_action_time < timeout_ms
+        ;return A_TickCount - WorkingState.last_action_time < timeout_ms
+        return A_TimeIdle < timeout_ms
     }
 
 }
@@ -586,9 +587,9 @@ IsModified(text) {
 /**
  * Toggles the `force_ime_on` flag for the current window.
  */
-ToggleForceImeOn() {
+ToggleForceImeModeOn() {
     ImeState.ToggleForce()
-    ShowOSD("Force IME: " . ImeState.MakeForceStateWord())
+    ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
 /**
@@ -1747,11 +1748,8 @@ ChangeFMIX13_FMIX14R_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-ChangeFMIX13_minato_Layout() {
-    StoreLayout("FMIX13-Minato", "qwrlkyfup;asdtghneiozxcvbjm,./")
+ChangeMinatoLayoutImpl() {
     ResetIME()
-
-    global e, r, t, u, d
 
     ; Diffs for IME ON
     q.SetImeKey("l", "?")
@@ -1787,7 +1785,17 @@ ChangeFMIX13_minato_Layout() {
     n.SetImeKey("-", "a-")
     m.SetImeKey("ou", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
+}
 
+ChangeFMIX13_minato_Layout() {
+    StoreLayout("FMIX13-Minato", "qwrlkyfup;asdtghneiozxcvbjm,./")
+    ChangeMinatoLayoutImpl()
+    ShowOSD(KeyLogger.current_layout . " layout")
+}
+
+ChangeFMIX13ie_minato_Layout() {
+    StoreLayout("FMIX13ie-Minato", "qwrlkyfup;asdtghnieozxcvbjm,./")
+    ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
@@ -1987,7 +1995,6 @@ sc035:: Send("^+{sc07D}") ; / -> |
 
 *a:: Send("{Blind}^a") ; Select All
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
-+sc029:: ToggleForceImeOn() ; Shift+Zen/Han -> Toggle Force IME ON
 Esc:: {
     KeyLogger.Save()
     KeyLogger.SaveConfig()
@@ -2007,14 +2014,16 @@ F14:: ToggleImeState() ; F14/Enter
 sc079:: ToggleImeState() ; Convert
 space:: ToggleImeState() ;Send(C_BS)
 
+#f:: ToggleForceImeModeOn() ;Toggle Force IME Mode ON
+
 ; --- Layout Switching ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#f:: ChangeFMIX12f_FMIX13fR_Layout()
 #d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13_FMIX14R_Layout()
 #e:: ChangeFMIX13_FMIX14Rfep_Layout()
 #k:: ChangeFMIX13_kanade_Layout()
 #m:: ChangeFMIX13_minato_Layout()
+#n:: ChangeFMIX13ie_minato_Layout()
 #z:: ChangeFMIX12_FMIX14R_Layout()
 #x:: ChangeFMIX12_FMIX13R_Layout()
 #q:: ChangeQwertyLayout()
@@ -2023,7 +2032,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #.:: KeyLogger.ToggleLogging()
 #h:: ShowOSD("Help`n"
     . "Sys+Win+Alt+Enter: toggles script suspend.`n"
-    . "Sys+Shift+Zen/Han: toggles Force IME ON/OFF.`n"
+    . "Sys+f: toggles Force IME Mode ON/OFF.`n"
     . "Sys+Win+Up: increases mouse speed.`n"
     . "Sys+Win+Down: decreases mouse speed.`n"
     . "Sys+Win+.: toggles keylogger.", 3000, True)
