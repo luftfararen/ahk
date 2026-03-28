@@ -210,6 +210,21 @@ SetKeyDelay 0 ; No delay after keystrokes
 KeyLogger.Load()
 OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig())) ; 終了・リロード時に保存
 
+class WorkingState {
+    static last_action_time := 0
+    static Action() {
+        WorkingState.last_action_time := A_TickCount
+    }
+
+    /**
+     * 連続してキーが入力されているか（キーが一定時間内に連続で押されたか）を判定する関数
+     * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
+     */
+    static IsBusy(timeout_ms := 400) {
+        return A_TickCount - WorkingState.last_action_time < timeout_ms
+    }
+
+}
 ; ============================================================================
 ; GLOBAL FUNCTIONS
 ; ============================================================================
@@ -267,12 +282,11 @@ class ImeState {
      * Also respects the `force_ime_on` global flag.
      * @returns {Boolean} True if IME is (or is forced to be) ON.
      */
-    static IsOn() {
+    static IsOn(precise := false) {
         static last_active_hwnd := 0
-        static last_check_time := 0
         static cached_state := false
 
-        if (A_TickCount - last_check_time < 300) {
+        if !precise && WorkingState.IsBusy() {
             return cached_state
         }
 
@@ -301,7 +315,6 @@ class ImeState {
             , "Ptr", 0)      ; Returns 1 if ON, 0 if OFF
 
         cached_state := (state != 0)
-        last_check_time := A_TickCount
         return cached_state
     }
 
@@ -549,6 +562,12 @@ class KeyLogger {
     }
 }
 
+SendAndLog(c) {
+    Send(c)
+    KeyLogger.Log(c)
+    WorkingState.Action()
+}
+
 /**
  * Helper to check if a key string already contains modifiers.
  * @param {String} text - The key string (e.g., "^c", "{Blind}a").
@@ -577,6 +596,7 @@ ToggleForceImeOn() {
  */
 ToggleImeState() {
     Send(B_ZENKAKU)	; Send {Blind}{sc029}
+    ImeState.IsOn(true)
 }
 
 /**
@@ -587,9 +607,9 @@ ToggleImeState() {
  */
 SendAccImeState(key_ime_off, key_ime_on := "") {
     if ImeState.IsOn() && key_ime_on != "" {
-        Send(key_ime_on)
+        SendAndLog(key_ime_on)
     } else {
-        Send(key_ime_off)
+        SendAndLog(key_ime_off)
     }
 }
 
@@ -867,8 +887,7 @@ class MKey {
         if (A_TickCount - this.pressed_time < this.timeout) {
             ; Short press: send the original key, preserving other modifiers
             text := "{Blind}" . this.mod_str . this.key_str
-            SendInput(text)
-            KeyLogger.Log(text)
+            SendAndLog(text)
         }
         ; Long press: do nothing (the key was used as a layer)
         this.pressed_time := 0 ; Reset state
@@ -985,15 +1004,12 @@ class RKey {
      */
     _SendKey(ime_key, normal_key) {
         if ime_key = normal_key {
-            Send(normal_key) ; No difference, just send
-            KeyLogger.Log(normal_key)
+            SendAndLog(normal_key) ; No difference, just send
         } else {
             if ime_key != "" && ImeState.IsOn() {
-                Send(ime_key) ; Send IME ON key
-                KeyLogger.Log(ime_key)
+                SendAndLog(ime_key) ; Send IME ON key
             } else {
-                Send(normal_key) ; Send IME OFF key
-                KeyLogger.Log(normal_key)
+                SendAndLog(normal_key) ; Send IME OFF key
             }
         }
     }
@@ -1029,8 +1045,7 @@ class RKey {
         if caw {
             ; Passthrough: send the original key
             text := "{Blind}" . "{" . pressed_key . "}"
-            Send(text)
-            KeyLogger.Log(text)
+            SendAndLog(text)
             ;ToolTip pressed_key
             return true
         }
@@ -1982,7 +1997,7 @@ Esc:: {
 q::#!space ; Win+Alt+Space
 *e:: Send(B_ESC) ; Esc
 r::+F3 ; Shift+F3
-*s:: Send("{Blind}^s") ; Save
+*s:: Send("{Blind}^s") ;
 *d:: Send("{Blind}^{Space}") ; Ctrl+Space (IME toggle, etc.)
 *f:: Send(B_TAB) ; Tab
 g:: Send("^f") ; Find
