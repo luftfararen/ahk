@@ -208,7 +208,7 @@ InstallMouseHook true ; Always install the mouse hook (for MouseSpeed class)
 SetKeyDelay 0 ; No delay after keystrokes
 
 KeyLogger.Load()
-OnExit((*) => KeyLogger.Save()) ; 終了・リロード時に保存
+OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig())) ; 終了・リロード時に保存
 
 ; ============================================================================
 ; GLOBAL FUNCTIONS
@@ -231,11 +231,12 @@ GetShiftState() {
  * @returns {Ptr} The window handle (HWND).
  */
 GetActiveWindowHandle() {
+    static ptrSize := A_PtrSize
+    static cbSize := 4 + 4 + (ptrSize * 6) + 16
+    static stGTI := Buffer(cbSize, 0)
+
     hwnd := WinExist("A")
-    if WinActive("A") {
-        ptrSize := A_PtrSize
-        cbSize := 4 + 4 + (ptrSize * 6) + 16
-        stGTI := Buffer(cbSize, 0)
+    if hwnd {
         NumPut("UInt", cbSize, stGTI, 0)
         if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", stGTI) {
             hwnd := NumGet(stGTI, 8 + ptrSize, "UInt")
@@ -268,11 +269,20 @@ class ImeState {
      */
     static IsOn() {
         static last_active_hwnd := 0
+        static last_check_time := 0
+        static cached_state := false
+
+        if (A_TickCount - last_check_time < 300) {
+            return cached_state
+        }
+
         hwnd := GetActiveWindowHandle()
 
         ; If window is the same, check the force flag
         if last_active_hwnd = hwnd {
             if ImeState.force_ime_on {
+                cached_state := true
+                last_check_time := A_TickCount
                 return true
             }
         }
@@ -284,11 +294,15 @@ class ImeState {
         last_active_hwnd := hwnd
 
         ; Check the actual IME state
-        return DllCall("SendMessage"
+        state := DllCall("SendMessage"
             , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
             , "UInt", 0x0283  ; WM_IME_CONTROL
             , "Ptr", 0x0005   ; IMC_GETOPENSTATUS (Get open status)
             , "Ptr", 0)      ; Returns 1 if ON, 0 if OFF
+
+        cached_state := (state != 0)
+        last_check_time := A_TickCount
+        return cached_state
     }
 
     static ToggleForce() {
@@ -305,9 +319,13 @@ class KeyLogger {
     static is_logging_enabled := false
     static stats := Map() ; Map of LayoutName -> {char -> count}
     static total_count := 0
-    static current_layout := "Qwerty" ; Default
-    static key_history := []
+    static current_layout := "Qwerty"
+    static hist_1 := ""
+    static hist_2 := ""
+    static hist_3 := ""
     static last_key_time := 0
+    static max_log := 5000
+    static last_compaction_time := A_TickCount
 
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
@@ -322,11 +340,17 @@ class KeyLogger {
         } catch {
             this.is_logging_enabled := false
         }
+        try {
+            this.max_log := Integer(IniRead(this.config_file, "Settings", "MaxLog", "5000"))
+        } catch {
+            this.max_log := 5000
+        }
     }
 
     static SaveConfig() {
         try {
             IniWrite(this.is_logging_enabled ? "1" : "0", this.config_file, "Settings", "LogEnabled")
+            IniWrite(String(this.max_log), this.config_file, "Settings", "MaxLog")
         } catch {
         }
     }
@@ -360,9 +384,44 @@ class KeyLogger {
         }
     }
 
+    static Compaction() {
+        this.last_compaction_time := A_TickCount
+        ; max_logを超えた場合の頻度半減処理（切り捨て、0になった成分は削除）
+        for layout, char_map in this.stats {
+            total := 0
+            for char, count in char_map
+                total += count
+
+            if total > this.max_log {
+                keysToDel := []
+                for char, count in char_map {
+                    newCount := count // 2
+                    if newCount > 0
+                        char_map[char] := newCount
+                    else
+                        keysToDel.Push(char)
+                }
+                for char in keysToDel
+                    char_map.Delete(char)
+            }
+        }
+    }
+
+    static SaveIfIdle() {
+        if this.stats.Count = 0
+            return
+
+        ; 20秒以上操作がなく、前回コンパクションから10分経っていたら保存
+        if (A_TimeIdle >= 20000 && A_TickCount - this.last_compaction_time >= 600000) {
+            this.Save()
+        }
+    }
+
     static Save() {
         if this.stats.Count = 0
             return
+
+        this.Compaction()
 
         output := ""
         for layout, char_map in this.stats {
@@ -408,7 +467,7 @@ class KeyLogger {
             return
 
         if (A_TickCount - this.last_key_time >= 3000) {
-            this.key_history := []
+            this.hist_1 := "", this.hist_2 := "", this.hist_3 := ""
         }
         this.last_key_time := A_TickCount
 
@@ -421,7 +480,7 @@ class KeyLogger {
                 if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
                     char := SubStr(char, 2, -1) ; {sc033} を sc033 に
                 else {
-                    this.key_history := []
+                    this.hist_1 := "", this.hist_2 := "", this.hist_3 := ""
                     return ; 記録対象外の特殊キー ({Enter} 等) は無視
                 }
             }
@@ -430,10 +489,17 @@ class KeyLogger {
         ; よく使う記号のスキャンコードを文字に変換
         static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
             "sc073", "_", "sc00D", "^")
-        if sc_map.Has(char)
-            char := sc_map[char]
+        char := sc_map.Get(char, char)
 
         if char = ""
+            return
+
+        this.hist_1 := this.hist_2
+        this.hist_2 := this.hist_3
+        this.hist_3 := char
+
+        ; 履歴が3文字に満たない場合は、重いIME判定を行わずに終了する
+        if this.hist_1 == ""
             return
 
         ; Layout名にIMEの状態（ON/OFF）を付与してキーにする
@@ -442,16 +508,8 @@ class KeyLogger {
         if !this.stats.Has(section_name)
             this.stats[section_name] := Map()
 
-        this.key_history.Push(char)
-        if this.key_history.Length > 3 {
-            this.key_history.RemoveAt(1)
-        }
-
-        if this.key_history.Length == 3 {
-            seq := this.key_history[1] . " " . this.key_history[2] . " " . this.key_history[3]
-            char_map := this.stats[section_name]
-            char_map[seq] := (char_map.Has(seq) ? char_map[seq] : 0) + 1
-        }
+        seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
+        this.stats[section_name][seq] := this.stats[section_name].Get(seq, 0) + 1
 
         ; this.total_count += 1
         ; if this.total_count >= 100 {
@@ -627,6 +685,10 @@ TimerEvent() {
         AutoSuspendForRemoteDesktop()
     }
     ShowIMEState()
+
+    if (mod(counter, 50) == 0) {
+        KeyLogger.SaveIfIdle()
+    }
     counter++
 }
 
@@ -1659,8 +1721,8 @@ ChangeFMIX13_minato_Layout() {
     f.SetImeKey("t", "-")
     ;g.SetImeKey("h")
 
-    z.SetImeKey("p", "[")
-    x.SetImeKey("z", "]")
+    z.SetImeKey("z", "[")
+    x.SetImeKey("p", "]")
     c.SetImeKey("m")
     v.SetImeKey("h", "v")
     b.SetImeKey("b", "v")
@@ -1881,7 +1943,11 @@ sc035:: Send("^+{sc07D}") ; / -> |
 *a:: Send("{Blind}^a") ; Select All
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 +sc029:: ToggleForceImeOn() ; Shift+Zen/Han -> Toggle Force IME ON
-Esc:: Reload ; Esc -> Reload Script
+Esc:: {
+    KeyLogger.Save()
+    KeyLogger.SaveConfig()
+    Reload()
+}
 
 q::#!space ; Win+Alt+Space
 *e:: Send(B_ESC) ; Esc
