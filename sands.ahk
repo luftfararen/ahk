@@ -318,6 +318,7 @@ class KeyLogger {
     static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
     static stats := Map() ; Map of LayoutName -> {char -> count}
+    static stats_short := Map() ; 短期辞書
     static total_count := 0
     static current_layout := "Qwerty"
     static hist_1 := ""
@@ -407,18 +408,47 @@ class KeyLogger {
         }
     }
 
+    static MergeShortTerm() {
+        if this.stats_short.Count == 0
+            return
+
+        ; 短期辞書を長期辞書に追加して、短期辞書を初期化
+        for layout, char_map in this.stats_short {
+            if !this.stats.Has(layout)
+                this.stats[layout] := Map()
+            for seq, count in char_map {
+                this.stats[layout][seq] := this.stats[layout].Get(seq, 0) + count
+            }
+        }
+        this.stats_short := Map()
+    }
+
     static SaveIfIdle() {
-        if this.stats.Count = 0
+        if this.stats_short.Count == 0
             return
 
         ; 20秒以上操作がなく、前回コンパクションから10分経っていたら保存
         if (A_TimeIdle >= 20000 && A_TickCount - this.last_compaction_time >= 600000) {
             this.Save()
+            return
+        }
+
+        ; 保存のタイミングでなくとも、操作がなく短期辞書サイズが500を超えていたら結合のみ実行
+        if (A_TimeIdle >= 20000) {
+            short_size := 0
+            for layout, char_map in this.stats_short {
+                short_size += char_map.Count
+            }
+            if short_size > 500 {
+                this.MergeShortTerm()
+            }
         }
     }
 
     static Save() {
-        if this.stats.Count = 0
+        this.MergeShortTerm()
+
+        if this.stats.Count == 0
             return
 
         this.Compaction()
@@ -505,11 +535,11 @@ class KeyLogger {
         ; Layout名にIMEの状態（ON/OFF）を付与してキーにする
         section_name := this.current_layout . (ImeState.IsOn() ? ":ON" : ":OFF")
 
-        if !this.stats.Has(section_name)
-            this.stats[section_name] := Map()
+        if !this.stats_short.Has(section_name)
+            this.stats_short[section_name] := Map()
 
         seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
-        this.stats[section_name][seq] := this.stats[section_name].Get(seq, 0) + 1
+        this.stats_short[section_name][seq] := this.stats_short[section_name].Get(seq, 0) + 1
 
         ; this.total_count += 1
         ; if this.total_count >= 100 {
