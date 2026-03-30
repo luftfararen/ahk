@@ -607,7 +607,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         WorkingState.Reset()
         Send(c)
-        ImeState.IsOn(true)
+        ;ImeState.IsOn(true)
         return
     }
     Send(c)
