@@ -213,13 +213,9 @@ KeyLogger.Load()
 OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig())) ; 終了・リロード時に保存
 
 class WorkingState {
-    static last_action_time := 0
+    ;static last_action_time := 0
     static Action() {
-        WorkingState.last_action_time := A_TickCount
-    }
-
-    static Reset() {
-        WorkingState.last_action_time := 0
+        ;WorkingState.last_action_time := A_TickCount
     }
 
     /**
@@ -227,8 +223,8 @@ class WorkingState {
      * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
      */
     static IsBusy(timeout_ms := 400) {
-        return A_TickCount - WorkingState.last_action_time < timeout_ms
-        ;return A_TimeIdle < timeout_ms
+        ;return A_TickCount - WorkingState.last_action_time < timeout_ms
+        return A_TimeIdle < timeout_ms
     }
 
 }
@@ -512,8 +508,6 @@ class KeyLogger {
     static Log(char) {
         if !this.is_logging_enabled
             return
-        if !ImeState.IsOn()
-            return
 
         if char = ""
             return
@@ -555,7 +549,7 @@ class KeyLogger {
             return
 
         ; Layout名にIMEの状態（ON/OFF）を付与してキーにする
-        section_name := this.current_layout
+        section_name := this.current_layout . (ImeState.IsOn() ? ":ON" : ":OFF")
 
         if !this.stats_short.Has(section_name)
             this.stats_short[section_name] := Map()
@@ -598,18 +592,19 @@ ToggleForceImeModeOn() {
  * Toggles the IME state by sending the Zenkaku/Hankaku key.
  */
 ToggleImeState() {
-    WorkingState.Reset()
     Send(B_ZENKAKU)	; Send {Blind}{sc029}
     ImeState.IsOn(true)
 }
 
 SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
-        WorkingState.Reset()
         Send(c)
+        ;oToggleImeState()
+        ;ToolTip(ImeState.IsOn() ? "ON" : "OFF")
         ImeState.IsOn(true)
         return
     }
+    ;ToolTip(c)
     Send(c)
     KeyLogger.Log(c)
     WorkingState.Action()
@@ -754,11 +749,11 @@ TimerEvent() {
     if time < 500 {
         ShowIMEState()
     }
-    if (mod(counter, 50) == 0) {
-        if (time >= 20000) {
-            KeyLogger.SaveIfIdle()
-        }
-    }
+	if (mod(counter, 50) == 0) {
+    	if (time >= 20000) {
+        	KeyLogger.SaveIfIdle()
+    	}
+    _
     counter++
 }
 
