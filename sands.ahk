@@ -346,7 +346,7 @@ class KeyLogger {
     static hist_3 := ""
     static last_key_time := 0
     static max_log := 5000
-    static last_compaction_time := A_TickCount
+    static last_save_time := A_TickCount
 
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
@@ -406,7 +406,6 @@ class KeyLogger {
     }
 
     static Compaction() {
-        this.last_compaction_time := A_TickCount
         ; max_logを超えた場合の頻度半減処理（切り捨て、0になった成分は削除）
         for layout, char_map in this.stats {
             total := 0
@@ -447,21 +446,19 @@ class KeyLogger {
         if this.stats_short.Count == 0
             return
 
-        ;前回コンパクションから10分経っていたら保存
-        if (A_TickCount - this.last_compaction_time >= 600000) {
+        ;前回saveから10分経っていたら保存
+        if (A_TickCount - this.last_save_time >= 600000) {
             this.Save()
             return
         }
 
-        ; 保存のタイミングでなくとも、操作がなく短期辞書サイズが500を超えていたら結合のみ実行
-        if (A_TimeIdle >= 20000) {
-            short_size := 0
-            for layout, char_map in this.stats_short {
-                short_size += char_map.Count
-            }
-            if short_size > 500 {
-                this.MergeShortTerm()
-            }
+        ;短期辞書サイズが500を超えていたら結合のみ実行
+        short_size := 0
+        for layout, char_map in this.stats_short {
+            short_size += char_map.Count
+        }
+        if short_size > 500 {
+            this.MergeShortTerm()
         }
     }
 
@@ -507,6 +504,7 @@ class KeyLogger {
             f.Close()
         } catch {
         }
+        this.last_save_time := A_TickCount
     }
 
     static Log(char) {
@@ -751,10 +749,11 @@ TimerEvent() {
 
     time := A_TimeIdle
     ; 操作時のみ処理してCPU負荷を軽減
-    if time < 500 {
+    if time < 1000 {
         ShowIMEState()
     }
-    if (mod(counter, 50) == 0) {
+
+    if (mod(counter, 100) == 0) {
         if (time >= 20000) {
             KeyLogger.SaveIfIdle()
         }
