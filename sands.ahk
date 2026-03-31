@@ -483,13 +483,9 @@ class KeyLogger {
             return
         }
 
-        ;短期辞書サイズが500を超えていたら結合のみ実行
-        short_size := 0
-        for layout, char_map in this.stats_short {
-            short_size += char_map.Count
-        }
-        if short_size > 500 {
+        if this.total_count >= 200 {
             this.MergeShortTerm()
+            this.total_count := 0
         }
     }
 
@@ -595,11 +591,7 @@ class KeyLogger {
         seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
         this.stats_short[section_name][seq] := this.stats_short[section_name].Get(seq, 0) + 1
 
-        ; this.total_count += 1
-        ; if this.total_count >= 100 {
-        ;     this.Save()
-        ;     this.total_count := 0
-        ; }
+        this.total_count += 1
     }
 }
 
@@ -787,9 +779,6 @@ UpdateImeIndicator() {
     }
 }
 
-;SetTimer(AutoSuspendForRemoteDesktop, 500)
-;SetTimer(UpdateImeIndicator, 100) ;
-
 /**
  * 定期的に実行されるタイマーイベント。IME表示の更新やログの保存などを行う。
  */
@@ -803,10 +792,11 @@ TimerEvent() {
 
     time := A_TimeIdle
     ; 操作時のみ処理してCPU負荷を軽減
-    if time < 1000 {
+    if time < 200 {
         UpdateImeIndicator()
     }
 
+    ; 20秒以上操作がない場合、ログを保存
     if (mod(counter, 100) == 0) {
         if (time >= 20000) {
             KeyLogger.SaveIfIdle()
@@ -1204,9 +1194,9 @@ class LKey extends RKey {
         }
         if show_info {
             if LKey.long_press_enabled {
-                ShowOSD("LKey 有効")
+                ShowOSD("LKey is enabled")
             } else {
-                ShowOSD("LKey 無効")
+                ShowOSD("LKey is disabled")
             }
         }
     }
@@ -2107,12 +2097,13 @@ space:: ToggleImeState() ;Send(C_BS)
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
 #.:: KeyLogger.ToggleLogging()
-#h:: ShowOSD("ヘルプ`n"
+#h:: ShowOSD("Help`n"
+    . "Shift+全角/半角: 英数`n"
     . "Win+Alt+Enter: スクリプトの一時停止を切り替え`n"
-    . "M1+f: 強制 IME モードの ON/OFF 切り替え`n"
+    . "Win+M1+f: 強制IMEモードのON/OFF 切り替え`n"
     . "Win+M1+Up: マウス速度を上げる`n"
     . "Win+M1+Down: マウス速度を下げる`n"
-    . "Win+M1+.: キーロガーを切り替え", 3000, True)
+    . "Win+M1+.: キーロガーのOn/Offを切り替え", 3000, True)
 
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
