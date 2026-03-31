@@ -217,29 +217,29 @@ OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
  * 動作状態を管理するクラス
  */
 class WorkingState {
-    static last_action_time := 0
+    ;static last_action_time := 0
 
     /**
      * キー操作が行われたことを記録する
      */
-    static RecordActivity() {
-        WorkingState.last_action_time := A_TickCount
-    }
+    ;static RecordActivity() {
+    ;    WorkingState.last_action_time := A_TickCount
+    ;}
 
     /**
      * 動作状態をリセットする
      */
-    static Reset() {
-        WorkingState.last_action_time := 0
-    }
+    ;static Reset() {
+    ;    ;WorkingState.last_action_time := 0
+    ;}
 
     /**
      * 連続してキーが入力されているか（キーが一定時間内に連続で押されたか）を判定する関数
      * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
      */
     static IsBusy(timeout_ms := 400) {
-        return A_TickCount - WorkingState.last_action_time < timeout_ms
-        ;return A_TimeIdle < timeout_ms
+        ;return A_TickCount - WorkingState.last_action_time < timeout_ms
+        return A_TimeIdleKeyboard < timeout_ms
     }
 
 }
@@ -633,14 +633,15 @@ ToggleImeState() {
  */
 SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
-        WorkingState.Reset()
+        ;WorkingState.Reset()
         Send(c)
         ;ImeState.IsOn(true)
+        UpdateImeIndicator()
         return
     }
     Send(c)
     KeyLogger.Log(c)
-    WorkingState.RecordActivity()
+    ;WorkingState.RecordActivity()
 }
 
 /**
@@ -790,15 +791,17 @@ TimerEvent() {
         }
     }
 
-    time := A_TimeIdle
+    ;time := A_TimeIdle
     ; 操作時のみ処理してCPU負荷を軽減
-    if time < 200 {
+    ;if time < 200 {
+    if A_TimeIdleMouse < 300 {
         UpdateImeIndicator()
     }
 
     ; 20秒以上操作がない場合、ログを保存
     if (mod(counter, 100) == 0) {
-        if (time >= 20000) {
+        ;if (time >= 20000) {
+        if (A_TimeIdle >= 20000) {
             KeyLogger.SaveIfIdle()
         }
     }
