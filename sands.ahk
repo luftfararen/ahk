@@ -217,29 +217,29 @@ OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
  * 動作状態を管理するクラス
  */
 class WorkingState {
-    ;static last_action_time := 0
+    static last_action_time := 0
 
     /**
      * キー操作が行われたことを記録する
      */
-    ;static RecordActivity() {
-    ;    WorkingState.last_action_time := A_TickCount
-    ;}
+    static RecordActivity() {
+        WorkingState.last_action_time := A_TickCount
+    }
 
     /**
      * 動作状態をリセットする
      */
-    ;static Reset() {
-    ;    ;WorkingState.last_action_time := 0
-    ;}
+    static Reset() {
+        WorkingState.last_action_time := 0
+    }
 
     /**
      * 連続してキーが入力されているか（キーが一定時間内に連続で押されたか）を判定する関数
      * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
      */
     static IsBusy(timeout_ms := 400) {
-        ;return A_TickCount - WorkingState.last_action_time < timeout_ms
-        return A_TimeIdleKeyboard < timeout_ms
+        return A_TickCount - WorkingState.last_action_time < timeout_ms
+        ;return A_TimeIdleKeyboard < timeout_ms
     }
 
 }
@@ -282,9 +282,7 @@ GetFocusedControlHandle() {
  * 特定のウィンドウの IME (Input Method Editor) 状態を設定する
  * @param {Ptr} hwnd - 対象ウィンドウハンドル
  * @param {Integer} state - 設定したい状態 (1: ON, 0: OFF)
- * @returns {LParam} DllCall の結果
- */
-SetImeStatus(hwnd, state) {
+ * @returns {LParam} DllCall の結SetImeStatus(hwnd, state) {
     return DllCall("SendMessage"
         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         , "UInt", 0x0283  ; WM_IME_CONTROL
@@ -352,6 +350,13 @@ class ImeState {
     }
 }
 
+class KeyLogItem {
+    count := 0
+    count_d := 0
+    duration12 := 0
+    duration13 := 0
+}
+
 class KeyLogger {
     static log_file := A_ScriptDir . "\log.txt"
     static config_file := A_ScriptDir . "\config.ini"
@@ -363,6 +368,9 @@ class KeyLogger {
     static hist_1 := ""
     static hist_2 := ""
     static hist_3 := ""
+    static tick_1 := 0
+    static tick_2 := 0
+    static tick_3 := 0
     static last_key_time := 0
     static max_log := 5000
     static last_save_time := A_TickCount
@@ -427,8 +435,21 @@ class KeyLogger {
                     pos := InStr(line, " : ", false, -1)
                     if pos {
                         char := SubStr(line, 1, pos - 1)
-                        count := SubStr(line, pos + 3)
-                        this.stats[current_sec][char] := Integer(count)
+                        valStr := SubStr(line, pos + 3)
+                        vals := StrSplit(valStr, " ")
+                        
+                        item := KeyLogItem()
+                        item.count := Integer(vals[1])
+                        if vals.Length >= 4 {
+                            item.count_d := Integer(vals[2])
+                            item.duration12 := Integer(vals[3]) * item.count_d
+                            item.duration13 := Integer(vals[4]) * item.count_d
+                        } else if vals.Length >= 3 {
+                            item.count_d := item.count
+                            item.duration12 := Integer(vals[2]) * item.count_d
+                            item.duration13 := Integer(vals[3]) * item.count_d
+                        }
+                        this.stats[current_sec][char] := item
                     }
                 }
             }
@@ -440,15 +461,15 @@ class KeyLogger {
         ; max_logを超えた場合の頻度半減処理（切り捨て、0になった成分は削除）
         for layout, char_map in this.stats {
             total := 0
-            for char, count in char_map
-                total += count
+            for char, item in char_map
+                total += item.count
 
             if total > this.max_log {
                 keysToDel := []
-                for char, count in char_map {
-                    newCount := count // 2
-                    if newCount > 0
-                        char_map[char] := newCount
+                for char, item in char_map {
+                    item.count //= 2
+                    if item.count > 0
+                        char_map[char] := item
                     else
                         keysToDel.Push(char)
                 }
@@ -474,8 +495,14 @@ class KeyLogger {
         if !this.stats.Has(layout)
             this.stats[layout] := Map()
         char_map := this.stats[layout]
-        for seq, count in this.stats_short {
-            char_map[seq] := char_map.Get(seq, 0) + count
+        for seq, item in this.stats_short {
+            if !char_map.Has(seq)
+                char_map[seq] := KeyLogItem()
+            target := char_map[seq]
+            target.count += item.count
+            target.count_d += item.count_d
+            target.duration12 += item.duration12
+            target.duration13 += item.duration13
         }
         this.stats_short := Map()
     }
@@ -512,9 +539,9 @@ class KeyLogger {
             output .= "[" . layout . "]`r`n"
 
             sortStr := ""
-            for char, count in char_map {
+            for char, item in char_map {
                 ; 頻度降順（カウントの反転値を0埋め10桁）と文字（アルファベット昇順）を連結してソート用文字列を作成
-                sortStr .= Format("{:010}|{}", 9999999999 - count, char) . "`n"
+                sortStr .= Format("{:010}|{}", 9999999999 - item.count, char) . "`n"
             }
 
             if sortStr != "" {
@@ -529,7 +556,10 @@ class KeyLogger {
                         invCount := Integer(SubStr(line, 1, pos - 1))
                         count := 9999999999 - invCount
                         char := SubStr(line, pos + 1)
-                        output .= char . " : " . count . "`r`n"
+                        item := char_map[char]
+                        avg12 := item.count_d > 0 ? (item.duration12 // item.count_d) : 0
+                        avg13 := item.count_d > 0 ? (item.duration13 // item.count_d) : 0
+                        output .= char . " : " . item.count . " " . item.count_d . " " . avg12 . " " . avg13 . "`r`n"
                     }
                 }
             }
@@ -585,12 +615,26 @@ class KeyLogger {
         this.hist_2 := this.hist_3
         this.hist_3 := char
 
+        this.tick_1 := this.tick_2
+        this.tick_2 := this.tick_3
+        this.tick_3 := A_TickCount
+
         ; 履歴が3文字に満たない場合は、重いIME判定を行わずに終了する
         if this.hist_1 == ""
             return
 
         seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
-        this.stats_short[seq] := this.stats_short.Get(seq, 0) + 1
+        if !this.stats_short.Has(seq)
+            this.stats_short[seq] := KeyLogItem()
+        
+        item := this.stats_short[seq]
+        item.count += 1
+        t := this.tick_3 - this.tick_1
+        if t < 1000 {
+            item.count_d += 1
+            item.duration12 += (this.tick_2 - this.tick_1) ;* 100
+            item.duration13 += (this.tick_3 - this.tick_1) ;* 100
+        }
 
         this.total_count += 1
     }
@@ -623,7 +667,7 @@ ToggleForceImeModeOn() {
  * 全角/半角キーを送信して IME 状態を切り替える
  */
 ToggleImeState() {
-    ;WorkingState.Reset()
+    WorkingState.Reset()
     Send(B_ZENKAKU)	; {Blind}{sc029} を送信
     ImeState.IsOn(true)
 }
@@ -634,15 +678,15 @@ ToggleImeState() {
  */
 SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
-        ;WorkingState.Reset()
+        WorkingState.Reset()
         Send(c)
-        ;ImeState.IsOn(true)
+        ImeState.IsOn(true)
         UpdateImeIndicator()
         return
     }
     Send(c)
     KeyLogger.Log(c)
-    ;WorkingState.RecordActivity()
+    WorkingState.RecordActivity()
 }
 
 /**
@@ -1553,6 +1597,7 @@ LoadLayoutConfig() {
             case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
             case "FMIX13-14R": ChangeFMIX13_FMIX14R_Layout()
             case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
+            case "FMIX13ie-Minato": ChangeFMIX13ie_minato_Layout()
             case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
             case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
