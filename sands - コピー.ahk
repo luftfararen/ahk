@@ -458,24 +458,17 @@ class KeyLogger {
         }
     }
 
-    static ChangeLayout(section := "") {
-        this.MergeShortTerm()
-        if section != "" {
-            this.current_layout := section
-        }
-    }
-
     static MergeShortTerm() {
         if this.stats_short.Count == 0
             return
 
         ; 短期辞書を長期辞書に追加して、短期辞書を初期化
-        layout := this.current_layout
-        if !this.stats.Has(layout)
-            this.stats[layout] := Map()
-        char_map := this.stats[layout]
-        for seq, count in this.stats_short {
-            char_map[seq] := char_map.Get(seq, 0) + count
+        for layout, char_map in this.stats_short {
+            if !this.stats.Has(layout)
+                this.stats[layout] := Map()
+            for seq, count in char_map {
+                this.stats[layout][seq] := this.stats[layout].Get(seq, 0) + count
+            }
         }
         this.stats_short := Map()
     }
@@ -589,8 +582,14 @@ class KeyLogger {
         if this.hist_1 == ""
             return
 
+        ; Layout名にIMEの状態（ON/OFF）を付与してキーにする
+        section_name := this.current_layout
+
+        if !this.stats_short.Has(section_name)
+            this.stats_short[section_name] := Map()
+
         seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
-        this.stats_short[seq] := this.stats_short.Get(seq, 0) + 1
+        this.stats_short[section_name][seq] := this.stats_short[section_name].Get(seq, 0) + 1
 
         this.total_count += 1
     }
@@ -1569,8 +1568,9 @@ LoadLayoutConfig() {
  * @param {String} num_layout - 新しい IME-ON 時の数字列配列
  */
 StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-") {
-    KeyLogger.ChangeLayout(name)
+    KeyLogger.Save() ; 切り替え前に現在の統計を保存
     if name != "" {
+        KeyLogger.current_layout := name
         try {
             IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
         } catch {
@@ -1635,8 +1635,9 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
  * @param {String} num_layout - 保存する数字列レイアウト
  */
 StoreLayout(name, layout, num_layout := "1234567890-") {
-    KeyLogger.ChangeLayout(name)
+    KeyLogger.Save() ; 切り替え前に現在の統計を保存
     if name != "" {
+        KeyLogger.current_layout := name
         try {
             IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
         } catch {
