@@ -282,7 +282,9 @@ GetFocusedControlHandle() {
  * 特定のウィンドウの IME (Input Method Editor) 状態を設定する
  * @param {Ptr} hwnd - 対象ウィンドウハンドル
  * @param {Integer} state - 設定したい状態 (1: ON, 0: OFF)
- * @returns {LParam} DllCall の結SetImeStatus(hwnd, state) {
+ * @returns {LParam} DllCall の結
+ */
+SetImeStatus(hwnd, state) {
     return DllCall("SendMessage"
         , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         , "UInt", 0x0283  ; WM_IME_CONTROL
@@ -397,7 +399,7 @@ class KeyLogger {
         try {
             this.max_log := Integer(IniRead(this.config_file, "Settings", "MaxLog", "5000"))
         } catch {
-            this.max_log := 5000
+            this.max_log := 2000
         }
     }
 
@@ -633,7 +635,7 @@ class KeyLogger {
         if t < 1000 {
             item.count_d += 1
             item.duration12 += (this.tick_2 - this.tick_1) ;* 100
-            item.duration13 += (this.tick_3 - this.tick_1) ;* 100
+            item.duration13 += t ;* 100
         }
 
         this.total_count += 1
@@ -1599,7 +1601,7 @@ LoadLayoutConfig() {
             case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
             case "FMIX13ie-Minato": ChangeFMIX13ie_minato_Layout()
             case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
-            case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
+            ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
             case "FMIX12-13R": ChangeFMIX12_FMIX13R_Layout()
         }
@@ -1960,21 +1962,21 @@ ChangeFMIX13_kanade_Layout() {
 /**
  * Changes layout to "FMIX13-FMIX14R".
  */
-ChangeFMIX13_FMIX14Rfep_Layout() {
-    StoreLayout("FMIX13-14Rfep", "qwrlkyfup;asdtghneiozxcvbjm,./")
-    ResetIME()
+; ChangeFMIX13_FMIX14Rfep_Layout() {
+;     StoreLayout("FMIX13-14Rfep", "qwrlkyfup;asdtghneiozxcvbjm,./")
+;     ResetIME()
 
-    global e, r, t, u, d
+;     global e, r, t, u, d
 
-    ; IME ON 時の差分設定
-    r.SetImeKey("d")
-    t.SetImeKey("l")
-    d.SetImeKey("k")
-    i.SetImeKey("e")
-    k.SetImeKey("u")
+;     ; IME ON 時の差分設定
+;     r.SetImeKey("d")
+;     t.SetImeKey("l")
+;     d.SetImeKey("k")
+;     i.SetImeKey("e")
+;     k.SetImeKey("u")
 
-    ShowOSD(KeyLogger.current_layout . " layout")
-}
+;     ShowOSD(KeyLogger.current_layout . " layout")
+; }
 
 /**
  * Changes layout to "FMIX12-FMIX14R".
@@ -2134,7 +2136,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #r:: ChangeFMIX14_FMIX14R_Layout()
 #d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13_FMIX14R_Layout()
-#e:: ChangeFMIX13_FMIX14Rfep_Layout()
+;#e:: ChangeFMIX13_FMIX14Rfep_Layout()
 #k:: ChangeFMIX13_kanade_Layout()
 #m:: ChangeFMIX13_minato_Layout()
 #n:: ChangeFMIX13ie_minato_Layout()
