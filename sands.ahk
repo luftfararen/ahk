@@ -360,22 +360,31 @@ class KeyLogItem {
 }
 
 class KeyLogger {
+    static IDLE_TIMEOUT := 3000     ; 3秒以上の打鍵間隔で履歴リセット
+    static MERGE_THRESHOLD := 200    ; 200キーごとに短期ログを長期ログへ統合
+    static AUTOSAVE_INTERVAL := 600000 ; 10分ごとに自動保存
+    static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
+
     static log_file := A_ScriptDir . "\log.txt"
     static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
-    static stats := Map() ; Map of LayoutName -> {char -> count}
+    static stats := Map() ; Map of LayoutName -> {char -> KeyLogItem}
     static stats_short := Map() ; 短期辞書
     static total_count := 0
     static current_layout := "Qwerty"
-    static hist_1 := ""
-    static hist_2 := ""
-    static hist_3 := ""
-    static tick_1 := 0
-    static tick_2 := 0
-    static tick_3 := 0
+    static hist_1 := "", hist_2 := "", hist_3 := ""
+    static tick_1 := 0, tick_2 := 0, tick_3 := 0
     static last_key_time := 0
     static max_log := 5000
     static last_save_time := A_TickCount
+
+    /**
+     * 打鍵履歴をリセットする
+     */
+    static ResetHistory() {
+        this.hist_1 := "", this.hist_2 := "", this.hist_3 := ""
+        this.tick_1 := 0, this.tick_2 := 0, this.tick_3 := 0
+    }
 
     /**
      * キーログの有効/無効を切り替える
@@ -436,10 +445,10 @@ class KeyLogger {
                 } else if current_sec != "" {
                     pos := InStr(line, " : ", false, -1)
                     if pos {
-                        char := SubStr(line, 1, pos - 1)
+                        seq := SubStr(line, 1, pos - 1)
                         valStr := SubStr(line, pos + 3)
                         vals := StrSplit(valStr, " ")
-                        
+
                         item := KeyLogItem()
                         item.count := Integer(vals[1])
                         if vals.Length >= 4 {
@@ -451,7 +460,7 @@ class KeyLogger {
                             item.duration12 := Integer(vals[2]) * item.count_d
                             item.duration13 := Integer(vals[3]) * item.count_d
                         }
-                        this.stats[current_sec][char] := item
+                        this.stats[current_sec][seq] := item
                     }
                 }
             }
@@ -460,23 +469,21 @@ class KeyLogger {
     }
 
     static Compaction() {
-        ; max_logを超えた場合の頻度半減処理（切り捨て、0になった成分は削除）
-        for layout, char_map in this.stats {
+        for layout, stats_map in this.stats {
             total := 0
-            for char, item in char_map
+            for seq, item in stats_map
                 total += item.count
 
             if total > this.max_log {
                 keysToDel := []
-                for char, item in char_map {
+                for seq, item in stats_map {
                     item.count //= 2
-                    if item.count > 0
-                        char_map[char] := item
-                    else
-                        keysToDel.Push(char)
+                    if item.count == 0 {
+                        keysToDel.Push(seq)
+                    }
                 }
-                for char in keysToDel
-                    char_map.Delete(char)
+                for seq in keysToDel
+                    stats_map.Delete(seq)
             }
         }
     }
@@ -496,11 +503,11 @@ class KeyLogger {
         layout := this.current_layout
         if !this.stats.Has(layout)
             this.stats[layout] := Map()
-        char_map := this.stats[layout]
+        stats_map := this.stats[layout]
         for seq, item in this.stats_short {
-            if !char_map.Has(seq)
-                char_map[seq] := KeyLogItem()
-            target := char_map[seq]
+            if !stats_map.Has(seq)
+                stats_map[seq] := KeyLogItem()
+            target := stats_map[seq]
             target.count += item.count
             target.count_d += item.count_d
             target.duration12 += item.duration12
@@ -513,13 +520,13 @@ class KeyLogger {
         if this.stats_short.Count == 0
             return
 
-        ;前回saveから10分経っていたら保存
-        if (A_TickCount - this.last_save_time >= 600000) {
+        ; 前回saveから指定時間経っていたら保存
+        if (A_TickCount - this.last_save_time >= this.AUTOSAVE_INTERVAL) {
             this.Save()
             return
         }
 
-        if this.total_count >= 200 {
+        if this.total_count >= this.MERGE_THRESHOLD {
             this.MergeShortTerm()
             this.total_count := 0
         }
@@ -537,13 +544,13 @@ class KeyLogger {
         this.Compaction()
 
         output := ""
-        for layout, char_map in this.stats {
+        for layout, stats_map in this.stats {
             output .= "[" . layout . "]`r`n"
 
             sortStr := ""
-            for char, item in char_map {
-                ; 頻度降順（カウントの反転値を0埋め10桁）と文字（アルファベット昇順）を連結してソート用文字列を作成
-                sortStr .= Format("{:010}|{}", 9999999999 - item.count, char) . "`n"
+            for seq, item in stats_map {
+                ; 頻度降順（カウントの反転値を0埋め10桁）とシーケンス（昇順）を連結してソート用文字列を作成
+                sortStr .= Format("{:010}|{}", 9999999999 - item.count, seq) . "`n"
             }
 
             if sortStr != "" {
@@ -557,11 +564,11 @@ class KeyLogger {
                     if pos {
                         invCount := Integer(SubStr(line, 1, pos - 1))
                         count := 9999999999 - invCount
-                        char := SubStr(line, pos + 1)
-                        item := char_map[char]
+                        seq := SubStr(line, pos + 1)
+                        item := stats_map[seq]
                         avg12 := item.count_d > 0 ? (item.duration12 // item.count_d) : 0
                         avg13 := item.count_d > 0 ? (item.duration13 // item.count_d) : 0
-                        output .= char . " : " . item.count . " " . item.count_d . " " . avg12 . " " . avg13 . "`r`n"
+                        output .= seq . " : " . item.count . " " . item.count_d . " " . avg12 . " " . avg13 . "`r`n"
                     }
                 }
             }
@@ -585,8 +592,8 @@ class KeyLogger {
         if char = ""
             return
 
-        if (A_TickCount - this.last_key_time >= 3000) {
-            this.hist_1 := "", this.hist_2 := "", this.hist_3 := ""
+        if (A_TickCount - this.last_key_time >= this.IDLE_TIMEOUT) {
+            this.ResetHistory()
         }
         this.last_key_time := A_TickCount
 
@@ -599,7 +606,7 @@ class KeyLogger {
                 if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
                     char := SubStr(char, 2, -1) ; {sc033} を sc033 に
                 else {
-                    this.hist_1 := "", this.hist_2 := "", this.hist_3 := ""
+                    this.ResetHistory()
                     return ; 記録対象外の特殊キー ({Enter} 等) は無視
                 }
             }
@@ -628,11 +635,11 @@ class KeyLogger {
         seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
         if !this.stats_short.Has(seq)
             this.stats_short[seq] := KeyLogItem()
-        
+
         item := this.stats_short[seq]
         item.count += 1
         t := this.tick_3 - this.tick_1
-        if t < 1000 {
+        if t < this.MAX_DURATION {
             item.count_d += 1
             item.duration12 += (this.tick_2 - this.tick_1) ;* 100
             item.duration13 += t ;* 100
@@ -1464,6 +1471,14 @@ down := RKey(C_DOWN)
 left := RKey(C_LEFT)
 right := RKey(C_RIGHT)
 
+; --- レイアウト用キー登録（ループ用） ---
+LAYOUT_NUM_KEYS := [k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus]
+LAYOUT_CHAR_KEYS := [
+    q, w, e, r, t, y, u, i, o, p,
+    a, s, d, f, g, h, j, k, l, semicolon,
+    z, x, c, v, b, n, m, comma, period, slash
+]
+
 LoadLayoutConfig()
 
 ; ============================================================================
@@ -1575,16 +1590,6 @@ ResetIME() {
     slash.SetImeKey()
 }
 
-/**
- * 指定された文字列の指定インデックスから1文字取得する（SubStr のラッパー）
- * @param {String} text - 対象の文字列
- * @param {Integer} idx - 取得する文字のインデックス（1-indexed）
- * @returns {String} 取得した文字
- */
-GetCharAt(text, idx) {
-    return SubStr(text, idx, 1)
-}
-
 LoadLayoutConfig() {
     try {
         layoutName := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
@@ -1601,7 +1606,7 @@ LoadLayoutConfig() {
             case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
             case "FMIX13ie-Minato": ChangeFMIX13ie_minato_Layout()
             case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
-            ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
+                ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
             case "FMIX12-13R": ChangeFMIX12_FMIX13R_Layout()
         }
@@ -1623,56 +1628,13 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         } catch {
         }
     }
-    global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon
-    global b, n, m, comma, period, slash
 
-    k1.SetIMEKey(GetCharAt(num_layout, 1))
-    k2.SetIMEKey(GetCharAt(num_layout, 2))
-    k3.SetIMEKey(GetCharAt(num_layout, 3))
-    k4.SetIMEKey(GetCharAt(num_layout, 4))
-    k5.SetIMEKey(GetCharAt(num_layout, 5))
-    k6.SetIMEKey(GetCharAt(num_layout, 6))
-    k7.SetIMEKey(GetCharAt(num_layout, 7))
-    k8.SetIMEKey(GetCharAt(num_layout, 8))
-    k9.SetIMEKey(GetCharAt(num_layout, 9))
-    k0.SetIMEKey(GetCharAt(num_layout, 10))
-    minus.SetIMEKey(GetCharAt(num_layout, 11))
-
-    q.SetIMEKey(GetCharAt(layout, 1))
-    w.SetIMEKey(GetCharAt(layout, 2))
-    e.SetIMEKey(GetCharAt(layout, 3))
-    r.SetIMEKey(GetCharAt(layout, 4))
-    t.SetIMEKey(GetCharAt(layout, 5))
-    y.SetIMEKey(GetCharAt(layout, 6))
-    u.SetIMEKey(GetCharAt(layout, 7))
-    i.SetIMEKey(GetCharAt(layout, 8))
-    o.SetIMEKey(GetCharAt(layout, 9))
-    p.SetIMEKey(GetCharAt(layout, 10))
-
-    a.SetIMEKey(GetCharAt(layout, 11))
-    s.SetIMEKey(GetCharAt(layout, 12))
-    d.SetIMEKey(GetCharAt(layout, 13))
-    f.SetIMEKey(GetCharAt(layout, 14))
-    g.SetIMEKey(GetCharAt(layout, 15))
-    h.SetIMEKey(GetCharAt(layout, 16))
-    j.SetIMEKey(GetCharAt(layout, 17))
-    k.SetIMEKey(GetCharAt(layout, 18))
-    l.SetIMEKey(GetCharAt(layout, 19))
-    semicolon.SetIMEKey(GetCharAt(layout, 20))
-
-    z.SetIMEKey(GetCharAt(layout, 21))
-    x.SetIMEKey(GetCharAt(layout, 22))
-    c.SetIMEKey(GetCharAt(layout, 23))
-    v.SetIMEKey(GetCharAt(layout, 24))
-    b.SetIMEKey(GetCharAt(layout, 25))
-    n.SetIMEKey(GetCharAt(layout, 26))
-    m.SetIMEKey(GetCharAt(layout, 27))
-    comma.SetIMEKey(GetCharAt(layout, 28))
-    period.SetIMEKey(GetCharAt(layout, 29))
-    slash.SetIMEKey(GetCharAt(layout, 30))
+    for i, keyObj in LAYOUT_NUM_KEYS {
+        keyObj.SetIMEKey(SubStr(num_layout, i, 1))
+    }
+    for i, keyObj in LAYOUT_CHAR_KEYS {
+        keyObj.SetIMEKey(SubStr(layout, i, 1))
+    }
 }
 
 /**
@@ -1689,56 +1651,13 @@ StoreLayout(name, layout, num_layout := "1234567890-") {
         } catch {
         }
     }
-    global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon
-    global b, n, m, comma, period, slash
 
-    k1.SetKey(GetCharAt(num_layout, 1))
-    k2.SetKey(GetCharAt(num_layout, 2))
-    k3.SetKey(GetCharAt(num_layout, 3))
-    k4.SetKey(GetCharAt(num_layout, 4))
-    k5.SetKey(GetCharAt(num_layout, 5))
-    k6.SetKey(GetCharAt(num_layout, 6))
-    k7.SetKey(GetCharAt(num_layout, 7))
-    k8.SetKey(GetCharAt(num_layout, 8))
-    k9.SetKey(GetCharAt(num_layout, 9))
-    k0.SetKey(GetCharAt(num_layout, 10))
-    minus.SetKey(GetCharAt(num_layout, 11))
-
-    q.SetKey(GetCharAt(layout, 1))
-    w.SetKey(GetCharAt(layout, 2))
-    e.SetKey(GetCharAt(layout, 3))
-    r.SetKey(GetCharAt(layout, 4))
-    t.SetKey(GetCharAt(layout, 5))
-    y.SetKey(GetCharAt(layout, 6))
-    u.SetKey(GetCharAt(layout, 7))
-    i.SetKey(GetCharAt(layout, 8))
-    o.SetKey(GetCharAt(layout, 9))
-    p.SetKey(GetCharAt(layout, 10))
-
-    a.SetKey(GetCharAt(layout, 11))
-    s.SetKey(GetCharAt(layout, 12))
-    d.SetKey(GetCharAt(layout, 13))
-    f.SetKey(GetCharAt(layout, 14))
-    g.SetKey(GetCharAt(layout, 15))
-    h.SetKey(GetCharAt(layout, 16))
-    j.SetKey(GetCharAt(layout, 17))
-    k.SetKey(GetCharAt(layout, 18))
-    l.SetKey(GetCharAt(layout, 19))
-    semicolon.SetKey(GetCharAt(layout, 20))
-
-    z.SetKey(GetCharAt(layout, 21))
-    x.SetKey(GetCharAt(layout, 22))
-    c.SetKey(GetCharAt(layout, 23))
-    v.SetKey(GetCharAt(layout, 24))
-    b.SetKey(GetCharAt(layout, 25))
-    n.SetKey(GetCharAt(layout, 26))
-    m.SetKey(GetCharAt(layout, 27))
-    comma.SetKey(GetCharAt(layout, 28))
-    period.SetKey(GetCharAt(layout, 29))
-    slash.SetKey(GetCharAt(layout, 30))
+    for i, keyObj in LAYOUT_NUM_KEYS {
+        keyObj.SetKey(SubStr(num_layout, i, 1))
+    }
+    for i, keyObj in LAYOUT_CHAR_KEYS {
+        keyObj.SetKey(SubStr(layout, i, 1))
+    }
 }
 
 /**
