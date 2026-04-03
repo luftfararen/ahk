@@ -217,11 +217,22 @@ OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
  * 動作状態を管理するクラス
 */
 class WorkingState {
+    static mode := 0
     static last_action_time := 0
-    static threshold := 400
+    static last_check_time := 0
+    static thresholMd := 400
 
-    static SetThreshold(val) {
-        WorkingState.threshold := val
+    /**
+     * 動作状態を設定する
+     * @param {Integer} mode - 動作モード
+     * 0:キー入力アイドル
+     * 1:最後のチェックから一定時間の経過
+     * 2:常時
+     * @param {Integer} threshold - 状態を維持する時間 (ms)
+     */
+    static SetMode(mode, threshold) {
+        WorkingState.mode := mode
+        WorkingState.threshold := threshold
     }
     /**
      * キー操作が行われたことを記録する
@@ -230,20 +241,28 @@ class WorkingState {
         WorkingState.last_action_time := A_TickCount
     }
 
+    static RecordCheck() {
+        WorkingState.last_check_time := A_TickCount
+    }
     /**
      * 動作状態をリセットする
      */
     static Reset() {
         WorkingState.last_action_time := 0
+        WorkingState.last_check_time := 0
     }
 
-    /**
-     * 連続してキーが入力されているか（キーが一定時間内に連続で押されたか）を判定する関数
-     * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
-     */
-    static IsBusy() {
-        return A_TickCount - WorkingState.last_action_time < WorkingState.threshold
-        ;return A_TimeIdleKeyboard < timeout_ms
+    static MustCheck() {
+        if (WorkingState.mode == 0) {
+            ;キー入力が長時間されない場合、チェックする
+            return A_TickCount - WorkingState.last_action_time > WorkingState.threshold
+        } else if (WorkingState.mode == 1) {
+            ;最後のチェックから時間が経過したら、チェックする
+            return A_TickCount - WorkingState.last_check_time > WorkingState.threshold
+        } else {
+            ;常にチェックする
+            return true
+        }
     }
 
 }
@@ -299,7 +318,6 @@ SetImeStatus(hwnd, state) {
 class ImeState {
     static force_ime_on := false
     static cached_state := false
-    static last_check_time := 0
 
     static UpdataState() {
         static last_active_hwnd := 0
@@ -311,7 +329,7 @@ class ImeState {
         if last_active_hwnd = hwnd {
             if ImeState.force_ime_on {
                 cached_state := true
-                last_check_time := time
+                WorkingState.RecordCheck()
                 return true
             }
         }
@@ -330,7 +348,7 @@ class ImeState {
             , "Ptr", 0)      ; 1 = ON, 0 = OFF
 
         ImeState.cached_state := (state != 0)
-        ImeState.last_check_time := time
+        WorkingState.RecordCheck()
     }
 
     /**
@@ -339,8 +357,7 @@ class ImeState {
      * @returns {Boolean} IME が ON（または強制 ON）であれば true
      */
     static IsOn(precise := false) {
-        ;precise := precise || (A_TickCount - ImeState.last_check_time > 2000)
-        if !precise && WorkingState.IsBusy() {
+        if !precise && !WorkingState.MustCheck() {
             return ImeState.cached_state
         }
         ImeState.UpdataState()
@@ -881,15 +898,16 @@ TimerEvent() {
 
     static mouse_state := 0
 
-    ;time := A_TimeIdle
     ; 操作時のみ処理してCPU負荷を軽減
     if A_TimeIdleMouse < 300 {
-        mouse_state := 1
-        WorkingState.SetThreshold(400)
+        if (mouse_state == 0) {
+            WorkingState.SetMode(1, 500)
+        }
         UpdateImeIndicator()
+        mouse_state := 1
     } else {
         if (mouse_state == 1) {
-            WorkingState.SetThreshold(1000)
+            WorkingState.SetMode(0, 1000)
         }
         mouse_state := 0
     }
