@@ -213,12 +213,16 @@ KeyLogger.Load()
 ; 終了・リロード時に保存
 OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
 
-/**
+/*
  * 動作状態を管理するクラス
- */
+*/
 class WorkingState {
     static last_action_time := 0
+    static threshold := 400
 
+    static SetThreshold(val) {
+        WorkingState.threshold := val
+    }
     /**
      * キー操作が行われたことを記録する
      */
@@ -237,8 +241,8 @@ class WorkingState {
      * 連続してキーが入力されているか（キーが一定時間内に連続で押されたか）を判定する関数
      * @returns {Boolean} 連続打鍵であれば true、そうでなければ false
      */
-    static IsBusy(timeout_ms := 400) {
-        return A_TickCount - WorkingState.last_action_time < timeout_ms
+    static IsBusy() {
+        return A_TickCount - WorkingState.last_action_time < WorkingState.threshold
         ;return A_TimeIdleKeyboard < timeout_ms
     }
 
@@ -294,27 +298,20 @@ SetImeStatus(hwnd, state) {
 
 class ImeState {
     static force_ime_on := false
+    static cached_state := false
+    static last_check_time := 0
 
-    /**
-     * アクティブウィンドウの IME が現在 ON かどうかを確認する
-     * `force_ime_on` グローバルフラグも考慮する
-     * @returns {Boolean} IME が ON（または強制 ON）であれば true
-     */
-    static IsOn(precise := false) {
+    static UpdataState() {
         static last_active_hwnd := 0
-        static cached_state := false
-
-        if !precise && WorkingState.IsBusy() {
-            return cached_state
-        }
 
         hwnd := GetFocusedControlHandle()
+        time := A_TickCount
 
         ; 同じウィンドウであれば強制フラグを確認
         if last_active_hwnd = hwnd {
             if ImeState.force_ime_on {
                 cached_state := true
-                last_check_time := A_TickCount
+                last_check_time := time
                 return true
             }
         }
@@ -332,8 +329,22 @@ class ImeState {
             , "Ptr", 0x0005   ; IMC_GETOPENSTATUS (開状態を取得)
             , "Ptr", 0)      ; 1 = ON, 0 = OFF
 
-        cached_state := (state != 0)
-        return cached_state
+        ImeState.cached_state := (state != 0)
+        ImeState.last_check_time := time
+    }
+
+    /**
+     * アクティブウィンドウの IME が現在 ON かどうかを確認する
+     * `force_ime_on` グローバルフラグも考慮する
+     * @returns {Boolean} IME が ON（または強制 ON）であれば true
+     */
+    static IsOn(precise := false) {
+        ;precise := precise || (A_TickCount - ImeState.last_check_time > 2000)
+        if !precise && WorkingState.IsBusy() {
+            return ImeState.cached_state
+        }
+        ImeState.UpdataState()
+        return ImeState.cached_state
     }
 
     /**
@@ -676,9 +687,10 @@ ToggleForceImeModeOn() {
  * 全角/半角キーを送信して IME 状態を切り替える
  */
 ToggleImeState() {
-    WorkingState.Reset()
+    ;WorkingState.Reset()
     Send(B_ZENKAKU)	; {Blind}{sc029} を送信
-    ImeState.IsOn(true)
+    ImeState.UpdataState()
+    UpdateImeIndicator()
 }
 
 /**
@@ -689,7 +701,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         WorkingState.Reset()
         Send(c)
-        ImeState.IsOn(true)
+        ImeState.UpdataState()
         UpdateImeIndicator()
         return
     }
@@ -800,7 +812,7 @@ WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MGui)
 /**
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
  */
-UpdateImeIndicator() {
+UpdateImeIndicator(precise := False) {
     static LastX := -2, LastY := 0, LastStatus := -1
 
     mx := -1, my := 0
@@ -808,7 +820,7 @@ UpdateImeIndicator() {
     MouseGetPos(&mx, &my)
     if (mx = LastX && my = LastY) {
         ime_state_value := 0
-        if ImeState.IsOn() {
+        if ImeState.IsOn(precise) {
             ime_state_value := ImeState.force_ime_on ? 2 : 1
         }
 
@@ -845,11 +857,19 @@ TimerEvent() {
         }
     }
 
+    static mouse_state := 0
+
     ;time := A_TimeIdle
     ; 操作時のみ処理してCPU負荷を軽減
-    ;if time < 200 {
     if A_TimeIdleMouse < 300 {
+        mouse_state := 1
+        WorkingState.SetThreshold(400)
         UpdateImeIndicator()
+    } else {
+        if (mouse_state == 1) {
+            WorkingState.SetThreshold(1000)
+        }
+        mouse_state := 0
     }
 
     ; 20秒以上操作がない場合、ログを保存
