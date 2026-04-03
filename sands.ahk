@@ -379,6 +379,7 @@ class KeyLogger {
     static log_file := A_ScriptDir . "\log.txt"
     static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
+    static is_showing_ime_indicator := true
     static stats := Map() ; Map of LayoutName -> {char -> KeyLogItem}
     static stats_short := Map() ; 短期辞書
     static total_count := 0
@@ -397,13 +398,19 @@ class KeyLogger {
         this.tick_1 := 0, this.tick_2 := 0, this.tick_3 := 0
     }
 
-    /**
-     * キーログの有効/無効を切り替える
-     */
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
         this.SaveConfig()
         ShowOSD("KeyLogger: " . (this.is_logging_enabled ? "ON" : "OFF"))
+    }
+
+    /**
+     * IMEインジケータの表示/非表示を切り替える
+     */
+    static ToggleImeIndicator() {
+        this.is_showing_ime_indicator := !this.is_showing_ime_indicator
+        this.SaveConfig()
+        ShowOSD("IME Indicator: " . (this.is_showing_ime_indicator ? "ON" : "OFF"))
     }
 
     /**
@@ -415,6 +422,12 @@ class KeyLogger {
             this.is_logging_enabled := (val == "1")
         } catch {
             this.is_logging_enabled := false
+        }
+        try {
+            val := IniRead(this.config_file, "Settings", "ImeIndicatorEnabled", "1")
+            this.is_showing_ime_indicator := (val == "1")
+        } catch {
+            this.is_showing_ime_indicator := true
         }
         try {
             this.max_log := Integer(IniRead(this.config_file, "Settings", "MaxLog", "5000"))
@@ -429,6 +442,7 @@ class KeyLogger {
     static SaveConfig() {
         try {
             IniWrite(this.is_logging_enabled ? "1" : "0", this.config_file, "Settings", "LogEnabled")
+            IniWrite(this.is_showing_ime_indicator ? "1" : "0", this.config_file, "Settings", "ImeIndicatorEnabled")
             IniWrite(String(this.max_log), this.config_file, "Settings", "MaxLog")
         } catch {
         }
@@ -813,11 +827,19 @@ WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MGui)
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
  */
 UpdateImeIndicator(precise := False) {
-    static LastX := -2, LastY := 0, LastStatus := -1
-
     mx := -1, my := 0
     CoordMode("Mouse", "Screen")
     MouseGetPos(&mx, &my)
+    static LastX := -2, LastY := 0, LastStatus := -1
+
+    if !KeyLogger.is_showing_ime_indicator {
+        if LastStatus != 0 {
+            MGui.Hide()
+            LastStatus := 0
+        }
+        return
+    }
+
     if (mx = LastX && my = LastY) {
         ime_state_value := 0
         if ImeState.IsOn(precise) {
@@ -2084,6 +2106,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
+#sc033:: KeyLogger.ToggleImeIndicator()
 #.:: KeyLogger.ToggleLogging()
 #h:: ShowOSD("Help`n"
     . "Shift+全角/半角: 英数`n"
@@ -2091,6 +2114,7 @@ space:: ToggleImeState() ;Send(C_BS)
     . "Win+M1+f: 強制IMEモードのON/OFF 切り替え`n"
     . "Win+M1+Up: マウス速度を上げる`n"
     . "Win+M1+Down: マウス速度を下げる`n"
+    . "Win+M1+,: IMEインジケータの表示/非表示を切り替え`n"
     . "Win+M1+.: キーロガーのOn/Offを切り替え", 3000, True)
 
 ; --- マウス速度 ---
