@@ -213,59 +213,6 @@ KeyLogger.Load()
 ; 終了・リロード時に保存
 OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
 
-/*
- * 動作状態を管理するクラス
-*/
-class WorkingState {
-    static mode := 0
-    static last_action_time := 0
-    static last_check_time := 0
-    static thresholMd := 400
-
-    /**
-     * 動作状態を設定する
-     * @param {Integer} mode - 動作モード
-     * 0:キー入力アイドル
-     * 1:最後のチェックから一定時間の経過
-     * 2:常時
-     * @param {Integer} threshold - 状態を維持する時間 (ms)
-     */
-    static SetMode(mode, threshold) {
-        WorkingState.mode := mode
-        WorkingState.threshold := threshold
-    }
-    /**
-     * キー操作が行われたことを記録する
-     */
-    static RecordActivity() {
-        WorkingState.last_action_time := A_TickCount
-    }
-
-    static RecordCheck() {
-        WorkingState.last_check_time := A_TickCount
-    }
-    /**
-     * 動作状態をリセットする
-     */
-    static Reset() {
-        WorkingState.last_action_time := 0
-        WorkingState.last_check_time := 0
-    }
-
-    static MustCheck() {
-        if (WorkingState.mode == 0) {
-            ;キー入力が長時間されない場合、チェックする
-            return A_TickCount - WorkingState.last_action_time > WorkingState.threshold
-        } else if (WorkingState.mode == 1) {
-            ;最後のチェックから時間が経過したら、チェックする
-            return A_TickCount - WorkingState.last_check_time > WorkingState.threshold
-        } else {
-            ;常にチェックする
-            return true
-        }
-    }
-
-}
 ; ============================================================================
 ; GLOBAL FUNCTIONS
 ; ============================================================================
@@ -319,6 +266,65 @@ class ImeState {
     static force_ime_on := false
     static cached_state := false
 
+    /**
+     * 動作モード
+     * 0:前回のキー入力から一定時間の経過後チェック
+     * 1:前回のIME状態チェックから一定時間の経過後チェック
+     * 2:毎回チェック
+     * 3:チェックなし(別途マニュアルでチェック)
+     */
+    static mode := 1
+    static last_action_time := 0
+    static last_check_time := 0
+    static threshold := 300
+
+    /**
+     * 動作状態を設定する
+     * @param {Integer} mode - 動作モード
+     * 0:前回のキー入力から一定時間の経過後チェック
+     * 1:前回のIME状態チェックから一定時間の経過後チェック
+     * 2:毎回チェック
+     * 3:チェックなし(別途マニュアルでチェックが必要)
+     * @param {Integer} threshold - 状態を維持する時間 (ms)
+     */
+    static SetMode(mode, threshold) {
+        ImeState.mode := mode
+        ImeState.threshold := threshold
+    }
+    /**
+     * キー操作が行われたことを記録する
+     */
+    static RecordActivity() {
+        ImeState.last_action_time := A_TickCount
+    }
+
+    static RecordCheck() {
+        ImeState.last_check_time := A_TickCount
+    }
+    /**
+     * 動作状態をリセットする
+     */
+    static Reset() {
+        ImeState.last_action_time := 0
+        ImeState.last_check_time := 0
+    }
+
+    static MustCheck() {
+        if (ImeState.mode == 0) {
+            ;キー入力が長時間されない場合、チェックする
+            return A_TickCount - ImeState.last_action_time > ImeState.threshold
+        } else if (ImeState.mode == 1) {
+            ;最後のチェックから時間が経過したら、チェックする
+            return A_TickCount - ImeState.last_check_time > ImeState.threshold
+        } else if (ImeState.mode == 2) {
+            ;常にチェックする
+            return true
+        } else {
+            ;チェックなし
+            return false
+        }
+    }
+
     static UpdataState() {
         static last_active_hwnd := 0
 
@@ -329,7 +335,7 @@ class ImeState {
         if last_active_hwnd = hwnd {
             if ImeState.force_ime_on {
                 cached_state := true
-                WorkingState.RecordCheck()
+                ImeState.RecordCheck()
                 return true
             }
         }
@@ -348,19 +354,19 @@ class ImeState {
             , "Ptr", 0)      ; 1 = ON, 0 = OFF
 
         ImeState.cached_state := (state != 0)
-        WorkingState.RecordCheck()
+        ImeState.RecordCheck()
+        return ImeState.cached_state
     }
 
     /**
      * アクティブウィンドウの IME が現在 ON かどうかを確認する
-     * `force_ime_on` グローバルフラグも考慮する
+     * `force_ime_on` フラグも考慮する
      * @returns {Boolean} IME が ON（または強制 ON）であれば true
      */
     static IsOn(precise := false) {
-        if !precise && !WorkingState.MustCheck() {
-            return ImeState.cached_state
+        if (precise || ImeState.MustCheck()) {
+            return ImeState.UpdataState()
         }
-        ImeState.UpdataState()
         return ImeState.cached_state
     }
 
@@ -711,6 +717,8 @@ HasModifierSymbols(text) {
  */
 ToggleForceImeModeOn() {
     ImeState.ToggleForce()
+    ImeState.UpdataState()
+    UpdateImeIndicator()
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
@@ -718,7 +726,7 @@ ToggleForceImeModeOn() {
  * 全角/半角キーを送信して IME 状態を切り替える
  */
 ToggleImeState() {
-    ;WorkingState.Reset()
+    ;ImeState.Reset()
     Send(B_ZENKAKU)	; {Blind}{sc029} を送信
     ImeState.UpdataState()
     UpdateImeIndicator()
@@ -730,7 +738,7 @@ ToggleImeState() {
  */
 SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
-        WorkingState.Reset()
+        ImeState.Reset()
         Send(c)
         ImeState.UpdataState()
         UpdateImeIndicator()
@@ -738,7 +746,7 @@ SendAndLog(c) {
     }
     Send(c)
     KeyLogger.Log(c)
-    WorkingState.RecordActivity()
+    ImeState.RecordActivity()
 }
 
 /**
@@ -896,21 +904,26 @@ TimerEvent() {
         }
     }
 
-    static mouse_state := 0
-
-    ; 操作時のみ処理してCPU負荷を軽減
-    if A_TimeIdleMouse < 300 {
-        if (mouse_state == 0) {
-            WorkingState.SetMode(1, 500)
-        }
-        UpdateImeIndicator()
-        mouse_state := 1
-    } else {
-        if (mouse_state == 1) {
-            WorkingState.SetMode(0, 1000)
-        }
-        mouse_state := 0
-    }
+    UpdateImeIndicator()
+    ;static mouse_state := 0
+    ; if A_TimeIdleMouse < 300 { ;マウス操作時のみ処理時
+    ;     if (mouse_state == 0) {
+    ;         ;マウス操作でアクティブウィンドウが変わるため
+    ;         ;前回のIME状態チェックから一定時間の経過後チェック
+    ;         ImeState.SetMode(1, 500)
+    ;     }
+    ;     UpdateImeIndicator()
+    ;     mouse_state := 1
+    ; } else { ;マウス操作終了時
+    ;     if (mouse_state == 1) {
+    ;         ;キー入力に備えて設定
+    ;         ;前回のキー入力から一定時間の経過後チェック
+    ;         ;キーによるIME状態変更をフックしているので、
+    ;         ;そもそもキー押下時のチェックは不要だが、念のため
+    ;         ImeState.SetMode(0, 1000)
+    ;     }
+    ;     mouse_state := 0
+    ; }
 
     ; 20秒以上操作がない場合、ログを保存
     if (mod(counter, 100) == 0) {
