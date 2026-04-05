@@ -1677,7 +1677,7 @@ LoadLayoutConfig() {
             case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
             case "FMIX13-14R": ChangeFMIX13_FMIX14R_Layout()
             case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
-            case "FMIX13ie-Minato": ChangeFMIX13ie_minato_Layout()
+            case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
             case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
                 ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
@@ -1901,8 +1901,8 @@ ChangeFMIX13_minato_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-ChangeFMIX13ie_minato_Layout() {
-    StoreLayout("FMIX13ie-Minato", "qwrlkyfup;asdtghnieozxcvbjm,./")
+ChangeFMIX13fie_minato_Layout() {
+    StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -2131,7 +2131,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ;#e:: ChangeFMIX13_FMIX14Rfep_Layout()
 #k:: ChangeFMIX13_kanade_Layout()
 #m:: ChangeFMIX13_minato_Layout()
-#n:: ChangeFMIX13ie_minato_Layout()
+#n:: ChangeFMIX13fie_minato_Layout()
 #z:: ChangeFMIX12_FMIX14R_Layout()
 #x:: ChangeFMIX12_FMIX13R_Layout()
 #q:: ChangeQwertyLayout()
