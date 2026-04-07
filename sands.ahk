@@ -1666,6 +1666,10 @@ ResetIME() {
 LoadLayoutConfig() {
     try {
         layoutName := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
+        if layoutName = ""
+            return
+
+        ; ハードコードされたレイアウトを確認
         switch layoutName {
             case "Qwerty": ChangeQwertyLayout()
             case "Oonishi": ChangeOonishiLayout()
@@ -1682,9 +1686,68 @@ LoadLayoutConfig() {
                 ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
             case "FMIX12-13R": ChangeFMIX12_FMIX13R_Layout()
+            default:
+                ; INIファイルからカスタムレイアウトの読み込みを試行
+                if !ApplyLayoutFromIni(layoutName) {
+                    ; 見つからない場合はデフォルトとしてQwertyを適用
+                    ChangeQwertyLayout()
+                }
         }
     } catch {
     }
+}
+
+/**
+ * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
+ */
+LoadLayoutFromIni(index) {
+    name := IniRead(A_ScriptDir . "\config.ini", index, "name", "")
+    if name = "" {
+        ChangeQwertyLayout()
+        return
+    }
+    if ApplyLayoutFromIni(index) {
+        ; 成功
+    } else {
+        ChangeQwertyLayout()
+    }
+}
+
+/**
+ * config.ini の指定されたセクションからレイアウト配列を読み込み、適用する
+ * @param {String} name - レイアウト名（INIのセクション名）
+ * @returns {Boolean} 読み込みに成功した場合は true
+ */
+ApplyLayoutFromIni(index) {
+    iniPath := A_ScriptDir . "\config.ini"
+
+    ; 必須のレイアウト文字列を取得
+    name := IniRead(iniPath, index, "Name", "")
+    if name = ""
+        return false
+    layout := IniRead(iniPath, index, "Layout", "")
+    num := IniRead(iniPath, index, "Num", "1234567890-")
+    shiftLayout := IniRead(iniPath, index, "ShiftLayout", "")
+    shiftNum := IniRead(iniPath, index, "ShiftNum", "")
+
+    ; 基本レイアウトの設定
+    StoreLayout(name, layout, num, shiftLayout, shiftNum)
+    ResetIME() ; IME ON 時の個別設定を一旦リセット
+
+    ; IME ON 時の個別設定があれば読み込む
+    imeLayout := IniRead(iniPath, name, "ImeLayout", "")
+    imeNum := IniRead(iniPath, name, "ImeNum", "")
+    imeShiftLayout := IniRead(iniPath, name, "ImeShiftLayout", "")
+    imeShiftNum := IniRead(iniPath, name, "ImeShiftNum", "")
+
+    if (imeLayout != "" || imeNum != "" || imeShiftLayout != "" || imeShiftNum != "") {
+        if (imeLayout == "") imeLayout := layout
+            if (imeNum == "") imeNum := num
+                StoreIMELayout("", imeLayout, imeNum, imeShiftLayout, imeShiftNum)
+    }
+
+    ShowOSD("Loaded layout: " . name . " (INI)")
+    return true
 }
 
 /**
@@ -1693,7 +1756,8 @@ LoadLayoutConfig() {
  * @param {String} layout - 新しい IME-ON 時のキー配列
  * @param {String} num_layout - 新しい IME-ON 時の数字列配列
  */
-StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-") {
+StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-", shift_layout := "",
+    shift_num := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -1703,10 +1767,10 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
     }
 
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetIMEKey(SubStr(num_layout, i, 1))
+        keyObj.SetIMEKey(SubStr(num_layout, i, 1), shift_num != "" ? SubStr(shift_num, i, 1) : "")
     }
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetIMEKey(SubStr(layout, i, 1))
+        keyObj.SetIMEKey(SubStr(layout, i, 1), shift_layout != "" ? SubStr(shift_layout, i, 1) : "")
     }
 }
 
@@ -1716,7 +1780,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
  * @param {String} layout - 保存するキーレイアウト
  * @param {String} num_layout - 保存する数字列レイアウト
  */
-StoreLayout(name, layout, num_layout := "1234567890-") {
+StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -1726,10 +1790,10 @@ StoreLayout(name, layout, num_layout := "1234567890-") {
     }
 
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetKey(SubStr(num_layout, i, 1))
+        keyObj.SetKey(SubStr(num_layout, i, 1), shift_num != "" ? SubStr(shift_num, i, 1) : "")
     }
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetKey(SubStr(layout, i, 1))
+        keyObj.SetKey(SubStr(layout, i, 1), shift_layout != "" ? SubStr(shift_layout, i, 1) : "")
     }
 }
 
@@ -2126,9 +2190,8 @@ space:: ToggleImeState() ;Send(C_BS)
 
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#d:: ChangeFMIX12f_Layout()
+;#d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13_FMIX14R_Layout()
-;#e:: ChangeFMIX13_FMIX14Rfep_Layout()
 #k:: ChangeFMIX13_kanade_Layout()
 #m:: ChangeFMIX13_minato_Layout()
 #n:: ChangeFMIX13ie_minato_Layout()
@@ -2137,6 +2200,17 @@ space:: ToggleImeState() ;Send(C_BS)
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
+#1:: LoadLayoutFromIni(1)
+#2:: LoadLayoutFromIni(2)
+#3:: LoadLayoutFromIni(3)
+#4:: LoadLayoutFromIni(4)
+#5:: LoadLayoutFromIni(5)
+#6:: LoadLayoutFromIni(6)
+#7:: LoadLayoutFromIni(7)
+#8:: LoadLayoutFromIni(8)
+#9:: LoadLayoutFromIni(9)
+#0:: LoadLayoutFromIni(0)
+
 #sc033:: KeyLogger.ToggleImeIndicator()
 #.:: KeyLogger.ToggleLogging()
 #h:: ShowOSD("Help`n"
