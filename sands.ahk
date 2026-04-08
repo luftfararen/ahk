@@ -713,6 +713,27 @@ HasModifierSymbols(text) {
 }
 
 /**
+ * レイアウト文字列から指定されたインデックスの要素を取得する。
+ * スペースが含まれている場合はスペース区切りとして扱い、
+ * そうでない場合は 1 文字ずつ取得する (レガシー互換)。
+ * @param {String} layoutStr - レイアウト文字列
+ * @param {Integer} index - 1 から始まるインデックス
+ * @returns {String} 対応するマッピング文字列
+ */
+GetLayoutElement(layoutStr, index) {
+    if layoutStr = ""
+        return ""
+    if InStr(layoutStr, " ") {
+        arr := StrSplit(layoutStr, " ")
+        if index <= arr.Length
+            return arr[index]
+        return ""
+    } else {
+        return SubStr(layoutStr, index, 1)
+    }
+}
+
+/**
  * 現在のウィンドウに対して強制 IME ON フラグを切り替える
  */
 ToggleForceImeModeOn() {
@@ -1802,10 +1823,10 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
     }
 
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetIMEKey(SubStr(num_layout, i, 1), shift_num != "" ? SubStr(shift_num, i, 1) : "")
+        keyObj.SetIMEKey(GetLayoutElement(num_layout, i), shift_num != "" ? GetLayoutElement(shift_num, i) : "")
     }
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetIMEKey(SubStr(layout, i, 1), shift_layout != "" ? SubStr(shift_layout, i, 1) : "")
+        keyObj.SetIMEKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
     }
 }
 
@@ -1819,7 +1840,7 @@ StoreIMELayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,.
     }
 
     for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetIMEKey(SubStr(layout, i, 1), shift_layout != "" ? SubStr(shift_layout, i, 1) : "")
+        keyObj.SetIMEKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
     }
 }
 
@@ -1839,10 +1860,10 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
     }
 
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetKey(SubStr(num_layout, i, 1), shift_num != "" ? SubStr(shift_num, i, 1) : "")
+        keyObj.SetKey(GetLayoutElement(num_layout, i), shift_num != "" ? GetLayoutElement(shift_num, i) : "")
     }
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetKey(SubStr(layout, i, 1), shift_layout != "" ? SubStr(shift_layout, i, 1) : "")
+        keyObj.SetKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
     }
 }
 
@@ -1856,7 +1877,7 @@ StoreLayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\"
     }
 
     for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetKey(SubStr(layout, i, 1), shift_layout != "" ? SubStr(shift_layout, i, 1) : "")
+        keyObj.SetKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
     }
 }
 
