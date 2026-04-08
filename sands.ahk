@@ -712,24 +712,25 @@ HasModifierSymbols(text) {
     return false
 }
 
-/**
- * レイアウト文字列から指定されたインデックスの要素を取得する。
- * スペースが含まれている場合はスペース区切りとして扱い、
- * そうでない場合は 1 文字ずつ取得する (レガシー互換)。
- * @param {String} layoutStr - レイアウト文字列
- * @param {Integer} index - 1 から始まるインデックス
- * @returns {String} 対応するマッピング文字列
- */
-GetLayoutElement(layoutStr, index) {
-    if layoutStr = ""
+class LayoutString {
+    arr := []
+
+    __New(layoutStr) {
+        this.layoutStr := layoutStr
+
+        if this.layoutStr = ""
+            return
+        if InStr(this.layoutStr, " ") {
+            this.arr := StrSplit(this.layoutStr, " ")
+        } else {
+            this.arr := StrSplit(this.layoutStr)
+        }
+    }
+
+    GetElement(index) {
+        if index <= this.arr.Length
+            return this.arr[index]
         return ""
-    if InStr(layoutStr, " ") {
-        arr := StrSplit(layoutStr, " ")
-        if index <= arr.Length
-            return arr[index]
-        return ""
-    } else {
-        return SubStr(layoutStr, index, 1)
     }
 }
 
@@ -1576,7 +1577,7 @@ LAYOUT_CHAR_KEYS := [
 LAYOUT_KEYS := [
     k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, backslash,
     q, w, e, r, t, y, u, i, o, p, at, openbracket,
-    a, s, d, f, g, h, j, k, l, semicolon, closebracket,
+    a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
     z, x, c, v, b, n, m, comma, period, slash, backslash2
 ]
 
@@ -1822,11 +1823,13 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         }
     }
 
+    l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetIMEKey(GetLayoutElement(num_layout, i), shift_num != "" ? GetLayoutElement(shift_num, i) : "")
+        keyObj.SetIMEKey(l_num.GetElement(i), l_snum.GetElement(i))
     }
+    l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetIMEKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
+        keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
 
@@ -1839,8 +1842,9 @@ StoreIMELayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,.
         }
     }
 
+    l := LayoutString(layout), ls := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetIMEKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
+        keyObj.SetIMEKey(l.GetElement(i), ls.GetElement(i))
     }
 }
 
@@ -1859,11 +1863,13 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
         }
     }
 
+    l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetKey(GetLayoutElement(num_layout, i), shift_num != "" ? GetLayoutElement(shift_num, i) : "")
+        keyObj.SetKey(l_num.GetElement(i), l_snum.GetElement(i))
     }
+    l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
+        keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
 
@@ -1876,8 +1882,9 @@ StoreLayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\"
         }
     }
 
+    l := LayoutString(layout), ls := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetKey(GetLayoutElement(layout, i), shift_layout != "" ? GetLayoutElement(shift_layout, i) : "")
+        keyObj.SetKey(l.GetElement(i), ls.GetElement(i))
     }
 }
 
