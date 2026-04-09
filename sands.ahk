@@ -536,11 +536,13 @@ class KeyLogger {
         }
     }
 
-    static ChangeLayout(section := "") {
+    static SetLayoutName(section) {
+        this.current_layout := section
+    }
+
+    static ChangeLayout(section) {
         this.MergeShortTerm()
-        if section != "" {
-            this.current_layout := section
-        }
+        this.SetLayoutName(section)
     }
 
     static MergeShortTerm() {
@@ -778,10 +780,10 @@ SendAndLog(c) {
  * 省略された場合は `key_ime_off` が使用される
  */
 SendBasedOnImeState(key_ime_off, key_ime_on := "") {
-    if ImeState.IsOn() && key_ime_on != "" {
-        SendAndLog(key_ime_on)
-    } else {
+    if !ImeState.IsOn() || key_ime_on == "" {
         SendAndLog(key_ime_off)
+    } else {
+        SendAndLog(key_ime_on)
     }
 }
 
@@ -874,10 +876,7 @@ WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MGui)
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
  */
 UpdateImeIndicator(precise := False) {
-    mx := -1, my := 0
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    static LastX := -2, LastY := 0, LastStatus := -1
+    static LastStatus := -1
 
     if !KeyLogger.is_showing_ime_indicator {
         if LastStatus != 0 {
@@ -886,6 +885,11 @@ UpdateImeIndicator(precise := False) {
         }
         return
     }
+
+    mx := -1, my := 0
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    static LastX := -2, LastY := 0
 
     if (mx = LastX && my = LastY) {
         ime_state_value := 0
@@ -1221,11 +1225,7 @@ class RKey {
         if ime_key = normal_key {
             SendAndLog(normal_key) ; 違いがないため、そのまま送信
         } else {
-            if ime_key != "" && ImeState.IsOn() {
-                SendAndLog(ime_key) ; IME ON 時のキーを送信
-            } else {
-                SendAndLog(normal_key) ; IME OFF 時のキーを送信
-            }
+            SendBasedOnImeState(normal_key, ime_key)
         }
     }
 
@@ -1855,7 +1855,7 @@ StoreIMELayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,.
  * @param {String} num_layout - 保存する数字列レイアウト
  */
 StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "") {
-    KeyLogger.ChangeLayout(name)
+    KeyLogger.SetLayoutName(name)
     if name != "" {
         try {
             IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
