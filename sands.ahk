@@ -723,7 +723,8 @@ class LayoutString {
         if this.layoutStr = ""
             return
         if InStr(this.layoutStr, " ") {
-            this.arr := StrSplit(this.layoutStr, " ")
+            ; 複数の連続するスペースを一つとしてパース
+            this.arr := StrSplit(RegExReplace(Trim(this.layoutStr), " +", " "), " ")
         } else {
             this.arr := StrSplit(this.layoutStr)
         }
@@ -1790,7 +1791,7 @@ ApplyLayoutFromIni2(index) {
         return false
 
     layout := IniRead(iniPath, index, "l00", "")
-    loop 49 {
+    loop LAYOUT_KEYS.Length - 1 {
         str := IniRead(iniPath, index, "l" . Format("{:02d}", A_Index), "")
         if str == ""
             break
@@ -1798,7 +1799,7 @@ ApplyLayoutFromIni2(index) {
     }
 
     shiftLayout := IniRead(iniPath, index, "s00", "")
-    loop 49 {
+    loop LAYOUT_KEYS.Length - 1 {
         str := IniRead(iniPath, index, "s" . Format("{:02d}", A_Index), "")
         if str == ""
             break
@@ -1811,7 +1812,7 @@ ApplyLayoutFromIni2(index) {
 
     ; IME ON 時の個別設定があれば読み込む
     imeLayout := IniRead(iniPath, index, "i00", "")
-    loop 49 {
+    loop LAYOUT_KEYS.Length - 1 {
         str := IniRead(iniPath, index, "i" . Format("{:02d}", A_Index), "")
         if str == ""
             break
@@ -1819,7 +1820,7 @@ ApplyLayoutFromIni2(index) {
     }
 
     imeShiftLayout := IniRead(iniPath, index, "is00", "")
-    loop 49 {
+    loop LAYOUT_KEYS.Length - 1 {
         str := IniRead(iniPath, index, "is" . Format("{:02d}", A_Index), "")
         if str == ""
             break
