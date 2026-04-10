@@ -826,7 +826,7 @@ ShowOSD(text, duration := 3000, key_close := False) {
 
     MyGui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
     MyGui.BackColor := "333333"
-    MyGui.SetFont("s12 cWhite w700", "Segoe UI")
+    MyGui.SetFont("s12 cWhite w700", "Consolas")
 
     ; テキスト周囲の余白
     MyGui.MarginX := 20
@@ -1788,25 +1788,39 @@ ApplyLayoutFromIni2(index) {
     name := IniRead(iniPath, index, "Name", "")
     if name = ""
         return false
-    layout := IniRead(iniPath, index, "Layout", "")
-    shiftLayout := IniRead(iniPath, index, "ShiftLayout", "")
+
+    layout := IniRead(iniPath, index, "l00", "")
+    loop 49 {
+        str := IniRead(iniPath, index, "l" . Format("{:02d}", A_Index), "")
+        if str == ""
+            break
+        layout .= " " . str
+    }
+
+    shiftLayout := IniRead(iniPath, index, "s00", "")
+    loop 49 {
+        str := IniRead(iniPath, index, "s" . Format("{:02d}", A_Index), "")
+        if str == ""
+            break
+        shiftLayout .= " " . str
+    }
 
     ; 基本レイアウトの設定
     StoreLayout2(name, layout, shiftLayout)
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     ; IME ON 時の個別設定があれば読み込む
-    imeLayout := IniRead(iniPath, name, "l00", "")
+    imeLayout := IniRead(iniPath, index, "i00", "")
     loop 49 {
-        str := IniRead(iniPath, name, "l" . Format("{:02d}", A_Index), "")
+        str := IniRead(iniPath, index, "i" . Format("{:02d}", A_Index), "")
         if str == ""
             break
         imeLayout .= " " . str
     }
 
-    imeShiftLayout := IniRead(iniPath, name, "s00", "")
+    imeShiftLayout := IniRead(iniPath, index, "is00", "")
     loop 49 {
-        str := IniRead(iniPath, name, "s" . Format("{:02d}", A_Index), "")
+        str := IniRead(iniPath, index, "is" . Format("{:02d}", A_Index), "")
         if str == ""
             break
         imeShiftLayout .= " " . str
@@ -2330,7 +2344,12 @@ space:: ToggleImeState() ;Send(C_BS)
     . "Win+M1+Up: マウス速度を上げる`n"
     . "Win+M1+Down: マウス速度を下げる`n"
     . "Win+M1+,: IMEインジケータの表示/非表示を切り替え`n"
-    . "Win+M1+.: キーロガーのOn/Offを切り替え", 3000, True)
+    . "Win+M1+.: キーロガーのOn/Offを切り替`n"
+    . "==記号レイヤ==`n"
+    . "|!|`"|#|$|~|`n"
+    . "|%|&&|`'|^|``|`n"
+    . "| |@|:|||\|`n"
+    , 3000, True)
 
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up

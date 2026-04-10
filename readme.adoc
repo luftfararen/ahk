@@ -65,7 +65,7 @@ image::img/m4.webp[]
 === シフトレイヤー [Space]
 通常のShiftキー動作に加え、カーソル移動などを割り当て
 
-image::img/shift_func.webp[]
+image::img/shift.webp[]
 
 === 記号レイヤー2 [Colon]
 その他の記号
