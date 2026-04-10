@@ -276,7 +276,7 @@ class ImeState {
     static mode := 1
     static last_action_time := 0
     static last_check_time := 0
-    static threshold := 300
+    static threshold := 220
 
     /**
      * 動作状態を設定する
@@ -1709,8 +1709,8 @@ LoadLayoutConfig() {
             case "FMIX14-14R": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
             case "FMIX13-14R": ChangeFMIX13_FMIX14R_Layout()
-            case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
-            case "FMIX13ie-Minato": ChangeFMIX13ie_minato_Layout()
+            case "FMIX13f-Minato": ChangeFMIX13f_minato_Layout()
+            case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
             case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
                 ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
@@ -1796,11 +1796,24 @@ ApplyLayoutFromIni2(index) {
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     ; IME ON 時の個別設定があれば読み込む
-    imeLayout := IniRead(iniPath, name, "ImeLayout", "")
-    imeShiftLayout := IniRead(iniPath, name, "ImeShiftLayout", "")
+    imeLayout := IniRead(iniPath, name, "l00", "")
+    loop 49 {
+        str := IniRead(iniPath, name, "l" . Format("{:02d}", A_Index), "")
+        if str == ""
+            break
+        imeLayout .= " " . str
+    }
+
+    imeShiftLayout := IniRead(iniPath, name, "s00", "")
+    loop 49 {
+        str := IniRead(iniPath, name, "s" . Format("{:02d}", A_Index), "")
+        if str == ""
+            break
+        imeShiftLayout .= " " . str
+    }
 
     if (imeLayout != "" || imeShiftLayout != "") {
-        StoreIMELayout(name, imeLayout, imeShiftLayout)
+        StoreIMELayout2(name, imeLayout, imeShiftLayout)
     }
 
     ShowOSD("Loaded layout: " . name)
@@ -2056,8 +2069,14 @@ ChangeFMIX13_minato_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-ChangeFMIX13ie_minato_Layout() {
-    StoreLayout("FMIX13ie-Minato", "qwrlkyfup;asdtghnieozxcvbjm,./")
+ChangeFMIX13f_minato_Layout() {
+    StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
+    ChangeMinatoLayoutImpl()
+    ShowOSD(KeyLogger.current_layout . " layout")
+}
+
+ChangeFMIX13fie_minato_Layout() {
+    StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -2284,8 +2303,8 @@ space:: ToggleImeState() ;Send(C_BS)
 ;#d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13_FMIX14R_Layout()
 #k:: ChangeFMIX13_kanade_Layout()
-#m:: ChangeFMIX13_minato_Layout()
-#n:: ChangeFMIX13ie_minato_Layout()
+#m:: ChangeFMIX13f_minato_Layout()
+#n:: ChangeFMIX13fie_minato_Layout()
 #z:: ChangeFMIX12_FMIX14R_Layout()
 #x:: ChangeFMIX12_FMIX13R_Layout()
 #q:: ChangeQwertyLayout()
