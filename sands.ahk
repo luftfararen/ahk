@@ -1712,10 +1712,7 @@ LoadLayoutConfig() {
             case "FMIX13-14R": ChangeFMIX13_FMIX14R_Layout()
             case "FMIX13f-Minato": ChangeFMIX13f_minato_Layout()
             case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
-            case "FMIX13-Kanade": ChangeFMIX13_kanade_Layout()
-                ; case "FMIX13-14Rfep": ChangeFMIX13_FMIX14Rfep_Layout()
             case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
-            case "FMIX12-13R": ChangeFMIX12_FMIX13R_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layoutName)
@@ -2096,69 +2093,6 @@ ChangeFMIX13fie_minato_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-ChangeFMIX13_kanade_Layout() {
-    StoreLayout("FMIX13-Kanade", "qwrlkyfup;asdtghneiozxcvbjm,./")
-    ResetIME()
-
-    ;global e, r, t, u, d
-
-    ; IME ON 時の差分設定
-    q.SetImeKey("q", "-")
-    ;w.SetImeKey("w","w")
-    e.SetImeKey("r", "de")
-    r.SetImeKey("p", "z:dot")
-    t.SetImeKey("l")
-
-    a.SetImeKey("k", "A")
-    s.SetImeKey("s", "S")
-    d.SetImeKey("t", "da")
-    f.SetImeKey("n", "-")
-    g.SetImeKey("h", "ga")
-
-    z.SetImeKey("g", "Z")
-    x.SetImeKey("z", "X")
-    c.SetImeKey("d", "C")
-    v.SetImeKey("m", "V")
-    b.SetImeKey("b", "v")
-
-    y.SetImeKey("f", "Y")
-    u.SetImeKey("yu", "U")
-    i.SetImeKey("u", "I")
-    o.SetImeKey("yo", "O")
-    p.SetImeKey("-")
-
-    h.SetImeKey(";")
-    j.SetImeKey("a", "-")
-    k.SetImeKey("i", "ka")
-    l.SetImeKey("e")
-    semicolon.SetImeKey("o")
-
-    n.SetImeKey("ya")
-    m.SetImeKey("ltu")
-    slash.SetImeKey("/")
-
-    ShowOSD(KeyLogger.current_layout . " layout")
-}
-
-/**
- * Changes layout to "FMIX13-FMIX14R".
- */
-; ChangeFMIX13_FMIX14Rfep_Layout() {
-;     StoreLayout("FMIX13-14Rfep", "qwrlkyfup;asdtghneiozxcvbjm,./")
-;     ResetIME()
-
-;     global e, r, t, u, d
-
-;     ; IME ON 時の差分設定
-;     r.SetImeKey("d")
-;     t.SetImeKey("l")
-;     d.SetImeKey("k")
-;     i.SetImeKey("e")
-;     k.SetImeKey("u")
-
-;     ShowOSD(KeyLogger.current_layout . " layout")
-; }
-
 /**
  * Changes layout to "FMIX12-FMIX14R".
  */
@@ -2171,24 +2105,6 @@ ChangeFMIX12_FMIX14R_Layout() {
     ; IME ON 時の差分設定
     e.SetImeKey("r")
     r.SetImeKey("d")
-    t.SetImeKey("l")
-    d.SetImeKey("k")
-
-    ShowOSD(KeyLogger.current_layout . " layout")
-}
-
-/**
- * Changes layout to "FMIX12-FMIX14R".
- */
-ChangeFMIX12_FMIX13R_Layout() {
-    StoreLayout("FMIX12-13R", "qwlrkyfup;asdtghneiozxcvbjm,./")
-    ResetIME()
-
-    global e, r, t, u, d
-
-    ; IME ON 時の差分設定
-    e.SetImeKey("d")
-    r.SetImeKey("r")
     t.SetImeKey("l")
     d.SetImeKey("k")
 
@@ -2316,12 +2232,10 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()
-#s:: ChangeFMIX13_FMIX14R_Layout()
-#k:: ChangeFMIX13_kanade_Layout()
+#s:: ChangeFMIX13f_FMIX14fR_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
 #n:: ChangeFMIX13fie_minato_Layout()
 #z:: ChangeFMIX12_FMIX14R_Layout()
-#x:: ChangeFMIX12_FMIX13R_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
