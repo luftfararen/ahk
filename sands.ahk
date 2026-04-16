@@ -276,7 +276,7 @@ class ImeState {
     static mode := 1
     static last_action_time := 0
     static last_check_time := 0
-    static threshold := 220
+    static threshold := 300
 
     /**
      * 動作状態を設定する
@@ -325,7 +325,7 @@ class ImeState {
         }
     }
 
-    static UpdataState() {
+    static UpdateState() {
         static last_active_hwnd := 0
 
         hwnd := GetFocusedControlHandle()
@@ -365,7 +365,7 @@ class ImeState {
      */
     static IsOn(precise := false) {
         if (precise || ImeState.MustCheck()) {
-            return ImeState.UpdataState()
+            return ImeState.UpdateState()
         }
         return ImeState.cached_state
     }
@@ -742,18 +742,23 @@ class LayoutString {
  */
 ToggleForceImeModeOn() {
     ImeState.ToggleForce()
-    ImeState.UpdataState()
+    ImeState.UpdateState()
     UpdateImeIndicator()
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
+}
+
+_ToggleImeState() {
+    Critical("Off")
+    ;ImeState.Reset()
+    Send(B_ZENKAKU)	; {Blind}{sc029} を送信
+    ImeState.UpdateState()
 }
 
 /**
  * 全角/半角キーを送信して IME 状態を切り替える
  */
 ToggleImeState() {
-    ;ImeState.Reset()
-    Send(B_ZENKAKU)	; {Blind}{sc029} を送信
-    ImeState.UpdataState()
+    _ToggleImeState()
     UpdateImeIndicator()
 }
 
@@ -765,7 +770,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         ImeState.Reset()
         Send(c)
-        ImeState.UpdataState()
+        ImeState.UpdateState()
         UpdateImeIndicator()
         return
     }
