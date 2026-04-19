@@ -747,10 +747,10 @@ ToggleForceImeModeOn() {
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
-_ToggleImeState() {
-    Critical("Off")
+SendImeChar(c) {
+    Critical
     ;ImeState.Reset()
-    Send(B_ZENKAKU)	; {Blind}{sc029} を送信
+    Send(c)
     ImeState.UpdateState()
 }
 
@@ -758,7 +758,7 @@ _ToggleImeState() {
  * 全角/半角キーを送信して IME 状態を切り替える
  */
 ToggleImeState() {
-    _ToggleImeState()
+    SendImeChar(B_ZENKAKU)
     UpdateImeIndicator()
 }
 
@@ -882,7 +882,7 @@ WinSetRegion("0-0 w" DotSize " h" DotSize " Ellipse", MGui)
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
  */
 UpdateImeIndicator(precise := False) {
-    static LastStatus := -1
+    static LastStatus := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
 
     if !KeyLogger.is_showing_ime_indicator {
         if LastStatus != 0 {
@@ -915,7 +915,7 @@ UpdateImeIndicator(precise := False) {
             }
         }
         LastStatus := ime_state_value
-    } else {
+    } else {   ; マウスが動いて位置が変更された場合
         if LastStatus != -1 {
             MGui.Hide()
         }
@@ -1711,13 +1711,10 @@ LoadLayoutConfig() {
             case "Colemak": ChangeColemakLayout()
             case "FMIX12f": ChangeFMIX12f_Layout()
             case "FMIX12f-13fR": ChangeFMIX12f_FMIX13fR_Layout()
-            case "FMIX13f-14R": ChangeFMIX13f_FMIX14R_Layout()
             case "FMIX14-14R": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
-            case "FMIX13-14R": ChangeFMIX13_FMIX14R_Layout()
             case "FMIX13f-Minato": ChangeFMIX13f_minato_Layout()
             case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
-            case "FMIX12-14R": ChangeFMIX12_FMIX14R_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layoutName)
@@ -1972,25 +1969,6 @@ ChangeFMIX12f_FMIX13fR_Layout() {
 }
 
 /**
- * Changes layout to "FMIX13f-FMIX14R".
- */
-ChangeFMIX13f_FMIX14R_Layout() {
-    StoreLayout("FMIX13f-14R", "qwrfkylup;asdtghneiozxcvbjm,./")
-    ResetIME()
-
-    global e, r, t, u, d
-
-    ; IME ON 時の差分設定
-    e.SetImeKey("r")
-    r.SetImeKey("d")
-    t.SetImeKey("l")
-    d.SetImeKey("k")
-    u.SetImeKey("f")
-
-    ShowOSD(KeyLogger.current_layout . " layout")
-}
-
-/**
  * Changes layout to "FMIX14-FMIX14R".
  */
 ChangeFMIX14_FMIX14R_Layout() {
@@ -2019,23 +1997,6 @@ ChangeFMIX13f_FMIX14fR_Layout() {
     ; IME ON 時の差分設定
     r.SetImeKey("d")
     t.SetImeKey("f")
-    d.SetImeKey("k")
-
-    ShowOSD(KeyLogger.current_layout . " layout")
-}
-
-/**
- * Changes layout to "FMIX13-FMIX14R".
- */
-ChangeFMIX13_FMIX14R_Layout() {
-    StoreLayout("FMIX13-14R", "qwrlkyfup;asdtghneiozxcvbjm,./")
-    ResetIME()
-
-    global e, r, t, u, d
-
-    ; IME ON 時の差分設定
-    r.SetImeKey("d")
-    t.SetImeKey("l")
     d.SetImeKey("k")
 
     ShowOSD(KeyLogger.current_layout . " layout")
@@ -2095,24 +2056,6 @@ ChangeFMIX13f_minato_Layout() {
 ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
-    ShowOSD(KeyLogger.current_layout . " layout")
-}
-
-/**
- * Changes layout to "FMIX12-FMIX14R".
- */
-ChangeFMIX12_FMIX14R_Layout() {
-    StoreLayout("FMIX12-14R", "qwlrkyfup;asdtghneiozxcvbjm,./")
-    ResetIME()
-
-    global e, r, t, u, d
-
-    ; IME ON 時の差分設定
-    e.SetImeKey("r")
-    r.SetImeKey("d")
-    t.SetImeKey("l")
-    d.SetImeKey("k")
-
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
@@ -2240,7 +2183,6 @@ space:: ToggleImeState() ;Send(C_BS)
 #s:: ChangeFMIX13f_FMIX14fR_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
 #n:: ChangeFMIX13fie_minato_Layout()
-#z:: ChangeFMIX12_FMIX14R_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()

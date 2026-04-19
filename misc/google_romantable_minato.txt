@@ -58,7 +58,8 @@ sr	する
 sh	する
 tk	と
 dr	で
-rd	れる
+rw	れる
+rd	れ
 sd	される
 wr	を
 nk	に
