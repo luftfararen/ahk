@@ -276,7 +276,7 @@ class ImeState {
     static mode := 1
     static last_action_time := 0
     static last_check_time := 0
-    static threshold := 300
+    static threshold := 50
 
     /**
      * 動作状態を設定する
@@ -545,7 +545,7 @@ class KeyLogger {
         this.SetLayoutName(section)
     }
 
-    static MergeShortTerm() {
+    static _MergeShortTerm() {
         if this.stats_short.Count == 0
             return
 
@@ -567,6 +567,7 @@ class KeyLogger {
     }
 
     static SaveIfIdle() {
+        Critical
         if this.stats_short.Count == 0
             return
 
@@ -577,7 +578,7 @@ class KeyLogger {
         }
 
         if this.total_count >= this.MERGE_THRESHOLD {
-            this.MergeShortTerm()
+            this._MergeShortTerm()
             this.total_count := 0
         }
     }
@@ -586,7 +587,8 @@ class KeyLogger {
      * 現在の統計情報をファイルに書き込む
      */
     static Save() {
-        this.MergeShortTerm()
+        Critical
+        this._MergeShortTerm()
 
         if this.stats.Count == 0
             return
@@ -768,9 +770,10 @@ ToggleImeState() {
  */
 SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
-        ImeState.Reset()
-        Send(c)
-        ImeState.UpdateState()
+        ; ImeState.Reset()
+        ; Send(c)
+        ; ImeState.UpdateState()
+        SendImeChar(c) ;criticalが二重にかかるが大丈夫
         UpdateImeIndicator()
         return
     }
@@ -1097,6 +1100,7 @@ class MKey {
      * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
      */
     Down() {
+        Critical
         if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
             return false
         }
@@ -1110,6 +1114,7 @@ class MKey {
      * 短押しだった場合は元のキー（修飾キー付き）を送信します。
      */
     Up() {
+        Critical
         if (A_TickCount - this.pressed_time < this.timeout) {
             ; 短押し: 他の修飾キーを保持したまま元のキーを送信
             text := "{Blind}" . this.mod_str . this.key_str
@@ -1242,6 +1247,7 @@ class RKey {
      * @returns {Boolean} `shift` パラメータの値
      */
     SendShiftedKey(shift := true) {
+        Critical
         if shift {
             ; Shift 時のキーを送信 (IME 対応)
             this._SendKey(this.shift_ime_key_str, this.shift_key_str)
@@ -1293,10 +1299,8 @@ class RKey {
      * キー押し下げ時のホットキーで呼び出す (例: `*x::x.Down("x")`)
      */
     Down(pressed_key := "") {
-        if RKey.use_registered_key_for_ctrl || pressed_key = "" {
-            pressed_key := this.key
-        }
-        this._SendSCAWKey(pressed_key)
+        Critical
+        this._SendSCAWKey(this.key)
     }
 
     /**
@@ -1390,10 +1394,12 @@ class LKey extends RKey {
     }
 
     /**
-     * LKey 用の内部キー押し下げロジック
+     * キー押し下げ時のホットキーで呼び出す (例: `*x::x.Down("x")`)
      * @param {String} pressed_key - 押された物理キー
      */
-    _Down(pressed_key) {
+    Down() {
+        Critical
+        pressed_key := this.key
         if this.long_key_str = "none" {
             ; --- このキーの長押しは無効化 ("none") されています ---
             if super._SendCAWKey(pressed_key) { ; Ctrl/Alt/Win のパススルーを確認
@@ -1412,7 +1418,7 @@ class LKey extends RKey {
             ; --- このキーの長押しは有効化されています ---
             this.pressing := True
             if LKey.long_press_enabled { ; グローバルな切り替え設定を確認
-                ; (キーリピートの処理？)
+                ; キーリピートの処理対策
                 if LKey.last_key = this.key && this.send_time > 0 {
                     if A_TickCount - this.send_time < LKey.long_press_th {
                         return
@@ -1420,7 +1426,6 @@ class LKey extends RKey {
                 }
                 LKey.last_key := this.key
 
-                ; (リファクタリング済: バグ修正。以前は _SendModKey でした)
                 ; RKey のメイン送信ロジックを呼び出します。これにより短押しのキーが即座に送信されます。
                 ; パススルー (Ctrl/Alt/Win) だった場合は true を返します。
                 if !super._SendSCAWKey(pressed_key) {
@@ -1429,21 +1434,9 @@ class LKey extends RKey {
                 }
             } else {
                 ; 長押し機能がグローバルに無効化されています
-                ; (リファクタリング済: バグ修正。以前は SendModKey でした)
                 super._SendSCAWKey(pressed_key) ; 通常の RKey として動作
             }
         }
-    }
-
-    /**
-     * キー押し下げ時のホットキーで呼び出す (例: `*x::x.Down("x")`)
-     */
-    Down(pressed_key := "") {
-        ;LayerKey.ChangeLayer(0)
-        if LKey.use_registered_key_for_ctrl || pressed_key = "" {
-            pressed_key := this.key
-        }
-        this._Down(pressed_key)
     }
 
     /**
@@ -1452,6 +1445,7 @@ class LKey extends RKey {
      * @returns {Boolean} 長押しアクションが実行された場合は true, 短押しの場合は false
      */
     Up() {
+        Critical
         if this.pressed_time > 0 && this.long_key_str != "" {
             time := A_TickCount
             if this.long_key_str = "none" {
@@ -2443,110 +2437,110 @@ Right:: right.SendShiftedKey()
 ; これらのホットキーはレイヤーが押されていない時にアクティブになります。
 ; それぞれの RKey/LKey オブジェクトの Down() と Up() メソッドを呼び出し、
 ; リマップ、モディファイアのパススルー、および長押しのロジックを処理します。
-*1:: k1.Down("1")
+*1:: k1.Down()
 *1 up:: k1.Up()
-*2:: k2.Down("2")
+*2:: k2.Down()
 *2 up:: k2.Up()
-*3:: k3.Down("3")
+*3:: k3.Down()
 *3 up:: k3.Up()
-*4:: k4.Down("4")
+*4:: k4.Down()
 *4 up:: k4.Up()
-*5:: k5.Down("5")
+*5:: k5.Down()
 *5 up:: k5.Up()
-*6:: k6.Down("6")
+*6:: k6.Down()
 *6 up:: k6.Up()
-*7:: k7.Down("7")
+*7:: k7.Down()
 *7 up:: k7.Up()
-*8:: k8.Down("8")
+*8:: k8.Down()
 *8 up:: k8.Up()
-*9:: k9.Down("9")
+*9:: k9.Down()
 *9 up:: k9.Up()
-*0:: k0.Down("0")
+*0:: k0.Down()
 *0 up:: k0.Up()
-*-:: minus.Down("-")
+*-:: minus.Down()
 *- up:: minus.Up()
-*sc00D:: hat.Down("{sc00D}") ; ^
+*sc00D:: hat.Down() ; ^
 *sc00D up:: hat.Up()
-*sc07D:: backslash.Down("{sc07D}") ; ¥
+*sc07D:: backslash.Down() ; ¥
 *sc07D up:: backslash.Up()
-*q:: q.Down("q")
+*q:: q.Down()
 *q up:: q.Up()
-*w:: w.Down("w")
+*w:: w.Down()
 *w up:: w.Up()
-*e:: e.Down("e")
+*e:: e.Down()
 *e up:: e.Up()
-*r:: r.Down("r")
+*r:: r.Down()
 *r up:: r.Up()
-*t:: t.Down("t")
+*t:: t.Down()
 *t up:: t.Up()
-*y:: y.Down("y")
+*y:: y.Down()
 *y up:: y.Up()
-*u:: u.Down("u")
+*u:: u.Down()
 *u up:: u.Up()
-*i:: i.Down("i")
+*i:: i.Down()
 *i up:: i.Up()
-*o:: o.Down("o")
+*o:: o.Down()
 *o up:: o.Up()
-*p:: p.Down("p")
+*p:: p.Down()
 *p up:: p.Up()
-*@:: at.Down("@")
+*@:: at.Down()
 *@ up:: at.Up()
-*[:: openbracket.Down("[")
+*[:: openbracket.Down()
 *[ up:: openbracket.Up()
-*a:: a.Down("a")
+*a:: a.Down()
 *a up:: a.Up()
-*s:: s.Down("s")
+*s:: s.Down()
 *s up:: s.Up()
-*d:: d.Down("d")
+*d:: d.Down()
 *d up:: d.Up()
-*f:: f.Down("f")
+*f:: f.Down()
 *f up:: f.Up()
-*g:: g.Down("g")
+*g:: g.Down()
 *g up:: g.Up()
-*h:: h.Down("h")
+*h:: h.Down()
 *h up:: h.Up()
-*j:: j.Down("j")
+*j:: j.Down()
 *j up:: j.Up()
-*k:: k.Down("k")
+*k:: k.Down()
 *k up:: k.Up()
-*l:: l.Down("l")
+*l:: l.Down()
 *l up:: l.Up()
-*sc027:: semicolon.Down("sc027")
+*sc027:: semicolon.Down()
 *sc027 up:: semicolon.Up()
-*sc028:: colon.Down("sc028")
+*sc028:: colon.Down()
 *sc028 up:: colon.Up()
-*]:: closebracket.Down("]")
+*]:: closebracket.Down()
 *] up:: closebracket.Up()
-*z:: z.Down("z")
+*z:: z.Down()
 *z up:: z.Up()
-*x:: x.Down("x")
+*x:: x.Down()
 *x up:: x.Up()
-*c:: c.Down("c")
+*c:: c.Down()
 *c up:: c.Up()
-*v:: v.Down("v")
+*v:: v.Down()
 *v up:: v.Up()
-*b:: b.Down("b")
+*b:: b.Down()
 *b up:: b.Up()
-*n:: n.Down("n")
+*n:: n.Down()
 *n up:: n.Up()
-*m:: m.Down("m")
+*m:: m.Down()
 *m up:: m.Up()
-*sc033:: comma.Down("sc033") ; ,
+*sc033:: comma.Down() ; ,
 *sc033 up:: comma.Up()
-*.:: period.Down(".")        ; .
+*.:: period.Down()        ; .
 *. up:: period.Up()
-*sc035:: slash.Down("sc035") ; /
+*sc035:: slash.Down() ; /
 *sc035 up:: slash.Up()
-*sc073:: backslash2.Down("sc073") ; _
+*sc073:: backslash2.Down() ; _
 *sc073 up:: backslash2.Up()
 ; (リファクタリング済: 矢印キー用の RKey オブジェクトへのバインドを追加)
-*Down:: down.Down("Down")
+*Down:: down.Down()
 *Down up:: down.Up()
-*Up:: up.Down("Up")
+*Up:: up.Down()
 *Up up:: up.Up()
-*Left:: left.Down("Left")
+*Left:: left.Down()
 *Left up:: left.Up()
-*Right:: right.Down("Right")
+*Right:: right.Down()
 *Right up:: right.Up()
 #Hotif ; コンテキスト依存ホットキーの終了
 ; ============================================================================
