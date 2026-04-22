@@ -412,6 +412,9 @@ class KeyLogger {
     static last_key_time := 0
     static max_log := 5000
     static last_save_time := A_TickCount
+    static total_log_time := 0
+    static log_call_count := 0
+    static freq := 0
 
     /**
      * 打鍵履歴をリセットする
@@ -475,6 +478,8 @@ class KeyLogger {
      * ログファイルを読み込む
      */
     static Load() {
+        DllCall("QueryPerformanceFrequency", "Int64*", &f := 0)
+        this.freq := f
         this.LoadConfig()
         if !FileExist(this.log_file)
             return
@@ -516,7 +521,7 @@ class KeyLogger {
         }
     }
 
-    static Compaction() {
+    static _Compaction() {
         for layout, stats_map in this.stats {
             total := 0
             for seq, item in stats_map
@@ -593,9 +598,14 @@ class KeyLogger {
         if this.stats.Count == 0
             return
 
-        this.Compaction()
+        this._Compaction()
 
         output := ""
+        if (this.log_call_count > 0 && this.freq > 0) {
+            avg_us := (this.total_log_time * 1000000) / this.freq / this.log_call_count
+            output .= Format("; Avg Log Time: {:.3f} us (Calls: {})`r`n`r`n", avg_us, this.log_call_count)
+        }
+
         for layout, stats_map in this.stats {
             output .= "[" . layout . "]`r`n"
 
@@ -636,68 +646,81 @@ class KeyLogger {
     }
 
     static Log(char) {
-        if !this.is_logging_enabled
-            return
-        if !ImeState.IsOn()
-            return
-
-        if char = ""
-            return
-
-        if (A_TickCount - this.last_key_time >= this.IDLE_TIMEOUT) {
-            this.ResetHistory()
+        if !this.freq {
+            DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+            this.freq := freq
         }
-        this.last_key_time := A_TickCount
+        DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+        start := tick
 
-        ; {Blind} や {sc033} のような括弧付き文字列の高速パース（通常の文字入力を妨げない）
-        if InStr(char, "{") {
-            if SubStr(char, 1, 7) = "{Blind}"
-                char := SubStr(char, 8) ; {Blind} を除去
+        try {
+            if !this.is_logging_enabled
+                return
+            if !ImeState.IsOn()
+                return
 
-            if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
-                if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
-                    char := SubStr(char, 2, -1) ; {sc033} を sc033 に
-                else {
-                    this.ResetHistory()
-                    return ; 記録対象外の特殊キー ({Enter} 等) は無視
+            if char = ""
+                return
+
+            if (A_TickCount - this.last_key_time >= this.IDLE_TIMEOUT) {
+                this.ResetHistory()
+            }
+            this.last_key_time := A_TickCount
+
+            ; {Blind} や {sc033} のような括弧付き文字列の高速パース（通常の文字入力を妨げない）
+            if InStr(char, "{") {
+                if SubStr(char, 1, 7) = "{Blind}"
+                    char := SubStr(char, 8) ; {Blind} を除去
+
+                if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
+                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
+                        char := SubStr(char, 2, -1) ; {sc033} を sc033 に
+                    else {
+                        this.ResetHistory()
+                        return ; 記録対象外の特殊キー ({Enter} 等) は無視
+                    }
                 }
             }
+
+            ; よく使う記号のスキャンコードを文字に変換
+            static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
+                "sc073", "_", "sc00D", "^")
+            char := sc_map.Get(char, char)
+
+            if char = ""
+                return
+
+            this.hist_1 := this.hist_2
+            this.hist_2 := this.hist_3
+            this.hist_3 := char
+
+            this.tick_1 := this.tick_2
+            this.tick_2 := this.tick_3
+            this.tick_3 := A_TickCount
+
+            ; 履歴が3文字に満たない場合は、重いIME判定を行わずに終了する
+            if this.hist_1 == ""
+                return
+
+            seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
+            if !this.stats_short.Has(seq)
+                this.stats_short[seq] := KeyLogItem()
+
+            item := this.stats_short[seq]
+            item.count += 1
+            t := this.tick_3 - this.tick_1
+            if t < this.MAX_DURATION {
+                item.count_d += 1
+                item.duration12 += (this.tick_2 - this.tick_1) ;* 100
+                item.duration13 += t ;* 100
+            }
+
+            this.total_count += 1
+        } finally {
+            DllCall("QueryPerformanceCounter", "Int64*", &end := 0)
+            this.total_log_time += (end - start)
+            this.log_call_count += 1
         }
-
-        ; よく使う記号のスキャンコードを文字に変換
-        static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
-            "sc073", "_", "sc00D", "^")
-        char := sc_map.Get(char, char)
-
-        if char = ""
-            return
-
-        this.hist_1 := this.hist_2
-        this.hist_2 := this.hist_3
-        this.hist_3 := char
-
-        this.tick_1 := this.tick_2
-        this.tick_2 := this.tick_3
-        this.tick_3 := A_TickCount
-
-        ; 履歴が3文字に満たない場合は、重いIME判定を行わずに終了する
-        if this.hist_1 == ""
-            return
-
-        seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
-        if !this.stats_short.Has(seq)
-            this.stats_short[seq] := KeyLogItem()
-
-        item := this.stats_short[seq]
-        item.count += 1
-        t := this.tick_3 - this.tick_1
-        if t < this.MAX_DURATION {
-            item.count_d += 1
-            item.duration12 += (this.tick_2 - this.tick_1) ;* 100
-            item.duration13 += t ;* 100
-        }
-
-        this.total_count += 1
     }
 }
 
@@ -963,7 +986,7 @@ TimerEvent() {
     ; 20秒以上操作がない場合、ログを保存
     if (mod(counter, 100) == 0) {
         ;if (time >= 20000) {
-        if (A_TimeIdle >= 20000) {
+        if (A_TimeIdlePhysical >= 10000) {
             KeyLogger.SaveIfIdle()
         }
     }
@@ -1147,6 +1170,7 @@ class RKey {
      *                                 "none" = Shift 押下時は何もしない
      */
     __New(key, shift_key := "") {
+        this.org_key := key
         this.shift_key_str := ""     ; (IME OFF) Shift 時のキー
         this.shift_ime_key_str := "" ; (IME ON) Shift 時のキー
         this.SetKey(key, shift_key)   ; IME OFF 時のキーを設定
@@ -1271,8 +1295,10 @@ class RKey {
         if caw {
             ; パススルー: 元のキーを送信
             text := "{Blind}" . "{" . pressed_key . "}"
-            SendAndLog(text)
-            ;ToolTip pressed_key
+            ;SendAndLog(text)
+            Send(text)
+            ;ToolTip(text)
+            ;SetTimer(ToolTip, 3000) ; ツールチップを3秒間表示する
             return true
         }
         return false
@@ -1298,9 +1324,9 @@ class RKey {
     /**
      * キー押し下げ時のホットキーで呼び出す (例: `*x::x.Down("x")`)
      */
-    Down(pressed_key := "") {
+    Down() {
         Critical
-        this._SendSCAWKey(this.key)
+        this._SendSCAWKey(this.org_key)
     }
 
     /**
@@ -2533,7 +2559,6 @@ Right:: right.SendShiftedKey()
 *sc035 up:: slash.Up()
 *sc073:: backslash2.Down() ; _
 *sc073 up:: backslash2.Up()
-; (リファクタリング済: 矢印キー用の RKey オブジェクトへのバインドを追加)
 *Down:: down.Down()
 *Down up:: down.Up()
 *Up:: up.Down()
@@ -2542,7 +2567,7 @@ Right:: right.SendShiftedKey()
 *Left up:: left.Up()
 *Right:: right.Down()
 *Right up:: right.Up()
-#Hotif ; コンテキスト依存ホットキーの終了
+;#Hotif ; コンテキスト依存ホットキーの終了
 ; ============================================================================
 ; グローバルホットキー (MKey バインド)
 ; ============================================================================
