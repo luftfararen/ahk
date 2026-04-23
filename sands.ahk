@@ -228,6 +228,12 @@ IsPhysicalShiftPressed() {
     return shift_lambda()
 }
 
+Timer() {
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+    return tick / freq
+}
+
 /**
  * アクティブなウィンドウまたはフォーカスされているコントロールのハンドル (HWND) を取得する
  * 正確な IME 状態の検出に必要
@@ -413,7 +419,6 @@ class KeyLogger {
     static max_log := 5000
     static last_save_time := A_TickCount
     static total_log_time := 0
-    static log_call_count := 0
     static freq := 0
 
     /**
@@ -601,9 +606,9 @@ class KeyLogger {
         this._Compaction()
 
         output := ""
-        if (this.log_call_count > 0 && this.freq > 0) {
-            avg_us := (this.total_log_time * 1000000) / this.freq / this.log_call_count
-            output .= Format("; Avg Log Time: {:.3f} us (Calls: {})`r`n`r`n", avg_us, this.log_call_count)
+        if (this.freq > 0) {
+            avg_us := (this.total_log_time * 1000000) / this.freq
+            output .= Format("; Max Log Time: {:.3f} us `r`n`r`n", avg_us)
         }
 
         for layout, stats_map in this.stats {
@@ -718,8 +723,8 @@ class KeyLogger {
             this.total_count += 1
         } finally {
             DllCall("QueryPerformanceCounter", "Int64*", &end := 0)
-            this.total_log_time += (end - start)
-            this.log_call_count += 1
+            time := end - start
+            this.total_log_time := Max(time, this.total_log_time)
         }
     }
 }
@@ -1169,12 +1174,12 @@ class RKey {
      *                                 "" = 自動生成 (例: "+a")
      *                                 "none" = Shift 押下時は何もしない
      */
-    __New(key, shift_key := "") {
+    __New(key) {
         this.org_key := key
         this.shift_key_str := ""     ; (IME OFF) Shift 時のキー
         this.shift_ime_key_str := "" ; (IME ON) Shift 時のキー
-        this.SetKey(key, shift_key)   ; IME OFF 時のキーを設定
-        this.SetImeKey(key, shift_key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
+        this.SetKey(key)   ; IME OFF 時のキーを設定
+        this.SetImeKey(key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
     }
 
     /**
@@ -1355,13 +1360,12 @@ class LKey extends RKey {
     /**
      * コンストラクタ
      * @param {String} key - 基本キー（短押し時）
-     * @param {String} [shift_key=""] - Shift キー（短押し時）
      * @param {String} [long_key=""] - 長押し時のキー
      *                                "" = `shift_key` をデフォルトとして使用
      *                                "none" = このキーの長押しを無効化
      */
-    __New(key, shift_key := "", long_key := "") {
-        super.__New(key, shift_key) ; RKey の初期化 (基本/Shift キー)
+    __New(key, long_key := "") {
+        super.__New(key) ; RKey の初期化 (基本/Shift キー)
         this.SetLongKey(long_key)  ; long_key の初期化
         this.send_time := 0        ; long_key が最後に送信された時間
         this.pressed_time := 0     ; キーが押し下げられた時間
@@ -1425,10 +1429,9 @@ class LKey extends RKey {
      */
     Down() {
         Critical
-        pressed_key := this.key
         if this.long_key_str = "none" {
             ; --- このキーの長押しは無効化 ("none") されています ---
-            if super._SendCAWKey(pressed_key) { ; Ctrl/Alt/Win のパススルーを確認
+            if super._SendCAWKey(this.org_key) { ; Ctrl/Alt/Win のパススルーを確認
                 this.pressed_time := 0 ; 長押しの候補ではない
                 return
             }
@@ -1436,31 +1439,31 @@ class LKey extends RKey {
                 return
             }
             this.pressing := True
-            LKey.last_key := this.key
+            LKey.last_key := this.org_key
             ; このキーは Down 時には送信せず、Up 時（短押しの場合）に送信します。
             this.pressed_time := A_TickCount ; Up() 用のタイマーを開始
-            ;tooltip	this.pressed_time
         } else {
             ; --- このキーの長押しは有効化されています ---
             this.pressing := True
             if LKey.long_press_enabled { ; グローバルな切り替え設定を確認
                 ; キーリピートの処理対策
-                if LKey.last_key = this.key && this.send_time > 0 {
+                if LKey.last_key = this.org_key && this.send_time > 0 {
                     if A_TickCount - this.send_time < LKey.long_press_th {
                         return
                     }
                 }
-                LKey.last_key := this.key
+                LKey.last_key := this.org_key
 
                 ; RKey のメイン送信ロジックを呼び出します。これにより短押しのキーが即座に送信されます。
                 ; パススルー (Ctrl/Alt/Win) だった場合は true を返します。
-                if !super._SendSCAWKey(pressed_key) {
+                if !super._SendSCAWKey(this.org_key) {
                     ; パススルーではないため、長押しタイマーを開始します。
                     this.pressed_time := A_TickCount
                 }
             } else {
+                LKey.last_key := this.org_key
                 ; 長押し機能がグローバルに無効化されています
-                super._SendSCAWKey(pressed_key) ; 通常の RKey として動作
+                super._SendSCAWKey(this.org_key) ; 通常の RKey として動作
             }
         }
     }
@@ -1481,7 +1484,7 @@ class LKey extends RKey {
                 } else {
                     ; 短押し: 今すぐキーを送信
                     if this.pressing {
-                        if LKey.last_key = this.key {
+                        if LKey.last_key = this.org_key {
                             shift := IsPhysicalShiftPressed()
                             this.SendShiftedKey(shift) ; 基本/Shift キーを送信
                         }
@@ -1492,7 +1495,7 @@ class LKey extends RKey {
                 ; --- 長押し有効 ---
                 if time - this.pressed_time >= LKey.long_press_th {
                     ; 長押しが検出されました！
-                    if LKey.last_key = this.key {
+                    if LKey.last_key = this.org_key {
                         this.send_time := time
                         ; Down 時の短押しキーをバックスペースで消去し、長押しキーを送信します。
                         Send("{Backspace}" . this.long_key_str)
@@ -1524,7 +1527,7 @@ tab := MKey(R_TAB)
 noconv := MKey(R_NOCONV)
 conv := MKey(R_ENTER)
 f14 := MKey(R_ZENKAKU)
-colon := LKey(C_COLON, "", "none")
+colon := LKey(C_COLON, "none")
 
 ; --- リマップキー (RKey) ---
 ; (数字列)
@@ -1537,7 +1540,7 @@ k6 := RKey("6")
 k7 := RKey("7")
 k8 := RKey("8")
 k9 := RKey("9")
-k0 := RKey("0", "none") ; '0' has no shifted key
+k0 := RKey("0")
 minus := RKey("-")
 hat := RKey(C_HAT) ; ^
 backslash := RKey("\") ; ¥
