@@ -607,8 +607,8 @@ class KeyLogger {
 
         output := ""
         if (this.freq > 0) {
-            avg_us := (this.total_log_time * 1000000) / this.freq
-            output .= Format("; Max Log Time: {:.3f} us `r`n`r`n", avg_us)
+            max_us := (this.total_log_time * 1000000) / this.freq
+            output .= Format("; Max Log Time: {:.3f} us `r`n`r`n", max_us)
         }
 
         for layout, stats_map in this.stats {
@@ -655,6 +655,14 @@ class KeyLogger {
             DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
             this.freq := freq
         }
+
+        max_us := (this.total_log_time * 1000000) / this.freq
+
+        if (max_us > 5000) {
+            ; 5msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
+            return
+        }
+
         DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
         start := tick
 
@@ -817,7 +825,9 @@ SendAndLog(c) {
  * 省略された場合は `key_ime_off` が使用される
  */
 SendBasedOnImeState(key_ime_off, key_ime_on := "") {
-    if !ImeState.IsOn() || key_ime_on == "" {
+    if key_ime_off = key_ime_on {
+        SendAndLog(key_ime_on)
+    } else if !ImeState.IsOn() || key_ime_on == "" {
         SendAndLog(key_ime_off)
     } else {
         SendAndLog(key_ime_on)
@@ -1160,13 +1170,25 @@ class MKey {
     }
 } ;class MKey
 
+/**
+ * 文字列に波括弧を追加する
+ * @param {String} str - 文字列
+ * @returns {String} 波括弧で囲まれた文字列
+ */
+addBraces(str) {
+    if RegExMatch(str, "^\{.*\}$") {
+        return str
+    }
+    return "{" . str . "}"
+}
+
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
 ============================================================================*/
 class RKey {
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
-
+    static last_key := ""
     /**
      * コンストラクタ
      * @param {String} key - 送信する基本キー (例: "a", "{sc027}")
@@ -1175,7 +1197,7 @@ class RKey {
      *                                 "none" = Shift 押下時は何もしない
      */
     __New(key) {
-        this.org_key := key
+        this.org_key := addBraces(key)
         this.shift_key_str := ""     ; (IME OFF) Shift 時のキー
         this.shift_ime_key_str := "" ; (IME ON) Shift 時のキー
         this.SetKey(key)   ; IME OFF 時のキーを設定
@@ -1184,8 +1206,8 @@ class RKey {
 
     /**
      * IME OFF 時のキーマッピングを設定する
-     * @param {String} key - 送信する基本キー
-     * @param {String} [shift_key=""] - Shift 時のキー。"none" で無効化。
+     * @param {String} key - 送信する基本キー(1文字)
+     * @param {String} [shift_key=""] - Shift 時のキー(1文字)。"none" で無効化。
      */
     SetKey(key, shift_key := "") {
         this.key := key ; 元のキーを保存
@@ -1219,8 +1241,8 @@ class RKey {
 
     /**
      * IME ON 時のキーマッピングを設定する
-     * @param {String} [key=""] - IME ON 時の基本キー。空白の場合は IME OFF 時と同じ。
-     * @param {String} [shift_key=""] - IME ON 時の Shift キー
+     * @param {String} [key=""] - IME ON 時の基本キー（復数文字可）。空白の場合は IME OFF 時と同じ。
+     * @param {String} [shift_key=""] - IME ON 時の Shift キー（復数文字可）
      *                                 "" = 自動/デフォルト、"none" = 無効化。
      */
     SetImeKey(key := "", shift_key := "") {
@@ -1262,11 +1284,7 @@ class RKey {
      * @param {String} normal_key - IME OFF 時に送信するキー
      */
     _SendKey(ime_key, normal_key) {
-        if ime_key = normal_key {
-            SendAndLog(normal_key) ; 違いがないため、そのまま送信
-        } else {
-            SendBasedOnImeState(normal_key, ime_key)
-        }
+        SendBasedOnImeState(normal_key, ime_key)
     }
 
     /**
@@ -1291,7 +1309,7 @@ class RKey {
     /**
      * Ctrl, Alt, Win (CAW) のパススルーを処理する
      * これらの修飾キーのいずれかが押されている場合は、リマップをバイパスして物理キーをそのまま送信する
-     * @param {String} pressed_key - 押された物理キー (例: "x", "sc027")
+     * @param {String} pressed_key - 押された物理キー (例: "{x}", "{sc027}")
      * @returns {Boolean} CAW が押されていた場合 (パススルー発生) は true
      */
     _SendCAWKey(pressed_key) {
@@ -1299,11 +1317,8 @@ class RKey {
         GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
         if caw {
             ; パススルー: 元のキーを送信
-            text := "{Blind}" . "{" . pressed_key . "}"
-            ;SendAndLog(text)
+            text := "{Blind}" . pressed_key
             Send(text)
-            ;ToolTip(text)
-            ;SetTimer(ToolTip, 3000) ; ツールチップを3秒間表示する
             return true
         }
         return false
@@ -1331,7 +1346,11 @@ class RKey {
      */
     Down() {
         Critical
-        this._SendSCAWKey(this.org_key)
+        if this._SendSCAWKey(this.org_key) {
+            RKey.last_key := ""
+        } else {
+            RKey.last_key := this.org_key
+        }
     }
 
     /**
@@ -1354,19 +1373,19 @@ class LKey extends RKey {
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
     static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
 
-    long_key_str := ""  ; 長押し時に送信するキー
+    ;long_key_str := ""  ; 長押し時に送信するキー
     pressing := False   ; このキーは現在押し下げられているか？
-
+    long_press_mode := 0 ; 0:長押し無効、1:長押し 2:長押しで未入力、キーリピートを無効化
     /**
      * コンストラクタ
      * @param {String} key - 基本キー（短押し時）
      * @param {String} [long_key=""] - 長押し時のキー
-     *                                "" = `shift_key` をデフォルトとして使用
-     *                                "none" = このキーの長押しを無効化
+     *                                 1 = このキーの長押しを無効化
      */
-    __New(key, long_key := "") {
+    __New(key, mode := 0) {
         super.__New(key) ; RKey の初期化 (基本/Shift キー)
-        this.SetLongKey(long_key)  ; long_key の初期化
+        ;this.SetLongKey(long_key)
+        this.long_press_mode := mode
         this.send_time := 0        ; long_key が最後に送信された時間
         this.pressed_time := 0     ; キーが押し下げられた時間
     }
@@ -1402,26 +1421,30 @@ class LKey extends RKey {
         super.SetKey(key, shift_key)
     }
 
-    /**
-     * 長押し時に送信するキー文字列を設定する
-     * @param {String} [long_key=""]
-     */
-    SetLongKey(long_key := "") {
-        if long_key = "" {
-            this.long_key_str := this.shift_key_str ; デフォルトでは Shift 時のキーを使用
-        } else if long_key = "none" {
-            this.long_key_str := "none" ; 長押しを無効化
-        } else {
-            this.long_key_str := long_key ; 指定されたキーを使用
-        }
-    }
+    ; /**
+    ;  * 長押し時に送信するキー文字列を設定する
+    ;  * @param {String} [long_key=""]
+    ;  */
+    ; SetLongKey(long_key := "") {
+    ;     if long_key = "" {
+    ;         this.long_press_mode := 1 ; 長押しを有効化
+    ;         this.long_key_str := this.shift_key_str ; デフォルトでは Shift 時のキーを使用
+    ;     } else if long_key = "none" {
+    ;         this.long_press_mode := 0 ; 長押しを無効化
+    ;         this.long_key_str := "none"
+    ;     } else if long_key = "skip" {
+    ;         this.long_press_mode := 2 ; 長押し、キーリピートを無効化
+    ;         this.long_key_str := "none"
+    ;     } else {
+    ;         this.long_press_mode := 1 ; 長押しを有効化
+    ;         this.long_key_str := long_key ; 指定されたキーを使用
+    ;     }
+    ; }
 
     /**
      * キーが現在押し下げられているかどうかを確認する
      */
-    IsPressed() {
-        return this.pressing
-    }
+    IsPressed() => this.pressing
 
     /**
      * キー押し下げ時のホットキーで呼び出す (例: `*x::x.Down("x")`)
@@ -1429,83 +1452,90 @@ class LKey extends RKey {
      */
     Down() {
         Critical
-        if this.long_key_str = "none" {
-            ; --- このキーの長押しは無効化 ("none") されています ---
-            if super._SendCAWKey(this.org_key) { ; Ctrl/Alt/Win のパススルーを確認
-                this.pressed_time := 0 ; 長押しの候補ではない
-                return
-            }
-            if this.pressing { ; キーリピートを防止
-                return
-            }
-            this.pressing := True
-            LKey.last_key := this.org_key
-            ; このキーは Down 時には送信せず、Up 時（短押しの場合）に送信します。
-            this.pressed_time := A_TickCount ; Up() 用のタイマーを開始
-        } else {
-            ; --- このキーの長押しは有効化されています ---
-            this.pressing := True
-            if LKey.long_press_enabled { ; グローバルな切り替え設定を確認
-                ; キーリピートの処理対策
-                if LKey.last_key = this.org_key && this.send_time > 0 {
-                    if A_TickCount - this.send_time < LKey.long_press_th {
-                        return
-                    }
-                }
-                LKey.last_key := this.org_key
-
-                ; RKey のメイン送信ロジックを呼び出します。これにより短押しのキーが即座に送信されます。
-                ; パススルー (Ctrl/Alt/Win) だった場合は true を返します。
-                if !super._SendSCAWKey(this.org_key) {
-                    ; パススルーではないため、長押しタイマーを開始します。
-                    this.pressed_time := A_TickCount
-                }
-            } else {
-                LKey.last_key := this.org_key
-                ; 長押し機能がグローバルに無効化されています
-                super._SendSCAWKey(this.org_key) ; 通常の RKey として動作
-            }
+        ; CAWパススルー確認
+        if super._SendCAWKey(this.org_key) {
+            this.pressed_time := 0
+            this.pressing := False
+            RKey.last_key := ""
+            return
         }
+        ;long_press_mode := 0 ; 0:長押し無効、1:長押し 2:長押しで未入力、キーリピートを無効化
+        if this.long_press_mode = 0 || LKey.long_press_enabled = 0 {
+            shift := IsPhysicalShiftPressed()
+            this.SendShiftedKey(shift) ; リマップされたキー（基本または Shift 版）を送信
+            this.pressing := False
+            RKey.last_key := this.org_key
+            return
+        }
+        if this.pressing { ; キーリピートを防止
+            return
+        }
+        if this.long_press_mode = 1 {
+            shift := IsPhysicalShiftPressed()
+            this.SendShiftedKey(shift) ; リマップされたキー（基本または Shift 版）を送信
+        }
+        ;  else {
+        ;     ; --- このキーの長押しは有効化されています ---
+        ;     ; キーリピートの処理対策
+        ;     ; if RKey.last_key = this.org_key && this.send_time > 0 {
+        ;     ;     if A_TickCount - this.send_time < LKey.long_press_th {
+        ;     ;         return
+        ;     ;     }
+        ;     ; }
+
+        ;     ;RKey.last_key := this.org_key
+
+        ;     ; RKey のメイン送信ロジックを呼び出します。これにより短押しのキーが即座に送信されます。
+        ;     ; パススルー (Ctrl/Alt/Win) だった場合は true を返します。
+        ; }
+        this.pressed_time := A_TickCount
+        this.pressing := True
+        RKey.last_key := this.org_key
     }
 
     /**
-     * キー離し時のホットキーで呼び出す (例: `*x up::x.Up()`)
+     * キー離し時のホットキーで呼び出す (例: `*x up::xef.Up()`)
      * 短押しと長押しのロジックを処理します。
      * @returns {Boolean} 長押しアクションが実行された場合は true, 短押しの場合は false
      */
     Up() {
         Critical
-        if this.pressed_time > 0 && this.long_key_str != "" {
+        if !this.pressing {
+            return
+        }
+
+        ;long_press_mode := 0 ; 0:長押し無効、1:長押し 2:長押しで未入力、キーリピートを無効化
+        ; if this.long_press_mode = 0 || LKey.long_press_enabled = 0 {
+        ; } else
+        if this.long_press_mode = 2 {
             time := A_TickCount
-            if this.long_key_str = "none" {
-                ; --- 長押し "none" (Up 時に送信) ---
-                if time - this.pressed_time >= LKey.long_press_th {
-                    ; 長時間押し続けられましたが、"none" なので何もしません。
-                } else {
-                    ; 短押し: 今すぐキーを送信
-                    if this.pressing {
-                        if LKey.last_key = this.org_key {
-                            shift := IsPhysicalShiftPressed()
-                            this.SendShiftedKey(shift) ; 基本/Shift キーを送信
-                        }
-                    }
-                }
-                this.pressed_time := 0
+            if time - this.pressed_time >= LKey.long_press_th {
+                ; 長時間押し続けたが、何もしない。
             } else {
-                ; --- 長押し有効 ---
-                if time - this.pressed_time >= LKey.long_press_th {
-                    ; 長押しが検出されました！
-                    if LKey.last_key = this.org_key {
-                        this.send_time := time
-                        ; Down 時の短押しキーをバックスペースで消去し、長押しキーを送信します。
-                        Send("{Backspace}" . this.long_key_str)
-                        KeyLogger.Log(this.long_key_str)
-                        this.pressed_time := 0
-                        this.pressing := false
-                        return true ; 長押しアクション実行済み
+                ; 短押し: 今すぐキーを送信
+                ;if this.pressing
+                {
+                    if RKey.last_key = this.org_key {
+                        shift := IsPhysicalShiftPressed()
+                        this.SendShiftedKey(shift) ; 基本/Shift キーを送信
                     }
                 }
             }
+            this.pressed_time := 0
+        } else { ;this.long_press_mode = 1
+            ; --- 長押し有効 ---
+            time := A_TickCount
+            if time - this.pressed_time >= LKey.long_press_th {
+                ; 長押しが検出されました！
+                if RKey.last_key = this.org_key {
+                    this.send_time := time
+                    ; Down 時の短押しキーをバックスペースで消去し、長押しキーを送信します。
+                    Send("{Backspace}")
+                    this.SendShiftedKey(true) ; 基本/Shift キーを送信
+                }
+            }
+            this.pressed_time := 0
+            this.pressing := false
         }
         ; これは短押し（またはタイマー未設定）であり、Down() が既にキーを送信済みです。
         this.pressing := false
@@ -1527,7 +1557,7 @@ tab := MKey(R_TAB)
 noconv := MKey(R_NOCONV)
 conv := MKey(R_ENTER)
 f14 := MKey(R_ZENKAKU)
-colon := LKey(C_COLON, "none")
+colon := LKey(C_COLON, 2)
 
 ; --- リマップキー (RKey) ---
 ; (数字列)
