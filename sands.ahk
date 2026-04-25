@@ -279,10 +279,10 @@ class ImeState {
      * 2:毎回チェック
      * 3:チェックなし(別途マニュアルでチェック)
      */
-    static mode := 1
+    static mode := 0
     static last_action_time := 0
     static last_check_time := 0
-    static threshold := 50
+    static threshold := 100
 
     /**
      * 動作状態を設定する
@@ -392,6 +392,16 @@ class ImeState {
     }
 }
 
+QueryPerformanceFrequency() {
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+    return freq
+}
+
+QueryPerformanceCounter() {
+    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+    return tick
+}
+
 class KeyLogItem {
     count := 0
     count_d := 0
@@ -401,17 +411,18 @@ class KeyLogItem {
 
 class KeyLogger {
     static IDLE_TIMEOUT := 3000     ; 3秒以上の打鍵間隔で履歴リセット
-    static MERGE_THRESHOLD := 200    ; 200キーごとに短期ログを長期ログへ統合
-    static AUTOSAVE_INTERVAL := 600000 ; 10分ごとに自動保存
+    static AUTOSAVE_INTERVAL := 300000 ; 5分ごとに自動保存
     static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
 
     static log_file := A_ScriptDir . "\log.txt"
     static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
     static is_showing_ime_indicator := true
-    static stats := Map() ; Map of LayoutName -> {char -> KeyLogItem}
-    static stats_short := Map() ; 短期辞書
-    static total_count := 0
+    static stats := Map()     ; 段階3: フル辞書 (長期保存用)
+    static stats_mid := Map() ; 段階2: 中間辞書 (集計用)
+    static stats_short := []  ; 段階1: リスト (事前確保バッファ)
+    static stats_short_idx := 0 ; 現在の書き込み位置
+    static stats_short_max := 1000 ; バッファの最大容量
     static current_layout := "Qwerty"
     static hist_1 := "", hist_2 := "", hist_3 := ""
     static tick_1 := 0, tick_2 := 0, tick_3 := 0
@@ -419,7 +430,12 @@ class KeyLogger {
     static max_log := 5000
     static last_save_time := A_TickCount
     static total_log_time := 0
+    static total_log_time2 := 0
     static freq := 0
+
+    ; __init() {
+    ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+    ; }
 
     /**
      * 打鍵履歴をリセットする
@@ -448,6 +464,7 @@ class KeyLogger {
      * 設定ファイルから設定を読み込む
      */
     static LoadConfig() {
+        this.freq := QueryPerformanceFrequency()
         try {
             val := IniRead(this.config_file, "Settings", "LogEnabled", "0")
             this.is_logging_enabled := (val == "1")
@@ -483,9 +500,24 @@ class KeyLogger {
      * ログファイルを読み込む
      */
     static Load() {
-        DllCall("QueryPerformanceFrequency", "Int64*", &f := 0)
-        this.freq := f
         this.LoadConfig()
+
+        ; ログバッファを事前確保し、オブジェクトを再利用可能にする
+        this.stats_short := Array()
+        this.stats_short.Capacity := this.stats_short_max
+        loop this.stats_short_max {
+            this.stats_short.Push({ c: "", t: 0 })
+        }
+        this.stats_short_idx := 0
+
+        ; --- ウォームアップ ---
+        ; 初回呼び出し時のオーバーヘッド（DLLロードや静的変数初期化）を排除する
+        this.is_logging_enabled := true ; 一時的に有効化
+        this.Log("warmup")
+        this.total_log_time := 0
+        this.stats_short_idx := 0
+        this.LoadConfig() ; 本来の設定に戻す
+
         if !FileExist(this.log_file)
             return
 
@@ -526,6 +558,9 @@ class KeyLogger {
         }
     }
 
+    /**
+     * ログを圧縮する
+     */
     static _Compaction() {
         for layout, stats_map in this.stats {
             total := 0
@@ -551,46 +586,123 @@ class KeyLogger {
     }
 
     static ChangeLayout(section) {
-        this.MergeShortTerm()
+        this._MergeShortTerm()      ; リスト -> 中間辞書
+        this._TransferMidToFull()   ; 中間辞書 -> フル辞書
+        this._Compaction()          ; フル辞書のコンパクション
         this.SetLayoutName(section)
     }
 
     static _MergeShortTerm() {
-        if this.stats_short.Count == 0
+        if this.stats_short_idx == 0 {
             return
-
-        ; 短期辞書を長期辞書に追加して、短期辞書を初期化
+        }
+        ; リスト (stats_short) を 中間辞書 (stats_mid) に集計
         layout := this.current_layout
-        if !this.stats.Has(layout)
-            this.stats[layout] := Map()
-        stats_map := this.stats[layout]
-        for seq, item in this.stats_short {
+        if !this.stats_mid.Has(layout)
+            this.stats_mid[layout] := Map()
+        stats_map := this.stats_mid[layout]
+
+        loop this.stats_short_idx {
+            entry := this.stats_short[A_Index]
+            char := entry.c
+            tick := entry.t
+
+            ; {Blind} や {sc033} のような括弧付き文字列のパース
+            if InStr(char, "{") {
+                if SubStr(char, 1, 7) = "{Blind}"
+                    char := SubStr(char, 8) ; {Blind} を除去
+
+                if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
+                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
+                        char := SubStr(char, 2, -1) ; {sc033} を sc033 に
+                    else {
+                        this.ResetHistory()
+                        continue ; 記録対象外の特殊キー ({Enter} 等) は無視
+                    }
+                }
+            }
+
+            ; よく使う記号のスキャンコードを文字に変換
+            static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
+                "sc073", "_", "sc00D", "^")
+            char := sc_map.Get(char, char)
+
+            if char = ""
+                continue
+
+            if (tick - this.last_key_time >= this.IDLE_TIMEOUT) {
+                this.ResetHistory()
+            }
+            this.last_key_time := tick
+
+            this.hist_1 := this.hist_2
+            this.hist_2 := this.hist_3
+            this.hist_3 := char
+
+            this.tick_1 := this.tick_2
+            this.tick_2 := this.tick_3
+            this.tick_3 := tick
+
+            ; 履歴が3文字に満たない場合はスキップ
+            if this.hist_1 == ""
+                continue
+
+            seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
             if !stats_map.Has(seq)
                 stats_map[seq] := KeyLogItem()
-            target := stats_map[seq]
-            target.count += item.count
-            target.count_d += item.count_d
-            target.duration12 += item.duration12
-            target.duration13 += item.duration13
+
+            item := stats_map[seq]
+            item.count += 1
+            t := this.tick_3 - this.tick_1
+            if t < this.MAX_DURATION {
+                item.count_d += 1
+                item.duration12 += (this.tick_2 - this.tick_1)
+                item.duration13 += t
+            }
         }
-        this.stats_short := Map()
+        this.stats_short_idx := 0
+        this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
+        this.total_log_time := 0
     }
 
-    static SaveIfIdle() {
+    /**
+     * 中間辞書 (stats_mid) のデータをフル辞書 (stats) に統合する
+     */
+    static _TransferMidToFull() {
+        for layout, mid_map in this.stats_mid {
+            if !this.stats.Has(layout)
+                this.stats[layout] := Map()
+            full_map := this.stats[layout]
+
+            for seq, mid_item in mid_map {
+                if !full_map.Has(seq)
+                    full_map[seq] := KeyLogItem()
+                full_item := full_map[seq]
+
+                full_item.count += mid_item.count
+                full_item.count_d += mid_item.count_d
+                full_item.duration12 += mid_item.duration12
+                full_item.duration13 += mid_item.duration13
+            }
+        }
+        this.stats_mid := Map() ; 中間辞書をクリア
+    }
+
+    static SaveIfIdle(time) {
         Critical
-        if this.stats_short.Count == 0
+        if (time < 20000) {
+            return
+        }
+        if this.stats_short_idx == 0
             return
 
         ; 前回saveから指定時間経っていたら保存
-        if (A_TickCount - this.last_save_time >= this.AUTOSAVE_INTERVAL) {
+        if (A_TickCount - this.last_save_time >= this.AUTOSAVE_INTERVAL && time >= 60000) {
             this.Save()
             return
         }
 
-        if this.total_count >= this.MERGE_THRESHOLD {
-            this._MergeShortTerm()
-            this.total_count := 0
-        }
+        this._MergeShortTerm()
     }
 
     /**
@@ -599,6 +711,7 @@ class KeyLogger {
     static Save() {
         Critical
         this._MergeShortTerm()
+        this._TransferMidToFull()
 
         if this.stats.Count == 0
             return
@@ -607,7 +720,7 @@ class KeyLogger {
 
         output := ""
         if (this.freq > 0) {
-            max_us := (this.total_log_time * 1000000) / this.freq
+            max_us := (this.total_log_time2 * 1000000) / this.freq
             output .= Format("; Max Log Time: {:.3f} us `r`n`r`n", max_us)
         }
 
@@ -651,89 +764,31 @@ class KeyLogger {
     }
 
     static Log(char) {
-        if !this.freq {
-            DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
-            this.freq := freq
-        }
+        if !this.is_logging_enabled
+            return
 
-        max_us := (this.total_log_time * 1000000) / this.freq
-
-        if (max_us > 5000) {
-            ; 5msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
+        current_max := (this.total_log_time * 100)
+        if (current_max > this.freq) {
+            Tooltip("Too fast")
+            ; 10msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
             return
         }
 
-        DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
-        start := tick
-
-        try {
-            if !this.is_logging_enabled
-                return
-            if !ImeState.IsOn()
-                return
-
-            if char = ""
-                return
-
-            if (A_TickCount - this.last_key_time >= this.IDLE_TIMEOUT) {
-                this.ResetHistory()
-            }
-            this.last_key_time := A_TickCount
-
-            ; {Blind} や {sc033} のような括弧付き文字列の高速パース（通常の文字入力を妨げない）
-            if InStr(char, "{") {
-                if SubStr(char, 1, 7) = "{Blind}"
-                    char := SubStr(char, 8) ; {Blind} を除去
-
-                if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
-                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
-                        char := SubStr(char, 2, -1) ; {sc033} を sc033 に
-                    else {
-                        this.ResetHistory()
-                        return ; 記録対象外の特殊キー ({Enter} 等) は無視
-                    }
-                }
-            }
-
-            ; よく使う記号のスキャンコードを文字に変換
-            static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
-                "sc073", "_", "sc00D", "^")
-            char := sc_map.Get(char, char)
-
-            if char = ""
-                return
-
-            this.hist_1 := this.hist_2
-            this.hist_2 := this.hist_3
-            this.hist_3 := char
-
-            this.tick_1 := this.tick_2
-            this.tick_2 := this.tick_3
-            this.tick_3 := A_TickCount
-
-            ; 履歴が3文字に満たない場合は、重いIME判定を行わずに終了する
-            if this.hist_1 == ""
-                return
-
-            seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
-            if !this.stats_short.Has(seq)
-                this.stats_short[seq] := KeyLogItem()
-
-            item := this.stats_short[seq]
-            item.count += 1
-            t := this.tick_3 - this.tick_1
-            if t < this.MAX_DURATION {
-                item.count_d += 1
-                item.duration12 += (this.tick_2 - this.tick_1) ;* 100
-                item.duration13 += t ;* 100
-            }
-
-            this.total_count += 1
-        } finally {
-            DllCall("QueryPerformanceCounter", "Int64*", &end := 0)
-            time := end - start
-            this.total_log_time := Max(time, this.total_log_time)
+        if char = ""
+            return
+        if !ImeState.IsOn()
+            return
+        start := QueryPerformanceCounter()
+        if this.stats_short_idx < this.stats_short_max {
+            this.stats_short_idx += 1
+            entry := this.stats_short[this.stats_short_idx]
+            entry.c := char
+            entry.t := A_TickCount
         }
+        end := QueryPerformanceCounter()
+        time := end - start
+        this.total_log_time := Max(time, this.total_log_time)
+
     }
 }
 
@@ -881,7 +936,6 @@ ShowOSD(text, duration := 3000, key_close := False) {
 
     ; 改行を含むテキストを中央寄せで表示
     MyGui.Add("Text", "Center", text)
-
     MyGui.Show("NoActivate xCenter y900") ; 画面下部中央に表示
 
     if key_close {
@@ -1000,10 +1054,7 @@ TimerEvent() {
 
     ; 20秒以上操作がない場合、ログを保存
     if (mod(counter, 100) == 0) {
-        ;if (time >= 20000) {
-        if (A_TimeIdlePhysical >= 10000) {
-            KeyLogger.SaveIfIdle()
-        }
+        KeyLogger.SaveIfIdle(A_TimeIdlePhysical)
     }
     counter++
 }
@@ -2087,10 +2138,10 @@ ChangeMinatoLayoutImpl() {
     j.SetImeKey("a", "ya")
     k.SetImeKey("i", "xi")
     l.SetImeKey("e", "xe")
-    semicolon.SetImeKey("o", "yo")
+    semicolon.SetImeKey("o", "ou")
 
     n.SetImeKey("-", "a-")
-    m.SetImeKey("ou", "ltu") ; :=ltu
+    m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
 }
 
