@@ -1172,19 +1172,10 @@ class MKey {
      * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
      */
     SetModStr() {
-        this.mod_str := ""
-        if GetKeyState("Shift", "P") {
-            this.mod_str := "+"
-        }
-        if GetKeyState("Ctrl", "P") {
-            this.mod_str := "^" . this.mod_str
-        }
-        if GetKeyState("Alt", "P") {
-            this.mod_str := "!" . this.mod_str
-        }
-        if GetKeyState("LWin", "P") || GetKeyState("RWin", "P") {
-            this.mod_str := "#" . this.mod_str
-        }
+        this.mod_str := (GetKeyState("LWin", "P") || GetKeyState("RWin", "P") ? "#" : "")
+        . (GetKeyState("Alt", "P") ? "!" : "")
+        . (GetKeyState("Ctrl", "P") ? "^" : "")
+        . (GetKeyState("Shift", "P") ? "+" : "")
     }
 
     /**
@@ -1208,12 +1199,9 @@ class MKey {
     Up() {
         Critical
         if (A_TickCount - this.pressed_time < this.timeout) {
-            ; 短押し: 他の修飾キーを保持したまま元のキーを送信
-            text := "{Blind}" . this.mod_str . this.key_str
-            SendAndLog(text)
+            SendAndLog("{Blind}" . this.mod_str . this.key_str)
         }
-        ; 長押し: 何もしない（キーはレイヤーとして使用された）
-        this.pressed_time := 0 ; 状態をリセット
+        this.pressed_time := 0
     }
 
     /**
@@ -1264,33 +1252,11 @@ class RKey {
      * @param {String} [shift_key=""] - Shift 時のキー(1文字)。"none" で無効化。
      */
     SetKey(key, shift_key := "") {
-        this.key := key ; 元のキーを保存
-        if HasModifierSymbols(key) {
-            ; キーに既に修飾キーが含まれている場合 (例: "^c")
-            this.short_key_str := key
-            if shift_key = "none" {
-                this.shift_key_str := "" ; 何もしない
-            } else {
-                if shift_key = "" {
-                    this.shift_key_str := "" ; デフォルト: ベースに修飾キーがある場合は何もしない
-                } else {
-                    this.shift_key_str := shift_key ; ユーザー定義
-                }
-            }
-        } else {
-            ; キーが単純な場合 (例: "a")
-            this.short_key_str := "{Blind}" . key
-            if shift_key = "none" {
-                this.shift_key_str := "" ; 何もしない
-            } else {
-                if shift_key = "" {
-                    ; Shiftキーを自動生成
-                    this.shift_key_str := "{Blind}+" . key
-                } else {
-                    this.shift_key_str := shift_key ; ユーザー定義
-                }
-            }
-        }
+        this.key := key
+        is_mod := HasModifierSymbols(key)
+        this.short_key_str := is_mod ? key : "{Blind}" . key
+        this.shift_key_str := (shift_key == "none") ? "" : (shift_key != "") ? shift_key : (is_mod ? "" : "{Blind}+" .
+            key)
     }
 
     /**
@@ -1300,36 +1266,11 @@ class RKey {
      *                                 "" = 自動/デフォルト、"none" = 無効化。
      */
     SetImeKey(key := "", shift_key := "") {
-        if key = "" {
-            key := this.short_key_str ; デフォルトでは IME OFF 時のキーを使用
-        }
-        if HasModifierSymbols(key) {
-            ; Key already has modifiers
-            this.short_ime_key_str := key
-            if shift_key = "none" {
-                this.shift_ime_key_str := ""
-            } else {
-                if shift_key = "" {
-                    ; デフォルトでは IME OFF 時の Shift キーを使用
-                    this.shift_ime_key_str := this.shift_key_str
-                } else {
-                    this.shift_ime_key_str := shift_key
-                }
-            }
-        } else {
-            ; Key is simple
-            this.short_ime_key_str := "{Blind}" . key
-            if shift_key = "none" {
-                this.shift_ime_key_str := ""
-            } else {
-                if shift_key = "" {
-                    ; Shiftキーを自動生成
-                    this.shift_ime_key_str := "{Blind}+" . key
-                } else {
-                    this.shift_ime_key_str := shift_key
-                }
-            }
-        }
+        k := (key != "") ? key : this.short_key_str
+        is_mod := HasModifierSymbols(k)
+        this.short_ime_key_str := is_mod ? k : "{Blind}" . k
+        this.shift_ime_key_str := (shift_key == "none") ? "" : (shift_key != "") ? shift_key : (is_mod ? this.shift_key_str :
+            "{Blind}+" . k)
     }
 
     /**
@@ -1337,27 +1278,16 @@ class RKey {
      * @param {String} ime_key - IME ON 時に送信するキー
      * @param {String} normal_key - IME OFF 時に送信するキー
      */
-    _SendKey(ime_key, normal_key) {
-        SendBasedOnImeState(normal_key, ime_key)
-    }
+    _SendKey(ime_key, normal_key) => SendBasedOnImeState(normal_key, ime_key)
 
-    /**
-     * リマップされたキーを、通常版または Shift 版のいずれかを選択して送信する
-     * IME 状態も考慮される
-     * @param {Boolean} [shift=true] - True で Shift 版、False で基本キーを送信
-     * @returns {Boolean} `shift` パラメータの値
-     */
     SendShiftedKey(shift := true) {
         Critical
         if shift {
-            ; Shift 時のキーを送信 (IME 対応)
             this._SendKey(this.shift_ime_key_str, this.shift_key_str)
-            return true
         } else {
-            ; 基本キーを送信 (IME 対応)
             this._SendKey(this.short_ime_key_str, this.short_key_str)
-            return false
         }
+        return shift
     }
 
     /**
@@ -1367,12 +1297,10 @@ class RKey {
      * @returns {Boolean} CAW が押されていた場合 (パススルー発生) は true
      */
     _SendCAWKey(pressed_key) {
-        caw := GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") ||
-        GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
+        caw := GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin",
+            "P")
         if caw {
-            ; パススルー: 元のキーを送信
-            text := "{Blind}" . pressed_key
-            Send(text)
+            Send("{Blind}" . pressed_key)
             return true
         }
         return false
@@ -1387,11 +1315,9 @@ class RKey {
      */
     _SendSCAWKey(pressed_key) {
         if this._SendCAWKey(pressed_key) {
-            return true ; CAW が押されていたため、ロジック終了。
+            return true
         }
-        ; CAW は押されていないため、Shift 状態を確認
-        shift := IsPhysicalShiftPressed()
-        this.SendShiftedKey(shift) ; リマップされたキー（基本または Shift 版）を送信
+        this.SendShiftedKey(IsPhysicalShiftPressed())
         return false
     }
 
@@ -1400,11 +1326,7 @@ class RKey {
      */
     Down() {
         Critical
-        if this._SendSCAWKey(this.org_key) {
-            RKey.last_key := ""
-        } else {
-            RKey.last_key := this.org_key
-        }
+        RKey.last_key := this._SendSCAWKey(this.org_key) ? "" : this.org_key
     }
 
     /**
