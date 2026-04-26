@@ -492,6 +492,7 @@ class KeyLogger {
             IniWrite(this.is_logging_enabled ? "1" : "0", this.config_file, "Settings", "LogEnabled")
             IniWrite(this.is_showing_ime_indicator ? "1" : "0", this.config_file, "Settings", "ImeIndicatorEnabled")
             IniWrite(String(this.max_log), this.config_file, "Settings", "MaxLog")
+            IniWrite(String(LKey.long_press_th), this.config_file, "Settings", "long_press_th")
         } catch {
         }
     }
@@ -1357,7 +1358,7 @@ class LKey extends RKey {
     /**
      * コンストラクタ
      * @param {String} key - 基本キー（短押し時に送信されるキー）
-     * @param {Integer} mode - 動作モード (0, 1, 2)
+     * @param {Integer} mode -  0:長押し無効(RKeyと同じ)、1:Down時に即送信し長押しで置換、2:長押しで未入力、キーリピートを無効化
      */
     __New(key, mode := 0) {
         super.__New(key) ; RKey の初期化 (基本/Shift キーのペアを作成)
@@ -1529,48 +1530,48 @@ hat := RKey(C_HAT) ; ^
 backslash := RKey("\") ; ¥
 ;
 ; (QWERTY段)
-q := RKey("q")
-w := RKey("w")
-e := RKey("e")
-r := RKey("r")
-t := RKey("t")
+q := LKey("q", 1)
+w := LKey("w", 1)
+e := LKey("e", 1)
+r := LKey("r", 1)
+t := LKey("t", 1)
 ;
-y := RKey("y")
-u := RKey("u")
-i := RKey("i")
-o := RKey("o")
-p := RKey("p")
-at := RKey("@")
-openbracket := RKey("[")
+y := LKey("y", 1)
+u := LKey("u", 1)
+i := LKey("i", 1)
+o := LKey("o", 1)
+p := LKey("p", 1)
+at := LKey("@", 1)
+openbracket := LKey("[", 1)
 ;
 ; (ASDF段)
-a := RKey("a")
-s := RKey("s")
-d := RKey("d")
-f := RKey("f")
-g := RKey("g")
+a := LKey("a", 1)
+s := LKey("s", 1)
+d := LKey("d", 1)
+f := LKey("f", 1)
+g := LKey("g", 1)
 ;
-h := RKey("h")
-j := RKey("j")
-k := RKey("k")
-l := RKey("l")
-semicolon := RKey(C_SEMICOLON) ; ;
+h := LKey("h", 1)
+j := LKey("j", 1)
+k := LKey("k", 1)
+l := LKey("l", 1)
+semicolon := LKey(C_SEMICOLON, 1)
 ;colon := RKey(C_COLON) ; (Defined as LKey above)
-closebracket := RKey("]")
+closebracket := LKey("]", 1)
 ;
 ; (ZXCV段)
-z := RKey("z")
-x := RKey("x")
-c := RKey("c")
-v := RKey("v")
-b := RKey("b")
+z := LKey("z", 1)
+x := LKey("x", 1)
+c := LKey("c", 1)
+v := LKey("v", 1)
+b := LKey("b", 1)
 ;
-n := RKey("n")
-m := RKey("m")
-comma := RKey(C_COMMA) ; ,
-period := RKey(".") ; .
-slash := RKey("/") ; /
-backslash2 := RKey(C_BACKSLASH2) ; _
+n := LKey("n", 1)
+m := LKey("m", 1)
+comma := LKey(C_COMMA, 1) ; ,
+period := LKey(".", 1) ; .
+slash := LKey("/", 1) ; /
+backslash2 := LKey(C_BACKSLASH2, 1) ; _
 ;
 ; (矢印キー - リマップ用)
 up := RKey(C_UP)
@@ -1659,6 +1660,10 @@ ResetIME() {
 
 LoadLayoutConfig() {
     try {
+        try {
+            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(LKey.long_press_th)))
+        } catch {
+        }
         layoutName := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
         if layoutName = ""
             return
