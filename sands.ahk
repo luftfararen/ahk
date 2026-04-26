@@ -1125,11 +1125,18 @@ class MouseSpeed {
     }
 }    ;class MouseSpeed
 
+MakeModStr() {
+    return (GetKeyState("LWin", "P") || GetKeyState("RWin", "P") ? "#" : "")
+    . (GetKeyState("Alt", "P") ? "!" : "")
+    . (GetKeyState("Ctrl", "P") ? "^" : "")
+    . (GetKeyState("Shift", "P") ? "+" : "")
+}
+
 /*============================================================================
  [Class] MKey (モディファイアキー)
- "SpaceCadet" や「デュアルロール」キーの機能を実装します。
- - タイムアウト時間内に離された場合（短押し）は元のキーを送信します。
- - タイムアウト時間を超えて押し続けられた場合は、モディファイア（レイヤー）キーとして機能します。
+ 「デュアルロール」モディファイアキー機能を実装します。
+ - タイムアウト時間内に離された場合（短押し）はデフォルトキーを送信します。
+ - タイムアウト時間を超えて押し続けられた場合は、モディファイアキーとして機能します。
 ============================================================================*/
 class MKey {
     /**
@@ -1152,31 +1159,19 @@ class MKey {
         }
         this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
         this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
-        this.type := 0         ; (未使用)
         this.timeout := timeout
     }
     /**
      * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
      * @returns {Boolean} 押されていれば true
      */
-    IsPressed() {
-        if this.pressed_time != 0 {
-            return 1
-        }
-        ;		if GetKeyState(this.key,"P"){ ; (コメントアウト）物理状態ではなく内部状態を使用
-        ;			return 1
-        ;		}
-        return 0
-    }
+    IsPressed() => (this.pressed_time != 0)
 
     /**
      * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
      */
     SetModStr() {
-        this.mod_str := (GetKeyState("LWin", "P") || GetKeyState("RWin", "P") ? "#" : "")
-        . (GetKeyState("Alt", "P") ? "!" : "")
-        . (GetKeyState("Ctrl", "P") ? "^" : "")
-        . (GetKeyState("Shift", "P") ? "+" : "")
+        this.mod_str := MakeModStr()
     }
 
     /**
@@ -1341,29 +1336,35 @@ class RKey {
 /*============================================================================
  [Class] LKey (長押しキー)
  RKey を拡張し、「長押し」アクションを追加します。
- - 短押し: RKey と同様（基本キーまたは Shift 版を送信）
- - 長押し: 指定された別のキーを送信
+
+[mode]
+0:RKeyと同じ（長押し無効）
+1:Down時に即送信し長押しでShift版に置換、送信されるキーはRKeyと同様登録したキー
+2:長押しは未送信(Modifier専用)
+3:長押しは未送信(MKeyと同じ)、単押しのときはデフォルトキー
+
+1,2,3はキーリピートが無効化
+0,1,2はCtrl,Alt,Win(CAW)の押下時はデフォルトキーに対する修飾として送信
+デフォルトキーは、コンストラタで登録したキーで通常はqwertyが登録されている
+ただし、変換キーなどの特殊キーには、物理的なキーとは別なキーを割り当てている場合があるので注意が必要
 ============================================================================*/
 class LKey extends RKey {
-    ;static use_registered_key_for_ctrl  := false ; (継承済み)
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
     static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
 
     pressing := False   ; キーが現在物理的に、または論理的に「押し下げ状態」にあるか（リピート防止用）
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
-    ;long_press_mode := 0 ; 0:長押し無効(RKeyと同じ)、1:Down時に即送信し長押しで置換、2:長押しで未入力、キーリピートを無効化
     ;long_key_str := ""  ; (未使用) 長押し時に送信するキー。現在は mode 1 で自動的に Shift版が使用される
 
     /**
      * コンストラクタ
-     * @param {String} key - 基本キー（短押し時に送信されるキー）
-     * @param {Integer} mode -  0:長押し無効(RKeyと同じ)、1:Down時に即送信し長押しで置換、2:長押しで未入力、キーリピートを無効化
+     * @param {String} key - デフォルトキー（短押し時に送信されるキー）
+     * @param {Integer} mode -  0:長押し無効、1:Down時に即送信し長押しでShift版に置換、2:長押しで未入力 3:長押しは未入力(MKeyと同じ)、単押しのときはデフォルトキー
      */
     __New(key, mode := 0) {
         super.__New(key) ; RKey の初期化 (基本/Shift キーのペアを作成)
         this.long_press_mode := mode
-        ;this.send_time := 0        ; 前回送信した時刻
     }
 
     /**
@@ -1420,14 +1421,26 @@ class LKey extends RKey {
     /**
      * キーが現在押し下げられているかどうかを確認する
      */
-    IsPressed() => this.pressing
+    IsPressed() => this.pressed_time != 0
 
     Down() {
         Critical
+
+        if this.long_press_mode = 3 {
+            if (this.pressed_time != 0) {
+                return
+            }
+            this.mod_str := MakeModStr()
+            this.pressed_time := A_TickCount
+            return
+        }
+
+        ;以下、mode 0,1,2共通
+
         ; 1. Ctrl / Alt / Win が押されている場合は、リマップを行わず「パススルー」させる
         if super._SendCAWKey(this.org_key) {
             this.pressed_time := 0 ;
-            this.pressing := False ; Up時に何もしない
+            ;this.pressing := False ; Up時に何もしない
             RKey.last_key := ""
             return
         }
@@ -1437,13 +1450,12 @@ class LKey extends RKey {
             shift := IsPhysicalShiftPressed()
             this.SendShiftedKey(shift) ; 通常の RKey として即座に送信
             this.pressed_time := 0 ;
-            this.pressing := False ; Up時に何もしない
             RKey.last_key := this.org_key
             return
         }
 
         ; 3. キーリピートによる多重実行を防止
-        if this.pressing {
+        if this.pressed_time != 0 {
             return
         }
 
@@ -1458,21 +1470,26 @@ class LKey extends RKey {
 
         ; 5. 状態を記録し、長押し判定（Up時）のためのタイマーを開始する
         this.pressed_time := A_TickCount
-        this.pressing := True
         RKey.last_key := this.org_key
     }
 
     Up() {
         Critical
-        if !this.pressing {
-            ;this.send_time := 0 ; 冗長だが念のためリセット
-            this.pressed_time := 0 ; 冗長だが念のためリセット
+        if (this.pressed_time = 0) {
             return
         }
 
         now := A_TickCount
         duration := now - this.pressed_time
         is_long := (duration >= LKey.long_press_th)
+
+        if this.long_press_mode = 3 {
+            if !is_long {
+                SendAndLog("{Blind}" . this.mod_str . this.org_key)
+            }
+            this.pressed_time := 0
+            return
+        }
 
         ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
         if RKey.last_key == this.org_key {
@@ -1493,8 +1510,6 @@ class LKey extends RKey {
 
         ; 内部状態のリセット
         this.pressed_time := 0
-        this.pressing := false
-        ;this.send_time := 0
         ;return is_long ; 長押しが実行された場合は true
     }
 } ;class LKey
@@ -1661,7 +1676,8 @@ ResetIME() {
 LoadLayoutConfig() {
     try {
         try {
-            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(LKey.long_press_th)))
+            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(LKey
+                .long_press_th)))
         } catch {
         }
         layoutName := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
