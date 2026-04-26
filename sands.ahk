@@ -1349,9 +1349,10 @@ class LKey extends RKey {
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
     static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
 
-    ;long_key_str := ""  ; (未使用) 長押し時に送信するキー。現在は mode 1 で自動的に Shift版が使用される
     pressing := False   ; キーが現在物理的に、または論理的に「押し下げ状態」にあるか（リピート防止用）
-    long_press_mode := 0 ; 0:長押し無効、1:Down時に即送信し長押しで置換、2:長押しで未入力、キーリピートを無効化
+    pressed_time := 0     ; 物理的に押し下げを開始した時刻
+    ;long_press_mode := 0 ; 0:長押し無効(RKeyと同じ)、1:Down時に即送信し長押しで置換、2:長押しで未入力、キーリピートを無効化
+    ;long_key_str := ""  ; (未使用) 長押し時に送信するキー。現在は mode 1 で自動的に Shift版が使用される
 
     /**
      * コンストラクタ
@@ -1361,8 +1362,7 @@ class LKey extends RKey {
     __New(key, mode := 0) {
         super.__New(key) ; RKey の初期化 (基本/Shift キーのペアを作成)
         this.long_press_mode := mode
-        this.send_time := 0        ; 前回送信した時刻
-        this.pressed_time := 0     ; 物理的に押し下げを開始した時刻
+        ;this.send_time := 0        ; 前回送信した時刻
     }
 
     /**
@@ -1425,8 +1425,8 @@ class LKey extends RKey {
         Critical
         ; 1. Ctrl / Alt / Win が押されている場合は、リマップを行わず「パススルー」させる
         if super._SendCAWKey(this.org_key) {
-            this.pressed_time := 0 ; 長押し判定の対象外とする
-            this.pressing := False
+            this.pressed_time := 0 ;
+            this.pressing := False ; Up時に何もしない
             RKey.last_key := ""
             return
         }
@@ -1435,7 +1435,8 @@ class LKey extends RKey {
         if this.long_press_mode = 0 || LKey.long_press_enabled = 0 {
             shift := IsPhysicalShiftPressed()
             this.SendShiftedKey(shift) ; 通常の RKey として即座に送信
-            this.pressing := False     ; 状態を残さない（リピートはOSに任せる）
+            this.pressed_time := 0 ;
+            this.pressing := False ; Up時に何もしない
             RKey.last_key := this.org_key
             return
         }
@@ -1452,6 +1453,8 @@ class LKey extends RKey {
             this.SendShiftedKey(shift)
         }
 
+        ; モード2の場合、ここでは何もしない(Up時に処理)
+
         ; 5. 状態を記録し、長押し判定（Up時）のためのタイマーを開始する
         this.pressed_time := A_TickCount
         this.pressing := True
@@ -1461,6 +1464,8 @@ class LKey extends RKey {
     Up() {
         Critical
         if !this.pressing {
+            ;this.send_time := 0 ; 冗長だが念のためリセット
+            this.pressed_time := 0 ; 冗長だが念のためリセット
             return
         }
 
@@ -1470,7 +1475,7 @@ class LKey extends RKey {
 
         ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
         if RKey.last_key == this.org_key {
-            ; モード2: 素早く離した時のみ入力（長押し時は何もしない）
+            ; モード2: 素早く離した時のみ入力（長押し時は何も送信しない）
             if this.long_press_mode == 2 {
                 if !is_long {
                     this.SendShiftedKey(IsPhysicalShiftPressed())
@@ -1478,7 +1483,7 @@ class LKey extends RKey {
             }
             else { ; モード1: 即時送信・長押しで置換（長押し時に既存文字を消得して再送信）
                 if is_long {
-                    this.send_time := now
+                    ;this.send_time := now
                     Send("{Backspace}")
                     this.SendShiftedKey(true) ; Shift版を送信
                 }
@@ -1486,10 +1491,10 @@ class LKey extends RKey {
         }
 
         ; 内部状態のリセット
-        this.pressing := false
-        this.send_time := 0
         this.pressed_time := 0
-        return is_long ; 長押しが実行された場合は true
+        this.pressing := false
+        ;this.send_time := 0
+        ;return is_long ; 長押しが実行された場合は true
     }
 } ;class LKey
 
@@ -1647,56 +1652,9 @@ LayerState(layer) {
  * IME-OFF 時のデフォルト（SetKey）に戻します。
  */
 ResetIME() {
-    global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0
-    global minus
-    global q, w, e, r, t, y, u, i, o, p
-    global a, s, d, f, g, h, j, k, l, semicolon
-    global b, n, m, comma, period, slash
-
-    k1.SetIMEKey()
-    k2.SetIMEKey()
-    k3.SetIMEKey()
-    k4.SetIMEKey()
-    k5.SetIMEKey()
-    k6.SetIMEKey()
-    k7.SetIMEKey()
-    k8.SetIMEKey()
-    k9.SetIMEKey()
-    k0.SetIMEKey()
-    minus.SetIMEKey()
-
-    q.SetImeKey()
-    w.SetImeKey()
-    e.SetImeKey()
-    r.SetImeKey()
-    t.SetImeKey()
-    y.SetImeKey()
-    u.SetImeKey()
-    i.SetImeKey()
-    o.SetImeKey()
-    p.SetImeKey()
-
-    a.SetImeKey()
-    s.SetImeKey()
-    d.SetImeKey()
-    f.SetImeKey()
-    g.SetImeKey()
-    h.SetImeKey()
-    j.SetImeKey()
-    k.SetImeKey()
-    l.SetImeKey()
-    semicolon.SetImeKey()
-
-    z.SetImeKey()
-    x.SetImeKey()
-    c.SetImeKey()
-    v.SetImeKey()
-    b.SetImeKey()
-    n.SetImeKey()
-    m.SetImeKey()
-    comma.SetImeKey()
-    period.SetImeKey()
-    slash.SetImeKey()
+    for keyObj in LAYOUT_KEYS {
+        keyObj.SetIMEKey()
+    }
 }
 
 LoadLayoutConfig() {
