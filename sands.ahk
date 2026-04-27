@@ -1361,7 +1361,6 @@ class LKey extends RKey {
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
     static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
 
-    pressing := False   ; キーが現在物理的に、または論理的に「押し下げ状態」にあるか（リピート防止用）
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
     ;long_key_str := ""  ; (未使用) 長押し時に送信するキー。現在は mode 1 で自動的に Shift版が使用される
 
