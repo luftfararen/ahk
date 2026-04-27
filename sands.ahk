@@ -1149,13 +1149,8 @@ class MKey {
             this.key_str := ""
             this.key := key ; 登録されたキー
         } else {
-            if SubStr(key, 1, 1) = "{" {
-                this.key := SubStr(key, 2, StrLen(key) - 2)
-                this.key_str := key
-            } else {
-                this.key := key
-                this.key_str := "{" . key . "}"
-            }
+            this.key := removeBraces(key)
+            this.key_str := addBraces(key)
         }
         this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
         this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
@@ -1166,6 +1161,7 @@ class MKey {
      * @returns {Boolean} 押されていれば true
      */
     IsPressed() => (this.pressed_time != 0)
+    ;IsPressed() => GetKeyState(this.key_str, "P")
 
     /**
      * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
@@ -1220,6 +1216,13 @@ addBraces(str) {
     return "{" . str . "}"
 }
 
+removeBraces(str) {
+    if RegExMatch(str, "^\{.*\}$") {
+        return SubStr(str, 2, StrLen(str) - 2)
+    }
+    return str
+}
+
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
@@ -1236,6 +1239,7 @@ class RKey {
      */
     __New(key) {
         this.org_key := addBraces(key)
+        this.org_key_bare := removeBraces(key)
         this.shift_key_str := ""     ; (IME OFF) Shift 時のキー
         this.shift_ime_key_str := "" ; (IME ON) Shift 時のキー
         this.SetKey(key)   ; IME OFF 時のキーを設定
@@ -1339,14 +1343,18 @@ class RKey {
 
 [mode]
 0:RKeyと同じ（長押し無効）
-1:Down時に即送信し長押しでShift版に置換、送信されるキーはRKeyと同様登録したキー
+1:Down時に即送信し長押しでShift版に置換、送信されるキーは登録キー
 2:長押しは未送信(Modifier専用)
 3:長押しは未送信(MKeyと同じ)、単押しのときはデフォルトキー
+(予約)4:長押しは未送信(MKeyと同じ)、単押しのときはデフォルトキー
+(予約)5:Down時に登録キーを即送信し、長押しで長押し登録キーに置換、送信されるキーは
 
-1,2,3はキーリピートが無効化
-0,1,2はCtrl,Alt,Win(CAW)の押下時はデフォルトキーに対する修飾として送信
-デフォルトキーは、コンストラタで登録したキーで通常はqwertyが登録されている
-ただし、変換キーなどの特殊キーには、物理的なキーとは別なキーを割り当てている場合があるので注意が必要
+1,2,3,4,5はキーリピートが無効化
+0,1,2,4,5はCtrl,Alt,Win(CAW)の押下時はデフォルトキーに対する修飾として送信
+* デフォルトキー:コンストラタで登録したキーで通常はqwertyが登録されている
+ ただし、変換キーなどの特殊キーには、物理的なキーとは別なキーを割り当てている場合があるので注意が必要
+* 登録キー: RKeyと同様SetKey,SetImeKeyで設定する
+* (予約)長押し登録キー: SetLongKey,SetLongImeKeyで設定する
 ============================================================================*/
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
@@ -1421,7 +1429,8 @@ class LKey extends RKey {
     /**
      * キーが現在押し下げられているかどうかを確認する
      */
-    IsPressed() => this.pressed_time != 0
+    ;IsPressed() => this.pressed_time != 0
+    IsPressed() => GetKeyState(this.org_key_bare, "P")
 
     Down() {
         Critical
@@ -1530,63 +1539,63 @@ colon := LKey(C_COLON, 2)
 
 ; --- リマップキー (RKey) ---
 ; (数字列)
-k1 := RKey("1")
-k2 := RKey("2")
-k3 := RKey("3")
-k4 := RKey("4")
-k5 := RKey("5")
-k6 := RKey("6")
-k7 := RKey("7")
-k8 := RKey("8")
-k9 := RKey("9")
-k0 := RKey("0")
-minus := RKey("-")
-hat := RKey(C_HAT) ; ^
-backslash := RKey("\") ; ¥
+k1 := LKey("1")
+k2 := LKey("2")
+k3 := LKey("3")
+k4 := LKey("4")
+k5 := LKey("5")
+k6 := LKey("6")
+k7 := LKey("7")
+k8 := LKey("8")
+k9 := LKey("9")
+k0 := LKey("0")
+minus := LKey("-")
+hat := LKey(C_HAT) ; ^
+backslash := LKey("\") ; ¥
 ;
 ; (QWERTY段)
-q := LKey("q", 1)
-w := LKey("w", 1)
-e := LKey("e", 1)
-r := LKey("r", 1)
-t := LKey("t", 1)
+q := LKey("q")
+w := LKey("w")
+e := LKey("e")
+r := LKey("r")
+t := LKey("t")
 ;
-y := LKey("y", 1)
-u := LKey("u", 1)
-i := LKey("i", 1)
-o := LKey("o", 1)
-p := LKey("p", 1)
-at := LKey("@", 1)
-openbracket := LKey("[", 1)
+y := LKey("y")
+u := LKey("u")
+i := LKey("i")
+o := LKey("o")
+p := LKey("p")
+at := LKey("@")
+openbracket := LKey("[")
 ;
 ; (ASDF段)
-a := LKey("a", 1)
-s := LKey("s", 1)
-d := LKey("d", 1)
-f := LKey("f", 1)
-g := LKey("g", 1)
+a := LKey("a")
+s := LKey("s")
+d := LKey("d")
+f := LKey("f")
+g := LKey("g")
 ;
-h := LKey("h", 1)
-j := LKey("j", 1)
-k := LKey("k", 1)
-l := LKey("l", 1)
-semicolon := LKey(C_SEMICOLON, 1)
+h := LKey("h")
+j := LKey("j")
+k := LKey("k")
+l := LKey("l")
+semicolon := LKey(C_SEMICOLON)
 ;colon := RKey(C_COLON) ; (Defined as LKey above)
-closebracket := LKey("]", 1)
+closebracket := LKey("]")
 ;
 ; (ZXCV段)
-z := LKey("z", 1)
-x := LKey("x", 1)
-c := LKey("c", 1)
-v := LKey("v", 1)
-b := LKey("b", 1)
+z := LKey("z")
+x := LKey("x")
+c := LKey("c")
+v := LKey("v")
+b := LKey("b")
 ;
-n := LKey("n", 1)
-m := LKey("m", 1)
-comma := LKey(C_COMMA, 1) ; ,
-period := LKey(".", 1) ; .
-slash := LKey("/", 1) ; /
-backslash2 := LKey(C_BACKSLASH2, 1) ; _
+n := LKey("n")
+m := LKey("m")
+comma := LKey(C_COMMA) ; ,
+period := LKey(".") ; .
+slash := LKey("/") ; /
+backslash2 := LKey(C_BACKSLASH2) ; _
 ;
 ; (矢印キー - リマップ用)
 up := RKey(C_UP)
@@ -1608,56 +1617,6 @@ LAYOUT_KEYS := [
     a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
     z, x, c, v, b, n, m, comma, period, slash, backslash2
 ]
-
-LoadLayoutConfig()
-
-; ============================================================================
-; レイヤー状態判定関数
-; ============================================================================
-
-L_NAVL_CTRL := 1
-L_SYMBOL_NUM := 2
-L_SYMBOL1 := 7
-L_SYMBOL2 := 6
-L_SELECT := 3
-L_NUMPAD := 4
-L_SHIFT := 5
-L_FUNC := 6
-
-/**
- * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
- * 他のレイヤーが同時にアクティブでないことも確認します。
- * @param {Integer} layer - 確認するレイヤー番号
- * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
- */
-LayerState(layer) {
-    ; Check the specified layer
-    if layer = L_NAVL_CTRL {
-        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SYMBOL1 {
-        return conv.IsPressed()
-    }
-    if layer = L_SYMBOL2 {
-        return colon.IsPressed() || f14.IsPressed()
-    }
-    if layer = L_SYMBOL_NUM {
-        return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
-    }
-    if layer = L_NUMPAD {
-        return tab.IsPressed()
-    }
-    if layer = L_SELECT {
-        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SHIFT {
-        return space.IsPressed()
-    }
-    ; if layer = L_FUNC {
-    ;     return f14.IsPressed()
-    ; }
-    return false
-}
 
 ; ============================================================================
 ; キーレイアウト切り替え関数
@@ -2037,6 +1996,68 @@ ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
+}
+
+; ============================================================================
+; 設定の読み込み
+; ============================================================================
+init() {
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.long_press_mode := 1
+    }
+
+    colon.long_press_mode := 2
+}
+
+LoadLayoutConfig()
+init()
+
+; ============================================================================
+; レイヤー状態判定関数
+; ============================================================================
+
+L_NAVL_CTRL := 1
+L_SYMBOL_NUM := 2
+L_SYMBOL1 := 7
+L_SYMBOL2 := 6
+L_SELECT := 3
+L_NUMPAD := 4
+L_SHIFT := 5
+L_FUNC := 6
+
+/**
+ * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
+ * 他のレイヤーが同時にアクティブでないことも確認します。
+ * @param {Integer} layer - 確認するレイヤー番号
+ * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+ */
+LayerState(layer) {
+    ; Check the specified layer
+    if layer = L_NAVL_CTRL {
+        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+    }
+    if layer = L_SYMBOL1 {
+        return conv.IsPressed()
+    }
+    if layer = L_SYMBOL2 {
+        return colon.IsPressed() || f14.IsPressed()
+    }
+    if layer = L_SYMBOL_NUM {
+        return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
+    }
+    if layer = L_NUMPAD {
+        return tab.IsPressed()
+    }
+    if layer = L_SELECT {
+        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+    }
+    if layer = L_SHIFT {
+        return space.IsPressed()
+    }
+    ; if layer = L_FUNC {
+    ;     return f14.IsPressed()
+    ; }
+    return false
 }
 
 ; ============================================================================
