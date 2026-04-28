@@ -50,6 +50,7 @@ mt	みて
 rt	りて
 kt	こ
 nt	の
+nr	ない
 sk	し
 xi	し
 xe	せ

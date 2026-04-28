@@ -61,12 +61,12 @@ B_CONV := "{Blind}{sc079}"
 
 ; --- バックスラッシュ/円キー (\) ---
 ;R_BACKSLASH := "sc07D"
-C_BACKSLASH := "{sc07D}"
-B_BACKSLASH := "{Blind}{sc07D}"
+C_YEN := "{sc07D}"
+B_YEN := "{Blind}{sc07D}"
 
 ; --- アンダースコアキー (\) ---
-;R_BACKSLASH2 := "sc073"
-C_BACKSLASH2 := "{sc073}"
+;R_backslash := "sc073"
+C_BACKSLASH := "{sc073}"
 
 ; --- ハット/キャレットキー (^) ---
 ;R_HAT := "sc00D"
@@ -402,6 +402,14 @@ QueryPerformanceCounter() {
     return tick
 }
 
+; よく使う記号のスキャンコードを文字に変換(;:,.¥_\)
+sc_to_char_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
+    "sc073", "\", "sc00D", "^")
+
+; 記号をスキャンコードに変換
+char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
+    "\", "sc073", "^", "sc00D")
+
 class KeyLogItem {
     count := 0
     count_d := 0
@@ -624,9 +632,7 @@ class KeyLogger {
             }
 
             ; よく使う記号のスキャンコードを文字に変換
-            static sc_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
-                "sc073", "_", "sc00D", "^")
-            char := sc_map.Get(char, char)
+            char := char_to_sc_map.Get(char, char)
 
             if char = ""
                 continue
@@ -1550,7 +1556,7 @@ k9 := LKey("9")
 k0 := LKey("0")
 minus := LKey("-")
 hat := LKey(C_HAT) ; ^
-backslash := LKey("\") ; ¥
+yen := LKey("\") ; ¥
 ;
 ; (QWERTY段)
 q := LKey("q")
@@ -1594,7 +1600,7 @@ m := LKey("m")
 comma := LKey(C_COMMA) ; ,
 period := LKey(".") ; .
 slash := LKey("/") ; /
-backslash2 := LKey(C_BACKSLASH2) ; _
+backslash := LKey(C_BACKSLASH) ; \ _
 ;
 ; (矢印キー - リマップ用)
 up := RKey(C_UP)
@@ -1611,10 +1617,10 @@ LAYOUT_CHAR_KEYS := [
 ]
 
 LAYOUT_KEYS := [
-    k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, backslash,
+    k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
     q, w, e, r, t, y, u, i, o, p, at, openbracket,
     a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
-    z, x, c, v, b, n, m, comma, period, slash, backslash2
+    z, x, c, v, b, n, m, comma, period, slash, H
 ]
 
 ; ============================================================================
@@ -1836,6 +1842,28 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
     for i, keyObj in LAYOUT_CHAR_KEYS {
         keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
+}
+
+MakeLayoutMap(layout) {
+    static qwerty_keys := [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
+        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
+        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
+        "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
+    ]
+    map := Map()
+    l := LayoutString(layout)
+    for i, key in qwerty_keys {
+        map[key] = l.GetElement(i)
+    }
+
+    ;scは{}なし
+    ; for i, sc in sc_to_char_map.Keys() {
+    ;     map[sc] = map[sc_to_char_map[sc]]
+    ; }
+
+    return map
+
 }
 
 StoreLayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
@@ -2404,7 +2432,7 @@ b:: b.SendShiftedKey()
 ; 9::k9.SendShiftedKey()
 ; -::minus.SendShiftedKey()
 ; sc00D::hat.SendShiftedKey()
-sc07D:: backslash.SendShiftedKey()
+sc07D:: yen.SendShiftedKey()
 *6:: Send(B_F6)
 *7:: Send(B_F7)
 *8:: Send(B_F8)
@@ -2431,7 +2459,7 @@ m:: m.SendShiftedKey()
 sc033:: comma.SendShiftedKey()
 .:: period.SendShiftedKey()
 sc035:: slash.SendShiftedKey()
-sc073:: backslash2.SendShiftedKey()
+sc073:: backslash.SendShiftedKey()
 Up:: up.SendShiftedKey()
 Down:: down.SendShiftedKey()
 Left:: left.SendShiftedKey()
@@ -2467,8 +2495,8 @@ Right:: right.SendShiftedKey()
 *- up:: minus.Up()
 *sc00D:: hat.Down() ; ^
 *sc00D up:: hat.Up()
-*sc07D:: backslash.Down() ; ¥
-*sc07D up:: backslash.Up()
+*sc07D:: yen.Down() ; ¥
+*sc07D up:: yen.Up()
 *q:: q.Down()
 *q up:: q.Up()
 *w:: w.Down()
@@ -2537,8 +2565,8 @@ Right:: right.SendShiftedKey()
 *. up:: period.Up()
 *sc035:: slash.Down() ; /
 *sc035 up:: slash.Up()
-*sc073:: backslash2.Down() ; _
-*sc073 up:: backslash2.Up()
+*sc073:: backslash.Down() ; _
+*sc073 up:: backslash.Up()
 *Down:: down.Down()
 *Down up:: down.Up()
 *Up:: up.Down()
