@@ -1566,7 +1566,7 @@ tab := MKey(R_TAB)
 noconv := MKey(R_NOCONV)
 conv := MKey(R_ENTER)
 f14 := MKey(R_ZENKAKU)
-colon := LKey(C_COLON, 2)
+;colon := LKey(C_COLON, 2)
 
 ; --- リマップキー (RKey) ---
 ; (数字列)
@@ -1611,7 +1611,7 @@ j := LKey("j")
 k := LKey("k")
 l := LKey("l")
 semicolon := LKey(C_SEMICOLON)
-;colon := RKey(C_COLON) ; (Defined as LKey above)
+colon := LKey(C_COLON)
 closebracket := LKey("]")
 ;
 ; (ZXCV段)
