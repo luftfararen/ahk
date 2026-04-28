@@ -623,10 +623,10 @@ class KeyLogger {
 
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
                     if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
-                        char := SubStr(char, 2, -1) ; {sc033} を sc033 に
+                        char := SubStr(char, 2, -1) ; {sc033} を sc033 に"
                     else {
-                        this.ResetHistory()
-                        continue ; 記録対象外の特殊キー ({Enter} 等) は無視
+                        char := " "
+                        ;continue ; 記録対象外の特殊キー ({Enter} 等) は無視
                     }
                 }
             }
@@ -652,6 +652,10 @@ class KeyLogger {
 
             ; 履歴が3文字に満たない場合はスキップ
             if this.hist_1 == ""
+                continue
+            if this.hist_1 == " "
+                continue
+            if this.hist_2 == " "
                 continue
 
             seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
@@ -800,21 +804,6 @@ class KeyLogger {
         this.total_log_time := Max(time, this.total_log_time)
 
     }
-}
-
-/**
- * 指定されたキー文字列に修飾記号が含まれているかを確認するヘルパー関数
- * @param {String} text - キー文字列 (例: "^c", "{Blind}a")
- * @returns {Boolean} 修飾記号が含まれていれば true
- */
-HasModifierSymbols(text) {
-    list := ["{Blind}", "+", "#", "^", "!"]
-    for index, item in list {
-        if InStr(text, item, 'Off') > 0 {
-            return true
-        }
-    }
-    return false
 }
 
 class LayoutString {
@@ -1229,40 +1218,78 @@ removeBraces(str) {
     return str
 }
 
+/**
+ * 指定されたキー文字列に修飾記号が含まれているかを確認するヘルパー関数
+ * @param {String} text - キー文字列 (例: "^c", "{Blind}a")
+ * @returns {Boolean} 修飾記号が含まれていれば true
+ */
+HasModifierSymbols(text) {
+    list := ["{Blind}", "+", "#", "^", "!"]
+    for index, item in list {
+        if InStr(text, item, 'Off') > 0 {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * キー送信用の文字列を生成し、必要に応じて {Blind} 接頭辞を付与する。
+ * 
+ * 【入力文字列の仕様】
+ * 1. 単独の文字 (例: "a") -> "{Blind}a"
+ * 2. 特殊記号を含む文字列 (例: "+a", "{Blind}s") -> そのまま返す
+ * 3. キー名/スキャンコード (例: "{space}", "{sc027}") -> "{Blind}{space}"
+ * 4. プレフィックス指定 (例: prefix="+", text="a") -> "{Blind}+a"
+ * 
+ * @param {String} text - 変換対象のキー文字列
+ * @param {String} [prefix=""] - キー名の前に付与する接頭辞 (例: "+" で Shift)
+ * @returns {String} {Blind} が付与された（またはそのままの）キー送信文字列
+ */
+MakeBlindKeyText(text, prefix := "") {
+    if text = ""
+        return ""
+    has_mod := HasModifierSymbols(text)
+    if StrLen(text) == 1
+        return has_mod ? text : "{Blind}" . prefix . text
+    else
+        if has_mod
+            return text
+    return SubStr(text, 1, 1) == "{" && SubStr(text, -1) == "}" ? "{Blind}" . prefix . text : text
+}
+
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
+登録する文字列は、MakeTextKeyのコメントを参照
 ============================================================================*/
 class RKey {
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
     static last_key := ""
     /**
      * コンストラクタ
-     * @param {String} key - 送信する基本キー (例: "a", "{sc027}")
+     * @param {String} key - デフォルトキー(物理キー) (例: "a", "{sc027}")
      * @param {String} [shift_key=""] - Shift 押下時に送信するキー
      *                                 "" = 自動生成 (例: "+a")
-     *                                 "none" = Shift 押下時は何もしない
      */
     __New(key) {
         this.org_key := addBraces(key)
         this.org_key_bare := removeBraces(key)
-        this.shift_key_str := ""     ; (IME OFF) Shift 時のキー
-        this.shift_ime_key_str := "" ; (IME ON) Shift 時のキー
+        this.shift_key_text := ""     ; (IME OFF) Shift 時のキー
+        this.shift_ime_key_text := "" ; (IME ON) Shift 時のキー
         this.SetKey(key)   ; IME OFF 時のキーを設定
         this.SetImeKey(key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
     }
 
     /**
      * IME OFF 時のキーマッピングを設定する
-     * @param {String} key - 送信する基本キー(1文字)
-     * @param {String} [shift_key=""] - Shift 時のキー(1文字)。"none" で無効化。
+     * @param {String} key -  登録する文字列
+     * @param {String} [shift_key=""] - Shift 時の登録する文字列。
      */
     SetKey(key, shift_key := "") {
         this.key := key
-        is_mod := HasModifierSymbols(key)
-        this.short_key_str := is_mod ? key : "{Blind}" . key
-        this.shift_key_str := (shift_key == "none") ? "" : (shift_key != "") ? shift_key : (is_mod ? "" : "{Blind}+" .
-            key)
+        this.key_text := MakeBlindKeyText(key)
+        this.shift_key_text := shift_key == "" ? MakeBlindKeyText(key, "+") : MakeBlindKeyText(shift_key)
     }
 
     /**
@@ -1272,11 +1299,8 @@ class RKey {
      *                                 "" = 自動/デフォルト、"none" = 無効化。
      */
     SetImeKey(key := "", shift_key := "") {
-        k := (key != "") ? key : this.short_key_str
-        is_mod := HasModifierSymbols(k)
-        this.short_ime_key_str := is_mod ? k : "{Blind}" . k
-        this.shift_ime_key_str := (shift_key == "none") ? "" : (shift_key != "") ? shift_key : (is_mod ? this.shift_key_str :
-            "{Blind}+" . k)
+        this.ime_key_text := key = "" ? this.key_text : MakeBlindKeyText(key)
+        this.shift_ime_key_text := shift_key = "" ? MakeBlindKeyText(key, "+") : MakeBlindKeyText(shift_key)
     }
 
     /**
@@ -1289,9 +1313,9 @@ class RKey {
     SendShiftedKey(shift := true) {
         Critical
         if shift {
-            this._SendKey(this.shift_ime_key_str, this.shift_key_str)
+            this._SendKey(this.shift_ime_key_text, this.shift_key_text)
         } else {
-            this._SendKey(this.short_ime_key_str, this.short_key_str)
+            this._SendKey(this.ime_key_text, this.key_text)
         }
         return shift
     }
@@ -1303,7 +1327,8 @@ class RKey {
      * @returns {Boolean} CAW が押されていた場合 (パススルー発生) は true
      */
     _SendCAWKey(pressed_key) {
-        caw := GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin",
+        caw := GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState(
+            "RWin",
             "P")
         if caw {
             Send("{Blind}" . pressed_key)
@@ -1353,7 +1378,7 @@ class RKey {
 2:長押しは未送信(Modifier専用)
 3:長押しは未送信(MKeyと同じ)、単押しのときはデフォルトキー
 (予約)4:長押しは未送信(MKeyと同じ)、単押しのときはデフォルトキー
-(予約)5:Down時に登録キーを即送信し、長押しで長押し登録キーに置換、送信されるキーは
+(予約)5:Down時に登録キーを即送信し、長押しで長押し登録キーに置換
 
 1,2,3,4,5はキーリピートが無効化
 0,1,2,4,5はCtrl,Alt,Win(CAW)の押下時はデフォルトキーに対する修飾として送信
@@ -1361,6 +1386,7 @@ class RKey {
  ただし、変換キーなどの特殊キーには、物理的なキーとは別なキーを割り当てている場合があるので注意が必要
 * 登録キー: RKeyと同様SetKey,SetImeKeyで設定する
 * (予約)長押し登録キー: SetLongKey,SetLongImeKeyで設定する
+* mode=1,5で登録できるキー（文字列）は、一文字のみ
 ============================================================================*/
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
@@ -1418,7 +1444,7 @@ class LKey extends RKey {
     ; SetLongKey(long_key := "") {
     ;     if long_key = "" {
     ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := this.shift_key_str ; デフォルトでは Shift 時のキーを使用
+    ;         this.long_key_str := this.shift_key_text ; デフォルトでは Shift 時のキーを使用
     ;     } else if long_key = "none" {
     ;         this.long_press_mode := 0 ; 長押しを無効化
     ;         this.long_key_str := "none"
@@ -1640,7 +1666,8 @@ ResetIME() {
 LoadLayoutConfig() {
     try {
         try {
-            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(LKey
+            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(
+                LKey
                 .long_press_th)))
         } catch {
         }
