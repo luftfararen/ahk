@@ -224,14 +224,25 @@ shift_lambda := () => GetKeyState("Shift", "P")
  * @returns {Boolean} Shiftが押されていれば true
  */
 IsPhysicalShiftPressed() {
-    global shift_lambda
-    return shift_lambda()
+    ;global shift_lambda
+    ;return shift_lambda()
+    return GetKeyState("Shift", "P")
 }
 
 Timer() {
     DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
     DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
     return tick / freq
+}
+
+QueryPerformanceFrequency() {
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+    return freq
+}
+
+QueryPerformanceCounter() {
+    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+    return tick
 }
 
 /**
@@ -390,16 +401,6 @@ class ImeState {
     static MakeForceStateWord() {
         return ImeState.force_ime_on ? "On" : "Off"
     }
-}
-
-QueryPerformanceFrequency() {
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
-    return freq
-}
-
-QueryPerformanceCounter() {
-    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
-    return tick
 }
 
 ; よく使う記号のスキャンコードを文字に変換(;:,.¥_\)
@@ -1234,28 +1235,59 @@ HasModifierSymbols(text) {
 }
 
 /**
- * キー送信用の文字列を生成し、必要に応じて {Blind} 接頭辞を付与する。
+ * 1つの波括弧で囲まれた文字列か判定する
+ * @param {String} text - 文字列
+ * @returns {Boolean} 1つの波括弧で囲まれていれば true 複数の波括弧ペアなら false
+ */
+IsSingleBraceText(text) {
+    ; 1. 全体が3文字以上であること（ "{x}" の最小構成 ）
+    ; 2. 先頭が "{" で、末尾が "}" であること
+    ; 3. 2文字目以降に "{" が含まれていないこと（複数のペア "{}{}" を防ぐ）
+    return (StrLen(text) >= 3
+    && SubStr(text, 1, 1) = "{"
+    && SubStr(text, -1) = "}"
+    && !InStr(text, "{", false, 2))
+}
+
+/**
+ * キー送信用の文字列を生成し、可能な場合に {Blind} 接頭辞を付与する。
  * 
  * 【入力文字列の仕様】
  * 1. 単独の文字 (例: "a") -> "{Blind}a"
  * 2. 特殊記号を含む文字列 (例: "+a", "{Blind}s") -> そのまま返す
- * 3. キー名/スキャンコード (例: "{space}", "{sc027}") -> "{Blind}{space}"
- * 4. プレフィックス指定 (例: prefix="+", text="a") -> "{Blind}+a"
+ * 3. 波括弧で囲まれた文字列(キー名/スキャンコード) (例: "{space}", "{sc027}") -> "{Blind}{space}"
+ * 4. 複数の文字、または、波括弧で囲まれた文字列 (例: "abc","{text}{text2}") -> そのまま返す
+ * ※プレフィックス指定は1,3のみ適用 (例: prefix="+", text="a") -> "{Blind}+a"
  * 
  * @param {String} text - 変換対象のキー文字列
  * @param {String} [prefix=""] - キー名の前に付与する接頭辞 (例: "+" で Shift)
  * @returns {String} {Blind} が付与された（またはそのままの）キー送信文字列
  */
+/**
+ * 改善版 MakeBlindKeyText
+ */
 MakeBlindKeyText(text, prefix := "") {
-    if text = ""
+    if text == ""
         return ""
-    has_mod := HasModifierSymbols(text)
-    if StrLen(text) == 1
-        return has_mod ? text : "{Blind}" . prefix . text
-    else
-        if has_mod
-            return text
-    return SubStr(text, 1, 1) == "{" && SubStr(text, -1) == "}" ? "{Blind}" . prefix . text : text
+
+    ; すでに {Blind} がついている場合は、二重付与を防ぐためにそのまま返す
+    if InStr(text, "{Blind}", false)
+        return text
+
+    ; 入力テキスト自体に修飾記号 (+, ^, !, #) が含まれている場合はそのまま返す
+    if HasModifierSymbols(text)
+        return text
+
+    ; 判定ロジック
+    ; 1. 単独の文字 (StrLen == 1)
+    ; 2. 1つの波括弧ペアのみで構成される (IsSingleBraceText == true)
+    ; 上記のいずれかの場合のみ {Blind} と prefix を付与する
+    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
+        return "{Blind}" . prefix . text
+    }
+
+    ; それ以外（"abc" や "{a}{b}" など）はそのまま返す
+    return text
 }
 
 /*============================================================================
@@ -1559,14 +1591,20 @@ class LKey extends RKey {
 ; ============================================================================
 
 ; --- モディファイアキー (MKey) ---
-f13 := MKey("")
-space := MKey(R_SPACE)
-;shift_lambda := () => (GetKeyState("Shift","P") || space.IsPressed())
-tab := MKey(R_TAB)
-noconv := MKey(R_NOCONV)
-conv := MKey(R_ENTER)
-f14 := MKey(R_ZENKAKU)
+; f13 := MKey("")
+; space := MKey(R_SPACE)
+; tab := MKey(R_TAB)
+; noconv := MKey(R_NOCONV)
+; conv := MKey(R_ENTER)
+; f14 := MKey(R_ZENKAKU)
 ;colon := LKey(C_COLON, 2)
+
+f13 := LKey("f13", 3)
+space := LKey(R_SPACE, 3)
+tab := LKey(R_TAB, 3)
+noconv := LKey(R_NOCONV, 3)
+conv := LKey(R_ENTER, 3)
+f14 := LKey(R_ZENKAKU, 3)
 
 ; --- リマップキー (RKey) ---
 ; (数字列)
