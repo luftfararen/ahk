@@ -407,10 +407,12 @@ class ImeState {
 ; よく使う記号のスキャンコードを文字に変換(;:,.¥_\)
 sc_to_char_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
     "sc073", "\", "sc00D", "^")
+sc_to_char_map.default := " "
 
 ; 記号をスキャンコードに変換
 char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
     "\", "sc073", "^", "sc00D")
+char_to_sc_map.default := ""
 
 class KeyLogItem {
     count := 0
@@ -624,9 +626,9 @@ class KeyLogger {
                     char := SubStr(char, 8) ; {Blind} を除去
 
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
-                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}"
-                        char := SubStr(char, 2, -1) ; {sc033} を sc033 に"
-                    else {
+                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}" {
+                        char := sc_to_char_map[SubStr(char, 2, -1)] ; {sc033} を文字に変換
+                    } else {
                         char := " "
                         ;continue ; 記録対象外の特殊キー ({Enter} 等) は無視
                     }
@@ -634,7 +636,7 @@ class KeyLogger {
             }
 
             ; よく使う記号のスキャンコードを文字に変換
-            char := char_to_sc_map.Get(char, char)
+            ;char := sc_to_char_map.Get(char, char)
 
             if char = ""
                 continue
@@ -1675,6 +1677,7 @@ comma := LKey(C_COMMA) ; ,
 period := LKey(".") ; .
 slash := LKey("/") ; /
 backslash := LKey(C_BACKSLASH) ; \ _
+enter := LKey("{Enter}")
 ;
 ; (矢印キー - リマップ用)
 up := RKey(C_UP)
@@ -2135,7 +2138,7 @@ init() {
         keyObj.long_press_mode := 1
     }
 
-    colon.long_press_mode := 2
+    ;colon.long_press_mode := 2
 }
 LoadLayoutConfig()
 init()
@@ -2212,7 +2215,7 @@ LayerState(layer) {
 *k:: Send("+{Down}")  ; Shift+Down
 *l:: Send("+{Right}") ; Shift+Right
 *sc027:: Send("+{Enter}") ; Semicolon (;) -> Shift+Enter
-*Enter:: Send(B_ENTER)
+*Enter:: SendAndLog(B_ENTER)
 *n:: Send("+{End}")   ; Shift+End
 *m:: Send(C_DEL)    ; Delete
 *sc033:: Send("^+{Left}") ; Comma (,) -> Ctrl+Shift+Left
@@ -2255,7 +2258,7 @@ sc07D:: Send("^+{sc07D}") ; \ -> |
 *j:: Send(B_LEFT)  ; Left
 *k:: Send(B_DOWN)  ; Down
 *l:: Send(B_RIGHT) ; Right
-*sc027:: Send(B_ENTER) ; Semicolon (;) -> Enter
+*sc027:: SendAndLog(B_ENTER) ; Semicolon (;) -> Enter
 ;sc028::Return ; Colon (:) -> Disabled
 *]:: Send("+^\")
 *n:: Send(B_END)   ; End
@@ -2263,7 +2266,7 @@ sc07D:: Send("^+{sc07D}") ; \ -> |
 *sc033:: Send(B_CLEFT) ; Comma (,) -> Ctrl+Left
 *.:: Send(B_CRIGHT) ; Period (.) -> Ctrl+Right
 sc035:: Send("^+{sc07D}") ; / -> |
-*Enter:: Send("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
+*Enter:: SendAndLog("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
 *a:: Send("{Blind}^a") ; Select All
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 Esc:: {
@@ -2354,7 +2357,7 @@ h:: Send("=")
 j:: Send(C_N0)
 k:: Send(C_N1)
 l:: Send(C_N2)
-sc027:: Send(B_ENTER)
+sc027:: SendAndLog(B_ENTER)
 n:: Send("+3")
 m:: Send(C_N3)
 sc033:: Send(C_N4)
@@ -2400,7 +2403,7 @@ h:: Send("=")
 j:: Send(C_N0)
 k:: Send(C_N1)
 l:: Send(C_N2)
-sc027:: Send(B_ENTER)
+sc027:: SendAndLog(B_ENTER)
 n:: Send("+3")
 m:: Send(C_N3)
 sc033:: Send(C_N4)
@@ -2643,6 +2646,8 @@ Right:: right.SendShiftedKey()
 *sc035 up:: slash.Up()
 *sc073:: backslash.Down() ; _
 *sc073 up:: backslash.Up()
+*Enter:: enter.Down()
+*Enter up:: enter.Up()
 *Down:: down.Down()
 *Down up:: down.Up()
 *Up:: up.Down()
