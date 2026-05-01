@@ -10,7 +10,6 @@ D	・
 K	・
 -	ー
 @	ー
-:	っ
 dwu	でゅ
 two	とぅ
 thi	てぃ
@@ -51,6 +50,7 @@ mt	みて
 rt	りて
 kt	こ
 nt	の
+nr	ない
 sk	し
 xi	し
 xe	せ
@@ -59,7 +59,8 @@ sr	する
 sh	する
 tk	と
 dr	で
-rd	れる
+rw	れる
+rd	れ
 sd	される
 wr	を
 nk	に
