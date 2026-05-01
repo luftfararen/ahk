@@ -2082,35 +2082,30 @@ ChangeMinatoLayoutImpl() {
 
     ; IME ON 時の差分設定
     q.SetImeKey("l", "?")
-    w.SetImeKey("w", "wo")
-    e.SetImeKey("r", "de")
-    r.SetImeKey("d", "da")
+    w.SetImeKey("w")
+    e.SetImeKey("r")
+    r.SetImeKey("d")
     t.SetImeKey("f")
-
     a.SetImeKey("n", "(")
     s.SetImeKey("s", ")")
-    d.SetImeKey("k", "de")
+    d.SetImeKey("k")
     f.SetImeKey("t", "-")
     ;g.SetImeKey("h")
-
     z.SetImeKey("z", "[")
     x.SetImeKey("p", "]")
     c.SetImeKey("m")
     v.SetImeKey("h", "v")
     b.SetImeKey("b", "v")
-
     y.SetImeKey("ya")
     u.SetImeKey("yu")
-    i.SetImeKey("u", "yu")
+    i.SetImeKey("u", "ou")
     o.SetImeKey("yo")
-    p.SetImeKey("v")
-
+    p.SetImeKey("ou")
     h.SetImeKey(";", "ann") ; ;=nn
-    j.SetImeKey("a", "ya")
+    j.SetImeKey("a", "ou")
     k.SetImeKey("i", "xi")
     l.SetImeKey("e", "xe")
     semicolon.SetImeKey("o", "ou")
-
     n.SetImeKey("-", "a-")
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
