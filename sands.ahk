@@ -1695,7 +1695,7 @@ LAYOUT_KEYS := [
     k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
     q, w, e, r, t, y, u, i, o, p, at, openbracket,
     a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
-    z, x, c, v, b, n, m, comma, period, slash, H
+    z, x, c, v, b, n, m, comma, period, slash, backslash
 ]
 I_1 := 0
 I_2 := 1
