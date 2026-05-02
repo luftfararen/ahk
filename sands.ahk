@@ -59,12 +59,12 @@ R_CONV := "sc079"
 C_CONV := "{sc079}"
 B_CONV := "{Blind}{sc079}"
 
-; --- バックスラッシュ/円キー (\) ---
+; --- 円キー (¥) ---
 ;R_BACKSLASH := "sc07D"
 C_YEN := "{sc07D}"
 B_YEN := "{Blind}{sc07D}"
 
-; --- アンダースコアキー (\) ---
+; --- バックスラッシュキー (\) ---
 ;R_backslash := "sc073"
 C_BACKSLASH := "{sc073}"
 
@@ -413,6 +413,20 @@ sc_to_char_map.default := " "
 char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
     "\", "sc073", "^", "sc00D")
 char_to_sc_map.default := ""
+
+text_to_char_map := Map("semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]", "one", "1", "two", "2",
+    "three", "3",
+    "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9", "zero", "0")
+
+text_to_char(text) {
+    text_to_char_map.Default := ""
+    c := text_to_char_map[text]
+    if (c == "") {
+        return text
+    }
+    return c
+}
 
 class KeyLogItem {
     count := 0
@@ -1209,14 +1223,14 @@ class MKey {
  * @returns {String} 波括弧で囲まれた文字列
  */
 addBraces(str) {
-    if RegExMatch(str, "^\{.*\}$") {
+    if RegExMatch(str, "^¥{.*\}$") {
         return str
     }
     return "{" . str . "}"
 }
 
 removeBraces(str) {
-    if RegExMatch(str, "^\{.*\}$") {
+    if RegExMatch(str, "^¥{.*\}$") {
         return SubStr(str, 2, StrLen(str) - 2)
     }
     return str
@@ -1304,7 +1318,7 @@ class RKey {
      * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。省略時は物理キーと同じ。
      */
     __New(key, reg_key := "") {
-        this.layer_keys := Map()
+        this.layer_keys := ["", "", "", "", "", "", "", "", "", ""]
         this.org_key := addBraces(key)
         this.org_key_raw := removeBraces(key)
         if reg_key = "" {
@@ -1321,14 +1335,12 @@ class RKey {
     }
 
     SendLayer(layer_id, default_action := "") {
-        if this.layer_keys.Has(layer_id) {
-            action := this.layer_keys[layer_id]
-            if action != "" {
-                if action == "{none}"
-                    return
-                SendAndLog(action)
+        action := this.layer_keys[layer_id]
+        if action != "" {
+            if action == "{none}"
                 return
-            }
+            SendAndLog(action)
+            return
         }
         if default_action != ""
             SendAndLog(default_action)
@@ -1651,7 +1663,7 @@ k9 := LKey("9")
 k0 := LKey("0")
 minus := LKey("-")
 hat := LKey(C_HAT) ; ^
-yen := LKey("\") ; ¥
+yen := LKey("¥") ; ¥
 ;
 ; (QWERTY段)
 q := LKey("q")
@@ -1825,14 +1837,12 @@ LoadLayoutFromIni(index) {
             return
     } else if ver = 2 {
         if ApplyLayoutFromIni2(index) {
-            ApplyLayerLayoutFromIni(index, L_NAVL_CTRL, "n")
-            ApplyLayerLayoutFromIni(index, L_SYMBOL_NUM, "sn")
-            ApplyLayerLayoutFromIni(index, L_SYMBOL1, "s1")
-            ApplyLayerLayoutFromIni(index, L_SYMBOL2, "s2")
-            ApplyLayerLayoutFromIni(index, L_NUMPAD, "pad")
-            ApplyLayerLayoutFromIni(index, L_SELECT, "sel")
-            ApplyLayerLayoutFromIni(index, L_FUNC, "f")
-            ApplyLayerLayoutFromIni(index, L_SHIFT, "sh")
+            ApplyLayerLayoutFromIni(L_NAVL_CTRL)
+            ApplyLayerLayoutFromIni(L_SYMBOL_NUM)
+            ApplyLayerLayoutFromIni(L_SYMBOL1)
+            ApplyLayerLayoutFromIni(L_SYMBOL2)
+            ApplyLayerLayoutFromIni(L_NUMPAD)
+            ApplyLayerLayoutFromIni(L_SELECT)
             return
         }
     }
@@ -1951,7 +1961,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-StoreIMELayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -1965,14 +1975,15 @@ StoreIMELayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,.
         keyObj.SetIMEKey(l.GetElement(i), ls.GetElement(i))
     }
 }
-ApplyLayerLayoutFromIni(index, layer_id, prefix) {
+ApplyLayerLayoutFromIni(layer_id) {
+    prefix := "L"
     ini_path := A_ScriptDir . "\config.ini"
     try {
-        layout := IniRead(ini_path, index, prefix . "00", "")
+        layout := IniRead(ini_path, layer_id, prefix . "00", "")
         if layout == ""
             return false
         loop LAYOUT_KEYS.Length - 1 {
-            str := IniRead(ini_path, index, prefix . Format("{:02d}", A_Index), "")
+            str := IniRead(ini_path, layer_id, prefix . Format("{:02d}", A_Index), "")
             if str == ""
                 break
             layout .= " " . str
@@ -2035,7 +2046,7 @@ MakeLayoutMap(layout) {
     return map
 
 }
-StoreLayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -2134,35 +2145,30 @@ ChangeMinatoLayoutImpl() {
 
     ; IME ON 時の差分設定
     q.SetImeKey("l", "?")
-    w.SetImeKey("w", "wo")
-    e.SetImeKey("r", "de")
-    r.SetImeKey("d", "da")
+    w.SetImeKey("w")
+    e.SetImeKey("r")
+    r.SetImeKey("d")
     t.SetImeKey("f")
-
     a.SetImeKey("n", "(")
     s.SetImeKey("s", ")")
-    d.SetImeKey("k", "de")
+    d.SetImeKey("k")
     f.SetImeKey("t", "-")
     ;g.SetImeKey("h")
-
     z.SetImeKey("z", "[")
     x.SetImeKey("p", "]")
     c.SetImeKey("m")
     v.SetImeKey("h", "v")
     b.SetImeKey("b", "v")
-
     y.SetImeKey("ya")
     u.SetImeKey("yu")
-    i.SetImeKey("u", "yu")
+    i.SetImeKey("u", "ou")
     o.SetImeKey("yo")
-    p.SetImeKey("v")
-
+    p.SetImeKey("ou")
     h.SetImeKey(";", "ann") ; ;=nn
-    j.SetImeKey("a", "ya")
+    j.SetImeKey("a", "ou")
     k.SetImeKey("i", "xi")
     l.SetImeKey("e", "xe")
     semicolon.SetImeKey("o", "ou")
-
     n.SetImeKey("-", "a-")
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
@@ -2199,12 +2205,14 @@ init()
 ; ============================================================================
 L_NAVL_CTRL := 1
 L_SYMBOL_NUM := 2
-L_SYMBOL1 := 7
-L_SYMBOL2 := 6
-L_SELECT := 3
-L_NUMPAD := 4
-L_SHIFT := 5
-L_FUNC := 6
+L_SYMBOL1 := 3
+L_SYMBOL2 := 4
+L_SELECT := 5
+L_NUMPAD := 6
+L_SHIFT := 7
+
+L_FUNC := 4
+
 /**
  * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
  * 他のレイヤーが同時にアクティブでないことも確認します。
@@ -2292,7 +2300,7 @@ LayerState(layer) {
 *0:: k0.SendLayer(L_NAVL_CTRL, B_F10)
 *-:: minus.SendLayer(L_NAVL_CTRL, B_F11)
 *sc00D:: hat.SendLayer(L_NAVL_CTRL, B_F12) ; ^ -> F12
-sc07D:: yen.SendLayer(L_NAVL_CTRL, "^+{sc07D}") ; \ -> |
+sc07D:: yen.SendLayer(L_NAVL_CTRL, "^+{sc07D}") ; ¥ -> |
 *z:: z.SendLayer(L_NAVL_CTRL, B_UNDO)  ; Undo
 *x:: x.SendLayer(L_NAVL_CTRL, B_CUT)   ; Cut
 *c:: c.SendLayer(L_NAVL_CTRL, B_COPY)  ; Copy
@@ -2312,7 +2320,7 @@ sc07D:: yen.SendLayer(L_NAVL_CTRL, "^+{sc07D}") ; \ -> |
 *l:: l.SendLayer(L_NAVL_CTRL, B_RIGHT) ; Right
 *sc027:: semicolon.SendLayer(L_NAVL_CTRL, B_ENTER) ; Semicolon (;) -> Enter
 ;sc028::Return ; Colon (:) -> Disabled
-*]:: closebracket.SendLayer(L_NAVL_CTRL, "+^\")
+*]:: closebracket.SendLayer(L_NAVL_CTRL, "+^¥")
 *n:: n.SendLayer(L_NAVL_CTRL, B_END)   ; End
 *m:: m.SendLayer(L_NAVL_CTRL, B_DEL)   ; Delete
 *sc033:: comma.SendLayer(L_NAVL_CTRL, B_CLEFT) ; Comma (,) -> Ctrl+Left
