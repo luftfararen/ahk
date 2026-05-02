@@ -59,13 +59,13 @@ R_CONV := "sc079"
 C_CONV := "{sc079}"
 B_CONV := "{Blind}{sc079}"
 
-; --- バックスラッシュ/円キー (\) ---
-;R_BACKSLASH := "sc07D"
+; --- 円キー (¥) ---
+;R_YEN := "sc07D"
 C_YEN := "{sc07D}"
 B_YEN := "{Blind}{sc07D}"
 
-; --- アンダースコアキー (\) ---
-;R_backslash := "sc073"
+; --- バックスラッシュキー (\) ---
+;R_BACKSLASH := "sc073"
 C_BACKSLASH := "{sc073}"
 
 ; --- ハット/キャレットキー (^) ---
@@ -413,6 +413,20 @@ sc_to_char_map.default := " "
 char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
     "\", "sc073", "^", "sc00D")
 char_to_sc_map.default := ""
+
+text_to_char_map := Map("semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]", "one", "1", "two", "2",
+    "three", "3",
+    "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9", "zero", "0")
+
+text_to_char(text) {
+    text_to_char_map.Default := ""
+    c := text_to_char_map[text]
+    if (c == "") {
+        return text
+    }
+    return c
+}
 
 class KeyLogItem {
     count := 0
@@ -1205,21 +1219,21 @@ class MKey {
 
 /**
  * 文字列に波括弧を追加する
- * @param {String} str - 文字列
+ * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
  * @returns {String} 波括弧で囲まれた文字列
  */
-addBraces(str) {
-    if RegExMatch(str, "^\{.*\}$") {
-        return str
+addBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return key
     }
-    return "{" . str . "}"
+    return "{" . key . "}"
 }
 
-removeBraces(str) {
-    if RegExMatch(str, "^\{.*\}$") {
-        return SubStr(str, 2, StrLen(str) - 2)
+removeBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return SubStr(key, 2, StrLen(key) - 2)
     }
-    return str
+    return key
 }
 
 /**
@@ -1632,7 +1646,7 @@ k9 := LKey("9")
 k0 := LKey("0")
 minus := LKey("-")
 hat := LKey(C_HAT) ; ^
-yen := LKey("\") ; ¥
+yen := LKey("¥") ; ¥
 ;
 ; (QWERTY段)
 q := LKey("q")
@@ -1924,7 +1938,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-StoreIMELayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -1983,7 +1997,7 @@ MakeLayoutMap(layout) {
     return map
 
 }
-StoreLayout2(name, layout := "1234567890-^\qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -2235,7 +2249,7 @@ LayerState(layer) {
 *0:: Send(B_F10)
 *-:: Send(B_F11)
 *sc00D:: Send(B_F12) ; ^ -> F12
-sc07D:: Send("^+{sc07D}") ; \ -> |
+sc07D:: Send("^+{sc07D}") ; ¥ -> |
 *z:: Send(B_UNDO)  ; Undo
 *x:: Send(B_CUT)   ; Cut
 *c:: Send(B_COPY)  ; Copy
@@ -2255,7 +2269,7 @@ sc07D:: Send("^+{sc07D}") ; \ -> |
 *l:: Send(B_RIGHT) ; Right
 *sc027:: SendAndLog(B_ENTER) ; Semicolon (;) -> Enter
 ;sc028::Return ; Colon (:) -> Disabled
-*]:: Send("+^\")
+*]:: Send("+^¥")
 *n:: Send(B_END)   ; End
 *m:: Send(B_DEL)   ; Delete
 *sc033:: Send(B_CLEFT) ; Comma (,) -> Ctrl+Left
@@ -2427,7 +2441,7 @@ g:: Send("=")
 0:: Send(B_NMUL) ; テンキー *
 -:: Send(B_NSUB) ; テンキー -
 sc00D:: Send(C_HAT) ; ^
-sc07D:: Send("\") ; \
+sc07D:: Send("\") ; ¥
 y:: Send(C_BS) ; Backspace
 u:: Send(C_N4)
 i:: Send(C_N5)
