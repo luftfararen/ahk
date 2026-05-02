@@ -60,12 +60,12 @@ C_CONV := "{sc079}"
 B_CONV := "{Blind}{sc079}"
 
 ; --- 円キー (¥) ---
-;R_BACKSLASH := "sc07D"
+;R_YEN := "sc07D"
 C_YEN := "{sc07D}"
 B_YEN := "{Blind}{sc07D}"
 
 ; --- バックスラッシュキー (\) ---
-;R_backslash := "sc073"
+;R_BACKSLASH := "sc073"
 C_BACKSLASH := "{sc073}"
 
 ; --- ハット/キャレットキー (^) ---
@@ -1219,21 +1219,21 @@ class MKey {
 
 /**
  * 文字列に波括弧を追加する
- * @param {String} str - 文字列
+ * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
  * @returns {String} 波括弧で囲まれた文字列
  */
-addBraces(str) {
-    if RegExMatch(str, "^¥{.*\}$") {
-        return str
+addBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return key
     }
-    return "{" . str . "}"
+    return "{" . key . "}"
 }
 
-removeBraces(str) {
-    if RegExMatch(str, "^¥{.*\}$") {
-        return SubStr(str, 2, StrLen(str) - 2)
+removeBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return SubStr(key, 2, StrLen(key) - 2)
     }
-    return str
+    return key
 }
 
 /**
@@ -1884,6 +1884,17 @@ ApplyLayoutFromIni(index) {
     ShowOSD("Loaded layout: " . name)
     return true
 }
+
+ReadLayoutFromIni(ini_path, index, prefix) {
+    layout := IniRead(ini_path, index, prefix . "00", "")
+    loop LAYOUT_KEYS.Length - 1 {
+        str := IniRead(ini_path, index, prefix . Format("{:02d}", A_Index), "")
+        if str == ""
+            break
+        layout .= " " . str
+    }
+}
+
 ApplyLayoutFromIni2(index) {
     ini_path := A_ScriptDir . "\config.ini"
 
@@ -1892,42 +1903,16 @@ ApplyLayoutFromIni2(index) {
     if name = ""
         return false
 
-    layout := IniRead(ini_path, index, "l00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "l" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        layout .= " " . str
-    }
-
-    shift_layout := IniRead(ini_path, index, "s00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "s" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        shift_layout .= " " . str
-    }
+    layout := ReadLayoutFromIni(ini_path, index, "L")
+    shift_layout := ReadLayoutFromIni(ini_path, index, "S")
 
     ; 基本レイアウトの設定
     StoreLayout2(name, layout, shift_layout)
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := IniRead(ini_path, index, "i00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "i" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        ime_layout .= " " . str
-    }
-
-    ime_shift_layout := IniRead(ini_path, index, "is00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "is" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        ime_shift_layout .= " " . str
-    }
+    ime_layout := ReadLayoutFromIni(ini_path, index, "I")
+    ime_shift_layout := ReadLayoutFromIni(ini_path, index, "IS")
 
     if (ime_layout != "" || ime_shift_layout != "") {
         StoreIMELayout2(name, ime_layout, ime_shift_layout)
@@ -2320,7 +2305,7 @@ sc07D:: yen.SendLayer(L_NAVL_CTRL, "^+{sc07D}") ; ¥ -> |
 *l:: l.SendLayer(L_NAVL_CTRL, B_RIGHT) ; Right
 *sc027:: semicolon.SendLayer(L_NAVL_CTRL, B_ENTER) ; Semicolon (;) -> Enter
 ;sc028::Return ; Colon (:) -> Disabled
-*]:: closebracket.SendLayer(L_NAVL_CTRL, "+^¥")
+*]:: closebracket.SendLayer(L_NAVL_CTRL, "^+{sc07D}")
 *n:: n.SendLayer(L_NAVL_CTRL, B_END)   ; End
 *m:: m.SendLayer(L_NAVL_CTRL, B_DEL)   ; Delete
 *sc033:: comma.SendLayer(L_NAVL_CTRL, B_CLEFT) ; Comma (,) -> Ctrl+Left
