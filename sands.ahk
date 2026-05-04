@@ -404,28 +404,183 @@ class ImeState {
     }
 }
 
-; よく使う記号のスキャンコードを文字に変換(;:,.¥_\)
-sc_to_char_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
-    "sc073", "\", "sc00D", "^")
-sc_to_char_map.default := " "
+/* ============================================================================
+    STRING CONVERSION & HELPERS
+============================================================================ */
 
-; 記号をスキャンコードに変換
-char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
-    "\", "sc073", "^", "sc00D")
-char_to_sc_map.default := ""
-
-text_to_char_map := Map("semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
-    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]", "one", "1", "two", "2",
-    "three", "3",
-    "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9", "zero", "0")
-
-text_to_char(text) {
-    text_to_char_map.Default := ""
-    c := text_to_char_map[text]
-    if (c == "") {
-        return text
+/**
+ * マップのキーと値を入れ替えた新しいマップを返します。
+ */
+FlipMap(originalMap) {
+    flipped := Map()
+    for key, value in originalMap {
+        flipped[value] := key
     }
-    return c
+    return flipped
+}
+
+/**
+ * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
+ */
+IsSingleBraceText(text) {
+    return (StrLen(text) >= 3
+    && SubStr(text, 1, 1) = "{"
+    && SubStr(text, -1) = "}"
+    && !InStr(text, "{", false, 2))
+}
+
+/**
+ * 文字列に波括弧を追加する。既に囲まれている場合はそのまま。
+ */
+addBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return key
+    }
+    return "{" . key . "}"
+}
+
+/**
+ * 文字列から波括弧を除去する。
+ */
+removeBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return SubStr(key, 2, StrLen(key) - 2)
+    }
+    return key
+}
+
+/**
+ * 指定されたキー文字列に修飾記号 (+, ^, !, #, {Blind}) が含まれているか確認。
+ */
+HasModifierSymbols(text) {
+    list := ["{Blind}", "+", "#", "^", "!"]
+    for item in list {
+        if InStr(text, item, false) > 0 {
+            return true
+        }
+    }
+    return false
+}
+
+; --- 変換マップ定義 ---
+
+; 記号 -> スキャンコード形式 scXXX (波括弧なし)
+sc_from_char_map := Map(
+    ";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
+    "\", "sc073", "^", "sc00D", "@", "sc010", "[", "sc01A", "]", "sc01B"
+)
+sc_from_char_map.Default := ""
+
+; スキャンコード形式(波括弧なし) -> 記号文字
+char_from_sc_map := FlipMap(sc_from_char_map)
+char_from_sc_map.Default := ""
+
+; 文字列名 -> 文字
+char_from_str_map := Map(
+    "semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]",
+    "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9",
+    "zero", "0",
+    "space", "Space", "tab", "Tab", "enter", "Enter", "esc", "Esc"
+)
+char_from_str_map.Default := ""
+
+; 文字 -> 文字列名
+str_from_char_map := FlipMap(char_from_str_map)
+str_from_char_map.Default := ""
+
+; --- 変換基本関数 ---
+
+; 文字 (;) -> スキャンコード ({sc027})。英数字はそのまま。
+sc_from_char(c) {
+    sc := sc_from_char_map[c]
+    if (sc == "") {
+        return c
+    }
+    return addBraces(sc)
+}
+
+; スキャンコード ({sc027}) -> 文字 (;)。
+char_from_sc(sc) {
+    sc_raw := removeBraces(sc)
+    c := char_from_sc_map[sc_raw]
+    return (c == "") ? sc : c
+}
+
+; 名前 (semicolon) -> 文字 (;)。
+char_from_str(str) {
+    c := char_from_str_map[str]
+    return (c == "") ? str : c
+}
+
+; 文字 (;) -> 名前 (semicolon)。
+str_from_char(c) {
+    str := str_from_char_map[c]
+    return (str == "") ? c : str
+}
+
+; --- 統合ロジック関数 (INI入出力用) ---
+
+/**
+ * INIファイルの値 (val) を処理する: 名前や文字をスキャンコード形式に変換
+ * 例: "semicolon" -> "{sc027}", ";" -> "{sc027}", "one" -> "1", "a" -> "a", "{Enter}" -> "{Enter}"
+ */
+val_str(str) {
+    c := char_from_str(str)
+    return sc_from_char(c)
+}
+
+/**
+ * INIファイルのキー (key) を処理する: スキャンコードや文字を名前形式に変換
+ * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "Enter"
+ */
+key_str(sc) {
+    c := char_from_sc(sc)
+    return str_from_char(c)
+}
+
+/**
+ * 表示用の文字・文字列に変換
+ * 例: "{sc027}" -> ";", ";" -> ";", "one" -> "1", "a" -> "a", "{Enter}" -> "Enter"
+ */
+disp_str(str) {
+    c := char_from_str(str) ; "semicolon" -> ";"
+    if (c == str) {         ; 変換されなかった場合（名前ではない場合）
+        c := char_from_sc(str) ; "{sc027}" -> ";"
+    }
+    return removeBraces(c) ; "{Esc}" -> "Esc" などの最終調整
+}
+
+/**
+ * 送信用のキー文字列を生成する (修飾記号の付与など)
+ */
+MakeKeyText(text, prefix := "") {
+    if text == "" || text == "{none}"
+        return ""
+    if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
+        return text
+    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
+        return prefix . text
+    }
+    return text
+}
+
+/**
+ * レイアウト文字列のパース補助
+ */
+class LayoutString {
+    arr := []
+    __New(layout_str) {
+        this.layout_str := layout_str
+        if this.layout_str = ""
+            return
+        if InStr(this.layout_str, " ") {
+            this.arr := StrSplit(RegExReplace(Trim(this.layout_str), " +", " "), " ")
+        } else {
+            this.arr := StrSplit(this.layout_str)
+        }
+    }
+    GetElement(index) => (index <= this.arr.Length) ? this.arr[index] : ""
 }
 
 class KeyLogItem {
@@ -628,7 +783,7 @@ class KeyLogger {
         if !this.stats_mid.Has(layout)
             this.stats_mid[layout] := Map()
         stats_map := this.stats_mid[layout]
-
+        def_save := char_from_sc_map.Default
         loop this.stats_short_idx {
             entry := this.stats_short[A_Index]
             char := entry.c
@@ -641,16 +796,15 @@ class KeyLogger {
 
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
                     if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}" {
-                        char := sc_to_char_map[SubStr(char, 2, -1)] ; {sc033} を文字に変換
+                        char := char_from_sc_map[SubStr(char, 2, -1)] ; {sc033} を文字に変換
                     } else {
                         char := " "
                         ;continue ; 記録対象外の特殊キー ({Enter} 等) は無視
                     }
                 }
             }
-
             ; よく使う記号のスキャンコードを文字に変換
-            ;char := sc_to_char_map.Get(char, char)
+            ;char := char_from_sc_map.Get(char, char)
 
             if char = ""
                 continue
@@ -689,6 +843,8 @@ class KeyLogger {
                 item.duration13 += t
             }
         }
+        char_from_sc_map.Default := def_save
+
         this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
         this.total_log_time := 0
         this.stats_short_idx := 0
@@ -821,29 +977,6 @@ class KeyLogger {
         time := end - start
         this.total_log_time := Max(time, this.total_log_time)
 
-    }
-}
-
-class LayoutString {
-    arr := []
-
-    __New(layout_str) {
-        this.layout_str := layout_str
-
-        if this.layout_str = ""
-            return
-        if InStr(this.layout_str, " ") {
-            ; 複数の連続するスペースを一つとしてパース
-            this.arr := StrSplit(RegExReplace(Trim(this.layout_str), " +", " "), " ")
-        } else {
-            this.arr := StrSplit(this.layout_str)
-        }
-    }
-
-    GetElement(index) {
-        if index <= this.arr.Length
-            return this.arr[index]
-        return ""
     }
 }
 
@@ -1217,93 +1350,6 @@ class MKey {
     }
 } ;class MKey
 
-/**
- * 文字列に波括弧を追加する
- * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
- * @returns {String} 波括弧で囲まれた文字列
- */
-addBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return key
-    }
-    return "{" . key . "}"
-}
-
-removeBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return SubStr(key, 2, StrLen(key) - 2)
-    }
-    return key
-}
-
-/**
- * 指定されたキー文字列に修飾記号が含まれているかを確認するヘルパー関数
- * @param {String} text - キー文字列 (例: "^c", "{Blind}a")
- * @returns {Boolean} 修飾記号が含まれていれば true
- */
-HasModifierSymbols(text) {
-    list := ["{Blind}", "+", "#", "^", "!"]
-    for index, item in list {
-        if InStr(text, item, 'Off') > 0 {
-            return true
-        }
-    }
-    return false
-}
-
-/**
- * 1つの波括弧で囲まれた文字列か判定する
- * @param {String} text - 文字列
- * @returns {Boolean} 1つの波括弧で囲まれていれば true 複数の波括弧ペアなら false
- */
-IsSingleBraceText(text) {
-    ; 1. 全体が3文字以上であること（ "{x}" の最小構成 ）
-    ; 2. 先頭が "{" で、末尾が "}" であること
-    ; 3. 2文字目以降に "{" が含まれていないこと（複数のペア "{}{}" を防ぐ）
-    return (StrLen(text) >= 3
-    && SubStr(text, 1, 1) = "{"
-    && SubStr(text, -1) = "}"
-    && !InStr(text, "{", false, 2))
-}
-
-/**
- * キー送信用の文字列を生成する。
- * 
- * 【入力文字列の仕様】
- * 1. 単独の文字 (例: "a") > プレフィックスをつけて返す
- * 2. 特殊記号を含む文字列 (例: "+a", "{Blind}s") -> そのまま返す
- * 3. 波括弧で囲まれた文字列(キー名/スキャンコード) (例: "{space}", "{sc027}") > プレフィックスをつけて返す
- * 4. 複数の文字、または、波括弧で囲まれた文字列 (例: "abc","{text}{text2}") -> そのまま返す
- * ※プレフィックス指定は1,3のみ適用 (例: prefix="+", text="a") -> "+a"
- * プレフィックスが空白も可
- * @param {String} text - 変換対象のキー文字列
- * @param {String} [prefix=""] - キー名の前に付与する接頭辞 (例: "+" で Shift)
- * @returns {String} 送信文字列
- */
-MakeKeyText(text, prefix := "") {
-    if text == "" || text == "{none}"
-        return ""
-
-    ; すでに {Blind} がついている場合は、二重付与を防ぐためにそのまま返す
-    if InStr(text, "{Blind}", false)
-        return text
-
-    ; 入力テキスト自体に修飾記号 (+, ^, !, #) が含まれている場合はそのまま返す
-    if HasModifierSymbols(text)
-        return text
-
-    ; 判定ロジック
-    ; 1. 単独の文字 (StrLen == 1)
-    ; 2. 1つの波括弧ペアのみで構成される (IsSingleBraceText == true)
-    ; 上記のいずれかの場合のみ,prefix を付与する
-    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
-        return prefix . text
-    }
-
-    ; それ以外（"abc" や "{a}{b}" など）はそのまま返す
-    return text
-}
-
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
@@ -1435,16 +1481,18 @@ class RKey {
     - 短押しで離した場合のみキーを送信。長押し時は何も送信しない。
  (予約) 4: 即時入力 + 長押しカスタム置換
     - 押し下げ時に即座に送信し、長押し判定時にカスタムの長押しキーに置換。
+(実験用)5: 即時入力 + 長押し置換(モード１と同様の動作だが、Keywaitベースの仕組みを採用)
+    - 押し下げ時にキーを即座に送信。
+    - 長押し判定時、送信済みのキーを Backspace で消去し、Shift 版のキーを再送信。
 
- * モード 1, 2, 3, 4 ではキーリピートが無効化されます。
- * モード 0, 1, 2, 4 では Ctrl, Alt, Win (CAW) 押下時は物理キーの修飾としてパススルーされます。
+ * モード 1, 2, 3, 4, 5 ではキーリピートが無効化されます。
+ * モード 0, 1, 2, 4, 5  では Ctrl, Alt, Win (CAW) 押下時は物理キーの修飾としてパススルーされます。
  * 登録キーは RKey と同様に SetKey, SetImeKey で設定します。
- * モード 1, 4 で使用するキーは 1 文字（または 1 つの {スキャンコード}）である必要があります。
+ * モード 1, 4, 5 で使用するキーは 1 文字（または 1 つの {スキャンコード}）である必要があります。
 ============================================================================*/
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
-    ;static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
 
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
 
@@ -1458,28 +1506,6 @@ class LKey extends RKey {
         super.__New(key, reg_key) ; RKey の初期化
         this.long_press_mode := mode
     }
-
-    /**
-     * 長押し機能をグローバルに有効化、無効化、または切り替える
-     * @param {Integer} [m=2] - モード: 0=無効, 1=有効, 2=切り替え
-     * @param {Boolean} [show_info=False] - 画面上に通知を表示するかどうか
-     */
-    ; static EnableLongPress(m := 2, show_info := False) {
-    ;     if m == 0 {
-    ;         LKey.long_press_enabled := False
-    ;     } else if m == 1 {
-    ;         LKey.long_press_enabled := True
-    ;     } else {
-    ;         LKey.long_press_enabled := !LKey.long_press_enabled ; Toggle
-    ;     }
-    ;     if show_info {
-    ;         if LKey.long_press_enabled {
-    ;             ShowOSD("LKey is enabled")
-    ;         } else {
-    ;             ShowOSD("LKey is disabled")
-    ;         }
-    ;     }
-    ; }
 
     /*============================================================================
     	(Override) Sets the key mapping for when IME is OFF.
@@ -1564,6 +1590,22 @@ class LKey extends RKey {
             shift := IsPhysicalShiftPressed()
             this.SendShiftedKey(shift)
         }
+
+        ; ; 5. モード 5 (KeyWait ベースの即時入力 + 長押し置換)
+        ; if this.long_press_mode = 5 {
+        ;     this.pressed_time := A_TickCount
+        ;     shift := IsPhysicalShiftPressed()
+        ;     this.SendShiftedKey(shift)
+        ;     Critical("Off")
+        ;     released := KeyWait(this.org_key_raw, "T" . (LKey.long_press_th / 1000))
+        ;     if !released {
+        ;         Send("{Backspace}")
+        ;         this.SendShiftedKey(true)
+        ;         KeyWait(this.org_key_raw)
+        ;     }
+        ;     this.pressed_time := 0
+        ;     return
+        ; }
 
         ; 5. 状態を記録し、長押し判定のためのタイマーを開始
         this.pressed_time := A_TickCount
@@ -1705,12 +1747,21 @@ LAYOUT_CHAR_KEYS := [
     a, s, d, f, g, h, j, k, l, semicolon,
     z, x, c, v, b, n, m, comma, period, slash
 ]
+
 LAYOUT_KEYS := [
     k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
     q, w, e, r, t, y, u, i, o, p, at, openbracket,
     a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
     z, x, c, v, b, n, m, comma, period, slash, backslash
 ]
+
+qwerty_keys := [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
+    "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
+    "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
+    "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
+]
+
 I_1 := 0
 I_2 := 1
 I_3 := 2
@@ -1775,6 +1826,7 @@ ResetIME() {
         keyObj.SetIMEKey()
     }
 }
+
 LoadLayoutConfig() {
     try {
         try {
@@ -1861,58 +1913,101 @@ ApplyLayoutFromIni(index) {
     ShowOSD("Loaded layout: " . name)
     return true
 }
-ApplyLayoutFromIni2(index) {
-    ini_path := A_ScriptDir . "\config.ini"
 
-    ; 必須のレイアウト文字列を取得
-    name := IniRead(ini_path, index, "Name", "")
-    if name = ""
-        return false
-
-    layout := IniRead(ini_path, index, "l00", "")
+ReadLayoutTextFromIni(ini_path, section, prefix) {
+    layout := IniRead(ini_path, section, prefix . "00", "")
     loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "l" . Format("{:02d}", A_Index), "")
+        str := IniRead(ini_path, section, prefix . Format("{:02d}", A_Index), "")
         if str == ""
             break
         layout .= " " . str
     }
+    return layout
+}
 
-    shift_layout := IniRead(ini_path, index, "s00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "s" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        shift_layout .= " " . str
+class IniMap {
+    map := Map()
+    __New(map, ini_path, section, prefix := "") {
+        this.map := map
+        this.inipath := ini_path
+        this.section := section
+        this.prefix := prefix
     }
 
-    ; 基本レイアウトの設定
-    StoreLayout2(name, layout, shift_layout)
-    ResetIME() ; IME ON 時の個別設定を一旦リセット
+    Set(c) {
+        key := key_str(c)
+        if key == "" {
+            return
+        }
+        val := IniRead(this.inipath, this.section, this.prefix . key, "")
+        val := val_str(val)
+        if val != "" {
+            this.map.Set(key, val)
+        }
+    }
+}
+
+ReadEachLayoutFromIni(map, ini_path, section, prefix := "") {
+    imap := IniMap(map, ini_path, section, prefix)
+    for i, c in qwerty_keys {
+        imap.Set(c)
+    }
+    ; 特殊キーの個別読み込み
+    imap.Set("enter")
+    imap.Set("space")
+    imap.Set("tab")
+    imap.Set("esc")
+}
+
+ApplyLayoutFromIni2(section) {
+    ini_path := A_ScriptDir . "\config.ini"
+
+    ; 必須のレイアウト文字列を取得
+    name := IniRead(ini_path, section, "Name", "")
+    if (name == "")
+        return false
+
+    layout := ReadLayoutTextFromIni(ini_path, section, "L")
+    if (layout == "")
+        map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
+    else
+        map := MakeLayoutMap(layout)
+    ReadEachLayoutFromIni(map, ini_path, section, "")
+
+    shift_layout := ReadLayoutTextFromIni(ini_path, section, "S")
+    if (shift_layout == "")
+        shift_map := Map()
+    else
+        shift_map := MakeLayoutMap(shift_layout)
+    ReadEachLayoutFromIni(shift_map, ini_path, section, "s_")
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := IniRead(ini_path, index, "i00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "i" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        ime_layout .= " " . str
-    }
+    ime_layout := ReadLayoutTextFromIni(ini_path, section, "I")
+    if (ime_layout == "")
+        ime_map := Map()
+    else
+        ime_map := MakeLayoutMap(ime_layout)
+    ReadEachLayoutFromIni(ime_map, ini_path, section, "i_")
 
-    ime_shift_layout := IniRead(ini_path, index, "is00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "is" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        ime_shift_layout .= " " . str
-    }
+    ime_shift_layout := ReadLayoutTextFromIni(ini_path, section, "IS")
+    if (ime_shift_layout == "")
+        ime_shift_map := Map()
+    else
+        ime_shift_map := MakeLayoutMap(ime_shift_layout)
+    ReadEachLayoutFromIni(ime_shift_map, ini_path, section, "is_")
 
-    if (ime_layout != "" || ime_shift_layout != "") {
-        StoreIMELayout2(name, ime_layout, ime_shift_layout)
-    }
+    map.Default := ""
+    shift_map.Default := ""
+    ime_map.Default := ""
+    ime_shift_map.Default := ""
+
+    ; 基本レイアウトの設定
+    StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map)
 
     ShowOSD("Loaded layout: " . name)
     return true
 }
+
 /**
  * 新しい IME-ON 時のキーレイアウトを保存・設定します
  * @param {String} name - レイアウト名
@@ -1938,7 +2033,8 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+
+StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -1952,6 +2048,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,
         keyObj.SetIMEKey(l.GetElement(i), ls.GetElement(i))
     }
 }
+
 /**
  * 現在のキーレイアウトを指定された設定に保存・適用する
  * @param {String} name - レイアウト名
@@ -1976,27 +2073,28 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
         keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-MakeLayoutMap(layout) {
-    static qwerty_keys := [
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
-        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
-        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
-        "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
-    ]
+
+MakeLayoutMap(layout_str := "") {
     map := Map()
-    l := LayoutString(layout)
+    if (layout_str == "") {
+        return map
+    }
+    ;     for i, key in qwerty_keys {
+    ;         ;if (shift)
+    ;         map[key] = "+" . replace_char_to_sc(key)
+    ;         ;else
+    ;         ;map[key] = replace_char_to_sc(key)
+    ;     }
+    ;     return map
+    ; }
+    l := LayoutString(layout_str)
     for i, key in qwerty_keys {
         map[key] = l.GetElement(i)
     }
-
-    ;scは{}なし
-    ; for i, sc in sc_to_char_map.Keys() {
-    ;     map[sc] = map[sc_to_char_map[sc]]
-    ; }
-
     return map
 
 }
+
 StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
@@ -2011,6 +2109,30 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\
         keyObj.SetKey(l.GetElement(i), ls.GetElement(i))
     }
 }
+
+StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map) {
+    if name != "" {
+        try {
+            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+    global qwerty_keys
+    for i, keyObj in LAYOUT_KEYS {
+        c := qwerty_keys[i]
+        key_text := key_str(c)
+        keyObj.SetKey(map[key_text], shift_map[key_text])
+    }
+    ResetIME() ; IME ON 時の個別設定を一旦リセット
+
+    for i, keyObj in LAYOUT_KEYS {
+        c := qwerty_keys[i]
+        key_text := str_from_char(c)
+        keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
+    }
+
+}
+
 /**
  * キーレイアウトを「Qwerty配列」に変更する
  */
