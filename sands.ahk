@@ -543,12 +543,12 @@ key_str(sc) {
  * 表示用の文字・文字列に変換
  * 例: "{sc027}" -> ";", ";" -> ";", "one" -> "1", "a" -> "a", "{Enter}" -> "Enter"
  */
-disp_str(str) {
+disp_str(str, remove_braces := true) {
     c := char_from_str(str) ; "semicolon" -> ";"
     if (c == str) {         ; 変換されなかった場合（名前ではない場合）
         c := char_from_sc(str) ; "{sc027}" -> ";"
     }
-    return removeBraces(c) ; "{Esc}" -> "Esc" などの最終調整
+    return remove_braces ? removeBraces(c) : c ; "{Esc}" -> "Esc" などの最終調整
 }
 
 /**
@@ -793,14 +793,9 @@ class KeyLogger {
             if InStr(char, "{") {
                 if SubStr(char, 1, 7) = "{Blind}"
                     char := SubStr(char, 8) ; {Blind} を除去
-
+                char := disp_str(char, false)
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
-                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}" {
-                        char := char_from_sc_map[SubStr(char, 2, -1)] ; {sc033} を文字に変換
-                    } else {
-                        char := " "
-                        ;continue ; 記録対象外の特殊キー ({Enter} 等) は無視
-                    }
+                    char := " "
                 }
             }
             ; よく使う記号のスキャンコードを文字に変換
