@@ -5,7 +5,7 @@
 ; ============================================================================
 ; このスクリプトは、AutoHotkey v2 用の高度なキーカスタマイズを提供します。
 ; 主な機能:
-; 1. センターモディファイア (MKey): Space、Enter、無変換などのキーを、
+; 1. センターモディファイア (LKey Mode 3): Space、Enter、無変換などのキーを、
 ;    短押し（タップ）では通常のキーとして、長押しではモディファイアキー
 ;    （レイヤー切り替え）として機能させます。
 ; 2. キーリマップ (RKey): キーをリマップし、Shift押下状態、IMEのON/OFF状態
@@ -432,7 +432,7 @@ IsSingleBraceText(text) {
 /**
  * 文字列に波括弧を追加する。既に囲まれている場合はそのまま。
  */
-addBraces(key) {
+AddBraces(key) {
     if (IsSingleBraceText(key)) {
         return key
     }
@@ -442,7 +442,7 @@ addBraces(key) {
 /**
  * 文字列から波括弧を除去する。
  */
-removeBraces(key) {
+RemoveBraces(key) {
     if (IsSingleBraceText(key)) {
         return SubStr(key, 2, StrLen(key) - 2)
     }
@@ -492,29 +492,29 @@ str_from_char_map.Default := ""
 ; --- 変換基本関数 ---
 
 ; 文字 (;) -> スキャンコード ({sc027})。英数字はそのまま。
-sc_from_char(c) {
+ScFromChar(c) {
     sc := sc_from_char_map[c]
     if (sc == "") {
         return c
     }
-    return addBraces(sc)
+    return AddBraces(sc)
 }
 
 ; スキャンコード ({sc027}) -> 文字 (;)。
-char_from_sc(sc) {
-    sc_raw := removeBraces(sc)
+CharFromSc(sc) {
+    sc_raw := RemoveBraces(sc)
     c := char_from_sc_map[sc_raw]
     return (c == "") ? sc : c
 }
 
 ; 名前 (semicolon) -> 文字 (;)。
-char_from_str(str) {
+CharFromStr(str) {
     c := char_from_str_map[str]
     return (c == "") ? str : c
 }
 
 ; 文字 (;) -> 名前 (semicolon)。
-str_from_char(c) {
+StrFromChar(c) {
     str := str_from_char_map[c]
     return (str == "") ? c : str
 }
@@ -525,30 +525,30 @@ str_from_char(c) {
  * INIファイルの値 (val) を処理する: 名前や文字をスキャンコード形式に変換
  * 例: "semicolon" -> "{sc027}", ";" -> "{sc027}", "one" -> "1", "a" -> "a", "{Enter}" -> "{Enter}"
  */
-val_str(str) {
-    c := char_from_str(str)
-    return sc_from_char(c)
+ValStr(str) {
+    c := CharFromStr(str)
+    return ScFromChar(c)
 }
 
 /**
  * INIファイルのキー (key) を処理する: スキャンコードや文字を名前形式に変換
  * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "Enter"
  */
-key_str(sc) {
-    c := char_from_sc(sc)
-    return str_from_char(c)
+KeyStr(sc) {
+    c := CharFromSc(sc)
+    return StrFromChar(c)
 }
 
 /**
  * 表示用の文字・文字列に変換
  * 例: "{sc027}" -> ";", ";" -> ";", "one" -> "1", "a" -> "a", "{Enter}" -> "Enter"
  */
-disp_str(str, remove_braces := true) {
-    c := char_from_str(str) ; "semicolon" -> ";"
+DispStr(str, remove_braces := true) {
+    c := CharFromStr(str) ; "semicolon" -> ";"
     if (c == str) {         ; 変換されなかった場合（名前ではない場合）
-        c := char_from_sc(str) ; "{sc027}" -> ";"
+        c := CharFromSc(str) ; "{sc027}" -> ";"
     }
-    return remove_braces ? removeBraces(c) : c ; "{Esc}" -> "Esc" などの最終調整
+    return remove_braces ? RemoveBraces(c) : c ; "{Esc}" -> "Esc" などの最終調整
 }
 
 /**
@@ -793,7 +793,7 @@ class KeyLogger {
             if InStr(char, "{") {
                 if SubStr(char, 1, 7) = "{Blind}"
                     char := SubStr(char, 8) ; {Blind} を除去
-                char := disp_str(char, false)
+                char := DispStr(char, false)
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
                     char := " "
                 }
@@ -1274,78 +1274,6 @@ MakeModStr() {
 }
 
 /*============================================================================
- [Class] MKey (モディファイアキー)
- 「デュアルロール」モディファイアキー機能を実装します。
- - タイムアウト時間内に離された場合（短押し）はデフォルトキーを送信します。
- - タイムアウト時間を超えて押し続けられた場合は、モディファイアキーとして機能します。
-============================================================================*/
-class MKey {
-    /**
-     * コンストラクタ
-     * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
-     * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
-     */
-    __New(key, timeout := 180) {
-        if key = "" { ; F13のような「仮想」モディファイア用
-            this.key_str := ""
-            this.key := key ; 登録されたキー
-        } else {
-            this.key := removeBraces(key)
-            this.key_str := addBraces(key)
-        }
-        this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
-        this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
-        this.timeout := timeout
-    }
-    /**
-     * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
-     * @returns {Boolean} 押されていれば true
-     */
-    IsPressed() => (this.pressed_time != 0)
-    ;IsPressed() => GetKeyState(this.key_str, "P")
-
-    /**
-     * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
-     */
-    SetModStr() {
-        this.mod_str := MakeModStr()
-    }
-
-    /**
-     * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
-     * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
-     */
-    Down() {
-        Critical
-        if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
-            return false
-        }
-        this.pressed_time := A_TickCount ; 押し下げ時間を記録
-        this.SetModStr()                 ; 他の修飾キーを記録
-        return true
-    }
-
-    /**
-     * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
-     * 短押しだった場合は元のキー（修飾キー付き）を送信します。
-     */
-    Up() {
-        Critical
-        if (A_TickCount - this.pressed_time < this.timeout) {
-            SendAndLog("{Blind}" . this.mod_str . this.key_str)
-        }
-        this.pressed_time := 0
-    }
-
-    /**
-     * キーの押し下げ状態を強制的にリセットする
-     */
-    Reset() {
-        this.pressed_time := 0
-    }
-} ;class MKey
-
-/*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
  登録する文字列の仕様については MakeKeyText() のコメントを参照してください。
@@ -1359,8 +1287,8 @@ class RKey {
      * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。省略時は物理キーと同じ。
      */
     __New(key, reg_key := "") {
-        this.org_key := addBraces(key)
-        this.org_key_raw := removeBraces(key)
+        this.org_key := AddBraces(key)
+        this.org_key_raw := RemoveBraces(key)
         if reg_key = "" {
             this.SetKey(key)   ; IME OFF 時のキーを設定
             this.SetImeKey(key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
@@ -1511,26 +1439,6 @@ class LKey extends RKey {
         super.SetKey(key, shift_key)
     }
 
-    ; /**
-    ;  * 長押し時に送信するキー文字列を設定する
-    ;  * @param {String} [long_key=""]
-    ;  */
-    ; SetLongKey(long_key := "") {
-    ;     if long_key = "" {
-    ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := this.shift_key_text ; デフォルトでは Shift 時のキーを使用
-    ;     } else if long_key = "none" {
-    ;         this.long_press_mode := 0 ; 長押しを無効化
-    ;         this.long_key_str := "none"
-    ;     } else if long_key = "skip" {
-    ;         this.long_press_mode := 2 ; 長押し、キーリピートを無効化
-    ;         this.long_key_str := "none"
-    ;     } else {
-    ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := long_key ; 指定されたキーを使用
-    ;     }
-    ; }
-
     /**
      * キーが現在押し下げられているかどうかを確認する
      */
@@ -1586,22 +1494,6 @@ class LKey extends RKey {
             this.SendShiftedKey(shift)
         }
 
-        ; ; 5. モード 5 (KeyWait ベースの即時入力 + 長押し置換)
-        ; if this.long_press_mode = 5 {
-        ;     this.pressed_time := A_TickCount
-        ;     shift := IsPhysicalShiftPressed()
-        ;     this.SendShiftedKey(shift)
-        ;     Critical("Off")
-        ;     released := KeyWait(this.org_key_raw, "T" . (LKey.long_press_th / 1000))
-        ;     if !released {
-        ;         Send("{Backspace}")
-        ;         this.SendShiftedKey(true)
-        ;         KeyWait(this.org_key_raw)
-        ;     }
-        ;     this.pressed_time := 0
-        ;     return
-        ; }
-
         ; 5. 状態を記録し、長押し判定のためのタイマーを開始
         this.pressed_time := A_TickCount
         RKey.last_key := this.org_key
@@ -1653,14 +1545,7 @@ class LKey extends RKey {
 ; キーオブジェクトの生成
 ; ============================================================================
 
-; --- モディファイアキー (MKey) ---
-; f13 := MKey("")
-; space := MKey(R_SPACE)
-; tab := MKey(R_TAB)
-; noconv := MKey(R_NOCONV)
-; conv := MKey(R_ENTER)
-; f14 := MKey(R_ZENKAKU)
-; colon := LKey(C_COLON, 2)
+; --- モディファイアキー (LKey Mode 3) ---
 
 f13 := LKey("f13", 2)
 space := LKey(R_SPACE, 3, C_SPACE)
@@ -1757,58 +1642,6 @@ qwerty_keys := [
     "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
 ]
 
-I_1 := 0
-I_2 := 1
-I_3 := 2
-I_4 := 3
-I_5 := 4
-I_6 := 5
-I_7 := 6
-I_8 := 7
-I_9 := 8
-I_0 := 9
-I_minus := 10
-I_hat := 11
-I_yen := 12
-I_q := 13
-I_w := 14
-I_e := 15
-I_r := 16
-I_t := 17
-I_y := 18
-I_u := 19
-I_i := 20
-I_o := 21
-I_p := 22
-I_at := 23
-I_openbracket := 24
-I_a := 25
-I_s := 26
-I_d := 27
-I_f := 28
-I_g := 29
-I_h := 30
-I_j := 31
-I_k := 32
-I_l := 33
-I_semicolon := 34
-I_colon := 35
-I_closebracket := 36
-I_z := 37
-I_x := 38
-I_c := 39
-I_v := 40
-I_b := 41
-I_n := 42
-I_m := 43
-I_comma := 44
-I_period := 45
-I_slash := 46
-I_backslash := 47
-I_up := 48
-I_down := 49
-I_left := 50
-I_right := 51
 ; ============================================================================
 ; キーレイアウト切り替え関数
 ; ============================================================================
@@ -1921,7 +1754,6 @@ ReadLayoutTextFromIni(ini_path, section, prefix) {
 }
 
 class IniMap {
-    map := Map()
     __New(map, ini_path, section, prefix := "") {
         this.map := map
         this.inipath := ini_path
@@ -1930,12 +1762,12 @@ class IniMap {
     }
 
     Set(c) {
-        key := key_str(c)
+        key := StrLower(KeyStr(c))
         if key == "" {
             return
         }
         val := IniRead(this.inipath, this.section, this.prefix . key, "")
-        val := val_str(val)
+        val := ValStr(val)
         if val != "" {
             this.map.Set(key, val)
         }
@@ -2115,14 +1947,14 @@ StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map) {
     global qwerty_keys
     for i, keyObj in LAYOUT_KEYS {
         c := qwerty_keys[i]
-        key_text := key_str(c)
+        key_text := KeyStr(c)
         keyObj.SetKey(map[key_text], shift_map[key_text])
     }
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     for i, keyObj in LAYOUT_KEYS {
         c := qwerty_keys[i]
-        key_text := str_from_char(c)
+        key_text := StrFromChar(c)
         keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
     }
 
@@ -2784,10 +2616,10 @@ Right:: right.SendShiftedKey()
 *Right up:: right.Up()
 ;#Hotif ; コンテキスト依存ホットキーの終了
 ; ============================================================================
-; グローバルホットキー (MKey バインド)
+; グローバルホットキー (モディファイアキー バインド)
 ; ============================================================================
 ; これらのホットキーは常にアクティブで、物理キーを
-; MKey（モディファイア）オブジェクトにバインドします。
+; LKey（モディファイアモード）オブジェクトにバインドします。
 *Space:: space.Down()
 *Space up:: space.Up()
 *tab:: tab.Down()
