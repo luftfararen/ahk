@@ -1,4 +1,4 @@
-#Requires AutoHotkey v2.0
+﻿#Requires AutoHotkey v2.0
 
 ; ============================================================================
 ; スクリプト概要
@@ -1274,6 +1274,78 @@ MakeModStr() {
 }
 
 /*============================================================================
+ [Class] MKey (モディファイアキー)
+ 「デュアルロール」モディファイアキー機能を実装します。
+ - タイムアウト時間内に離された場合（短押し）はデフォルトキーを送信します。
+ - タイムアウト時間を超えて押し続けられた場合は、モディファイアキーとして機能します。
+============================================================================*/
+class MKey {
+    /**
+     * コンストラクタ
+     * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
+     * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
+     */
+    __New(key, timeout := 180) {
+        if key = "" { ; F13のような「仮想」モディファイア用
+            this.key_str := ""
+            this.key := key ; 登録されたキー
+        } else {
+            this.key := RemoveBraces(key)
+            this.key_str := AddBraces(key)
+        }
+        this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
+        this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
+        this.timeout := timeout
+    }
+    /**
+     * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
+     * @returns {Boolean} 押されていれば true
+     */
+    IsPressed() => (this.pressed_time != 0)
+    ;IsPressed() => GetKeyState(this.key_str, "P")
+
+    /**
+     * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
+     */
+    SetModStr() {
+        this.mod_str := MakeModStr()
+    }
+
+    /**
+     * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
+     * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
+     */
+    Down() {
+        Critical
+        if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
+            return false
+        }
+        this.pressed_time := A_TickCount ; 押し下げ時間を記録
+        this.SetModStr()                 ; 他の修飾キーを記録
+        return true
+    }
+
+    /**
+     * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
+     * 短押しだった場合は元のキー（修飾キー付き）を送信します。
+     */
+    Up() {
+        Critical
+        if (A_TickCount - this.pressed_time < this.timeout) {
+            SendAndLog("{Blind}" . this.mod_str . this.key_str)
+        }
+        this.pressed_time := 0
+    }
+
+    /**
+     * キーの押し下げ状態を強制的にリセットする
+     */
+    Reset() {
+        this.pressed_time := 0
+    }
+} ;class MKey
+
+/*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
  登録する文字列の仕様については MakeKeyText() のコメントを参照してください。
@@ -1828,19 +1900,18 @@ L_NUMPAD := 6
 L_SHIFT := 7
 L_FUNC := 4
 
-
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
  */
 LoadLayoutFromIni(index) {
-    global  L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
     name := IniRead(A_ScriptDir . "\config.ini", index, "name", "")
     if name = "" {
         ChangeQwertyLayout()
         return
     }
     ver := IniRead(A_ScriptDir . "\config.ini", index, "ver", "1")
-    if ver = 1{
+    if ver = 1 {
         if ApplyLayoutFromIni(index)
             return
     } else if ver = 2 {
@@ -1885,9 +1956,11 @@ ApplyLayoutFromIni(index) {
     ime_shift_num := IniRead(ini_path, name, "ImeShiftNum", "")
 
     if (ime_layout != "" || ime_num != "" || ime_shift_layout != "" || ime_shift_num != "") {
-        if (ime_layout == "") ime_layout := layout
-            if (ime_num == "") ime_num := num
-                StoreIMELayout(name, ime_layout, ime_num, ime_shift_layout, ime_shift_num)
+        if (ime_layout == "")
+            ime_layout := layout
+        if (ime_num == "")
+            ime_num := num
+        StoreIMELayout(name, ime_layout, ime_num, ime_shift_layout, ime_shift_num)
     }
 
     ShowOSD("Loaded layout: " . name)
@@ -1926,16 +1999,16 @@ class IniMap {
     }
 }
 
-ReadEachLayoutFromIni(map, ini_path, section, prefix := "") {
-    imap := IniMap(map, ini_path, section, prefix)
+ReadEachLayoutFromIni(layout_map, ini_path, section, prefix := "") {
+    ini_map_loader := IniMap(layout_map, ini_path, section, prefix)
     for i, c in qwerty_keys {
-        imap.Set(c)
+        ini_map_loader.Set(c)
     }
     ; 特殊キーの個別読み込み
-    imap.Set("enter")
-    imap.Set("space")
-    imap.Set("tab")
-    imap.Set("esc")
+    ini_map_loader.Set("enter")
+    ini_map_loader.Set("space")
+    ini_map_loader.Set("tab")
+    ini_map_loader.Set("esc")
 }
 
 ApplyLayoutFromIni2(section) {
@@ -1948,10 +2021,10 @@ ApplyLayoutFromIni2(section) {
 
     layout := ReadLayoutTextFromIni(ini_path, section, "L")
     if (layout == "")
-        map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
+        layout_map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
     else
-        map := MakeLayoutMap(layout)
-    ReadEachLayoutFromIni(map, ini_path, section, "")
+        layout_map := MakeLayoutMap(layout)
+    ReadEachLayoutFromIni(layout_map, ini_path, section, "")
 
     shift_layout := ReadLayoutTextFromIni(ini_path, section, "S")
     if (shift_layout == "")
@@ -1975,13 +2048,13 @@ ApplyLayoutFromIni2(section) {
         ime_shift_map := MakeLayoutMap(ime_shift_layout)
     ReadEachLayoutFromIni(ime_shift_map, ini_path, section, "is_")
 
-    map.Default := ""
+    layout_map.Default := ""
     shift_map.Default := ""
     ime_map.Default := ""
     ime_shift_map.Default := ""
 
     ; 基本レイアウトの設定
-    StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map)
+    StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map)
 
     ShowOSD("Loaded layout: " . name)
     return true
@@ -1995,7 +2068,7 @@ ApplyLayoutFromIni2(section) {
 ApplyLayerLayoutFromIni(layer_id, section) {
     ini_path := A_ScriptDir . "\config.ini"
     prefix := "M" . layer_id
-    
+
     layout_text := ReadLayoutTextFromIni(ini_path, section, prefix)
     if (layout_text != "") {
         layout := LayoutString(layout_text)
@@ -2007,7 +2080,7 @@ ApplyLayerLayoutFromIni(layer_id, section) {
             }
         }
     }
-    
+
     ; 個別設定 (M1enter, M1space 等) を読み込むためのマップ生成
     static key_map := ""
     if (key_map == "") {
@@ -2022,7 +2095,7 @@ ApplyLayerLayoutFromIni(layer_id, section) {
         try key_map["space"] := space
         try key_map["tab"] := tab
     }
-    
+
     ; よく使われる特殊キーの個別上書きチェック
     for name in ["enter", "space", "tab"] {
         val := IniRead(ini_path, section, prefix . name, "")
@@ -2100,27 +2173,19 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
 }
 
 MakeLayoutMap(layout_str := "") {
-    map := Map()
+    res_map := Map()
     if (layout_str == "") {
-        return map
+        return res_map
     }
-    ;     for i, key in qwerty_keys {
-    ;         ;if (shift)
-    ;         map[key] = "+" . replace_char_to_sc(key)
-    ;         ;else
-    ;         ;map[key] = replace_char_to_sc(key)
-    ;     }
-    ;     return map
-    ; }
     l := LayoutString(layout_str)
     for i, key in qwerty_keys {
-        map[key] = l.GetElement(i)
+        res_map.Set(key, l.GetElement(i))
     }
-    return map
+    return res_map
 
 }
 
-StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo;:];zxcvbnm,./\", shift_layout := "") {
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\", shift_layout := "") {
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -2135,7 +2200,7 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo;:];zxcvbnm,./
     }
 }
 
-StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map) {
+StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
     if name != "" {
         try {
             IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
@@ -2146,16 +2211,23 @@ StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map) {
     for i, keyObj in LAYOUT_KEYS {
         c := qwerty_keys[i]
         key_text := KeyStr(c)
-        keyObj.SetKey(map[key_text], shift_map[key_text])
+        if (!layout_map.Has(key_text))
+            layout_map[key_text] := ""
+        if (!shift_map.Has(key_text))
+            shift_map[key_text] := ""
+        keyObj.SetKey(layout_map[key_text], shift_map[key_text])
     }
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     for i, keyObj in LAYOUT_KEYS {
         c := qwerty_keys[i]
         key_text := StrFromChar(c)
+        if (!ime_map.Has(key_text))
+            ime_map[key_text] := ""
+        if (!ime_shift_map.Has(key_text))
+            ime_shift_map[key_text] := ""
         keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
     }
-
 }
 
 /**
