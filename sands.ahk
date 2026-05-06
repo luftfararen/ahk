@@ -1371,8 +1371,14 @@ class RKey {
         }
     }
 
-    SetLayerKey(layer_id, action) {
-        this.layer_keys[layer_id] := action
+    SetLayerKey(layer_id, action, through_if_blank := false) {
+        if action == "" {
+            if !through_if_blank {
+                this.layer_keys[layer_id] := ""
+            }
+        } else {
+            this.layer_keys[layer_id] := action
+        }
     }
 
     SendLayer(layer_id, default_action := "") {
