@@ -5,7 +5,7 @@
 ; ============================================================================
 ; このスクリプトは、AutoHotkey v2 用の高度なキーカスタマイズを提供します。
 ; 主な機能:
-; 1. センターモディファイア (MKey): Space、Enter、無変換などのキーを、
+; 1. センターモディファイア (LKey Mode 3): Space、Enter、無変換などのキーを、
 ;    短押し（タップ）では通常のキーとして、長押しではモディファイアキー
 ;    （レイヤー切り替え）として機能させます。
 ; 2. キーリマップ (RKey): キーをリマップし、Shift押下状態、IMEのON/OFF状態
@@ -404,28 +404,183 @@ class ImeState {
     }
 }
 
-; よく使う記号のスキャンコードを文字に変換(;:,.¥_\)
-sc_to_char_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
-    "sc073", "\", "sc00D", "^")
-sc_to_char_map.default := " "
+/* ============================================================================
+    STRING CONVERSION & HELPERS
+============================================================================ */
 
-; 記号をスキャンコードに変換
-char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
-    "\", "sc073", "^", "sc00D")
-char_to_sc_map.default := ""
-
-text_to_char_map := Map("semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
-    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]", "one", "1", "two", "2",
-    "three", "3",
-    "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9", "zero", "0")
-
-text_to_char(text) {
-    text_to_char_map.Default := ""
-    c := text_to_char_map[text]
-    if (c == "") {
-        return text
+/**
+ * マップのキーと値を入れ替えた新しいマップを返します。
+ */
+FlipMap(originalMap) {
+    flipped := Map()
+    for key, value in originalMap {
+        flipped[value] := key
     }
-    return c
+    return flipped
+}
+
+/**
+ * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
+ */
+IsSingleBraceText(text) {
+    return (StrLen(text) >= 3
+    && SubStr(text, 1, 1) = "{"
+    && SubStr(text, -1) = "}"
+    && !InStr(text, "{", false, 2))
+}
+
+/**
+ * 文字列に波括弧を追加する。既に囲まれている場合はそのまま。
+ */
+AddBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return key
+    }
+    return "{" . key . "}"
+}
+
+/**
+ * 文字列から波括弧を除去する。
+ */
+RemoveBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return SubStr(key, 2, StrLen(key) - 2)
+    }
+    return key
+}
+
+/**
+ * 指定されたキー文字列に修飾記号 (+, ^, !, #, {Blind}) が含まれているか確認。
+ */
+HasModifierSymbols(text) {
+    list := ["{Blind}", "+", "#", "^", "!"]
+    for item in list {
+        if InStr(text, item, false) > 0 {
+            return true
+        }
+    }
+    return false
+}
+
+; --- 変換マップ定義 ---
+
+; 記号 -> スキャンコード形式 scXXX (波括弧なし)
+sc_from_char_map := Map(
+    ";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
+    "\", "sc073", "^", "sc00D", "@", "sc010", "[", "sc01A", "]", "sc01B"
+)
+sc_from_char_map.Default := ""
+
+; スキャンコード形式(波括弧なし) -> 記号文字
+char_from_sc_map := FlipMap(sc_from_char_map)
+char_from_sc_map.Default := ""
+
+; 文字列名 -> 文字
+char_from_str_map := Map(
+    "semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]",
+    "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9",
+    "zero", "0",
+    "space", "Space", "tab", "Tab", "enter", "Enter", "esc", "Esc"
+)
+char_from_str_map.Default := ""
+
+; 文字 -> 文字列名
+str_from_char_map := FlipMap(char_from_str_map)
+str_from_char_map.Default := ""
+
+; --- 変換基本関数 ---
+
+; 文字 (;) -> スキャンコード ({sc027})。英数字はそのまま。
+ScFromChar(c) {
+    sc := sc_from_char_map[c]
+    if (sc == "") {
+        return c
+    }
+    return AddBraces(sc)
+}
+
+; スキャンコード ({sc027}) -> 文字 (;)。
+CharFromSc(sc) {
+    sc_raw := RemoveBraces(sc)
+    c := char_from_sc_map[sc_raw]
+    return (c == "") ? sc : c
+}
+
+; 名前 (semicolon) -> 文字 (;)。
+CharFromStr(str) {
+    c := char_from_str_map[str]
+    return (c == "") ? str : c
+}
+
+; 文字 (;) -> 名前 (semicolon)。
+StrFromChar(c) {
+    str := str_from_char_map[c]
+    return (str == "") ? c : str
+}
+
+; --- 統合ロジック関数 (INI入出力用) ---
+
+/**
+ * INIファイルの値 (val) を処理する: 名前や文字をスキャンコード形式に変換
+ * 例: "semicolon" -> "{sc027}", ";" -> "{sc027}", "one" -> "1", "a" -> "a", "{Enter}" -> "{Enter}"
+ */
+ValStr(str) {
+    c := CharFromStr(str)
+    return ScFromChar(c)
+}
+
+/**
+ * INIファイルのキー (key) を処理する: スキャンコードや文字を名前形式に変換
+ * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "Enter"
+ */
+KeyStr(sc) {
+    c := CharFromSc(sc)
+    return StrFromChar(c)
+}
+
+/**
+ * 表示用の文字・文字列に変換
+ * 例: "{sc027}" -> ";", ";" -> ";", "one" -> "1", "a" -> "a", "{Enter}" -> "Enter"
+ */
+DispStr(str, remove_braces := true) {
+    c := CharFromStr(str) ; "semicolon" -> ";"
+    if (c == str) {         ; 変換されなかった場合（名前ではない場合）
+        c := CharFromSc(str) ; "{sc027}" -> ";"
+    }
+    return remove_braces ? RemoveBraces(c) : c ; "{Esc}" -> "Esc" などの最終調整
+}
+
+/**
+ * 送信用のキー文字列を生成する (修飾記号の付与など)
+ */
+MakeKeyText(text, prefix := "") {
+    if text == "" || text == "{none}"
+        return ""
+    if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
+        return text
+    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
+        return prefix . text
+    }
+    return text
+}
+
+/**
+ * レイアウト文字列のパース補助
+ */
+class LayoutString {
+    arr := []
+    __New(layout_str) {
+        this.layout_str := layout_str
+        if this.layout_str = ""
+            return
+        if InStr(this.layout_str, " ") {
+            this.arr := StrSplit(RegExReplace(Trim(this.layout_str), " +", " "), " ")
+        } else {
+            this.arr := StrSplit(this.layout_str)
+        }
+    }
+    GetElement(index) => (index <= this.arr.Length) ? this.arr[index] : ""
 }
 
 class KeyLogItem {
@@ -628,7 +783,7 @@ class KeyLogger {
         if !this.stats_mid.Has(layout)
             this.stats_mid[layout] := Map()
         stats_map := this.stats_mid[layout]
-
+        def_save := char_from_sc_map.Default
         loop this.stats_short_idx {
             entry := this.stats_short[A_Index]
             char := entry.c
@@ -638,19 +793,13 @@ class KeyLogger {
             if InStr(char, "{") {
                 if SubStr(char, 1, 7) = "{Blind}"
                     char := SubStr(char, 8) ; {Blind} を除去
-
+                char := DispStr(char, false)
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
-                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}" {
-                        char := sc_to_char_map[SubStr(char, 2, -1)] ; {sc033} を文字に変換
-                    } else {
-                        char := " "
-                        ;continue ; 記録対象外の特殊キー ({Enter} 等) は無視
-                    }
+                    char := " "
                 }
             }
-
             ; よく使う記号のスキャンコードを文字に変換
-            ;char := sc_to_char_map.Get(char, char)
+            ;char := char_from_sc_map.Get(char, char)
 
             if char = ""
                 continue
@@ -689,6 +838,8 @@ class KeyLogger {
                 item.duration13 += t
             }
         }
+        char_from_sc_map.Default := def_save
+
         this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
         this.total_log_time := 0
         this.stats_short_idx := 0
@@ -821,29 +972,6 @@ class KeyLogger {
         time := end - start
         this.total_log_time := Max(time, this.total_log_time)
 
-    }
-}
-
-class LayoutString {
-    arr := []
-
-    __New(layout_str) {
-        this.layout_str := layout_str
-
-        if this.layout_str = ""
-            return
-        if InStr(this.layout_str, " ") {
-            ; 複数の連続するスペースを一つとしてパース
-            this.arr := StrSplit(RegExReplace(Trim(this.layout_str), " +", " "), " ")
-        } else {
-            this.arr := StrSplit(this.layout_str)
-        }
-    }
-
-    GetElement(index) {
-        if index <= this.arr.Length
-            return this.arr[index]
-        return ""
     }
 }
 
@@ -1146,165 +1274,6 @@ MakeModStr() {
 }
 
 /*============================================================================
- [Class] MKey (モディファイアキー)
- 「デュアルロール」モディファイアキー機能を実装します。
- - タイムアウト時間内に離された場合（短押し）はデフォルトキーを送信します。
- - タイムアウト時間を超えて押し続けられた場合は、モディファイアキーとして機能します。
-============================================================================*/
-class MKey {
-    /**
-     * コンストラクタ
-     * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
-     * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
-     */
-    __New(key, timeout := 180) {
-        if key = "" { ; F13のような「仮想」モディファイア用
-            this.key_str := ""
-            this.key := key ; 登録されたキー
-        } else {
-            this.key := removeBraces(key)
-            this.key_str := addBraces(key)
-        }
-        this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
-        this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
-        this.timeout := timeout
-    }
-    /**
-     * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
-     * @returns {Boolean} 押されていれば true
-     */
-    IsPressed() => (this.pressed_time != 0)
-    ;IsPressed() => GetKeyState(this.key_str, "P")
-
-    /**
-     * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
-     */
-    SetModStr() {
-        this.mod_str := MakeModStr()
-    }
-
-    /**
-     * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
-     * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
-     */
-    Down() {
-        Critical
-        if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
-            return false
-        }
-        this.pressed_time := A_TickCount ; 押し下げ時間を記録
-        this.SetModStr()                 ; 他の修飾キーを記録
-        return true
-    }
-
-    /**
-     * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
-     * 短押しだった場合は元のキー（修飾キー付き）を送信します。
-     */
-    Up() {
-        Critical
-        if (A_TickCount - this.pressed_time < this.timeout) {
-            SendAndLog("{Blind}" . this.mod_str . this.key_str)
-        }
-        this.pressed_time := 0
-    }
-
-    /**
-     * キーの押し下げ状態を強制的にリセットする
-     */
-    Reset() {
-        this.pressed_time := 0
-    }
-} ;class MKey
-
-/**
- * 文字列に波括弧を追加する
- * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
- * @returns {String} 波括弧で囲まれた文字列
- */
-addBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return key
-    }
-    return "{" . key . "}"
-}
-
-removeBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return SubStr(key, 2, StrLen(key) - 2)
-    }
-    return key
-}
-
-/**
- * 指定されたキー文字列に修飾記号が含まれているかを確認するヘルパー関数
- * @param {String} text - キー文字列 (例: "^c", "{Blind}a")
- * @returns {Boolean} 修飾記号が含まれていれば true
- */
-HasModifierSymbols(text) {
-    list := ["{Blind}", "+", "#", "^", "!"]
-    for index, item in list {
-        if InStr(text, item, 'Off') > 0 {
-            return true
-        }
-    }
-    return false
-}
-
-/**
- * 1つの波括弧で囲まれた文字列か判定する
- * @param {String} text - 文字列
- * @returns {Boolean} 1つの波括弧で囲まれていれば true 複数の波括弧ペアなら false
- */
-IsSingleBraceText(text) {
-    ; 1. 全体が3文字以上であること（ "{x}" の最小構成 ）
-    ; 2. 先頭が "{" で、末尾が "}" であること
-    ; 3. 2文字目以降に "{" が含まれていないこと（複数のペア "{}{}" を防ぐ）
-    return (StrLen(text) >= 3
-    && SubStr(text, 1, 1) = "{"
-    && SubStr(text, -1) = "}"
-    && !InStr(text, "{", false, 2))
-}
-
-/**
- * キー送信用の文字列を生成する。
- * 
- * 【入力文字列の仕様】
- * 1. 単独の文字 (例: "a") > プレフィックスをつけて返す
- * 2. 特殊記号を含む文字列 (例: "+a", "{Blind}s") -> そのまま返す
- * 3. 波括弧で囲まれた文字列(キー名/スキャンコード) (例: "{space}", "{sc027}") > プレフィックスをつけて返す
- * 4. 複数の文字、または、波括弧で囲まれた文字列 (例: "abc","{text}{text2}") -> そのまま返す
- * ※プレフィックス指定は1,3のみ適用 (例: prefix="+", text="a") -> "+a"
- * プレフィックスが空白も可
- * @param {String} text - 変換対象のキー文字列
- * @param {String} [prefix=""] - キー名の前に付与する接頭辞 (例: "+" で Shift)
- * @returns {String} 送信文字列
- */
-MakeKeyText(text, prefix := "") {
-    if text == "" || text == "{none}"
-        return ""
-
-    ; すでに {Blind} がついている場合は、二重付与を防ぐためにそのまま返す
-    if InStr(text, "{Blind}", false)
-        return text
-
-    ; 入力テキスト自体に修飾記号 (+, ^, !, #) が含まれている場合はそのまま返す
-    if HasModifierSymbols(text)
-        return text
-
-    ; 判定ロジック
-    ; 1. 単独の文字 (StrLen == 1)
-    ; 2. 1つの波括弧ペアのみで構成される (IsSingleBraceText == true)
-    ; 上記のいずれかの場合のみ,prefix を付与する
-    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
-        return prefix . text
-    }
-
-    ; それ以外（"abc" や "{a}{b}" など）はそのまま返す
-    return text
-}
-
-/*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
  登録する文字列の仕様については MakeKeyText() のコメントを参照してください。
@@ -1319,8 +1288,8 @@ class RKey {
      */
     __New(key, reg_key := "") {
         this.layer_keys := ["", "", "", "", "", "", "", "", "", ""]
-        this.org_key := addBraces(key)
-        this.org_key_raw := removeBraces(key)
+        this.org_key := AddBraces(key)
+        this.org_key_raw := RemoveBraces(key)
         if reg_key = "" {
             this.SetKey(key)   ; IME OFF 時のキーを設定
             this.SetImeKey(key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
@@ -1461,7 +1430,6 @@ class RKey {
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
-    ;static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
 
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
 
@@ -1581,6 +1549,22 @@ class LKey extends RKey {
             shift := IsPhysicalShiftPressed()
             this.SendShiftedKey(shift)
         }
+
+        ; ; 5. モード 5 (KeyWait ベースの即時入力 + 長押し置換)
+        ; if this.long_press_mode = 5 {
+        ;     this.pressed_time := A_TickCount
+        ;     shift := IsPhysicalShiftPressed()
+        ;     this.SendShiftedKey(shift)
+        ;     Critical("Off")
+        ;     released := KeyWait(this.org_key_raw, "T" . (LKey.long_press_th / 1000))
+        ;     if !released {
+        ;         Send("{Backspace}")
+        ;         this.SendShiftedKey(true)
+        ;         KeyWait(this.org_key_raw)
+        ;     }
+        ;     this.pressed_time := 0
+        ;     return
+        ; }
 
         ; 5. 状態を記録し、長押し判定のためのタイマーを開始
         this.pressed_time := A_TickCount
@@ -1728,6 +1712,14 @@ LAYOUT_KEYS := [
     a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
     z, x, c, v, b, n, m, comma, period, slash, backslash
 ]
+
+qwerty_keys := [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
+    "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
+    "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
+    "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
+]
+
 I_1 := 0
 I_2 := 1
 I_3 := 2
@@ -1792,6 +1784,7 @@ ResetIME() {
         keyObj.SetIMEKey()
     }
 }
+
 LoadLayoutConfig() {
     try {
         try {
@@ -1822,32 +1815,48 @@ LoadLayoutConfig() {
     } catch {
     }
 }
+
+; ============================================================================
+; レイヤー状態判定関数
+; ============================================================================
+L_NAVI_CTRL := 1
+L_SYMBOL_NUM := 2
+L_SYMBOL1 := 3
+L_SYMBOL2 := 4
+L_SELECT := 5
+L_NUMPAD := 6
+L_SHIFT := 7
+L_FUNC := 4
+
+
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
  */
 LoadLayoutFromIni(index) {
+    global  L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
     name := IniRead(A_ScriptDir . "\config.ini", index, "name", "")
     if name = "" {
         ChangeQwertyLayout()
         return
     }
     ver := IniRead(A_ScriptDir . "\config.ini", index, "ver", "1")
-    if ver = 1 {
+    if ver = 1{
         if ApplyLayoutFromIni(index)
             return
     } else if ver = 2 {
         if ApplyLayoutFromIni2(index) {
-            ApplyLayerLayoutFromIni(L_NAVL_CTRL)
-            ApplyLayerLayoutFromIni(L_SYMBOL_NUM)
-            ApplyLayerLayoutFromIni(L_SYMBOL1)
-            ApplyLayerLayoutFromIni(L_SYMBOL2)
-            ApplyLayerLayoutFromIni(L_NUMPAD)
-            ApplyLayerLayoutFromIni(L_SELECT)
+            ApplyLayerLayoutFromIni(L_NAVI_CTRL, index)
+            ApplyLayerLayoutFromIni(L_SYMBOL_NUM, index)
+            ApplyLayerLayoutFromIni(L_SYMBOL1, index)
+            ApplyLayerLayoutFromIni(L_SYMBOL2, index)
+            ApplyLayerLayoutFromIni(L_NUMPAD, index)
+            ApplyLayerLayoutFromIni(L_SELECT, index)
             return
         }
     }
     ChangeQwertyLayout()
 }
+
 /**
  * config.ini の指定されたセクションからレイアウト配列を読み込み、適用する
  * @param {String} name - レイアウト名（INIのセクション名）
@@ -1885,42 +1894,145 @@ ApplyLayoutFromIni(index) {
     return true
 }
 
-ReadLayoutFromIni(ini_path, index, prefix) {
-    layout := IniRead(ini_path, index, prefix . "00", "")
+ReadLayoutTextFromIni(ini_path, section, prefix) {
+    layout := IniRead(ini_path, section, prefix . "00", "")
     loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, prefix . Format("{:02d}", A_Index), "")
+        str := IniRead(ini_path, section, prefix . Format("{:02d}", A_Index), "")
         if str == ""
             break
         layout .= " " . str
     }
+    return layout
 }
 
-ApplyLayoutFromIni2(index) {
+class IniMap {
+    __New(map, ini_path, section, prefix := "") {
+        this.map := map
+        this.inipath := ini_path
+        this.section := section
+        this.prefix := prefix
+    }
+
+    Set(c) {
+        key := StrLower(KeyStr(c))
+        if key == "" {
+            return
+        }
+        val := IniRead(this.inipath, this.section, this.prefix . key, "")
+        val := ValStr(val)
+        if val != "" {
+            this.map.Set(key, val)
+        }
+    }
+}
+
+ReadEachLayoutFromIni(map, ini_path, section, prefix := "") {
+    imap := IniMap(map, ini_path, section, prefix)
+    for i, c in qwerty_keys {
+        imap.Set(c)
+    }
+    ; 特殊キーの個別読み込み
+    imap.Set("enter")
+    imap.Set("space")
+    imap.Set("tab")
+    imap.Set("esc")
+}
+
+ApplyLayoutFromIni2(section) {
     ini_path := A_ScriptDir . "\config.ini"
 
     ; 必須のレイアウト文字列を取得
-    name := IniRead(ini_path, index, "Name", "")
-    if name = ""
+    name := IniRead(ini_path, section, "Name", "")
+    if (name == "")
         return false
 
-    layout := ReadLayoutFromIni(ini_path, index, "L")
-    shift_layout := ReadLayoutFromIni(ini_path, index, "S")
+    layout := ReadLayoutTextFromIni(ini_path, section, "L")
+    if (layout == "")
+        map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
+    else
+        map := MakeLayoutMap(layout)
+    ReadEachLayoutFromIni(map, ini_path, section, "")
 
-    ; 基本レイアウトの設定
-    StoreLayout2(name, layout, shift_layout)
-    ResetIME() ; IME ON 時の個別設定を一旦リセット
+    shift_layout := ReadLayoutTextFromIni(ini_path, section, "S")
+    if (shift_layout == "")
+        shift_map := Map()
+    else
+        shift_map := MakeLayoutMap(shift_layout)
+    ReadEachLayoutFromIni(shift_map, ini_path, section, "s_")
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := ReadLayoutFromIni(ini_path, index, "I")
-    ime_shift_layout := ReadLayoutFromIni(ini_path, index, "IS")
+    ime_layout := ReadLayoutTextFromIni(ini_path, section, "I")
+    if (ime_layout == "")
+        ime_map := Map()
+    else
+        ime_map := MakeLayoutMap(ime_layout)
+    ReadEachLayoutFromIni(ime_map, ini_path, section, "i_")
 
-    if (ime_layout != "" || ime_shift_layout != "") {
-        StoreIMELayout2(name, ime_layout, ime_shift_layout)
-    }
+    ime_shift_layout := ReadLayoutTextFromIni(ini_path, section, "IS")
+    if (ime_shift_layout == "")
+        ime_shift_map := Map()
+    else
+        ime_shift_map := MakeLayoutMap(ime_shift_layout)
+    ReadEachLayoutFromIni(ime_shift_map, ini_path, section, "is_")
+
+    map.Default := ""
+    shift_map.Default := ""
+    ime_map.Default := ""
+    ime_shift_map.Default := ""
+
+    ; 基本レイアウトの設定
+    StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map)
 
     ShowOSD("Loaded layout: " . name)
     return true
 }
+
+/**
+ * config.ini の指定されたセクションから、特定のレイヤー用のキー配列を読み込み適用する
+ * @param {Integer} layer_id - レイヤー番号
+ * @param {String} section - INIのセクション名
+ */
+ApplyLayerLayoutFromIni(layer_id, section) {
+    ini_path := A_ScriptDir . "\config.ini"
+    prefix := "M" . layer_id
+    
+    layout_text := ReadLayoutTextFromIni(ini_path, section, prefix)
+    if (layout_text != "") {
+        layout := LayoutString(layout_text)
+        global LAYOUT_KEYS
+        for i, keyObj in LAYOUT_KEYS {
+            val := layout.GetElement(i)
+            if (val != "") {
+                keyObj.SetLayerKey(layer_id, ValStr(val))
+            }
+        }
+    }
+    
+    ; 個別設定 (M1enter, M1space 等) を読み込むためのマップ生成
+    static key_map := ""
+    if (key_map == "") {
+        key_map := Map()
+        global LAYOUT_KEYS, qwerty_keys
+        for i, keyObj in LAYOUT_KEYS {
+            name := StrLower(KeyStr(qwerty_keys[i]))
+            key_map[name] := keyObj
+        }
+        global enter, space, tab
+        try key_map["enter"] := enter
+        try key_map["space"] := space
+        try key_map["tab"] := tab
+    }
+    
+    ; よく使われる特殊キーの個別上書きチェック
+    for name in ["enter", "space", "tab"] {
+        val := IniRead(ini_path, section, prefix . name, "")
+        if (val != "") {
+            if key_map.Has(name)
+                key_map[name].SetLayerKey(layer_id, ValStr(val))
+        }
+    }
+}
+
 /**
  * 新しい IME-ON 時のキーレイアウトを保存・設定します
  * @param {String} name - レイアウト名
@@ -1946,7 +2058,8 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+
+StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -1960,32 +2073,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,
         keyObj.SetIMEKey(l.GetElement(i), ls.GetElement(i))
     }
 }
-ApplyLayerLayoutFromIni(layer_id) {
-    prefix := "L"
-    ini_path := A_ScriptDir . "\config.ini"
-    try {
-        layout := IniRead(ini_path, layer_id, prefix . "00", "")
-        if layout == ""
-            return false
-        loop LAYOUT_KEYS.Length - 1 {
-            str := IniRead(ini_path, layer_id, prefix . Format("{:02d}", A_Index), "")
-            if str == ""
-                break
-            layout .= " " . str
-        }
-        StoreLayerLayout(layer_id, layout)
-    } catch {
-        return false
-    }
-    return true
-}
 
-StoreLayerLayout(layer_id, layout_str) {
-    l := LayoutString(layout_str)
-    for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetLayerKey(layer_id, l.GetElement(i))
-    }
-}
 /**
  * 現在のキーレイアウトを指定された設定に保存・適用する
  * @param {String} name - レイアウト名
@@ -2010,28 +2098,29 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
         keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-MakeLayoutMap(layout) {
-    static qwerty_keys := [
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
-        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
-        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
-        "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
-    ]
+
+MakeLayoutMap(layout_str := "") {
     map := Map()
-    l := LayoutString(layout)
+    if (layout_str == "") {
+        return map
+    }
+    ;     for i, key in qwerty_keys {
+    ;         ;if (shift)
+    ;         map[key] = "+" . replace_char_to_sc(key)
+    ;         ;else
+    ;         ;map[key] = replace_char_to_sc(key)
+    ;     }
+    ;     return map
+    ; }
+    l := LayoutString(layout_str)
     for i, key in qwerty_keys {
         map[key] = l.GetElement(i)
     }
-
-    ;scは{}なし
-    ; for i, sc in sc_to_char_map.Keys() {
-    ;     map[sc] = map[sc_to_char_map[sc]]
-    ; }
-
     return map
 
 }
-StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo;:];zxcvbnm,./\", shift_layout := "") {
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
@@ -2045,6 +2134,30 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\
         keyObj.SetKey(l.GetElement(i), ls.GetElement(i))
     }
 }
+
+StoreLayoutMap(name, map, shift_map, ime_map, ime_shift_map) {
+    if name != "" {
+        try {
+            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+    global qwerty_keys
+    for i, keyObj in LAYOUT_KEYS {
+        c := qwerty_keys[i]
+        key_text := KeyStr(c)
+        keyObj.SetKey(map[key_text], shift_map[key_text])
+    }
+    ResetIME() ; IME ON 時の個別設定を一旦リセット
+
+    for i, keyObj in LAYOUT_KEYS {
+        c := qwerty_keys[i]
+        key_text := StrFromChar(c)
+        keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
+    }
+
+}
+
 /**
  * キーレイアウトを「Qwerty配列」に変更する
  */
@@ -2185,18 +2298,6 @@ init() {
 }
 LoadLayoutConfig()
 init()
-; ============================================================================
-; レイヤー状態判定関数
-; ============================================================================
-L_NAVL_CTRL := 1
-L_SYMBOL_NUM := 2
-L_SYMBOL1 := 3
-L_SYMBOL2 := 4
-L_SELECT := 5
-L_NUMPAD := 6
-L_SHIFT := 7
-
-L_FUNC := 4
 
 /**
  * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
@@ -2206,7 +2307,7 @@ L_FUNC := 4
  */
 LayerState(layer) {
     ; Check the specified layer
-    if layer = L_NAVL_CTRL {
+    if layer = L_NAVI_CTRL {
         return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
     }
     if layer = L_SYMBOL1 {
@@ -2272,47 +2373,47 @@ LayerState(layer) {
 *right:: right.SendLayer(L_SELECT, "+{Right}")
 #HotIf
 ;*** レイヤー（システム/アプリ制御） ***
-#HotIf LayerState(L_NAVL_CTRL)
-*1:: k1.SendLayer(L_NAVL_CTRL, B_F1)
-*2:: k2.SendLayer(L_NAVL_CTRL, B_F2)
-*3:: k3.SendLayer(L_NAVL_CTRL, B_F3)
-*4:: k4.SendLayer(L_NAVL_CTRL, B_F4)
-*5:: k5.SendLayer(L_NAVL_CTRL, B_F5)
-*6:: k6.SendLayer(L_NAVL_CTRL, B_F6)
-*7:: k7.SendLayer(L_NAVL_CTRL, B_F7)
-*8:: k8.SendLayer(L_NAVL_CTRL, B_F8)
-*9:: k9.SendLayer(L_NAVL_CTRL, B_F9)
-*0:: k0.SendLayer(L_NAVL_CTRL, B_F10)
-*-:: minus.SendLayer(L_NAVL_CTRL, B_F11)
-*sc00D:: hat.SendLayer(L_NAVL_CTRL, B_F12) ; ^ -> F12
-sc07D:: yen.SendLayer(L_NAVL_CTRL, "^+{sc07D}") ; ¥ -> |
-*z:: z.SendLayer(L_NAVL_CTRL, B_UNDO)  ; Undo
-*x:: x.SendLayer(L_NAVL_CTRL, B_CUT)   ; Cut
-*c:: c.SendLayer(L_NAVL_CTRL, B_COPY)  ; Copy
-*v:: v.SendLayer(L_NAVL_CTRL, B_PASTE) ; Paste
-*b:: b.SendLayer(L_NAVL_CTRL, B_UNDO)  ; Undo
+#HotIf LayerState(L_NAVI_CTRL)
+*1:: k1.SendLayer(L_NAVI_CTRL, B_F1)
+*2:: k2.SendLayer(L_NAVI_CTRL, B_F2)
+*3:: k3.SendLayer(L_NAVI_CTRL, B_F3)
+*4:: k4.SendLayer(L_NAVI_CTRL, B_F4)
+*5:: k5.SendLayer(L_NAVI_CTRL, B_F5)
+*6:: k6.SendLayer(L_NAVI_CTRL, B_F6)
+*7:: k7.SendLayer(L_NAVI_CTRL, B_F7)
+*8:: k8.SendLayer(L_NAVI_CTRL, B_F8)
+*9:: k9.SendLayer(L_NAVI_CTRL, B_F9)
+*0:: k0.SendLayer(L_NAVI_CTRL, B_F10)
+*-:: minus.SendLayer(L_NAVI_CTRL, B_F11)
+*sc00D:: hat.SendLayer(L_NAVI_CTRL, B_F12) ; ^ -> F12
+sc07D:: yen.SendLayer(L_NAVI_CTRL, "^+{sc07D}") ; ¥ -> |
+*z:: z.SendLayer(L_NAVI_CTRL, B_UNDO)  ; Undo
+*x:: x.SendLayer(L_NAVI_CTRL, B_CUT)   ; Cut
+*c:: c.SendLayer(L_NAVI_CTRL, B_COPY)  ; Copy
+*v:: v.SendLayer(L_NAVI_CTRL, B_PASTE) ; Paste
+*b:: b.SendLayer(L_NAVI_CTRL, B_UNDO)  ; Undo
 ; --- 編集・ナビゲーション（Shiftなし） ---
-*y:: y.SendLayer(L_NAVL_CTRL, B_UNDO)  ; Undo (^z)
-*u:: u.SendLayer(L_NAVL_CTRL, B_BS)    ; Backspace
-*i:: i.SendLayer(L_NAVL_CTRL, B_UP)    ; Up
-*o:: o.SendLayer(L_NAVL_CTRL, B_PGUP)  ; PgUp
-*p:: p.SendLayer(L_NAVL_CTRL, B_PGDN)  ; PgDn
-*@:: at.SendLayer(L_NAVL_CTRL, B_CHOME) ; Ctrl+Home
-*[:: openbracket.SendLayer(L_NAVL_CTRL, B_CEND)  ; Ctrl+End
-*h:: h.SendLayer(L_NAVL_CTRL, B_HOME)  ; Home
-*j:: j.SendLayer(L_NAVL_CTRL, B_LEFT)  ; Left
-*k:: k.SendLayer(L_NAVL_CTRL, B_DOWN)  ; Down
-*l:: l.SendLayer(L_NAVL_CTRL, B_RIGHT) ; Right
-*sc027:: semicolon.SendLayer(L_NAVL_CTRL, B_ENTER) ; Semicolon (;) -> Enter
+*y:: y.SendLayer(L_NAVI_CTRL, B_UNDO)  ; Undo (^z)
+*u:: u.SendLayer(L_NAVI_CTRL, B_BS)    ; Backspace
+*i:: i.SendLayer(L_NAVI_CTRL, B_UP)    ; Up
+*o:: o.SendLayer(L_NAVI_CTRL, B_PGUP)  ; PgUp
+*p:: p.SendLayer(L_NAVI_CTRL, B_PGDN)  ; PgDn
+*@:: at.SendLayer(L_NAVI_CTRL, B_CHOME) ; Ctrl+Home
+*[:: openbracket.SendLayer(L_NAVI_CTRL, B_CEND)  ; Ctrl+End
+*h:: h.SendLayer(L_NAVI_CTRL, B_HOME)  ; Home
+*j:: j.SendLayer(L_NAVI_CTRL, B_LEFT)  ; Left
+*k:: k.SendLayer(L_NAVI_CTRL, B_DOWN)  ; Down
+*l:: l.SendLayer(L_NAVI_CTRL, B_RIGHT) ; Right
+*sc027:: semicolon.SendLayer(L_NAVI_CTRL, B_ENTER) ; Semicolon (;) -> Enter
 ;sc028::Return ; Colon (:) -> Disabled
-*]:: closebracket.SendLayer(L_NAVL_CTRL, "^+{sc07D}")
-*n:: n.SendLayer(L_NAVL_CTRL, B_END)   ; End
-*m:: m.SendLayer(L_NAVL_CTRL, B_DEL)   ; Delete
-*sc033:: comma.SendLayer(L_NAVL_CTRL, B_CLEFT) ; Comma (,) -> Ctrl+Left
-*.:: period.SendLayer(L_NAVL_CTRL, B_CRIGHT) ; Period (.) -> Ctrl+Right
-sc035:: slash.SendLayer(L_NAVL_CTRL, "^+{sc07D}") ; / -> |
-*Enter:: enter.SendLayer(L_NAVL_CTRL, "{Blind}^{Enter}") ; Enter -> Ctrl+Enter
-*a:: a.SendLayer(L_NAVL_CTRL, "{Blind}^a") ; Select All
+*]:: closebracket.SendLayer(L_NAVI_CTRL, "^+{sc07D}")
+*n:: n.SendLayer(L_NAVI_CTRL, B_END)   ; End
+*m:: m.SendLayer(L_NAVI_CTRL, B_DEL)   ; Delete
+*sc033:: comma.SendLayer(L_NAVI_CTRL, B_CLEFT) ; Comma (,) -> Ctrl+Left
+*.:: period.SendLayer(L_NAVI_CTRL, B_CRIGHT) ; Period (.) -> Ctrl+Right
+sc035:: slash.SendLayer(L_NAVI_CTRL, "^+{sc07D}") ; / -> |
+*Enter:: enter.SendLayer(L_NAVI_CTRL, "{Blind}^{Enter}") ; Enter -> Ctrl+Enter
+*a:: a.SendLayer(L_NAVI_CTRL, "{Blind}^a") ; Select All
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 Esc:: {
     KeyLogger.Save()
@@ -2703,10 +2804,10 @@ Right:: right.SendLayer(L_SHIFT, right.shift_key_text)
 *Right up:: right.Up()
 ;#Hotif ; コンテキスト依存ホットキーの終了
 ; ============================================================================
-; グローバルホットキー (MKey バインド)
+; グローバルホットキー (モディファイアキー バインド)
 ; ============================================================================
 ; これらのホットキーは常にアクティブで、物理キーを
-; MKey（モディファイア）オブジェクトにバインドします。
+; LKey（モディファイアモード）オブジェクトにバインドします。
 *Space:: space.Down()
 *Space up:: space.Up()
 *tab:: tab.Down()
