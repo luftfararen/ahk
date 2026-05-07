@@ -1,4 +1,4 @@
-﻿#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2.0
 
 ; ============================================================================
 ; スクリプト概要
@@ -1371,9 +1371,15 @@ class RKey {
         }
     }
 
-    SetLayerKey(layer_id, action, through_if_blank := false) {
+    /**
+     * レイヤーキーを設定する
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     * @param {Boolean} reset_if_blank - 空の場合にリセットするかどうか
+     */
+    SetLayerKey(layer_id, action, reset_if_blank := false) {
         if action == "" {
-            if !through_if_blank {
+            if reset_if_blank {
                 this.layer_keys[layer_id] := ""
             }
         } else {
@@ -1381,16 +1387,17 @@ class RKey {
         }
     }
 
-    SendLayer(layer_id, default_action := "") {
+    SendLayerKey(layer_id) {
         action := this.layer_keys[layer_id]
-        if action != "" {
+        if action == "" {
+            if (layer_id == L_SHIFT)
+                this.SendShiftedKey()
+        } else {
             if action == "{none}"
                 return
             SendAndLog(action)
             return
         }
-        if default_action != ""
-            SendAndLog(default_action)
     }
 
     /**
@@ -2372,9 +2379,256 @@ init() {
         keyObj.long_press_mode := 1
     }
 
-    ;colon.long_press_mode := 2
+    global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
+    global q, w, e, r, t, y, u, i, o, p, at, openbracket
+    global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
+    global z, x, c, v, b, n, m, comma, period, slash, backslash
+
+    ; L_SELECT
+    k1.SetLayerKey(L_SELECT, "^z")
+    k2.SetLayerKey(L_SELECT, "^x")
+    k3.SetLayerKey(L_SELECT, "^c")
+    k4.SetLayerKey(L_SELECT, "^v")
+    z.SetLayerKey(L_SELECT, "^z")
+    x.SetLayerKey(L_SELECT, "^x")
+    c.SetLayerKey(L_SELECT, "^c")
+    v.SetLayerKey(L_SELECT, "^v")
+    b.SetLayerKey(L_SELECT, "^z")
+    y.SetLayerKey(L_SELECT, R_REDO)
+    u.SetLayerKey(L_SELECT, C_BS)
+    i.SetLayerKey(L_SELECT, "+{Up}")
+    o.SetLayerKey(L_SELECT, "+{PgUp}")
+    p.SetLayerKey(L_SELECT, "+{PgDn}")
+    at.SetLayerKey(L_SELECT, C_CSHOME)
+    openbracket.SetLayerKey(L_SELECT, C_CSEND)
+    h.SetLayerKey(L_SELECT, "+{Home}")
+    j.SetLayerKey(L_SELECT, "+{Left}")
+    k.SetLayerKey(L_SELECT, "+{Down}")
+    l.SetLayerKey(L_SELECT, "+{Right}")
+    semicolon.SetLayerKey(L_SELECT, "+{Enter}")
+    enter.SetLayerKey(L_SELECT, B_ENTER)
+    n.SetLayerKey(L_SELECT, "+{End}")
+    m.SetLayerKey(L_SELECT, C_DEL)
+    comma.SetLayerKey(L_SELECT, "^+{Left}")
+    period.SetLayerKey(L_SELECT, "^+{Right}")
+    space.SetLayerKey(L_SELECT, C_BS)
+    up.SetLayerKey(L_SELECT, "+{Up}")
+    left.SetLayerKey(L_SELECT, "+{Left}")
+    down.SetLayerKey(L_SELECT, "+{Down}")
+    right.SetLayerKey(L_SELECT, "+{Right}")
+
+    ; L_NAVI_CTRL
+    k1.SetLayerKey(L_NAVI_CTRL, B_F1)
+    k2.SetLayerKey(L_NAVI_CTRL, B_F2)
+    k3.SetLayerKey(L_NAVI_CTRL, B_F3)
+    k4.SetLayerKey(L_NAVI_CTRL, B_F4)
+    k5.SetLayerKey(L_NAVI_CTRL, B_F5)
+    k6.SetLayerKey(L_NAVI_CTRL, B_F6)
+    k7.SetLayerKey(L_NAVI_CTRL, B_F7)
+    k8.SetLayerKey(L_NAVI_CTRL, B_F8)
+    k9.SetLayerKey(L_NAVI_CTRL, B_F9)
+    k0.SetLayerKey(L_NAVI_CTRL, B_F10)
+    minus.SetLayerKey(L_NAVI_CTRL, B_F11)
+    hat.SetLayerKey(L_NAVI_CTRL, B_F12)
+    yen.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
+    z.SetLayerKey(L_NAVI_CTRL, B_UNDO)
+    x.SetLayerKey(L_NAVI_CTRL, B_CUT)
+    c.SetLayerKey(L_NAVI_CTRL, B_COPY)
+    v.SetLayerKey(L_NAVI_CTRL, B_PASTE)
+    b.SetLayerKey(L_NAVI_CTRL, B_UNDO)
+    y.SetLayerKey(L_NAVI_CTRL, B_UNDO)
+    u.SetLayerKey(L_NAVI_CTRL, B_BS)
+    i.SetLayerKey(L_NAVI_CTRL, B_UP)
+    o.SetLayerKey(L_NAVI_CTRL, B_PGUP)
+    p.SetLayerKey(L_NAVI_CTRL, B_PGDN)
+    at.SetLayerKey(L_NAVI_CTRL, B_CHOME)
+    openbracket.SetLayerKey(L_NAVI_CTRL, B_CEND)
+    h.SetLayerKey(L_NAVI_CTRL, B_HOME)
+    j.SetLayerKey(L_NAVI_CTRL, B_LEFT)
+    k.SetLayerKey(L_NAVI_CTRL, B_DOWN)
+    l.SetLayerKey(L_NAVI_CTRL, B_RIGHT)
+    semicolon.SetLayerKey(L_NAVI_CTRL, B_ENTER)
+    closebracket.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
+    n.SetLayerKey(L_NAVI_CTRL, B_END)
+    m.SetLayerKey(L_NAVI_CTRL, B_DEL)
+    comma.SetLayerKey(L_NAVI_CTRL, B_CLEFT)
+    period.SetLayerKey(L_NAVI_CTRL, B_CRIGHT)
+    slash.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
+    enter.SetLayerKey(L_NAVI_CTRL, "{Blind}^{Enter}")
+    a.SetLayerKey(L_NAVI_CTRL, "{Blind}^a")
+
+    ; L_SYMBOL_NUM
+    k1.SetLayerKey(L_SYMBOL_NUM, B_F1)
+    k2.SetLayerKey(L_SYMBOL_NUM, B_F2)
+    k3.SetLayerKey(L_SYMBOL_NUM, B_F3)
+    k4.SetLayerKey(L_SYMBOL_NUM, B_F4)
+    k5.SetLayerKey(L_SYMBOL_NUM, B_F5)
+    k6.SetLayerKey(L_SYMBOL_NUM, B_F6)
+    k7.SetLayerKey(L_SYMBOL_NUM, B_F7)
+    k8.SetLayerKey(L_SYMBOL_NUM, B_F8)
+    k9.SetLayerKey(L_SYMBOL_NUM, B_F9)
+    k0.SetLayerKey(L_SYMBOL_NUM, B_F10)
+    minus.SetLayerKey(L_SYMBOL_NUM, B_F11)
+    hat.SetLayerKey(L_SYMBOL_NUM, B_F12)
+    q.SetLayerKey(L_SYMBOL_NUM, "?")
+    w.SetLayerKey(L_SYMBOL_NUM, "{Blind}/")
+    e.SetLayerKey(L_SYMBOL_NUM, B_NMUL)
+    r.SetLayerKey(L_SYMBOL_NUM, B_NADD)
+    t.SetLayerKey(L_SYMBOL_NUM, "+F3")
+    a.SetLayerKey(L_SYMBOL_NUM, "(")
+    s.SetLayerKey(L_SYMBOL_NUM, ")")
+    d.SetLayerKey(L_SYMBOL_NUM, "_")
+    f.SetLayerKey(L_SYMBOL_NUM, "{Blind}-")
+    g.SetLayerKey(L_SYMBOL_NUM, "=")
+    y.SetLayerKey(L_SYMBOL_NUM, B_BS)
+    u.SetLayerKey(L_SYMBOL_NUM, C_N7)
+    i.SetLayerKey(L_SYMBOL_NUM, C_N8)
+    o.SetLayerKey(L_SYMBOL_NUM, C_N9)
+    p.SetLayerKey(L_SYMBOL_NUM, "+^p")
+    h.SetLayerKey(L_SYMBOL_NUM, "=")
+    j.SetLayerKey(L_SYMBOL_NUM, C_N0)
+    k.SetLayerKey(L_SYMBOL_NUM, C_N1)
+    l.SetLayerKey(L_SYMBOL_NUM, C_N2)
+    semicolon.SetLayerKey(L_SYMBOL_NUM, B_ENTER)
+    n.SetLayerKey(L_SYMBOL_NUM, "+3")
+    m.SetLayerKey(L_SYMBOL_NUM, C_N3)
+    comma.SetLayerKey(L_SYMBOL_NUM, C_N4)
+    period.SetLayerKey(L_SYMBOL_NUM, C_N5)
+    slash.SetLayerKey(L_SYMBOL_NUM, C_N6)
+    z.SetLayerKey(L_SYMBOL_NUM, "[")
+    x.SetLayerKey(L_SYMBOL_NUM, "]")
+    c.SetLayerKey(L_SYMBOL_NUM, "+[")
+    v.SetLayerKey(L_SYMBOL_NUM, "+]")
+    b.SetLayerKey(L_SYMBOL_NUM, C_BACKSLASH)
+    space.SetLayerKey(L_SYMBOL_NUM, B_BS)
+
+    ; L_SYMBOL1
+    k1.SetLayerKey(L_SYMBOL1, B_F1)
+    k2.SetLayerKey(L_SYMBOL1, B_F2)
+    k3.SetLayerKey(L_SYMBOL1, B_F3)
+    k4.SetLayerKey(L_SYMBOL1, B_F4)
+    k5.SetLayerKey(L_SYMBOL1, B_F5)
+    k6.SetLayerKey(L_SYMBOL1, B_F6)
+    k7.SetLayerKey(L_SYMBOL1, B_F7)
+    k8.SetLayerKey(L_SYMBOL1, B_F8)
+    k9.SetLayerKey(L_SYMBOL1, B_F9)
+    k0.SetLayerKey(L_SYMBOL1, B_F10)
+    minus.SetLayerKey(L_SYMBOL1, B_F11)
+    hat.SetLayerKey(L_SYMBOL1, B_F12)
+    q.SetLayerKey(L_SYMBOL1, "?")
+    w.SetLayerKey(L_SYMBOL1, "{Blind}/")
+    e.SetLayerKey(L_SYMBOL1, B_NMUL)
+    r.SetLayerKey(L_SYMBOL1, B_NADD)
+    t.SetLayerKey(L_SYMBOL1, "+F3")
+    a.SetLayerKey(L_SYMBOL1, "(")
+    s.SetLayerKey(L_SYMBOL1, ")")
+    d.SetLayerKey(L_SYMBOL1, "_")
+    f.SetLayerKey(L_SYMBOL1, "{Blind}-")
+    g.SetLayerKey(L_SYMBOL1, "=")
+    y.SetLayerKey(L_SYMBOL1, B_BS)
+    u.SetLayerKey(L_SYMBOL1, C_N7)
+    i.SetLayerKey(L_SYMBOL1, C_N8)
+    o.SetLayerKey(L_SYMBOL1, C_N9)
+    p.SetLayerKey(L_SYMBOL1, "+^p")
+    h.SetLayerKey(L_SYMBOL1, "=")
+    j.SetLayerKey(L_SYMBOL1, C_N0)
+    k.SetLayerKey(L_SYMBOL1, C_N1)
+    l.SetLayerKey(L_SYMBOL1, C_N2)
+    semicolon.SetLayerKey(L_SYMBOL1, B_ENTER)
+    n.SetLayerKey(L_SYMBOL1, "+3")
+    m.SetLayerKey(L_SYMBOL1, C_N3)
+    comma.SetLayerKey(L_SYMBOL1, C_N4)
+    period.SetLayerKey(L_SYMBOL1, C_N5)
+    slash.SetLayerKey(L_SYMBOL1, C_N6)
+    z.SetLayerKey(L_SYMBOL1, "+[")
+    x.SetLayerKey(L_SYMBOL1, "+]")
+    c.SetLayerKey(L_SYMBOL1, "[")
+    v.SetLayerKey(L_SYMBOL1, "]")
+    b.SetLayerKey(L_SYMBOL1, C_BACKSLASH)
+    space.SetLayerKey(L_SYMBOL1, C_BS)
+
+    ; L_NUMPAD
+    k6.SetLayerKey(L_NUMPAD, "{Escape}")
+    t.SetLayerKey(L_NUMPAD, B_NADD)
+    a.SetLayerKey(L_NUMPAD, "(")
+    s.SetLayerKey(L_NUMPAD, ")")
+    f.SetLayerKey(L_NUMPAD, "-")
+    g.SetLayerKey(L_NUMPAD, "=")
+    k7.SetLayerKey(L_NUMPAD, C_N7)
+    k8.SetLayerKey(L_NUMPAD, C_N8)
+    k9.SetLayerKey(L_NUMPAD, C_N9)
+    k0.SetLayerKey(L_NUMPAD, B_NMUL)
+    minus.SetLayerKey(L_NUMPAD, B_NSUB)
+    hat.SetLayerKey(L_NUMPAD, C_HAT)
+    yen.SetLayerKey(L_NUMPAD, "\")
+    y.SetLayerKey(L_NUMPAD, C_BS)
+    u.SetLayerKey(L_NUMPAD, C_N4)
+    i.SetLayerKey(L_NUMPAD, C_N5)
+    o.SetLayerKey(L_NUMPAD, C_N6)
+    p.SetLayerKey(L_NUMPAD, B_NADD)
+    at.SetLayerKey(L_NUMPAD, B_UP)
+    h.SetLayerKey(L_NUMPAD, "=")
+    j.SetLayerKey(L_NUMPAD, C_N1)
+    k.SetLayerKey(L_NUMPAD, C_N2)
+    l.SetLayerKey(L_NUMPAD, C_N3)
+    semicolon.SetLayerKey(L_NUMPAD, B_LEFT)
+    colon.SetLayerKey(L_NUMPAD, B_DOWN)
+    closebracket.SetLayerKey(L_NUMPAD, B_RIGHT)
+    n.SetLayerKey(L_NUMPAD, C_DEL)
+
+    ; L_SYMBOL2
+    q.SetLayerKey(L_SYMBOL2, "+1")
+    w.SetLayerKey(L_SYMBOL2, "+2")
+    e.SetLayerKey(L_SYMBOL2, "+3")
+    r.SetLayerKey(L_SYMBOL2, "+4")
+    t.SetLayerKey(L_SYMBOL2, "+5")
+    a.SetLayerKey(L_SYMBOL2, "+6")
+    s.SetLayerKey(L_SYMBOL2, "+7")
+    d.SetLayerKey(L_SYMBOL2, C_HAT)
+    g.SetLayerKey(L_SYMBOL2, "+@")
+    z.SetLayerKey(L_SYMBOL2, "~")
+    x.SetLayerKey(L_SYMBOL2, "@")
+    c.SetLayerKey(L_SYMBOL2, ":")
+    v.SetLayerKey(L_SYMBOL2, "|")
+    b.SetLayerKey(L_SYMBOL2, "\")
+
+    ; L_FUNC
+    q.SetLayerKey(L_FUNC, B_F1)
+    w.SetLayerKey(L_FUNC, B_F2)
+    e.SetLayerKey(L_FUNC, B_F3)
+    r.SetLayerKey(L_FUNC, B_F4)
+    a.SetLayerKey(L_FUNC, B_F5)
+    s.SetLayerKey(L_FUNC, B_F6)
+    d.SetLayerKey(L_FUNC, B_F7)
+    f.SetLayerKey(L_FUNC, B_F8)
+    z.SetLayerKey(L_FUNC, B_F9)
+    x.SetLayerKey(L_FUNC, B_F10)
+    c.SetLayerKey(L_FUNC, B_F11)
+    v.SetLayerKey(L_FUNC, B_F12)
+
+    ; L_SHIFT
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.SetLayerKey(L_SHIFT, keyObj.shift_key_text)
+    }
+    k1.SetLayerKey(L_SHIFT, B_F1)
+    k2.SetLayerKey(L_SHIFT, B_F2)
+    k3.SetLayerKey(L_SHIFT, B_F3)
+    k4.SetLayerKey(L_SHIFT, B_F4)
+    k5.SetLayerKey(L_SHIFT, B_F5)
+    k6.SetLayerKey(L_SHIFT, B_F6)
+    k7.SetLayerKey(L_SHIFT, B_F7)
+    k8.SetLayerKey(L_SHIFT, B_F8)
+    k9.SetLayerKey(L_SHIFT, B_F9)
+    k0.SetLayerKey(L_SHIFT, B_F10)
+    minus.SetLayerKey(L_SHIFT, B_F11)
+    hat.SetLayerKey(L_SHIFT, B_F12)
+    colon.SetLayerKey(L_SHIFT, "+sc028")
+    closebracket.SetLayerKey(L_SHIFT, "+]")
+
+    LoadLayoutConfig()
+
 }
-LoadLayoutConfig()
+
 init()
 
 /**
@@ -2417,81 +2671,81 @@ LayerState(layer) {
 ;*** レイヤー（Shift付き編集） ***
 #HotIf LayerState(L_SELECT)
 ; --- 編集（Shift付き） ---
-*1:: k1.SendLayer(L_SELECT, "^z") ; Undo
-*2:: k2.SendLayer(L_SELECT, "^x") ; Cut
-*3:: k3.SendLayer(L_SELECT, "^c") ; Copy
-*4:: k4.SendLayer(L_SELECT, "^v") ; Paste
-*z:: z.SendLayer(L_SELECT, "^z") ; Undo
-*x:: x.SendLayer(L_SELECT, "^x") ; Cut
-*c:: c.SendLayer(L_SELECT, "^c") ; Copy
-*v:: v.SendLayer(L_SELECT, "^v") ; Paste
-*b:: b.SendLayer(L_SELECT, "^z") ; Undo
+*1:: k1.SendLayerKey(L_SELECT) ; Undo
+*2:: k2.SendLayerKey(L_SELECT) ; Cut
+*3:: k3.SendLayerKey(L_SELECT) ; Copy
+*4:: k4.SendLayerKey(L_SELECT) ; Paste
+*z:: z.SendLayerKey(L_SELECT) ; Undo
+*x:: x.SendLayerKey(L_SELECT) ; Cut
+*c:: c.SendLayerKey(L_SELECT) ; Copy
+*v:: v.SendLayerKey(L_SELECT) ; Paste
+*b:: b.SendLayerKey(L_SELECT) ; Undo
 ; --- ナビゲーション（Shift付き） ---
-*y:: y.SendLayer(L_SELECT, R_REDO) ; Redo (^y)
-*u:: u.SendLayer(L_SELECT, C_BS)   ; Backspace
-*i:: i.SendLayer(L_SELECT, "+{Up}")   ; Shift+Up
-*o:: o.SendLayer(L_SELECT, "+{PgUp}") ; Shift+PgUp
-*p:: p.SendLayer(L_SELECT, "+{PgDn}") ; Shift+PgDn
-*@:: at.SendLayer(L_SELECT, C_CSHOME) ; Ctrl+Shift+Home
-*[:: openbracket.SendLayer(L_SELECT, C_CSEND)  ; Ctrl+Shift+End
-*h:: h.SendLayer(L_SELECT, "+{Home}")  ; Shift+Home
-*j:: j.SendLayer(L_SELECT, "+{Left}")  ; Shift+Left
-*k:: k.SendLayer(L_SELECT, "+{Down}")  ; Shift+Down
-*l:: l.SendLayer(L_SELECT, "+{Right}") ; Shift+Right
-*sc027:: semicolon.SendLayer(L_SELECT, "+{Enter}") ; Semicolon (;) -> Shift+Enter
-*Enter:: enter.SendLayer(L_SELECT, B_ENTER)
-*n:: n.SendLayer(L_SELECT, "+{End}")   ; Shift+End
-*m:: m.SendLayer(L_SELECT, C_DEL)    ; Delete
-*sc033:: comma.SendLayer(L_SELECT, "^+{Left}") ; Comma (,) -> Ctrl+Shift+Left
-*.:: period.SendLayer(L_SELECT, "^+{Right}") ; Period (.)
-*space:: space.SendLayer(L_SELECT, C_BS) ; Space -> Backspace
-*up:: up.SendLayer(L_SELECT, "+{Up}")
-*left:: left.SendLayer(L_SELECT, "+{Left}")
-*down:: down.SendLayer(L_SELECT, "+{Down}")
-*right:: right.SendLayer(L_SELECT, "+{Right}")
+*y:: y.SendLayerKey(L_SELECT) ; Redo (^y)
+*u:: u.SendLayerKey(L_SELECT)   ; Backspace
+*i:: i.SendLayerKey(L_SELECT)   ; Shift+Up
+*o:: o.SendLayerKey(L_SELECT) ; Shift+PgUp
+*p:: p.SendLayerKey(L_SELECT) ; Shift+PgDn
+*@:: at.SendLayerKey(L_SELECT) ; Ctrl+Shift+Home
+*[:: openbracket.SendLayerKey(L_SELECT)  ; Ctrl+Shift+End
+*h:: h.SendLayerKey(L_SELECT)  ; Shift+Home
+*j:: j.SendLayerKey(L_SELECT)  ; Shift+Left
+*k:: k.SendLayerKey(L_SELECT)  ; Shift+Down
+*l:: l.SendLayerKey(L_SELECT) ; Shift+Right
+*sc027:: semicolon.SendLayerKey(L_SELECT) ; Semicolon (;) -> Shift+Enter
+*Enter:: enter.SendLayerKey(L_SELECT)
+*n:: n.SendLayerKey(L_SELECT)   ; Shift+End
+*m:: m.SendLayerKey(L_SELECT)    ; Delete
+*sc033:: comma.SendLayerKey(L_SELECT) ; Comma (,) -> Ctrl+Shift+Left
+*.:: period.SendLayerKey(L_SELECT) ; Period (.)
+*space:: space.SendLayerKey(L_SELECT) ; Space -> Backspace
+*up:: up.SendLayerKey(L_SELECT)
+*left:: left.SendLayerKey(L_SELECT)
+*down:: down.SendLayerKey(L_SELECT)
+*right:: right.SendLayerKey(L_SELECT)
 #HotIf
 ;*** レイヤー（システム/アプリ制御） ***
 #HotIf LayerState(L_NAVI_CTRL)
-*1:: k1.SendLayer(L_NAVI_CTRL, B_F1)
-*2:: k2.SendLayer(L_NAVI_CTRL, B_F2)
-*3:: k3.SendLayer(L_NAVI_CTRL, B_F3)
-*4:: k4.SendLayer(L_NAVI_CTRL, B_F4)
-*5:: k5.SendLayer(L_NAVI_CTRL, B_F5)
-*6:: k6.SendLayer(L_NAVI_CTRL, B_F6)
-*7:: k7.SendLayer(L_NAVI_CTRL, B_F7)
-*8:: k8.SendLayer(L_NAVI_CTRL, B_F8)
-*9:: k9.SendLayer(L_NAVI_CTRL, B_F9)
-*0:: k0.SendLayer(L_NAVI_CTRL, B_F10)
-*-:: minus.SendLayer(L_NAVI_CTRL, B_F11)
-*sc00D:: hat.SendLayer(L_NAVI_CTRL, B_F12) ; ^ -> F12
-sc07D:: yen.SendLayer(L_NAVI_CTRL, "^+{sc07D}") ; ¥ -> |
-*z:: z.SendLayer(L_NAVI_CTRL, B_UNDO)  ; Undo
-*x:: x.SendLayer(L_NAVI_CTRL, B_CUT)   ; Cut
-*c:: c.SendLayer(L_NAVI_CTRL, B_COPY)  ; Copy
-*v:: v.SendLayer(L_NAVI_CTRL, B_PASTE) ; Paste
-*b:: b.SendLayer(L_NAVI_CTRL, B_UNDO)  ; Undo
+*1:: k1.SendLayerKey(L_NAVI_CTRL)
+*2:: k2.SendLayerKey(L_NAVI_CTRL)
+*3:: k3.SendLayerKey(L_NAVI_CTRL)
+*4:: k4.SendLayerKey(L_NAVI_CTRL)
+*5:: k5.SendLayerKey(L_NAVI_CTRL)
+*6:: k6.SendLayerKey(L_NAVI_CTRL)
+*7:: k7.SendLayerKey(L_NAVI_CTRL)
+*8:: k8.SendLayerKey(L_NAVI_CTRL)
+*9:: k9.SendLayerKey(L_NAVI_CTRL)
+*0:: k0.SendLayerKey(L_NAVI_CTRL)
+*-:: minus.SendLayerKey(L_NAVI_CTRL)
+*sc00D:: hat.SendLayerKey(L_NAVI_CTRL) ; ^ -> F12
+sc07D:: yen.SendLayerKey(L_NAVI_CTRL) ; ¥ -> |
+*z:: z.SendLayerKey(L_NAVI_CTRL)  ; Undo
+*x:: x.SendLayerKey(L_NAVI_CTRL)   ; Cut
+*c:: c.SendLayerKey(L_NAVI_CTRL)  ; Copy
+*v:: v.SendLayerKey(L_NAVI_CTRL) ; Paste
+*b:: b.SendLayerKey(L_NAVI_CTRL)  ; Undo
 ; --- 編集・ナビゲーション（Shiftなし） ---
-*y:: y.SendLayer(L_NAVI_CTRL, B_UNDO)  ; Undo (^z)
-*u:: u.SendLayer(L_NAVI_CTRL, B_BS)    ; Backspace
-*i:: i.SendLayer(L_NAVI_CTRL, B_UP)    ; Up
-*o:: o.SendLayer(L_NAVI_CTRL, B_PGUP)  ; PgUp
-*p:: p.SendLayer(L_NAVI_CTRL, B_PGDN)  ; PgDn
-*@:: at.SendLayer(L_NAVI_CTRL, B_CHOME) ; Ctrl+Home
-*[:: openbracket.SendLayer(L_NAVI_CTRL, B_CEND)  ; Ctrl+End
-*h:: h.SendLayer(L_NAVI_CTRL, B_HOME)  ; Home
-*j:: j.SendLayer(L_NAVI_CTRL, B_LEFT)  ; Left
-*k:: k.SendLayer(L_NAVI_CTRL, B_DOWN)  ; Down
-*l:: l.SendLayer(L_NAVI_CTRL, B_RIGHT) ; Right
-*sc027:: semicolon.SendLayer(L_NAVI_CTRL, B_ENTER) ; Semicolon (;) -> Enter
+*y:: y.SendLayerKey(L_NAVI_CTRL)  ; Undo (^z)
+*u:: u.SendLayerKey(L_NAVI_CTRL)    ; Backspace
+*i:: i.SendLayerKey(L_NAVI_CTRL)    ; Up
+*o:: o.SendLayerKey(L_NAVI_CTRL)  ; PgUp
+*p:: p.SendLayerKey(L_NAVI_CTRL)  ; PgDn
+*@:: at.SendLayerKey(L_NAVI_CTRL) ; Ctrl+Home
+*[:: openbracket.SendLayerKey(L_NAVI_CTRL)  ; Ctrl+End
+*h:: h.SendLayerKey(L_NAVI_CTRL)  ; Home
+*j:: j.SendLayerKey(L_NAVI_CTRL)  ; Left
+*k:: k.SendLayerKey(L_NAVI_CTRL)  ; Down
+*l:: l.SendLayerKey(L_NAVI_CTRL) ; Right
+*sc027:: semicolon.SendLayerKey(L_NAVI_CTRL) ; Semicolon (;) -> Enter
 ;sc028::Return ; Colon (:) -> Disabled
-*]:: closebracket.SendLayer(L_NAVI_CTRL, "^+{sc07D}")
-*n:: n.SendLayer(L_NAVI_CTRL, B_END)   ; End
-*m:: m.SendLayer(L_NAVI_CTRL, B_DEL)   ; Delete
-*sc033:: comma.SendLayer(L_NAVI_CTRL, B_CLEFT) ; Comma (,) -> Ctrl+Left
-*.:: period.SendLayer(L_NAVI_CTRL, B_CRIGHT) ; Period (.) -> Ctrl+Right
-sc035:: slash.SendLayer(L_NAVI_CTRL, "^+{sc07D}") ; / -> |
-*Enter:: enter.SendLayer(L_NAVI_CTRL, "{Blind}^{Enter}") ; Enter -> Ctrl+Enter
-*a:: a.SendLayer(L_NAVI_CTRL, "{Blind}^a") ; Select All
+*]:: closebracket.SendLayerKey(L_NAVI_CTRL)
+*n:: n.SendLayerKey(L_NAVI_CTRL)   ; End
+*m:: m.SendLayerKey(L_NAVI_CTRL)   ; Delete
+*sc033:: comma.SendLayerKey(L_NAVI_CTRL) ; Comma (,) -> Ctrl+Left
+*.:: period.SendLayerKey(L_NAVI_CTRL) ; Period (.) -> Ctrl+Right
+sc035:: slash.SendLayerKey(L_NAVI_CTRL) ; / -> |
+*Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
+*a:: a.SendLayerKey(L_NAVI_CTRL) ; Select All
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 Esc:: {
     KeyLogger.Save()
@@ -2550,223 +2804,212 @@ space:: ToggleImeState() ;Send(C_BS)
 #HotIf
 ;*** レイヤー2 (記号と数字) ***
 #HotIf LayerState(L_SYMBOL_NUM)
-*1:: k1.SendLayer(L_SYMBOL_NUM, B_F1)
-*2:: k2.SendLayer(L_SYMBOL_NUM, B_F2)
-*3:: k3.SendLayer(L_SYMBOL_NUM, B_F3)
-*4:: k4.SendLayer(L_SYMBOL_NUM, B_F4)
-*5:: k5.SendLayer(L_SYMBOL_NUM, B_F5)
-*6:: k6.SendLayer(L_SYMBOL_NUM, B_F6)
-*7:: k7.SendLayer(L_SYMBOL_NUM, B_F7)
-*8:: k8.SendLayer(L_SYMBOL_NUM, B_F8)
-*9:: k9.SendLayer(L_SYMBOL_NUM, B_F9)
-*0:: k0.SendLayer(L_SYMBOL_NUM, B_F10)
-*-:: minus.SendLayer(L_SYMBOL_NUM, B_F11)
-*sc00D:: hat.SendLayer(L_SYMBOL_NUM, B_F12) ; ^ -> F12
-q:: q.SendLayer(L_SYMBOL_NUM, "?")
-*w:: w.SendLayer(L_SYMBOL_NUM, "{Blind}/")
-*e:: e.SendLayer(L_SYMBOL_NUM, B_NMUL) ; Numpad *
-*r:: r.SendLayer(L_SYMBOL_NUM, B_NADD) ; Numpad +
-t:: t.SendLayer(L_SYMBOL_NUM, "+F3")
-*a:: a.SendLayer(L_SYMBOL_NUM, "(")
-*s:: s.SendLayer(L_SYMBOL_NUM, ")")
-*d:: d.SendLayer(L_SYMBOL_NUM, "_")
-*f:: f.SendLayer(L_SYMBOL_NUM, "{Blind}-")
-g:: g.SendLayer(L_SYMBOL_NUM, "=")
-y:: y.SendLayer(L_SYMBOL_NUM, B_BS)
-u:: u.SendLayer(L_SYMBOL_NUM, C_N7)
-i:: i.SendLayer(L_SYMBOL_NUM, C_N8)
-o:: o.SendLayer(L_SYMBOL_NUM, C_N9)
-p:: p.SendLayer(L_SYMBOL_NUM, "+^p")
-h:: h.SendLayer(L_SYMBOL_NUM, "=")
-j:: j.SendLayer(L_SYMBOL_NUM, C_N0)
-k:: k.SendLayer(L_SYMBOL_NUM, C_N1)
-l:: l.SendLayer(L_SYMBOL_NUM, C_N2)
-sc027:: semicolon.SendLayer(L_SYMBOL_NUM, B_ENTER)
-n:: n.SendLayer(L_SYMBOL_NUM, "+3")
-m:: m.SendLayer(L_SYMBOL_NUM, C_N3)
-sc033:: comma.SendLayer(L_SYMBOL_NUM, C_N4)
-.:: period.SendLayer(L_SYMBOL_NUM, C_N5)
-sc035:: slash.SendLayer(L_SYMBOL_NUM, C_N6)
-z:: z.SendLayer(L_SYMBOL_NUM, "[")
-x:: x.SendLayer(L_SYMBOL_NUM, "]")
-c:: c.SendLayer(L_SYMBOL_NUM, "+[")
-v:: v.SendLayer(L_SYMBOL_NUM, "+]")
-b:: b.SendLayer(L_SYMBOL_NUM, C_BACKSLASH)  ; Undo
-*space:: space.SendLayer(L_SYMBOL_NUM, B_BS)
+*1:: k1.SendLayerKey(L_SYMBOL_NUM)
+*2:: k2.SendLayerKey(L_SYMBOL_NUM)
+*3:: k3.SendLayerKey(L_SYMBOL_NUM)
+*4:: k4.SendLayerKey(L_SYMBOL_NUM)
+*5:: k5.SendLayerKey(L_SYMBOL_NUM)
+*6:: k6.SendLayerKey(L_SYMBOL_NUM)
+*7:: k7.SendLayerKey(L_SYMBOL_NUM)
+*8:: k8.SendLayerKey(L_SYMBOL_NUM)
+*9:: k9.SendLayerKey(L_SYMBOL_NUM)
+*0:: k0.SendLayerKey(L_SYMBOL_NUM)
+*-:: minus.SendLayerKey(L_SYMBOL_NUM)
+*sc00D:: hat.SendLayerKey(L_SYMBOL_NUM) ; ^ -> F12
+q:: q.SendLayerKey(L_SYMBOL_NUM)
+*w:: w.SendLayerKey(L_SYMBOL_NUM)
+*e:: e.SendLayerKey(L_SYMBOL_NUM) ; Numpad *
+*r:: r.SendLayerKey(L_SYMBOL_NUM) ; Numpad +
+t:: t.SendLayerKey(L_SYMBOL_NUM)
+*a:: a.SendLayerKey(L_SYMBOL_NUM)
+*s:: s.SendLayerKey(L_SYMBOL_NUM)
+*d:: d.SendLayerKey(L_SYMBOL_NUM)
+*f:: f.SendLayerKey(L_SYMBOL_NUM)
+g:: g.SendLayerKey(L_SYMBOL_NUM)
+y:: y.SendLayerKey(L_SYMBOL_NUM)
+u:: u.SendLayerKey(L_SYMBOL_NUM)
+i:: i.SendLayerKey(L_SYMBOL_NUM)
+o:: o.SendLayerKey(L_SYMBOL_NUM)
+p:: p.SendLayerKey(L_SYMBOL_NUM)
+h:: h.SendLayerKey(L_SYMBOL_NUM)
+j:: j.SendLayerKey(L_SYMBOL_NUM)
+k:: k.SendLayerKey(L_SYMBOL_NUM)
+l:: l.SendLayerKey(L_SYMBOL_NUM)
+sc027:: semicolon.SendLayerKey(L_SYMBOL_NUM)
+n:: n.SendLayerKey(L_SYMBOL_NUM)
+m:: m.SendLayerKey(L_SYMBOL_NUM)
+sc033:: comma.SendLayerKey(L_SYMBOL_NUM)
+.:: period.SendLayerKey(L_SYMBOL_NUM)
+sc035:: slash.SendLayerKey(L_SYMBOL_NUM)
+z:: z.SendLayerKey(L_SYMBOL_NUM)
+x:: x.SendLayerKey(L_SYMBOL_NUM)
+c:: c.SendLayerKey(L_SYMBOL_NUM)
+v:: v.SendLayerKey(L_SYMBOL_NUM)
+b:: b.SendLayerKey(L_SYMBOL_NUM)  ; Undo
+*space:: space.SendLayerKey(L_SYMBOL_NUM)
 #HotIf
 ;*** レイヤー (記号) ***
 #HotIf LayerState(L_SYMBOL1)
-*1:: k1.SendLayer(L_SYMBOL1, B_F1)
-*2:: k2.SendLayer(L_SYMBOL1, B_F2)
-*3:: k3.SendLayer(L_SYMBOL1, B_F3)
-*4:: k4.SendLayer(L_SYMBOL1, B_F4)
-*5:: k5.SendLayer(L_SYMBOL1, B_F5)
-*6:: k6.SendLayer(L_SYMBOL1, B_F6)
-*7:: k7.SendLayer(L_SYMBOL1, B_F7)
-*8:: k8.SendLayer(L_SYMBOL1, B_F8)
-*9:: k9.SendLayer(L_SYMBOL1, B_F9)
-*0:: k0.SendLayer(L_SYMBOL1, B_F10)
-*-:: minus.SendLayer(L_SYMBOL1, B_F11)
-*sc00D:: hat.SendLayer(L_SYMBOL1, B_F12) ; ^ -> F12
-q:: q.SendLayer(L_SYMBOL1, "?")
-*w:: w.SendLayer(L_SYMBOL1, "{Blind}/")
-*e:: e.SendLayer(L_SYMBOL1, B_NMUL) ; テンキー *
-*r:: r.SendLayer(L_SYMBOL1, B_NADD) ; テンキー +
-t:: t.SendLayer(L_SYMBOL1, "+F3")
-*a:: a.SendLayer(L_SYMBOL1, "(")
-*s:: s.SendLayer(L_SYMBOL1, ")")
-*d:: d.SendLayer(L_SYMBOL1, "_")
-*f:: f.SendLayer(L_SYMBOL1, "{Blind}-")
-g:: g.SendLayer(L_SYMBOL1, "=")
-y:: y.SendLayer(L_SYMBOL1, B_BS)
-u:: u.SendLayer(L_SYMBOL1, C_N7)
-i:: i.SendLayer(L_SYMBOL1, C_N8)
-o:: o.SendLayer(L_SYMBOL1, C_N9)
-p:: p.SendLayer(L_SYMBOL1, "+^p")
-h:: h.SendLayer(L_SYMBOL1, "=")
-j:: j.SendLayer(L_SYMBOL1, C_N0)
-k:: k.SendLayer(L_SYMBOL1, C_N1)
-l:: l.SendLayer(L_SYMBOL1, C_N2)
-sc027:: semicolon.SendLayer(L_SYMBOL1, B_ENTER)
-n:: n.SendLayer(L_SYMBOL1, "+3")
-m:: m.SendLayer(L_SYMBOL1, C_N3)
-sc033:: comma.SendLayer(L_SYMBOL1, C_N4)
-.:: period.SendLayer(L_SYMBOL1, C_N5)
-sc035:: slash.SendLayer(L_SYMBOL1, C_N6)
-z:: z.SendLayer(L_SYMBOL1, "+[")
-x:: x.SendLayer(L_SYMBOL1, "+]")
-c:: c.SendLayer(L_SYMBOL1, "[")
-v:: v.SendLayer(L_SYMBOL1, "]")
-b:: b.SendLayer(L_SYMBOL1, C_BACKSLASH)  ; Undo
-space:: space.SendLayer(L_SYMBOL1, C_BS)
+*1:: k1.SendLayerKey(L_SYMBOL1)
+*2:: k2.SendLayerKey(L_SYMBOL1)
+*3:: k3.SendLayerKey(L_SYMBOL1)
+*4:: k4.SendLayerKey(L_SYMBOL1)
+*5:: k5.SendLayerKey(L_SYMBOL1)
+*6:: k6.SendLayerKey(L_SYMBOL1)
+*7:: k7.SendLayerKey(L_SYMBOL1)
+*8:: k8.SendLayerKey(L_SYMBOL1)
+*9:: k9.SendLayerKey(L_SYMBOL1)
+*0:: k0.SendLayerKey(L_SYMBOL1)
+*-:: minus.SendLayerKey(L_SYMBOL1)
+*sc00D:: hat.SendLayerKey(L_SYMBOL1) ; ^ -> F12
+q:: q.SendLayerKey(L_SYMBOL1)
+*w:: w.SendLayerKey(L_SYMBOL1)
+*e:: e.SendLayerKey(L_SYMBOL1) ; テンキー *
+*r:: r.SendLayerKey(L_SYMBOL1) ; テンキー +
+t:: t.SendLayerKey(L_SYMBOL1)
+*a:: a.SendLayerKey(L_SYMBOL1)
+*s:: s.SendLayerKey(L_SYMBOL1)
+*d:: d.SendLayerKey(L_SYMBOL1)
+*f:: f.SendLayerKey(L_SYMBOL1)
+g:: g.SendLayerKey(L_SYMBOL1)
+y:: y.SendLayerKey(L_SYMBOL1)
+u:: u.SendLayerKey(L_SYMBOL1)
+i:: i.SendLayerKey(L_SYMBOL1)
+o:: o.SendLayerKey(L_SYMBOL1)
+p:: p.SendLayerKey(L_SYMBOL1)
+h:: h.SendLayerKey(L_SYMBOL1)
+j:: j.SendLayerKey(L_SYMBOL1)
+k:: k.SendLayerKey(L_SYMBOL1)
+l:: l.SendLayerKey(L_SYMBOL1)
+sc027:: semicolon.SendLayerKey(L_SYMBOL1)
+n:: n.SendLayerKey(L_SYMBOL1)
+m:: m.SendLayerKey(L_SYMBOL1)
+sc033:: comma.SendLayerKey(L_SYMBOL1)
+.:: period.SendLayerKey(L_SYMBOL1)
+sc035:: slash.SendLayerKey(L_SYMBOL1)
+z:: z.SendLayerKey(L_SYMBOL1)
+x:: x.SendLayerKey(L_SYMBOL1)
+c:: c.SendLayerKey(L_SYMBOL1)
+v:: v.SendLayerKey(L_SYMBOL1)
+b:: b.SendLayerKey(L_SYMBOL1)  ; Undo
+space:: space.SendLayerKey(L_SYMBOL1)
 #HotIf
 ;*** レイヤー (テンキーレイヤー) ***
 #HotIf LayerState(L_NUMPAD)
 ; --- 左手 ---
-6:: k6.SendLayer(L_NUMPAD, "{Escape}")
-t:: t.SendLayer(L_NUMPAD, B_NADD) ; テンキー +
-a:: a.SendLayer(L_NUMPAD, "(")
-s:: s.SendLayer(L_NUMPAD, ")")
-f:: f.SendLayer(L_NUMPAD, "-")
-g:: g.SendLayer(L_NUMPAD, "=")
+6:: k6.SendLayerKey(L_NUMPAD)
+t:: t.SendLayerKey(L_NUMPAD) ; テンキー +
+a:: a.SendLayerKey(L_NUMPAD)
+s:: s.SendLayerKey(L_NUMPAD)
+f:: f.SendLayerKey(L_NUMPAD)
+g:: g.SendLayerKey(L_NUMPAD)
 ; --- 右手 (テンキー) ---
-7:: k7.SendLayer(L_NUMPAD, C_N7)
-8:: k8.SendLayer(L_NUMPAD, C_N8)
-9:: k9.SendLayer(L_NUMPAD, C_N9)
-0:: k0.SendLayer(L_NUMPAD, B_NMUL) ; テンキー *
--:: minus.SendLayer(L_NUMPAD, B_NSUB) ; テンキー -
-sc00D:: hat.SendLayer(L_NUMPAD, C_HAT) ; ^
-sc07D:: yen.SendLayer(L_NUMPAD, "\") ; \
-y:: y.SendLayer(L_NUMPAD, C_BS) ; Backspace
-u:: u.SendLayer(L_NUMPAD, C_N4)
-i:: i.SendLayer(L_NUMPAD, C_N5)
-o:: o.SendLayer(L_NUMPAD, C_N6)
-p:: p.SendLayer(L_NUMPAD, B_NADD) ; テンキー +
-@:: at.SendLayer(L_NUMPAD, B_UP)   ; Up
-h:: h.SendLayer(L_NUMPAD, "=")
-j:: j.SendLayer(L_NUMPAD, C_N1)
-k:: k.SendLayer(L_NUMPAD, C_N2)
-l:: l.SendLayer(L_NUMPAD, C_N3)
-sc027:: semicolon.SendLayer(L_NUMPAD, B_LEFT)  ; ; -> Left
-sc028:: colon.SendLayer(L_NUMPAD, B_DOWN)  ; : -> Down
-]:: closebracket.SendLayer(L_NUMPAD, B_RIGHT) ; ] -> Right
-n:: n.SendLayer(L_NUMPAD, C_DEL) ; DeleteH ; _
+7:: k7.SendLayerKey(L_NUMPAD)
+8:: k8.SendLayerKey(L_NUMPAD)
+9:: k9.SendLayerKey(L_NUMPAD)
+0:: k0.SendLayerKey(L_NUMPAD) ; テンキー *
+-:: minus.SendLayerKey(L_NUMPAD) ; テンキー -
+sc00D:: hat.SendLayerKey(L_NUMPAD) ; ^
+sc07D:: yen.SendLayerKey(L_NUMPAD) ; \
+y:: y.SendLayerKey(L_NUMPAD) ; Backspace
+u:: u.SendLayerKey(L_NUMPAD)
+i:: i.SendLayerKey(L_NUMPAD)
+o:: o.SendLayerKey(L_NUMPAD)
+p:: p.SendLayerKey(L_NUMPAD) ; テンキー +
+@:: at.SendLayerKey(L_NUMPAD)   ; Up
+h:: h.SendLayerKey(L_NUMPAD)
+j:: j.SendLayerKey(L_NUMPAD)
+k:: k.SendLayerKey(L_NUMPAD)
+l:: l.SendLayerKey(L_NUMPAD)
+sc027:: semicolon.SendLayerKey(L_NUMPAD)  ; ; -> Left
+sc028:: colon.SendLayerKey(L_NUMPAD)  ; : -> Down
+]:: closebracket.SendLayerKey(L_NUMPAD) ; ] -> Right
+n:: n.SendLayerKey(L_NUMPAD) ; DeleteH ; _
 space:: Send(C_BS)
 #HotIf
 #HotIf LayerState(L_SYMBOL2)
-q:: q.SendLayer(L_SYMBOL2, "+1")
-w:: w.SendLayer(L_SYMBOL2, "+2")
-e:: e.SendLayer(L_SYMBOL2, "+3")
-r:: r.SendLayer(L_SYMBOL2, "+4")
-t:: t.SendLayer(L_SYMBOL2, "+5")
-a:: a.SendLayer(L_SYMBOL2, "+6") ;
-s:: s.SendLayer(L_SYMBOL2, "+7") ;
-d:: d.SendLayer(L_SYMBOL2, C_HAT) ;
-g:: g.SendLayer(L_SYMBOL2, "+@") ;` grave accent
-z:: z.SendLayer(L_SYMBOL2, "~") ;
-x:: x.SendLayer(L_SYMBOL2, "@")
-c:: c.SendLayer(L_SYMBOL2, ":")
-v:: v.SendLayer(L_SYMBOL2, "|") ; |
-b:: b.SendLayer(L_SYMBOL2, "\") ; \
+q:: q.SendLayerKey(L_SYMBOL2)
+w:: w.SendLayerKey(L_SYMBOL2)
+e:: e.SendLayerKey(L_SYMBOL2)
+r:: r.SendLayerKey(L_SYMBOL2)
+t:: t.SendLayerKey(L_SYMBOL2)
+a:: a.SendLayerKey(L_SYMBOL2) ;
+s:: s.SendLayerKey(L_SYMBOL2) ;
+d:: d.SendLayerKey(L_SYMBOL2) ;
+g:: g.SendLayerKey(L_SYMBOL2) ;` grave accent
+z:: z.SendLayerKey(L_SYMBOL2) ;
+x:: x.SendLayerKey(L_SYMBOL2)
+c:: c.SendLayerKey(L_SYMBOL2)
+v:: v.SendLayerKey(L_SYMBOL2) ; |
+b:: b.SendLayerKey(L_SYMBOL2) ; \
 #HotIf
 #HotIf LayerState(L_FUNC)
-q:: q.SendLayer(L_FUNC, B_F1)
-w:: w.SendLayer(L_FUNC, B_F2)
-e:: e.SendLayer(L_FUNC, B_F3)
-r:: r.SendLayer(L_FUNC, B_F4)
-a:: a.SendLayer(L_FUNC, B_F5)
-s:: s.SendLayer(L_FUNC, B_F6)
-d:: d.SendLayer(L_FUNC, B_F7)
-f:: f.SendLayer(L_FUNC, B_F8)
-z:: z.SendLayer(L_FUNC, B_F9)
-x:: x.SendLayer(L_FUNC, B_F10)
-c:: c.SendLayer(L_FUNC, B_F11)
-v:: v.SendLayer(L_FUNC, B_F12)
+q:: q.SendLayerKey(L_FUNC)
+w:: w.SendLayerKey(L_FUNC)
+e:: e.SendLayerKey(L_FUNC)
+r:: r.SendLayerKey(L_FUNC)
+a:: a.SendLayerKey(L_FUNC)
+s:: s.SendLayerKey(L_FUNC)
+d:: d.SendLayerKey(L_FUNC)
+f:: f.SendLayerKey(L_FUNC)
+z:: z.SendLayerKey(L_FUNC)
+x:: x.SendLayerKey(L_FUNC)
+c:: c.SendLayerKey(L_FUNC)
+v:: v.SendLayerKey(L_FUNC)
 #HotIf
 #HotIf LayerState(L_SHIFT)
-; 1::k1.SendShiftedKey()
-; 2::k2.SendShiftedKey()
-; 3::k3.SendShiftedKey()
-; 4::k4.SendShiftedKey()
-; 5::k5.SendShiftedKey()
-*1:: k1.SendLayer(L_SHIFT, B_F1)
-*2:: k2.SendLayer(L_SHIFT, B_F2)
-*3:: k3.SendLayer(L_SHIFT, B_F3)
-*4:: k4.SendLayer(L_SHIFT, B_F4)
-*5:: k5.SendLayer(L_SHIFT, B_F5)
-q:: q.SendLayer(L_SHIFT, q.shift_key_text)
-w:: w.SendLayer(L_SHIFT, w.shift_key_text)
-e:: e.SendLayer(L_SHIFT, e.shift_key_text)
-r:: r.SendLayer(L_SHIFT, r.shift_key_text)
-t:: t.SendLayer(L_SHIFT, t.shift_key_text)
-a:: a.SendLayer(L_SHIFT, a.shift_key_text)
-s:: s.SendLayer(L_SHIFT, s.shift_key_text)
-d:: d.SendLayer(L_SHIFT, d.shift_key_text)
-f:: f.SendLayer(L_SHIFT, f.shift_key_text)
-g:: g.SendLayer(L_SHIFT, g.shift_key_text)
-z:: z.SendLayer(L_SHIFT, z.shift_key_text)
-x:: x.SendLayer(L_SHIFT, x.shift_key_text)
-c:: c.SendLayer(L_SHIFT, c.shift_key_text)
-v:: v.SendLayer(L_SHIFT, v.shift_key_text)
-b:: b.SendLayer(L_SHIFT, b.shift_key_text)
-; 6::k6.SendShiftedKey()
-; 7::k7.SendShiftedKey()
-; 8::k8.SendShiftedKey()
-; 9::k9.SendShiftedKey()
-; -::minus.SendShiftedKey()
-; sc00D::hat.SendShiftedKey()
-sc07D:: yen.SendLayer(L_SHIFT, yen.shift_key_text)
-*6:: k6.SendLayer(L_SHIFT, B_F6)
-*7:: k7.SendLayer(L_SHIFT, B_F7)
-*8:: k8.SendLayer(L_SHIFT, B_F8)
-*9:: k9.SendLayer(L_SHIFT, B_F9)
-*0:: k0.SendLayer(L_SHIFT, B_F10)
-*-:: minus.SendLayer(L_SHIFT, B_F11)
-*sc00D:: hat.SendLayer(L_SHIFT, B_F12) ; ^ -> F12
-y:: y.SendLayer(L_SHIFT, y.shift_key_text)
-u:: u.SendLayer(L_SHIFT, u.shift_key_text)
-i:: i.SendLayer(L_SHIFT, i.shift_key_text)
-o:: o.SendLayer(L_SHIFT, o.shift_key_text)
-p:: p.SendLayer(L_SHIFT, p.shift_key_text)
-@:: at.SendLayer(L_SHIFT, at.shift_key_text)
-[:: openbracket.SendLayer(L_SHIFT, openbracket.shift_key_text)
-h:: h.SendLayer(L_SHIFT, h.shift_key_text)
-j:: j.SendLayer(L_SHIFT, j.shift_key_text)
-k:: k.SendLayer(L_SHIFT, k.shift_key_text)
-l:: l.SendLayer(L_SHIFT, l.shift_key_text)
-sc027:: semicolon.SendLayer(L_SHIFT, semicolon.shift_key_text)
-sc028:: colon.SendLayer(L_SHIFT, "+sc028")
-]:: closebracket.SendLayer(L_SHIFT, "+]")
-n:: n.SendLayer(L_SHIFT, n.shift_key_text)
-m:: m.SendLayer(L_SHIFT, m.shift_key_text)
-sc033:: comma.SendLayer(L_SHIFT, comma.shift_key_text)
-.:: period.SendLayer(L_SHIFT, period.shift_key_text)
-sc035:: slash.SendLayer(L_SHIFT, slash.shift_key_text)
-sc073:: backslash.SendLayer(L_SHIFT, backslash.shift_key_text)
-Up:: up.SendLayer(L_SHIFT, up.shift_key_text)
-Down:: down.SendLayer(L_SHIFT, down.shift_key_text)
-Left:: left.SendLayer(L_SHIFT, left.shift_key_text)
-Right:: right.SendLayer(L_SHIFT, right.shift_key_text)
+*1:: k1.SendLayerKey(L_SHIFT)
+*2:: k2.SendLayerKey(L_SHIFT)
+*3:: k3.SendLayerKey(L_SHIFT)
+*4:: k4.SendLayerKey(L_SHIFT)
+*5:: k5.SendLayerKey(L_SHIFT)
+q:: q.SendLayerKey(L_SHIFT)
+w:: w.SendLayerKey(L_SHIFT)
+e:: e.SendLayerKey(L_SHIFT)
+r:: r.SendLayerKey(L_SHIFT)
+t:: t.SendLayerKey(L_SHIFT)
+a:: a.SendLayerKey(L_SHIFT)
+s:: s.SendLayerKey(L_SHIFT)
+d:: d.SendLayerKey(L_SHIFT)
+f:: f.SendLayerKey(L_SHIFT)
+g:: g.SendLayerKey(L_SHIFT)
+z:: z.SendLayerKey(L_SHIFT)
+x:: x.SendLayerKey(L_SHIFT)
+c:: c.SendLayerKey(L_SHIFT)
+v:: v.SendLayerKey(L_SHIFT)
+b:: b.SendLayerKey(L_SHIFT)
+sc07D:: yen.SendLayerKey(L_SHIFT)
+*6:: k6.SendLayerKey(L_SHIFT)
+*7:: k7.SendLayerKey(L_SHIFT)
+*8:: k8.SendLayerKey(L_SHIFT)
+*9:: k9.SendLayerKey(L_SHIFT)
+*0:: k0.SendLayerKey(L_SHIFT)
+*-:: minus.SendLayerKey(L_SHIFT)
+*sc00D:: hat.SendLayerKey(L_SHIFT) ; ^ -> F12
+y:: y.SendLayerKey(L_SHIFT)
+u:: u.SendLayerKey(L_SHIFT)
+i:: i.SendLayerKey(L_SHIFT)
+o:: o.SendLayerKey(L_SHIFT)
+p:: p.SendLayerKey(L_SHIFT)
+@:: at.SendLayerKey(L_SHIFT)
+[:: openbracket.SendLayerKey(L_SHIFT)
+h:: h.SendLayerKey(L_SHIFT)
+j:: j.SendLayerKey(L_SHIFT)
+k:: k.SendLayerKey(L_SHIFT)
+l:: l.SendLayerKey(L_SHIFT)
+sc027:: semicolon.SendLayerKey(L_SHIFT)
+sc028:: colon.SendLayerKey(L_SHIFT)
+]:: closebracket.SendLayerKey(L_SHIFT)
+n:: n.SendLayerKey(L_SHIFT)
+m:: m.SendLayerKey(L_SHIFT)
+sc033:: comma.SendLayerKey(L_SHIFT)
+.:: period.SendLayerKey(L_SHIFT)
+sc035:: slash.SendLayerKey(L_SHIFT)
+sc073:: backslash.SendLayerKey(L_SHIFT)
+Up:: up.SendLayerKey(L_SHIFT)
+Down:: down.SendLayerKey(L_SHIFT)
+Left:: left.SendLayerKey(L_SHIFT)
+Right:: right.SendLayerKey(L_SHIFT)
 #HotIf
 ; ============================================================================
 ; グローバルホットキー (RKey / LKey バインド)
