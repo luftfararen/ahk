@@ -221,6 +221,12 @@ ReadConfig(section, key, defaultValue) {
     static ConfigPath := A_ScriptDir . "\config.ini"
     return IniRead(ConfigPath, section, key, defaultValue)
 }
+
+WriteConfig(value, section, key) {
+    static ConfigPath := A_ScriptDir . "\config.ini"
+    return IniWrite(value, ConfigPath, section, key)
+}
+
 /**
  * Shiftキーが物理的に押されているかを取得する
  * @returns {Boolean} Shiftが押されていれば true
@@ -521,21 +527,11 @@ StrFromChar(c) {
 }
 
 ; --- 統合ロジック関数 (INI入出力用) ---
-
 /**
- * INIファイルの値 (val) を処理する: 名前や文字をスキャンコード形式に変換
- * 例: "semicolon" -> "{sc027}", ";" -> "{sc027}", "one" -> "1", "a" -> "a", "{Enter}" -> "{Enter}"
- */
-ValStr(str) {
-    c := CharFromStr(str)
-    return ScFromChar(c)
-}
-
-/**
- * INIファイルのキー (key) を処理する: スキャンコードや文字を名前形式に変換
+ * INIファイルのエントリー名を作る: スキャンコードや文字を名前形式に変換
  * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "Enter"
  */
-KeyStr(sc) {
+EntryName(sc) {
     c := CharFromSc(StrLower(sc))
     return StrFromChar(c)
 }
@@ -553,9 +549,23 @@ DispStr(str, remove_braces := true) {
 }
 
 /**
- * 送信用のキー文字列を生成する (修飾記号の付与など)
+ * 【キー表記の解決】
+ * 人間用の名前や文字を、AHKが送信・管理で利用する標準的な形式に整える。
+ * (名前があればスキャンコードへ、そうでなければ元の文字や表記を維持)
+ * 例: "semicolon" -> "{sc027}", "one" -> "1", "{Enter}" -> "{Enter}"
  */
-MakeKeyText(text, prefix := "") {
+ResolveKeyText(str) {
+    ; 名前（semicolon等）から文字（;等）を取得
+    c := CharFromStr(str)
+    ; 文字からスキャンコードを取得（スキャンコード化できない文字はそのまま返る想定）
+    return ScFromChar(c)
+}
+
+/**
+ * 【送信コマンドの構築】
+ * 解決済みのキー表記に、修飾記号などを付与して「Send関数用」の最終文字列を作る。
+ */
+BuildSendText(text, prefix := "") {
     if text == "" || text == "{none}"
         return ""
     if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
@@ -671,10 +681,10 @@ class KeyLogger {
      */
     static SaveConfig() {
         try {
-            IniWrite(this.is_logging_enabled ? "1" : "0", this.config_file, "Settings", "LogEnabled")
-            IniWrite(this.is_showing_ime_indicator ? "1" : "0", this.config_file, "Settings", "ImeIndicatorEnabled")
-            IniWrite(String(this.max_log), this.config_file, "Settings", "MaxLog")
-            IniWrite(String(LKey.long_press_th), this.config_file, "Settings", "long_press_th")
+            WriteConfig(this.is_logging_enabled ? "1" : "0", "Settings", "LogEnabled")
+            WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
+            WriteConfig(String(this.max_log), "Settings", "MaxLog")
+            WriteConfig(String(LKey.long_press_th), "Settings", "long_press_th")
         } catch {
         }
     }
@@ -1397,7 +1407,7 @@ MakeModStr() {
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
- 登録する文字列の仕様については MakeKeyText() のコメントを参照してください。
+ 登録する文字列の仕様については BuildSendText() のコメントを参照してください。
 ============================================================================*/
 class RKey {
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
@@ -1437,6 +1447,7 @@ class RKey {
     }
 
     SendLayerKey(layer_id) {
+
         action := this.layer_keys[layer_id]
         if action == "" {
             if (layer_id == L_SHIFT)
@@ -1456,8 +1467,8 @@ class RKey {
      * @param {String} [shift_key=""] - Shift 時の登録する文字列。
      */
     SetKey(key, shift_key := "") {
-        this.key_text := MakeKeyText(key)
-        this.shift_key_text := shift_key == "" ? MakeKeyText(key, "+") : MakeKeyText(shift_key)
+        this.key_text := BuildSendText(key)
+        this.shift_key_text := shift_key == "" ? BuildSendText(key, "+") : BuildSendText(shift_key)
     }
 
     /**
@@ -1469,10 +1480,10 @@ class RKey {
     SetImeKey(ime_key := "", shift_ime_key := "") {
         if ime_key = "" {
             this.ime_key_text := this.key_text
-            this.shift_ime_key_text := shift_ime_key = "" ? this.shift_key_text : MakeKeyText(shift_ime_key)
+            this.shift_ime_key_text := shift_ime_key = "" ? this.shift_key_text : BuildSendText(shift_ime_key)
         } else {
-            this.ime_key_text := MakeKeyText(ime_key)
-            this.shift_ime_key_text := shift_ime_key = "" ? MakeKeyText(ime_key, "+") : MakeKeyText(shift_ime_key)
+            this.ime_key_text := BuildSendText(ime_key)
+            this.shift_ime_key_text := shift_ime_key = "" ? BuildSendText(ime_key, "+") : BuildSendText(shift_ime_key)
         }
     }
 
@@ -2058,13 +2069,13 @@ class IniMap {
     }
 
     Set(c) {
-        key := KeyStr(c)
+        key := EntryName(c)
         if key == "" {
             return
         }
         val := ReadConfig(this.section, this.prefix . key, "")
         ;val := IniRead(this.inipath, this.section, this.prefix . key, "")
-        val := ValStr(val)
+        val := ResolveKeyText(val)
         if val != "" {
             this.map.Set(key, val)
         }
@@ -2149,7 +2160,7 @@ ApplyLayerLayoutFromIni(layer_id, section) {
     ReadEachLayoutFromIni(layout_map, section, "")
 
     for i, keyObj in LAYOUT_KEYS {
-        name := KeyStr(QWERTY_CHARS[i])
+        name := EntryName(QWERTY_CHARS[i])
 
         ;layout_map[name]が"
         keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
@@ -2173,7 +2184,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -2192,7 +2203,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,.
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -2213,7 +2224,7 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
     KeyLogger.SetLayoutName(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -2235,7 +2246,7 @@ MakeLayoutMap(layout_str := "") {
     }
     l := LayoutString(layout_str)
     for i, key in QWERTY_CHARS {
-        res_map.Set(KeyStr(key), l.GetElement(i))
+        res_map.Set(EntryName(key), l.GetElement(i))
     }
     return res_map
 }
@@ -2244,7 +2255,7 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -2258,14 +2269,14 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\
 StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
     global QWERTY_CHARS
     for i, keyObj in LAYOUT_KEYS {
         c := QWERTY_CHARS[i]
-        key_text := KeyStr(c)
+        key_text := EntryName(c)
         if (!layout_map.Has(key_text))
             layout_map[key_text] := ""
         if (!shift_map.Has(key_text))
@@ -2400,6 +2411,7 @@ ChangeMinatoLayoutImpl() {
     k.SetImeKey("i", "xi")
     l.SetImeKey("e", "xe")
     semicolon.SetImeKey("o", "ou")
+    ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
     n.SetImeKey("-", "a-")
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
@@ -2662,9 +2674,9 @@ init() {
     v.SetLayerKey(L_FUNC, B_F12)
 
     ; L_SHIFT
-    for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetLayerKey(L_SHIFT, keyObj.shift_key_text)
-    }
+    ; for i, keyObj in LAYOUT_KEYS {
+    ;     keyObj.SetLayerKey(L_SHIFT, keyObj.shift_key_text)
+    ; }
     k1.SetLayerKey(L_SHIFT, B_F1)
     k2.SetLayerKey(L_SHIFT, B_F2)
     k3.SetLayerKey(L_SHIFT, B_F3)
