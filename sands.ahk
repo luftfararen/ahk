@@ -42,6 +42,21 @@
 ; C_... : Send互換の文字列 (例: "{sc07B}")
 ; B_... : Blindモード用のSend文字列 (例: "{Blind}{sc07B}")
 
+; ============================================================================
+; スクリプト設定
+; ============================================================================
+;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
+ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
+SetKeyDelay -1 ; キー入力後のディレイをなしに設定
+ListLines 0
+SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
+
+InstallKeybdHook true ; キーボードフックを常にインストール
+InstallMouseHook true ; マウスフックを常にインストール（MouseSpeedクラス用）
+#UseHook true ; ホットキーにフックの使用を強制
+#MaxThreadsBuffer True ; 中断された場合にホットキーをバッファリングする
+;#MaxThreadsPerHotkey 3 ;（コメントアウト）ホットキーあたりのスレッド数を制限
+
 ~^#!v:: {
 
 }
@@ -197,29 +212,15 @@ B_F11 := "{Blind}{F11}"
 B_F12 := "{Blind}{F12}"
 
 ; ============================================================================
-; スクリプト設定
-; ============================================================================
-;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
-ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
-SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
-
-InstallKeybdHook true ; キーボードフックを常にインストール
-InstallMouseHook true ; マウスフックを常にインストール（MouseSpeedクラス用）
-#UseHook true ; ホットキーにフックの使用を強制
-#MaxThreadsBuffer True ; 中断された場合にホットキーをバッファリングする
-;#MaxThreadsPerHotkey 3 ;（コメントアウト）ホットキーあたりのスレッド数を制限
-SetKeyDelay 0 ; キー入力後のディレイをなしに設定
-
-KeyLogger.Load()
-; 終了・リロード時に保存
-OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
-
-; ============================================================================
 ; GLOBAL FUNCTIONS
 ; ============================================================================
 
 ;shift_lambda := () => GetKeyState("Shift", "P")
 
+ReadConfig(section, key, defaultValue) {
+    static ConfigPath := A_ScriptDir . "\config.ini"
+    return IniRead(ConfigPath, section, key, defaultValue)
+}
 /**
  * Shiftキーが物理的に押されているかを取得する
  * @returns {Boolean} Shiftが押されていれば true
@@ -535,7 +536,7 @@ ValStr(str) {
  * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "Enter"
  */
 KeyStr(sc) {
-    c := CharFromSc(sc)
+    c := CharFromSc(StrLower(sc))
     return StrFromChar(c)
 }
 
@@ -596,7 +597,7 @@ class KeyLogger {
     static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
 
     static log_file := A_ScriptDir . "\log.txt"
-    static config_file := A_ScriptDir . "\config.ini"
+    ;static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
     static is_showing_ime_indicator := true
     static stats := Map()     ; 段階3: フル辞書 (長期保存用)
@@ -647,19 +648,19 @@ class KeyLogger {
     static LoadConfig() {
         this.freq := QueryPerformanceFrequency()
         try {
-            val := IniRead(this.config_file, "Settings", "LogEnabled", "0")
+            val := ReadConfig("Settings", "LogEnabled", "0")
             this.is_logging_enabled := (val == "1")
         } catch {
             this.is_logging_enabled := false
         }
         try {
-            val := IniRead(this.config_file, "Settings", "ImeIndicatorEnabled", "1")
+            val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
             this.is_showing_ime_indicator := (val == "1")
         } catch {
             this.is_showing_ime_indicator := true
         }
         try {
-            this.max_log := Integer(IniRead(this.config_file, "Settings", "MaxLog", "5000"))
+            this.max_log := Integer(ReadConfig("Settings", "MaxLog", "5000"))
         } catch {
             this.max_log := 2000
         }
@@ -1062,6 +1063,54 @@ AutoSuspendForRemoteDesktop() {
 }
 
 /**
+ * フォント管理クラス
+ * 起動時に一度だけチェックを行い、結果を保持する
+ */
+class FontManager {
+    static Monospace := this._DetermineMonospace()
+
+    static _DetermineMonospace() {
+        ; 優先順位リスト
+        candidates := ["PlemolJP", "PlemolJP Console", "MS Gothic", "游ゴシック", "游明朝", "Consolas"]
+
+        for name in candidates {
+            if this.IsInstalled(name)
+                return name
+        }
+        return "Consolas" ; 最終バックアップ
+    }
+
+    /**
+     * システムにフォントが存在するか厳密に判定する
+     */
+    static IsInstalled(name) {
+        ; 1. フォントを作成してデバイスコンテキストに選択
+        hFont := DllCall("CreateFont", "Int", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 400
+            , "Int", 0, "Int", 0, "Int", 0, "Int", 1, "Int", 0, "Int", 0, "Int", 0, "Int", 0
+            , "Str", name, "Ptr")
+
+        if !hFont
+            return false
+
+        hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+        oldObj := DllCall("SelectObject", "Ptr", hdc, "Ptr", hFont, "Ptr")
+
+        ; 2. Windowsが実際に割り当てたフォント名を取得
+        nameBuf := Buffer(512)
+        DllCall("GetTextFace", "Ptr", hdc, "Int", 256, "Ptr", nameBuf)
+        actualName := StrGet(nameBuf)
+
+        ; 3. 後処理
+        DllCall("SelectObject", "Ptr", hdc, "Ptr", oldObj, "Ptr")
+        DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
+        DllCall("DeleteObject", "Ptr", hFont)
+
+        ; 指定した名前と実際に当たった名前が一致するか（代替フォントでないか）
+        return actualName = name
+    }
+}
+
+/**
  * 画面上に OSD (On-Screen Display) メッセージを表示する
  * @param {String} text - 表示するテキスト
  * @param {Integer} [duration=3000] - 表示時間 (ms)
@@ -1073,7 +1122,7 @@ ShowOSD(text, duration := 3000, key_close := False) {
 
     my_gui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
     my_gui.BackColor := "333333"
-    my_gui.SetFont("s12 cWhite w700", "Consolas")
+    my_gui.SetFont("s16 cWhite w700", FontManager.Monospace)
 
     ; テキスト周囲の余白
     my_gui.MarginX := 20
@@ -1279,71 +1328,71 @@ MakeModStr() {
  - タイムアウト時間内に離された場合（短押し）はデフォルトキーを送信します。
  - タイムアウト時間を超えて押し続けられた場合は、モディファイアキーとして機能します。
 ============================================================================*/
-class MKey {
-    /**
-     * コンストラクタ
-     * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
-     * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
-     */
-    __New(key, timeout := 180) {
-        if key = "" { ; F13のような「仮想」モディファイア用
-            this.key_str := ""
-            this.key := key ; 登録されたキー
-        } else {
-            this.key := RemoveBraces(key)
-            this.key_str := AddBraces(key)
-        }
-        this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
-        this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
-        this.timeout := timeout
-    }
-    /**
-     * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
-     * @returns {Boolean} 押されていれば true
-     */
-    IsPressed() => (this.pressed_time != 0)
-    ;IsPressed() => GetKeyState(this.key_str, "P")
+; class MKey {
+;     /**
+;      * コンストラクタ
+;      * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
+;      * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
+;      */
+;     __New(key, timeout := 180) {
+;         if key = "" { ; F13のような「仮想」モディファイア用
+;             this.key_str := ""
+;             this.key := key ; 登録されたキー
+;         } else {
+;             this.key := RemoveBraces(key)
+;             this.key_str := AddBraces(key)
+;         }
+;         this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
+;         this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
+;         this.timeout := timeout
+;     }
+;     /**
+;      * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
+;      * @returns {Boolean} 押されていれば true
+;      */
+;     IsPressed() => (this.pressed_time != 0)
+;     ;IsPressed() => GetKeyState(this.key_str, "P")
 
-    /**
-     * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
-     */
-    SetModStr() {
-        this.mod_str := MakeModStr()
-    }
+;     /**
+;      * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
+;      */
+;     SetModStr() {
+;         this.mod_str := MakeModStr()
+;     }
 
-    /**
-     * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
-     * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
-     */
-    Down() {
-        Critical
-        if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
-            return false
-        }
-        this.pressed_time := A_TickCount ; 押し下げ時間を記録
-        this.SetModStr()                 ; 他の修飾キーを記録
-        return true
-    }
+;     /**
+;      * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
+;      * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
+;      */
+;     Down() {
+;         Critical
+;         if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
+;             return false
+;         }
+;         this.pressed_time := A_TickCount ; 押し下げ時間を記録
+;         this.SetModStr()                 ; 他の修飾キーを記録
+;         return true
+;     }
 
-    /**
-     * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
-     * 短押しだった場合は元のキー（修飾キー付き）を送信します。
-     */
-    Up() {
-        Critical
-        if (A_TickCount - this.pressed_time < this.timeout) {
-            SendAndLog("{Blind}" . this.mod_str . this.key_str)
-        }
-        this.pressed_time := 0
-    }
+;     /**
+;      * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
+;      * 短押しだった場合は元のキー（修飾キー付き）を送信します。
+;      */
+;     Up() {
+;         Critical
+;         if (A_TickCount - this.pressed_time < this.timeout) {
+;             SendAndLog("{Blind}" . this.mod_str . this.key_str)
+;         }
+;         this.pressed_time := 0
+;     }
 
-    /**
-     * キーの押し下げ状態を強制的にリセットする
-     */
-    Reset() {
-        this.pressed_time := 0
-    }
-} ;class MKey
+;     /**
+;      * キーの押し下げ状態を強制的にリセットする
+;      */
+;     Reset() {
+;         this.pressed_time := 0
+;     }
+; } ;class MKey
 
 /*============================================================================
  [Class] RKey (リマップキー)
@@ -1585,7 +1634,7 @@ class LKey extends RKey {
      * キーが現在押し下げられているかどうかを確認する
      */
     ;IsPressed() => this.pressed_time != 0
-    IsPressed() => (this.pressed_time != 0) || GetKeyState(this.org_key_raw, "P")
+    IsPressed() => GetKeyState(this.org_key_raw, "P")
 
     /**
      * キー押し下げ時の処理
@@ -1780,13 +1829,15 @@ comma := LKey(C_COMMA) ; ,
 period := LKey(".") ; .
 slash := LKey("/") ; /
 backslash := LKey(C_BACKSLASH) ; \ _
-enter := LKey("{Enter}")
-;
+
+enter := LKey(C_ENTER)
+
 ; (矢印キー - リマップ用)
 up := RKey(C_UP)
 down := RKey(C_DOWN)
 left := RKey(C_LEFT)
 right := RKey(C_RIGHT)
+
 ; --- レイアウト用キー登録（ループ用） ---
 LAYOUT_SPECIAL_KEYS := [space, tab, noconv, conv, f14, enter, up, down, left, right]
 LAYOUT_SPECIAL_NAMES := ["space", "tab", "noconv", "conv", "f14", "enter", "up", "down", "left", "right"]
@@ -1880,12 +1931,12 @@ ResetIME() {
 LoadLayoutConfig() {
     try {
         try {
-            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(
+            LKey.long_press_th := Integer(ReadConfig("Settings", "long_press_th", String(
                 LKey
                 .long_press_th)))
         } catch {
         }
-        layout_name := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
+        layout_name := ReadConfig("Settings", "StartupLayout", "")
         if layout_name = ""
             return
 
@@ -1918,19 +1969,19 @@ L_SYMBOL2 := 4
 L_SELECT := 5
 L_NUMPAD := 6
 L_SHIFT := 7
-L_FUNC := 8
+L_FUNC := 4
 
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
  */
 LoadLayoutFromIni(index) {
     global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
-    name := IniRead(A_ScriptDir . "\config.ini", index, "name", "")
+    name := ReadConfig(index, "name", "")
     if name = "" {
         ChangeQwertyLayout()
         return
     }
-    ver := IniRead(A_ScriptDir . "\config.ini", index, "ver", "1")
+    ver := ReadConfig(index, "ver", "1")
     if ver = 1 {
         if ApplyLayoutFromIni(index)
             return
@@ -1954,26 +2005,26 @@ LoadLayoutFromIni(index) {
  * @returns {Boolean} 読み込みに成功した場合は true
  */
 ApplyLayoutFromIni(index) {
-    ini_path := A_ScriptDir . "\config.ini"
+    ;ini_path := A_ScriptDir . "\config.ini"
 
     ; 必須のレイアウト文字列を取得
-    name := IniRead(ini_path, index, "Name", "")
+    name := ReadConfig(index, "Name", "")
     if name = ""
         return false
-    layout := IniRead(ini_path, index, "Layout", "")
-    num := IniRead(ini_path, index, "Num", "1234567890-")
-    shift_layout := IniRead(ini_path, index, "ShiftLayout", "")
-    shift_num := IniRead(ini_path, index, "ShiftNum", "")
+    layout := ReadConfig(index, "Layout", "")
+    num := ReadConfig(index, "Num", "1234567890-")
+    shift_layout := ReadConfig(index, "ShiftLayout", "")
+    shift_num := ReadConfig(index, "ShiftNum", "")
 
     ; 基本レイアウトの設定
     StoreLayout(name, layout, num, shift_layout, shift_num)
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := IniRead(ini_path, name, "ImeLayout", "")
-    ime_num := IniRead(ini_path, name, "ImeNum", "")
-    ime_shift_layout := IniRead(ini_path, name, "ImeShiftLayout", "")
-    ime_shift_num := IniRead(ini_path, name, "ImeShiftNum", "")
+    ime_layout := ReadConfig(name, "ImeLayout", "")
+    ime_num := ReadConfig(name, "ImeNum", "")
+    ime_shift_layout := ReadConfig(name, "ImeShiftLayout", "")
+    ime_shift_num := ReadConfig(name, "ImeShiftNum", "")
 
     if (ime_layout != "" || ime_num != "" || ime_shift_layout != "" || ime_shift_num != "") {
         if (ime_layout == "")
@@ -1987,10 +2038,10 @@ ApplyLayoutFromIni(index) {
     return true
 }
 
-ReadLayoutTextFromIni(ini_path, section, prefix) {
-    layout := IniRead(ini_path, section, prefix . "00", "")
+ReadLayoutTextFromIni(section, prefix) {
+    layout := ReadConfig(section, prefix . "00", "")
     loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, section, prefix . Format("{:02d}", A_Index), "")
+        str := ReadConfig(section, prefix . Format("{:02d}", A_Index), "")
         if str == ""
             break
         layout .= " " . str
@@ -1999,19 +2050,20 @@ ReadLayoutTextFromIni(ini_path, section, prefix) {
 }
 
 class IniMap {
-    __New(map, ini_path, section, prefix := "") {
+    __New(map, section, prefix := "") {
         this.map := map
-        this.inipath := ini_path
+        ;this.inipath := ini_path
         this.section := section
         this.prefix := prefix
     }
 
     Set(c) {
-        key := StrLower(KeyStr(c))
+        key := KeyStr(c)
         if key == "" {
             return
         }
-        val := IniRead(this.inipath, this.section, this.prefix . key, "")
+        val := ReadConfig(this.section, this.prefix . key, "")
+        ;val := IniRead(this.inipath, this.section, this.prefix . key, "")
         val := ValStr(val)
         if val != "" {
             this.map.Set(key, val)
@@ -2025,8 +2077,8 @@ class IniMap {
  * QWERTY_CHARS に含まれるキーについて順次読み込みを行う。
  * 特殊キーは個別に読み込む。
 */
-ReadEachLayoutFromIni(layout_map, ini_path, section, prefix := "") {
-    ini_map_loader := IniMap(layout_map, ini_path, section, prefix)
+ReadEachLayoutFromIni(layout_map, section, prefix := "") {
+    ini_map_loader := IniMap(layout_map, section, prefix)
     for i, c in QWERTY_CHARS {
         ini_map_loader.Set(c)
     }
@@ -2037,41 +2089,39 @@ ReadEachLayoutFromIni(layout_map, ini_path, section, prefix := "") {
 }
 
 ApplyLayoutFromIni2(section) {
-    ini_path := A_ScriptDir . "\config.ini"
-
     ; 必須のレイアウト文字列を取得
-    name := IniRead(ini_path, section, "Name", "")
+    name := ReadConfig(section, "Name", "")
     if (name == "")
         return false
 
-    layout := ReadLayoutTextFromIni(ini_path, section, "L")
+    layout := ReadLayoutTextFromIni(section, "L")
     if (layout == "")
         layout_map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
     else
         layout_map := MakeLayoutMap(layout)
-    ReadEachLayoutFromIni(layout_map, ini_path, section, "")
+    ReadEachLayoutFromIni(layout_map, section, "")
 
-    shift_layout := ReadLayoutTextFromIni(ini_path, section, "S")
+    shift_layout := ReadLayoutTextFromIni(section, "S")
     if (shift_layout == "")
         shift_map := Map()
     else
         shift_map := MakeLayoutMap(shift_layout)
-    ReadEachLayoutFromIni(shift_map, ini_path, section, "s_")
+    ReadEachLayoutFromIni(shift_map, section, "s_")
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := ReadLayoutTextFromIni(ini_path, section, "I")
+    ime_layout := ReadLayoutTextFromIni(section, "I")
     if (ime_layout == "")
         ime_map := Map()
     else
         ime_map := MakeLayoutMap(ime_layout)
-    ReadEachLayoutFromIni(ime_map, ini_path, section, "i_")
+    ReadEachLayoutFromIni(ime_map, section, "i_")
 
-    ime_shift_layout := ReadLayoutTextFromIni(ini_path, section, "IS")
+    ime_shift_layout := ReadLayoutTextFromIni(section, "IS")
     if (ime_shift_layout == "")
         ime_shift_map := Map()
     else
         ime_shift_map := MakeLayoutMap(ime_shift_layout)
-    ReadEachLayoutFromIni(ime_shift_map, ini_path, section, "is_")
+    ReadEachLayoutFromIni(ime_shift_map, section, "is_")
 
     layout_map.Default := ""
     shift_map.Default := ""
@@ -2093,21 +2143,23 @@ ApplyLayoutFromIni2(section) {
 ApplyLayerLayoutFromIni(layer_id, section) {
     ini_path := A_ScriptDir . "\config.ini"
 
-    layout_text := ReadLayoutTextFromIni(ini_path, section, "L")
+    layout_text := ReadLayoutTextFromIni(section, "L")
     layout_map := (layout_text != "") ? MakeLayoutMap(layout_text) : Map()
 
-    ReadEachLayoutFromIni(layout_map, ini_path, section, "")
+    ReadEachLayoutFromIni(layout_map, section, "")
 
     for i, keyObj in LAYOUT_KEYS {
-        name := StrLower(KeyStr(QWERTY_CHARS[i]))
+        name := KeyStr(QWERTY_CHARS[i])
+
         ;layout_map[name]が"
-        keyObj.SetLayerKey(layer_id, layout_map[name])
+        keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
     }
 
     for i, keyObj in LAYOUT_SPECIAL_KEYS {
         name := LAYOUT_SPECIAL_NAMES[i]
-        keyObj.SetLayerKey(layer_id, layout_map[name])
+        keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
     }
+
 }
 
 /**
@@ -2183,10 +2235,9 @@ MakeLayoutMap(layout_str := "") {
     }
     l := LayoutString(layout_str)
     for i, key in QWERTY_CHARS {
-        res_map.Set(key, l.GetElement(i))
+        res_map.Set(KeyStr(key), l.GetElement(i))
     }
     return res_map
-
 }
 
 StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\", shift_layout := "") {
@@ -2242,6 +2293,7 @@ ChangeQwertyLayout() {
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * キーレイアウトを「大西配列」に変更する
  */
@@ -2250,6 +2302,7 @@ ChangeOonishiLayout() {
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * キーレイアウトを「Colemak配列」に変更する
  */
@@ -2258,6 +2311,7 @@ ChangeColemakLayout() {
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * Changes layout to "FMIX12f".
  */
@@ -2266,6 +2320,7 @@ ChangeFMIX12f_Layout() {
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * Changes layout to "FMIX12f-FMIX13fR".
  */
@@ -2298,6 +2353,7 @@ ChangeFMIX14_FMIX14R_Layout() {
 
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * Changes layout to "FMIX13f-FMIX14fR".
  */
@@ -2314,6 +2370,7 @@ ChangeFMIX13f_FMIX14fR_Layout() {
 
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 ChangeMinatoLayoutImpl() {
     ResetIME()
 
@@ -2347,21 +2404,28 @@ ChangeMinatoLayoutImpl() {
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
 }
+
 ChangeFMIX13_minato_Layout() {
     StoreLayout("FMIX13-Minato", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
+; 終了・リロード時に保存
+OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
+
 ; ============================================================================
 ; 設定の読み込み
 ; ============================================================================
@@ -2617,7 +2681,7 @@ init() {
     closebracket.SetLayerKey(L_SHIFT, "+]")
 
     LoadLayoutConfig()
-
+    KeyLogger.Load()
 }
 
 init()
@@ -2636,7 +2700,7 @@ LayerState(layer) {
     if layer = L_SYMBOL1 {
         return conv.IsPressed()
     }
-    if layer = L_SYMBOL2 || layer = L_FUNC {
+    if layer = L_SYMBOL2 {
         return f14.IsPressed()
     }
     if layer = L_SYMBOL_NUM {
@@ -2651,6 +2715,9 @@ LayerState(layer) {
     if layer = L_SHIFT {
         return space.IsPressed()
     }
+    ; if layer = L_FUNC {
+    ;     return f14.IsPressed()
+    ; }
     return false
 }
 ; ============================================================================
@@ -2732,14 +2799,17 @@ sc07D:: yen.SendLayerKey(L_NAVI_CTRL) ; ¥ -> |
 *sc033:: comma.SendLayerKey(L_NAVI_CTRL) ; Comma (,) -> Ctrl+Left
 *.:: period.SendLayerKey(L_NAVI_CTRL) ; Period (.) -> Ctrl+Right
 sc035:: slash.SendLayerKey(L_NAVI_CTRL) ; / -> |
-*Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
 *a:: a.SendLayerKey(L_NAVI_CTRL) ; Select All
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
+
+*Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
+
 Esc:: {
     KeyLogger.Save()
     KeyLogger.SaveConfig()
     Reload()
 }
+
 q::#!space ; Win+Alt+Space
 *e:: Send(B_ESC) ; Esc
 r::+F3 ; Shift+F3
