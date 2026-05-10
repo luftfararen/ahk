@@ -246,10 +246,13 @@ IsPhysicalShiftPressed() {
     return GetKeyState("Shift", "P")
 }
 
+/*
+* 高分解能タイマー(単位:millisecond)
+*/
 Timer() {
     DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
     DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
-    return tick / freq
+    return tick / freq * 1000.0
 }
 
 QueryPerformanceFrequency() {
@@ -1419,6 +1422,9 @@ MakeModStr() {
  登録する文字列の仕様については BuildSendText() のコメントを参照してください。
 ============================================================================*/
 class RKey {
+    static layer_list := [1, 2, 3, 4, 5, 6, 7]
+    ;static layer_list := [L_NAVI_CTRL, L_SELECT, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SHIFT]
+
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
     static last_key := ""
     /**
@@ -1427,7 +1433,10 @@ class RKey {
      * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。省略時は物理キーと同じ。
      */
     __New(key, reg_key := "") {
-        this.layer_keys := ["", "", "", "", "", "", "", "", "", ""]
+        this.layer_keys := []
+        loop RKey.layer_list.Length
+            this.layer_keys.Push("")
+
         this.org_key := AddBraces(key)
         this.org_key_raw := RemoveBraces(key)
         if reg_key = "" {
@@ -1587,7 +1596,7 @@ class LKey extends RKey {
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
 
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
-
+    Layered := false
     /**
      * コンストラクタ
      * @param {String} key - 物理キー (例: "q", "{sc027}")。
@@ -1662,6 +1671,30 @@ class LKey extends RKey {
     Down() {
         Critical
 
+        for _, key in RKey.layer_list {
+            if LayerState(key) {
+                super.SendLayerKey(key)
+                this.Layered := true
+                return
+            }
+        }
+        this.Layered := false
+        this._Down()
+    }
+
+    /**
+     * キー離し時の処理
+     */
+    Up() {
+        Critical
+        if !this.Layered
+            this._Up()
+        this.Layered := false
+    }
+
+    _Down() {
+        ;Critical
+
         ; モード 3 (短押し時のみ入力) の特殊処理
         if this.long_press_mode = 3 {
             if (this.pressed_time != 0) {
@@ -1727,11 +1760,8 @@ class LKey extends RKey {
         RKey.last_key := this.org_key
     }
 
-    /**
-     * キー離し時の処理
-     */
-    Up() {
-        Critical
+    _Up() {
+        ;Critical
         if (this.pressed_time = 0) {
             return
         }
@@ -1883,58 +1913,59 @@ QWERTY_CHARS := [
     "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
 ]
 
-I_1 := 0
-I_2 := 1
-I_3 := 2
-I_4 := 3
-I_5 := 4
-I_6 := 5
-I_7 := 6
-I_8 := 7
-I_9 := 8
-I_0 := 9
-I_minus := 10
-I_hat := 11
-I_yen := 12
-I_q := 13
-I_w := 14
-I_e := 15
-I_r := 16
-I_t := 17
-I_y := 18
-I_u := 19
-I_i := 20
-I_o := 21
-I_p := 22
-I_at := 23
-I_openbracket := 24
-I_a := 25
-I_s := 26
-I_d := 27
-I_f := 28
-I_g := 29
-I_h := 30
-I_j := 31
-I_k := 32
-I_l := 33
-I_semicolon := 34
-I_colon := 35
-I_closebracket := 36
-I_z := 37
-I_x := 38
-I_c := 39
-I_v := 40
-I_b := 41
-I_n := 42
-I_m := 43
-I_comma := 44
-I_period := 45
-I_slash := 46
-I_backslash := 47
-I_up := 48
-I_down := 49
-I_left := 50
-I_right := 51
+; I_1 := 0
+; I_2 := 1
+; I_3 := 2
+; I_4 := 3
+; I_5 := 4
+; I_6 := 5
+; I_7 := 6
+; I_8 := 7
+; I_9 := 8
+; I_0 := 9
+; I_minus := 10
+; I_hat := 11
+; I_yen := 12
+; I_q := 13
+; I_w := 14
+; I_e := 15
+; I_r := 16
+; I_t := 17
+; I_y := 18
+; I_u := 19
+; I_i := 20
+; I_o := 21
+; I_p := 22
+; I_at := 23
+; I_openbracket := 24
+; I_a := 25
+; I_s := 26
+; I_d := 27
+; I_f := 28
+; I_g := 29
+; I_h := 30
+; I_j := 31
+; I_k := 32
+; I_l := 33
+; I_semicolon := 34
+; I_colon := 35
+; I_closebracket := 36
+; I_z := 37
+; I_x := 38
+; I_c := 39
+; I_v := 40
+; I_b := 41
+; I_n := 42
+; I_m := 43
+; I_comma := 44
+; I_period := 45
+; I_slash := 46
+; I_backslash := 47
+; I_up := 48
+; I_down := 49
+; I_left := 50
+; I_right := 51
+
 ; ============================================================================
 ; キーレイアウト切り替え関数
 ; ============================================================================
@@ -1989,7 +2020,7 @@ L_SYMBOL2 := 4
 L_SELECT := 5
 L_NUMPAD := 6
 L_SHIFT := 7
-L_FUNC := 4
+;L_FUNC := 4
 
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
@@ -2176,7 +2207,7 @@ ApplyLayerLayoutFromIni(layer_id, section) {
     }
 
     for i, keyObj in LAYOUT_SPECIAL_KEYS {
-        name := LAYOUT_SPECIAL_NAMES[i]
+        name := EntryName(LAYOUT_SPECIAL_NAMES[i])
         keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
     }
 
@@ -2451,6 +2482,7 @@ OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
 ; 設定の読み込み
 ; ============================================================================
 init() {
+    start := Timer()
     for i, keyObj in LAYOUT_KEYS {
         keyObj.long_press_mode := 1
     }
@@ -2459,6 +2491,8 @@ init() {
     global q, w, e, r, t, y, u, i, o, p, at, openbracket
     global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
     global z, x, c, v, b, n, m, comma, period, slash, backslash
+
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT
 
     ; L_SELECT
     k1.SetLayerKey(L_SELECT, "^z")
@@ -2669,18 +2703,18 @@ init() {
     b.SetLayerKey(L_SYMBOL2, "\")
 
     ; L_FUNC
-    q.SetLayerKey(L_FUNC, B_F1)
-    w.SetLayerKey(L_FUNC, B_F2)
-    e.SetLayerKey(L_FUNC, B_F3)
-    r.SetLayerKey(L_FUNC, B_F4)
-    a.SetLayerKey(L_FUNC, B_F5)
-    s.SetLayerKey(L_FUNC, B_F6)
-    d.SetLayerKey(L_FUNC, B_F7)
-    f.SetLayerKey(L_FUNC, B_F8)
-    z.SetLayerKey(L_FUNC, B_F9)
-    x.SetLayerKey(L_FUNC, B_F10)
-    c.SetLayerKey(L_FUNC, B_F11)
-    v.SetLayerKey(L_FUNC, B_F12)
+    q.SetLayerKey(L_SYMBOL2, B_F1)
+    w.SetLayerKey(L_SYMBOL2, B_F2)
+    e.SetLayerKey(L_SYMBOL2, B_F3)
+    r.SetLayerKey(L_SYMBOL2, B_F4)
+    a.SetLayerKey(L_SYMBOL2, B_F5)
+    s.SetLayerKey(L_SYMBOL2, B_F6)
+    d.SetLayerKey(L_SYMBOL2, B_F7)
+    f.SetLayerKey(L_SYMBOL2, B_F8)
+    z.SetLayerKey(L_SYMBOL2, B_F9)
+    x.SetLayerKey(L_SYMBOL2, B_F10)
+    c.SetLayerKey(L_SYMBOL2, B_F11)
+    v.SetLayerKey(L_SYMBOL2, B_F12)
 
     ; L_SHIFT
     ; for i, keyObj in LAYOUT_KEYS {
@@ -2703,6 +2737,9 @@ init() {
 
     LoadLayoutConfig()
     KeyLogger.Load()
+
+    end := Timer()
+    ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
 }
 
 init()
@@ -2744,85 +2781,10 @@ LayerState(layer) {
 ; ============================================================================
 ; ホットキー定義（レイヤー）
 ; ============================================================================
-;*** レイヤー（Shift付き編集） ***
-#HotIf LayerState(L_SELECT)
-; --- 編集（Shift付き） ---
-*1:: k1.SendLayerKey(L_SELECT) ; Undo
-*2:: k2.SendLayerKey(L_SELECT) ; Cut
-*3:: k3.SendLayerKey(L_SELECT) ; Copy
-*4:: k4.SendLayerKey(L_SELECT) ; Paste
-*z:: z.SendLayerKey(L_SELECT) ; Undo
-*x:: x.SendLayerKey(L_SELECT) ; Cut
-*c:: c.SendLayerKey(L_SELECT) ; Copy
-*v:: v.SendLayerKey(L_SELECT) ; Paste
-*b:: b.SendLayerKey(L_SELECT) ; Undo
-; --- ナビゲーション（Shift付き） ---
-*y:: y.SendLayerKey(L_SELECT) ; Redo (^y)
-*u:: u.SendLayerKey(L_SELECT)   ; Backspace
-*i:: i.SendLayerKey(L_SELECT)   ; Shift+Up
-*o:: o.SendLayerKey(L_SELECT) ; Shift+PgUp
-*p:: p.SendLayerKey(L_SELECT) ; Shift+PgDn
-*@:: at.SendLayerKey(L_SELECT) ; Ctrl+Shift+Home
-*[:: openbracket.SendLayerKey(L_SELECT)  ; Ctrl+Shift+End
-*h:: h.SendLayerKey(L_SELECT)  ; Shift+Home
-*j:: j.SendLayerKey(L_SELECT)  ; Shift+Left
-*k:: k.SendLayerKey(L_SELECT)  ; Shift+Down
-*l:: l.SendLayerKey(L_SELECT) ; Shift+Right
-*sc027:: semicolon.SendLayerKey(L_SELECT) ; Semicolon (;) -> Shift+Enter
-*Enter:: enter.SendLayerKey(L_SELECT)
-*n:: n.SendLayerKey(L_SELECT)   ; Shift+End
-*m:: m.SendLayerKey(L_SELECT)    ; Delete
-*sc033:: comma.SendLayerKey(L_SELECT) ; Comma (,) -> Ctrl+Shift+Left
-*.:: period.SendLayerKey(L_SELECT) ; Period (.)
-*space:: space.SendLayerKey(L_SELECT) ; Space -> Backspace
-*up:: up.SendLayerKey(L_SELECT)
-*left:: left.SendLayerKey(L_SELECT)
-*down:: down.SendLayerKey(L_SELECT)
-*right:: right.SendLayerKey(L_SELECT)
-#HotIf
 ;*** レイヤー（システム/アプリ制御） ***
 #HotIf LayerState(L_NAVI_CTRL)
-*1:: k1.SendLayerKey(L_NAVI_CTRL)
-*2:: k2.SendLayerKey(L_NAVI_CTRL)
-*3:: k3.SendLayerKey(L_NAVI_CTRL)
-*4:: k4.SendLayerKey(L_NAVI_CTRL)
-*5:: k5.SendLayerKey(L_NAVI_CTRL)
-*6:: k6.SendLayerKey(L_NAVI_CTRL)
-*7:: k7.SendLayerKey(L_NAVI_CTRL)
-*8:: k8.SendLayerKey(L_NAVI_CTRL)
-*9:: k9.SendLayerKey(L_NAVI_CTRL)
-*0:: k0.SendLayerKey(L_NAVI_CTRL)
-*-:: minus.SendLayerKey(L_NAVI_CTRL)
-*sc00D:: hat.SendLayerKey(L_NAVI_CTRL) ; ^ -> F12
-sc07D:: yen.SendLayerKey(L_NAVI_CTRL) ; ¥ -> |
-*z:: z.SendLayerKey(L_NAVI_CTRL)  ; Undo
-*x:: x.SendLayerKey(L_NAVI_CTRL)   ; Cut
-*c:: c.SendLayerKey(L_NAVI_CTRL)  ; Copy
-*v:: v.SendLayerKey(L_NAVI_CTRL) ; Paste
-*b:: b.SendLayerKey(L_NAVI_CTRL)  ; Undo
-; --- 編集・ナビゲーション（Shiftなし） ---
-*y:: y.SendLayerKey(L_NAVI_CTRL)  ; Undo (^z)
-*u:: u.SendLayerKey(L_NAVI_CTRL)    ; Backspace
-*i:: i.SendLayerKey(L_NAVI_CTRL)    ; Up
-*o:: o.SendLayerKey(L_NAVI_CTRL)  ; PgUp
-*p:: p.SendLayerKey(L_NAVI_CTRL)  ; PgDn
-*@:: at.SendLayerKey(L_NAVI_CTRL) ; Ctrl+Home
-*[:: openbracket.SendLayerKey(L_NAVI_CTRL)  ; Ctrl+End
-*h:: h.SendLayerKey(L_NAVI_CTRL)  ; Home
-*j:: j.SendLayerKey(L_NAVI_CTRL)  ; Left
-*k:: k.SendLayerKey(L_NAVI_CTRL)  ; Down
-*l:: l.SendLayerKey(L_NAVI_CTRL) ; Right
-*sc027:: semicolon.SendLayerKey(L_NAVI_CTRL) ; Semicolon (;) -> Enter
-;sc028::Return ; Colon (:) -> Disabled
-*]:: closebracket.SendLayerKey(L_NAVI_CTRL)
-*n:: n.SendLayerKey(L_NAVI_CTRL)   ; End
-*m:: m.SendLayerKey(L_NAVI_CTRL)   ; Delete
-*sc033:: comma.SendLayerKey(L_NAVI_CTRL) ; Comma (,) -> Ctrl+Left
-*.:: period.SendLayerKey(L_NAVI_CTRL) ; Period (.) -> Ctrl+Right
-sc035:: slash.SendLayerKey(L_NAVI_CTRL) ; / -> |
-*a:: a.SendLayerKey(L_NAVI_CTRL) ; Select All
-sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 
+sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 *Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
 
 Esc:: {
@@ -2880,215 +2842,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
-#HotIf
-;*** レイヤー2 (記号と数字) ***
-#HotIf LayerState(L_SYMBOL_NUM)
-*1:: k1.SendLayerKey(L_SYMBOL_NUM)
-*2:: k2.SendLayerKey(L_SYMBOL_NUM)
-*3:: k3.SendLayerKey(L_SYMBOL_NUM)
-*4:: k4.SendLayerKey(L_SYMBOL_NUM)
-*5:: k5.SendLayerKey(L_SYMBOL_NUM)
-*6:: k6.SendLayerKey(L_SYMBOL_NUM)
-*7:: k7.SendLayerKey(L_SYMBOL_NUM)
-*8:: k8.SendLayerKey(L_SYMBOL_NUM)
-*9:: k9.SendLayerKey(L_SYMBOL_NUM)
-*0:: k0.SendLayerKey(L_SYMBOL_NUM)
-*-:: minus.SendLayerKey(L_SYMBOL_NUM)
-*sc00D:: hat.SendLayerKey(L_SYMBOL_NUM) ; ^ -> F12
-*q:: q.SendLayerKey(L_SYMBOL_NUM)
-*w:: w.SendLayerKey(L_SYMBOL_NUM)
-*e:: e.SendLayerKey(L_SYMBOL_NUM) ; Numpad *
-*r:: r.SendLayerKey(L_SYMBOL_NUM) ; Numpad +
-*t:: t.SendLayerKey(L_SYMBOL_NUM)
-*a:: a.SendLayerKey(L_SYMBOL_NUM)
-*s:: s.SendLayerKey(L_SYMBOL_NUM)
-*d:: d.SendLayerKey(L_SYMBOL_NUM)
-*f:: f.SendLayerKey(L_SYMBOL_NUM)
-*g:: g.SendLayerKey(L_SYMBOL_NUM)
-*y:: y.SendLayerKey(L_SYMBOL_NUM)
-*u:: u.SendLayerKey(L_SYMBOL_NUM)
-*i:: i.SendLayerKey(L_SYMBOL_NUM)
-*o:: o.SendLayerKey(L_SYMBOL_NUM)
-*p:: p.SendLayerKey(L_SYMBOL_NUM)
-*h:: h.SendLayerKey(L_SYMBOL_NUM)
-*j:: j.SendLayerKey(L_SYMBOL_NUM)
-*k:: k.SendLayerKey(L_SYMBOL_NUM)
-*l:: l.SendLayerKey(L_SYMBOL_NUM)
-*sc027:: semicolon.SendLayerKey(L_SYMBOL_NUM)
-*n:: n.SendLayerKey(L_SYMBOL_NUM)
-*m:: m.SendLayerKey(L_SYMBOL_NUM)
-*sc033:: comma.SendLayerKey(L_SYMBOL_NUM)
-*.:: period.SendLayerKey(L_SYMBOL_NUM)
-*sc035:: slash.SendLayerKey(L_SYMBOL_NUM)
-*z:: z.SendLayerKey(L_SYMBOL_NUM)
-*x:: x.SendLayerKey(L_SYMBOL_NUM)
-*c:: c.SendLayerKey(L_SYMBOL_NUM)
-*v:: v.SendLayerKey(L_SYMBOL_NUM)
-*b:: b.SendLayerKey(L_SYMBOL_NUM)  ; Undo
-*space:: space.SendLayerKey(L_SYMBOL_NUM)
-#HotIf
-;*** レイヤー (記号) ***
-#HotIf LayerState(L_SYMBOL1)
-*1:: k1.SendLayerKey(L_SYMBOL1)
-*2:: k2.SendLayerKey(L_SYMBOL1)
-*3:: k3.SendLayerKey(L_SYMBOL1)
-*4:: k4.SendLayerKey(L_SYMBOL1)
-*5:: k5.SendLayerKey(L_SYMBOL1)
-*6:: k6.SendLayerKey(L_SYMBOL1)
-*7:: k7.SendLayerKey(L_SYMBOL1)
-*8:: k8.SendLayerKey(L_SYMBOL1)
-*9:: k9.SendLayerKey(L_SYMBOL1)
-*0:: k0.SendLayerKey(L_SYMBOL1)
-*-:: minus.SendLayerKey(L_SYMBOL1)
-*sc00D:: hat.SendLayerKey(L_SYMBOL1) ; ^ -> F12
-*q:: q.SendLayerKey(L_SYMBOL1)
-*w:: w.SendLayerKey(L_SYMBOL1)
-*e:: e.SendLayerKey(L_SYMBOL1) ; テンキー *
-*r:: r.SendLayerKey(L_SYMBOL1) ; テンキー +
-*t:: t.SendLayerKey(L_SYMBOL1)
-*a:: a.SendLayerKey(L_SYMBOL1)
-*s:: s.SendLayerKey(L_SYMBOL1)
-*d:: d.SendLayerKey(L_SYMBOL1)
-*f:: f.SendLayerKey(L_SYMBOL1)
-*g:: g.SendLayerKey(L_SYMBOL1)
-*y:: y.SendLayerKey(L_SYMBOL1)
-*u:: u.SendLayerKey(L_SYMBOL1)
-*i:: i.SendLayerKey(L_SYMBOL1)
-*o:: o.SendLayerKey(L_SYMBOL1)
-*p:: p.SendLayerKey(L_SYMBOL1)
-*h:: h.SendLayerKey(L_SYMBOL1)
-*j:: j.SendLayerKey(L_SYMBOL1)
-*k:: k.SendLayerKey(L_SYMBOL1)
-*l:: l.SendLayerKey(L_SYMBOL1)
-*sc027:: semicolon.SendLayerKey(L_SYMBOL1)
-*n:: n.SendLayerKey(L_SYMBOL1)
-*m:: m.SendLayerKey(L_SYMBOL1)
-*sc033:: comma.SendLayerKey(L_SYMBOL1)
-*.:: period.SendLayerKey(L_SYMBOL1)
-*sc035:: slash.SendLayerKey(L_SYMBOL1)
-*z:: z.SendLayerKey(L_SYMBOL1)
-*x:: x.SendLayerKey(L_SYMBOL1)
-*c:: c.SendLayerKey(L_SYMBOL1)
-*v:: v.SendLayerKey(L_SYMBOL1)
-*b:: b.SendLayerKey(L_SYMBOL1)  ; Undo
-*space:: space.SendLayerKey(L_SYMBOL1)
-#HotIf
-;*** レイヤー (テンキーレイヤー) ***
-#HotIf LayerState(L_NUMPAD)
-; --- 左手 ---
-*6:: k6.SendLayerKey(L_NUMPAD)
-*t:: t.SendLayerKey(L_NUMPAD) ; テンキー +
-*a:: a.SendLayerKey(L_NUMPAD)
-*s:: s.SendLayerKey(L_NUMPAD)
-*f:: f.SendLayerKey(L_NUMPAD)
-*g:: g.SendLayerKey(L_NUMPAD)
-; --- 右手 (テンキー) ---
-*7:: k7.SendLayerKey(L_NUMPAD)
-*8:: k8.SendLayerKey(L_NUMPAD)
-*9:: k9.SendLayerKey(L_NUMPAD)
-*0:: k0.SendLayerKey(L_NUMPAD) ; テンキー *
-*-:: minus.SendLayerKey(L_NUMPAD) ; テンキー -
-*sc00D:: hat.SendLayerKey(L_NUMPAD) ; ^
-*sc07D:: yen.SendLayerKey(L_NUMPAD) ; \
-*y:: y.SendLayerKey(L_NUMPAD) ; Backspace
-*u:: u.SendLayerKey(L_NUMPAD)
-*i:: i.SendLayerKey(L_NUMPAD)
-*o:: o.SendLayerKey(L_NUMPAD)
-*p:: p.SendLayerKey(L_NUMPAD) ; テンキー +
-*@:: at.SendLayerKey(L_NUMPAD)   ; Up
-*h:: h.SendLayerKey(L_NUMPAD)
-*j:: j.SendLayerKey(L_NUMPAD)
-*k:: k.SendLayerKey(L_NUMPAD)
-*l:: l.SendLayerKey(L_NUMPAD)
-*sc027:: semicolon.SendLayerKey(L_NUMPAD)  ; ; -> Left
-*sc028:: colon.SendLayerKey(L_NUMPAD)  ; : -> Down
-*]:: closebracket.SendLayerKey(L_NUMPAD) ; ] -> Right
-*n:: n.SendLayerKey(L_NUMPAD) ; DeleteH ; _
-*space:: Send(C_BS)
-#HotIf
-#HotIf LayerState(L_SYMBOL2)
-*q:: q.SendLayerKey(L_SYMBOL2)
-*w:: w.SendLayerKey(L_SYMBOL2)
-*e:: e.SendLayerKey(L_SYMBOL2)
-*r:: r.SendLayerKey(L_SYMBOL2)
-*t:: t.SendLayerKey(L_SYMBOL2)
-*a:: a.SendLayerKey(L_SYMBOL2) ;
-*s:: s.SendLayerKey(L_SYMBOL2) ;
-*d:: d.SendLayerKey(L_SYMBOL2) ;
-*g:: g.SendLayerKey(L_SYMBOL2) ;` grave accent
-*z:: z.SendLayerKey(L_SYMBOL2) ;
-*x:: x.SendLayerKey(L_SYMBOL2)
-*c:: c.SendLayerKey(L_SYMBOL2)
-*v:: v.SendLayerKey(L_SYMBOL2) ; |
-*b:: b.SendLayerKey(L_SYMBOL2) ; \
-#HotIf
-#HotIf LayerState(L_FUNC)
-*q:: q.SendLayerKey(L_FUNC)
-*w:: w.SendLayerKey(L_FUNC)
-*e:: e.SendLayerKey(L_FUNC)
-*r:: r.SendLayerKey(L_FUNC)
-*a:: a.SendLayerKey(L_FUNC)
-*s:: s.SendLayerKey(L_FUNC)
-*d:: d.SendLayerKey(L_FUNC)
-*f:: f.SendLayerKey(L_FUNC)
-*z:: z.SendLayerKey(L_FUNC)
-*x:: x.SendLayerKey(L_FUNC)
-*c:: c.SendLayerKey(L_FUNC)
-*v:: v.SendLayerKey(L_FUNC)
-#HotIf
-#HotIf LayerState(L_SHIFT)
-*1:: k1.SendLayerKey(L_SHIFT)
-*2:: k2.SendLayerKey(L_SHIFT)
-*3:: k3.SendLayerKey(L_SHIFT)
-*4:: k4.SendLayerKey(L_SHIFT)
-*5:: k5.SendLayerKey(L_SHIFT)
-q:: q.SendLayerKey(L_SHIFT)
-w:: w.SendLayerKey(L_SHIFT)
-e:: e.SendLayerKey(L_SHIFT)
-r:: r.SendLayerKey(L_SHIFT)
-t:: t.SendLayerKey(L_SHIFT)
-a:: a.SendLayerKey(L_SHIFT)
-s:: s.SendLayerKey(L_SHIFT)
-d:: d.SendLayerKey(L_SHIFT)
-f:: f.SendLayerKey(L_SHIFT)
-g:: g.SendLayerKey(L_SHIFT)
-z:: z.SendLayerKey(L_SHIFT)
-x:: x.SendLayerKey(L_SHIFT)
-c:: c.SendLayerKey(L_SHIFT)
-v:: v.SendLayerKey(L_SHIFT)
-b:: b.SendLayerKey(L_SHIFT)
-sc07D:: yen.SendLayerKey(L_SHIFT)
-*6:: k6.SendLayerKey(L_SHIFT)
-*7:: k7.SendLayerKey(L_SHIFT)
-*8:: k8.SendLayerKey(L_SHIFT)
-*9:: k9.SendLayerKey(L_SHIFT)
-*0:: k0.SendLayerKey(L_SHIFT)
-*-:: minus.SendLayerKey(L_SHIFT)
-*sc00D:: hat.SendLayerKey(L_SHIFT) ; ^ -> F12
-y:: y.SendLayerKey(L_SHIFT)
-u:: u.SendLayerKey(L_SHIFT)
-i:: i.SendLayerKey(L_SHIFT)
-o:: o.SendLayerKey(L_SHIFT)
-p:: p.SendLayerKey(L_SHIFT)
-@:: at.SendLayerKey(L_SHIFT)
-[:: openbracket.SendLayerKey(L_SHIFT)
-h:: h.SendLayerKey(L_SHIFT)
-j:: j.SendLayerKey(L_SHIFT)
-k:: k.SendLayerKey(L_SHIFT)
-l:: l.SendLayerKey(L_SHIFT)
-sc027:: semicolon.SendLayerKey(L_SHIFT)
-sc028:: colon.SendLayerKey(L_SHIFT)
-]:: closebracket.SendLayerKey(L_SHIFT)
-n:: n.SendLayerKey(L_SHIFT)
-m:: m.SendLayerKey(L_SHIFT)
-sc033:: comma.SendLayerKey(L_SHIFT)
-.:: period.SendLayerKey(L_SHIFT)
-sc035:: slash.SendLayerKey(L_SHIFT)
-sc073:: backslash.SendLayerKey(L_SHIFT)
-Up:: up.SendLayerKey(L_SHIFT)
-Down:: down.SendLayerKey(L_SHIFT)
-Left:: left.SendLayerKey(L_SHIFT)
-Right:: right.SendLayerKey(L_SHIFT)
+
 #HotIf
 ; ============================================================================
 ; グローバルホットキー (RKey / LKey バインド)
