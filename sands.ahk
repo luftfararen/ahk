@@ -1673,6 +1673,15 @@ class LKey extends RKey {
 
         for _, key in RKey.layer_list {
             if LayerState(key) {
+                ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
+                if (key == L_SHIFT && this == space) ||
+                (key == L_NUMPAD && this == tab) ||
+                (key == L_SYMBOL_NUM && this == noconv) ||
+                (key == L_SYMBOL1 && this == conv) ||
+                (key == L_SYMBOL2 && this == f14) ||
+                ((key == L_NAVI_CTRL || key == L_SELECT) && this == f13)
+                    continue
+
                 super.SendLayerKey(key)
                 this.Layered := true
                 return
@@ -2020,6 +2029,8 @@ L_SYMBOL2 := 4
 L_SELECT := 5
 L_NUMPAD := 6
 L_SHIFT := 7
+
+;mod_key_list := [f13,noconv,conv,f14,f13,tab,space]
 ;L_FUNC := 4
 
 /**
