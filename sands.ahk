@@ -1443,6 +1443,7 @@ class RKey {
      */
     __New(key, reg_key := "") {
         this.layer_keys := []
+        this.layer_ime_keys := []
 
         this.org_key := AddBraces(key)
         this.org_key_raw := RemoveBraces(key)
@@ -1477,11 +1478,30 @@ class RKey {
         }
     }
 
+    SetLayerImeKey(layer_id, action, reset_if_blank := false) {
+        if layer_id > this.layer_ime_keys.Length {
+            loop layer_id - this.layer_ime_keys.Length {
+                this.layer_ime_keys.Push("")
+            }
+        }
+        if (action == "") {
+            if reset_if_blank {
+                this.layer_ime_keys[layer_id] := ""
+            }
+        } else {
+            this.layer_ime_keys[layer_id] := action
+        }
+    }
+
     SendLayerKey(layer_id) {
-        if (layer_id > this.layer_keys.Length)
-            action := ""
-        else
-            action := this.layer_keys[layer_id]
+        action := ""
+        if ImeState.IsOn() {
+            if (layer_id <= this.layer_ime_keys.Length)
+                action := this.layer_ime_keys[layer_id]
+        } else {
+            if (layer_id <= this.layer_keys.Length)
+                action := this.layer_keys[layer_id]
+        }
 
         if (action == "") {
             if (layer_id == L_SHIFT)
@@ -1653,6 +1673,13 @@ class LKey extends RKey {
         this.long_press_mode := -1
         this.long_press_mode_org := mode
         this.long_press_mode_ime_org := mode
+    }
+
+    SetMode(mode := 0, ime_mode := 0) {
+        if mode >= 0
+            this.long_press_mode_org := mode
+        if ime_mode >= 0
+            this.long_press_mode_ime_org := ime_mode
     }
 
     /**
@@ -2463,6 +2490,10 @@ ChangeFMIX13f_FMIX14fR_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
+RegistCombination(layer_key, key, text) {
+    key.SetLayerImeKey(Layers.Index(layer_key), text)
+}
+
 ChangeMinatoLayoutImpl() {
     ResetIME()
 
@@ -2486,7 +2517,7 @@ ChangeMinatoLayoutImpl() {
     u.SetImeKey("yu")
     i.SetImeKey("u", "ou")
     o.SetImeKey("yo")
-    p.SetImeKey("ou")
+    p.SetImeKey("-")
     h.SetImeKey(";", "ann") ; ;=nn
     j.SetImeKey("a", "ou")
     k.SetImeKey("i", "xi")
@@ -2497,28 +2528,19 @@ ChangeMinatoLayoutImpl() {
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
 
-    a.SetLayerKey(Layers.Index(i), "nn")
-    a.SetLayerKey(Layers.Index(j), "nn")
-    a.SetLayerKey(Layers.Index(k), "nn")
-    a.SetLayerKey(Layers.Index(l), "nn")
-    a.SetLayerKey(Layers.Index(semicolon), "nn")
-    f.SetLayerKey(Layers.Index(i), "-")
-    f.SetLayerKey(Layers.Index(j), "-")
-    f.SetLayerKey(Layers.Index(k), "-")
-    f.SetLayerKey(Layers.Index(l), "-")
-    f.SetLayerKey(Layers.Index(semicolon), "-")
-    v.SetLayerKey(Layers.Index(i), "ltu")
-    v.SetLayerKey(Layers.Index(j), "ltu")
-    v.SetLayerKey(Layers.Index(k), "ltu")
-    v.SetLayerKey(Layers.Index(l), "ltu")
-    v.SetLayerKey(Layers.Index(semicolon), "ltu")
-
-    i.long_press_mode_ime_org := 4
-    j.long_press_mode_ime_org := 4
-    k.long_press_mode_ime_org := 4
-    l.long_press_mode_ime_org := 4
-    semicolon.long_press_mode_ime_org := 4
-    ;ToolTip("init " . i.long_press_mode . "/" . i.long_press_mode_org . "/" . i.long_press_mode_ime_org)
+    target_layers := [i, j, k, l, semicolon, o, u, m]
+    for layer_key in target_layers {
+        RegistCombination(layer_key, a, "nn")
+        RegistCombination(layer_key, f, "-")
+        RegistCombination(layer_key, v, "ltu")
+        layer_key.SetMode(-1, 4)
+    }
+    RegistCombination(s, f, "ite")
+    RegistCombination(s, e, "uru")
+    RegistCombination(s, r, "areru")
+    RegistCombination(d, f, "oto")
+    s.SetMode(-1, 4)
+    d.SetMode(-1, 4)
 }
 
 ChangeFMIX13_minato_Layout() {
