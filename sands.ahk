@@ -148,6 +148,15 @@ C_N8 := "{Numpad8}"
 C_N9 := "{Numpad9}"
 C_NDOT := "{NumpadDot}"
 
+; --- レイヤーID定数 ---
+L_NAVI_CTRL := 1
+L_SYMBOL_NUM := 2
+L_SYMBOL1 := 3
+L_SYMBOL2 := 4
+L_SELECT := 5
+L_NUMPAD := 6
+L_SHIFT := 7
+
 ; --- テンキー演算子 (Blindモードのみ) ---
 B_NADD := "{Blind}{NumpadAdd}"
 B_NMUL := "{Blind}{NumpadMult}"
@@ -1422,7 +1431,7 @@ MakeModStr() {
  登録する文字列の仕様については BuildSendText() のコメントを参照してください。
 ============================================================================*/
 class RKey {
-    static layer_list := [1, 2, 3, 4, 5, 6, 7]
+    ;static layer_list := [1, 2, 3, 4, 5, 6, 7]
     ;static layer_list := [L_NAVI_CTRL, L_SELECT, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SHIFT]
 
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
@@ -1434,8 +1443,6 @@ class RKey {
      */
     __New(key, reg_key := "") {
         this.layer_keys := []
-        loop RKey.layer_list.Length
-            this.layer_keys.Push("")
 
         this.org_key := AddBraces(key)
         this.org_key_raw := RemoveBraces(key)
@@ -1455,7 +1462,13 @@ class RKey {
      * @param {Boolean} reset_if_blank - 空の場合にリセットするかどうか
      */
     SetLayerKey(layer_id, action, reset_if_blank := false) {
-        if action == "" {
+
+        if layer_id > this.layer_keys.Length {
+            loop layer_id - this.layer_keys.Length {
+                this.layer_keys.Push("")
+            }
+        }
+        if (action == "") {
             if reset_if_blank {
                 this.layer_keys[layer_id] := ""
             }
@@ -1465,9 +1478,12 @@ class RKey {
     }
 
     SendLayerKey(layer_id) {
+        if (layer_id > this.layer_keys.Length)
+            action := ""
+        else
+            action := this.layer_keys[layer_id]
 
-        action := this.layer_keys[layer_id]
-        if action == "" {
+        if (action == "") {
             if (layer_id == L_SHIFT)
                 this.SendShiftedKey()
         } else {
@@ -1501,7 +1517,8 @@ class RKey {
             this.shift_ime_key_text := shift_ime_key = "" ? this.shift_key_text : BuildSendText(shift_ime_key)
         } else {
             this.ime_key_text := BuildSendText(ime_key)
-            this.shift_ime_key_text := shift_ime_key = "" ? BuildSendText(ime_key, "+") : BuildSendText(shift_ime_key)
+            this.shift_ime_key_text := shift_ime_key = "" ? BuildSendText(ime_key, "+") : BuildSendText(
+                shift_ime_key)
         }
     }
 
@@ -1575,22 +1592,50 @@ class RKey {
  RKey を拡張し、一定時間の押し下げ（長押し）に応じたアクションを追加します。
 
  [モード説明]
- 0: 通常のリマップ (RKey と同等。長押し判定なし)
- 1: 即時入力 + 長押し置換
-    - 押し下げ時にキーを即座に送信。
-    - 長押し判定時、送信済みのキーを Backspace で消去し、Shift 版のキーを再送信。
- 2: パススルー (入力抑制)
-    - 押し下げ時、離し時ともにリマップ出力を抑制する。
- 3: 短押し時のみ入力 (MKey 相当)
-    - 短押しで離した場合のみキーを送信。長押し時は何も送信しない。
- (予約) 4: 即時入力 + 長押しカスタム置換
-    - 押し下げ時に即座に送信し、長押し判定時にカスタムの長押しキーに置換。
+・モード 0：リマップキー送信
+長押し判定を行わない標準的なリマップである。
+キーリピートは無効化される 。
 
- * モード 1, 2, 3, 4 ではキーリピートが無効化されます。
- * モード 0, 1, 2, 4 では Ctrl, Alt, Win (CAW) 押下時は物理キーの修飾としてパススルーされます。
- * 登録キーは RKey と同様に SetKey, SetImeKey で設定します。
- * モード 1, 4 で使用するキーは 1 文字（または 1 つの {スキャンコード}）である必要があります。
-============================================================================*/
+・モード 1：短押し->リマップキー送信　長押し->置換
+押し下げ時に即座にリマップキーを送信する。
+一定時間以上の長押しが確定すると、送信済みの文字を Backspace で消去し、
+Shift 版（または指定キー）を再送信して置換する。
+キーリピートは無効化される 。
+
+・モード 2：短押し->未送信　長押し->未送信(修飾キー利用)
+押し下げ・離し時の出力を完全に抑制し、純粋なレイヤー切り替え等の修飾キーとして利用される。
+キーリピートは無効化される 。
+
+・モード 3：短押し->未送信　長押し->未送信(修飾キー利用)
+短押しして離した時のみキーを送信する。長押し中は何も送信されず、モディファイア（レイヤー用）として機能する。
+キーリピートは無効化される 。
+
+・モード 4：リマップキー送信　長押しを維持でキーリピートなし(修飾キー利用)
+モード 0 と同様の挙動だが、キーリピートが無効な状態で動作する。
+主に他のキーとの組み合わせを前提とした修飾キー用途で使用される 。
+
+・モード 5：カスタム即時置換 (予約)
+押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
+---
+
+■ 共通仕様および制約
+
+・修飾キー (CAW) パススルー
+Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、リマップをバイパスして物理キーをそのまま送信（パススルー）する 。
+※ モード 3 においては、キーを離した瞬間 (Up) に修飾状態が判定される 。
+
+・物理状態の厳密判定
+各モードの分岐や Layers.State によるレイヤー判定には GetKeyState(..., "P") を使用し、ユーザーが実際に指でキーを押し込んでいるかという物理的な状態を正確に取得する 。
+
+・キー登録のルール
+送信キーの設定には、RKey と同様に SetKey (IME OFF 時) および SetImeKey (IME ON 時) メソッドを使用する 。モード 1 および 5 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
+
+---
+
+■ 実装上の注意：Map オブジェクトの運用
+
+・エラー回避 (Target key not found)
+AutoHotkey v2 の Map オブジェクトにおいて Default プロパティを設定していない場合、存在しないキーを参照すると実行時エラーが発生し、スクリプトが停止する 。不慮の停止を防ぐため、事前に .Has(Key) メソッドでキーの存在を確認するか、あらかじめ myMap.Default := "" のように初期値を設定することが推奨される 。===========================================================================*/
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
@@ -1605,7 +1650,9 @@ class LKey extends RKey {
      */
     __New(key, mode := 0, reg_key := "") {
         super.__New(key, reg_key) ; RKey の初期化
-        this.long_press_mode := mode
+        this.long_press_mode := -1
+        this.long_press_mode_org := mode
+        this.long_press_mode_ime_org := mode
     }
 
     /**
@@ -1639,6 +1686,12 @@ class LKey extends RKey {
         super.SetKey(key, shift_key)
     }
 
+    SetImeKey(ime_key := "", shift_ime_key := "", mode := -1) {
+        super.SetImeKey(ime_key, shift_ime_key)
+        if (mode != -1)
+            this.long_press_mode_ime_org := mode
+    }
+
     ; /**
     ;  * 長押し時に送信するキー文字列を設定する
     ;  * @param {String} [long_key=""]
@@ -1670,18 +1723,16 @@ class LKey extends RKey {
      */
     Down() {
         Critical
+        if this.Layered
+            return
 
-        for _, key in RKey.layer_list {
-            if LayerState(key) {
-                ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
-                if (key == L_SHIFT && this == space) ||
-                (key == L_NUMPAD && this == tab) ||
-                (key == L_SYMBOL_NUM && this == noconv) ||
-                (key == L_SYMBOL1 && this == conv) ||
-                (key == L_SYMBOL2 && this == f14) ||
-                ((key == L_NAVI_CTRL || key == L_SELECT) && this == f13)
-                    continue
-
+        this.long_press_mode := ImeState.IsOn() ? this.long_press_mode_ime_org : this.long_press_mode_org
+        loop Layers.Length() {
+            key := A_Index
+            if (Layers.Match(key, this)) {
+                continue
+            }
+            if Layers.State(key) {
                 super.SendLayerKey(key)
                 this.Layered := true
                 return
@@ -1699,6 +1750,7 @@ class LKey extends RKey {
         if !this.Layered
             this._Up()
         this.Layered := false
+        this.long_press_mode := -1
     }
 
     _Down() {
@@ -1727,8 +1779,8 @@ class LKey extends RKey {
             return
         }
 
-        ; 2. 長押し機能が無効（モード 0）またはグローバル設定がオフの場合
-        if this.long_press_mode = 0 { ; || LKey.long_press_enabled = 0
+        ; 2. 長押し機能が無効（モード 0）またはモード 4 (即時送信・リピートなし) の場合
+        if this.long_press_mode = 0 {
             shift := IsPhysicalShiftPressed()
             this.SendShiftedKey(shift) ; 通常のリマップとして即座に送信
             this.pressed_time := 0
@@ -1742,27 +1794,10 @@ class LKey extends RKey {
         }
 
         ; 4. モード 1 の場合、まず「短押し用キー」を即座に送信する
-        ;    （長押し確定時に Backspace で消去して置換する）
-        if this.long_press_mode = 1 {
+        if this.long_press_mode = 1 || this.long_press_mode = 4 {
             shift := IsPhysicalShiftPressed()
             this.SendShiftedKey(shift)
         }
-
-        ; ; 5. モード 5 (KeyWait ベースの即時入力 + 長押し置換)
-        ; if this.long_press_mode = 5 {
-        ;     this.pressed_time := A_TickCount
-        ;     shift := IsPhysicalShiftPressed()
-        ;     this.SendShiftedKey(shift)
-        ;     Critical("Off")
-        ;     released := KeyWait(this.org_key_raw, "T" . (LKey.long_press_th / 1000))
-        ;     if !released {
-        ;         Send("{Backspace}")
-        ;         this.SendShiftedKey(true)
-        ;         KeyWait(this.org_key_raw)
-        ;     }
-        ;     this.pressed_time := 0
-        ;     return
-        ; }
 
         ; 5. 状態を記録し、長押し判定のためのタイマーを開始
         this.pressed_time := A_TickCount
@@ -1800,9 +1835,9 @@ class LKey extends RKey {
                     this.SendShiftedKey(true) ; 長押しアクション（Shift版）を実行
                 }
             }
-            ; モード 2: 長押し・短押しに関わらず Up 時には何もしない
+            ; モード 2, 4: 長押し・短押しに関わらず Up 時には何もしない
         }
-        ; モード2の場合、何もしない
+        ; モード 2, 4 の場合、何もしない
 
         ; 内部状態のリセット
         this.pressed_time := 0
@@ -1822,7 +1857,7 @@ class LKey extends RKey {
 ; f14 := MKey(R_ZENKAKU)
 ; colon := LKey(C_COLON, 2)
 
-f13 := LKey("f13", 2)
+f13 := LKey("f13", 3, C_TAB)
 space := LKey(R_SPACE, 3, C_SPACE)
 tab := LKey(R_TAB, 3, C_TAB)
 noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
@@ -1843,7 +1878,7 @@ k9 := LKey("9")
 k0 := LKey("0")
 minus := LKey("-")
 hat := LKey(C_HAT) ; ^
-yen := LKey("¥") ; ¥
+yen := LKey(C_YEN) ; ¥
 ;
 ; (QWERTY段)
 q := LKey("q")
@@ -1975,6 +2010,8 @@ QWERTY_CHARS := [
 ; I_left := 50
 ; I_right := 51
 
+init()
+
 ; ============================================================================
 ; キーレイアウト切り替え関数
 ; ============================================================================
@@ -2022,15 +2059,8 @@ LoadLayoutConfig() {
 ; ============================================================================
 ; レイヤー状態判定関数
 ; ============================================================================
-L_NAVI_CTRL := 1
-L_SYMBOL_NUM := 2
-L_SYMBOL1 := 3
-L_SYMBOL2 := 4
-L_SELECT := 5
-L_NUMPAD := 6
-L_SHIFT := 7
+; (Moved to top)
 
-;mod_key_list := [f13,noconv,conv,f14,f13,tab,space]
 ;L_FUNC := 4
 
 /**
@@ -2463,9 +2493,32 @@ ChangeMinatoLayoutImpl() {
     l.SetImeKey("e", "xe")
     semicolon.SetImeKey("o", "ou")
     ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
-    n.SetImeKey("-", "a-")
+    n.SetImeKey("ou", "a-")
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
+
+    a.SetLayerKey(Layers.Index(i), "nn")
+    a.SetLayerKey(Layers.Index(j), "nn")
+    a.SetLayerKey(Layers.Index(k), "nn")
+    a.SetLayerKey(Layers.Index(l), "nn")
+    a.SetLayerKey(Layers.Index(semicolon), "nn")
+    f.SetLayerKey(Layers.Index(i), "-")
+    f.SetLayerKey(Layers.Index(j), "-")
+    f.SetLayerKey(Layers.Index(k), "-")
+    f.SetLayerKey(Layers.Index(l), "-")
+    f.SetLayerKey(Layers.Index(semicolon), "-")
+    v.SetLayerKey(Layers.Index(i), "ltu")
+    v.SetLayerKey(Layers.Index(j), "ltu")
+    v.SetLayerKey(Layers.Index(k), "ltu")
+    v.SetLayerKey(Layers.Index(l), "ltu")
+    v.SetLayerKey(Layers.Index(semicolon), "ltu")
+
+    i.long_press_mode_ime_org := 4
+    j.long_press_mode_ime_org := 4
+    k.long_press_mode_ime_org := 4
+    l.long_press_mode_ime_org := 4
+    semicolon.long_press_mode_ime_org := 4
+    ;ToolTip("init " . i.long_press_mode . "/" . i.long_press_mode_org . "/" . i.long_press_mode_ime_org)
 }
 
 ChangeFMIX13_minato_Layout() {
@@ -2492,16 +2545,15 @@ OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
 ; ============================================================================
 ; 設定の読み込み
 ; ============================================================================
-init() {
-    start := Timer()
-    for i, keyObj in LAYOUT_KEYS {
-        keyObj.long_press_mode := 1
-    }
+
+init_layer() {
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
     global q, w, e, r, t, y, u, i, o, p, at, openbracket
     global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
     global z, x, c, v, b, n, m, comma, period, slash, backslash
+
+    ;Layers.mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
 
     global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT
 
@@ -2714,18 +2766,18 @@ init() {
     b.SetLayerKey(L_SYMBOL2, "\")
 
     ; L_FUNC
-    q.SetLayerKey(L_SYMBOL2, B_F1)
-    w.SetLayerKey(L_SYMBOL2, B_F2)
-    e.SetLayerKey(L_SYMBOL2, B_F3)
-    r.SetLayerKey(L_SYMBOL2, B_F4)
-    a.SetLayerKey(L_SYMBOL2, B_F5)
-    s.SetLayerKey(L_SYMBOL2, B_F6)
-    d.SetLayerKey(L_SYMBOL2, B_F7)
-    f.SetLayerKey(L_SYMBOL2, B_F8)
-    z.SetLayerKey(L_SYMBOL2, B_F9)
-    x.SetLayerKey(L_SYMBOL2, B_F10)
-    c.SetLayerKey(L_SYMBOL2, B_F11)
-    v.SetLayerKey(L_SYMBOL2, B_F12)
+    ; q.SetLayerKey(L_SYMBOL2, B_F1)
+    ; w.SetLayerKey(L_SYMBOL2, B_F2)
+    ; e.SetLayerKey(L_SYMBOL2, B_F3)
+    ; r.SetLayerKey(L_SYMBOL2, B_F4)
+    ; a.SetLayerKey(L_SYMBOL2, B_F5)
+    ; s.SetLayerKey(L_SYMBOL2, B_F6)
+    ; d.SetLayerKey(L_SYMBOL2, B_F7)
+    ; f.SetLayerKey(L_SYMBOL2, B_F8)
+    ; z.SetLayerKey(L_SYMBOL2, B_F9)
+    ; x.SetLayerKey(L_SYMBOL2, B_F10)
+    ; c.SetLayerKey(L_SYMBOL2, B_F11)
+    ; v.SetLayerKey(L_SYMBOL2, B_F12)
 
     ; L_SHIFT
     ; for i, keyObj in LAYOUT_KEYS {
@@ -2745,55 +2797,99 @@ init() {
     hat.SetLayerKey(L_SHIFT, B_F12)
     colon.SetLayerKey(L_SHIFT, "+sc028")
     closebracket.SetLayerKey(L_SHIFT, "+]")
+}
+
+class Layers {
+
+    static mod_key_list := [] ; [f13, noconv, conv, f14, f13, tab, space]
+    static Init() {
+        Layers.mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+    }
+
+    /**
+     * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
+     * 他のレイヤーが同時にアクティブでないことも確認します。
+     * @param {Integer} layer - 確認するレイヤー番号
+     * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+     */
+    static State(layer) {
+        ; Check the specified layer
+        if layer = L_NAVI_CTRL {
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+        }
+        if layer = L_SYMBOL1 {
+            return conv.IsPressed()
+        }
+        if layer = L_SYMBOL2 {
+            return f14.IsPressed()
+        }
+        if layer = L_SYMBOL_NUM {
+            return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
+        }
+        if layer = L_NUMPAD {
+            return tab.IsPressed()
+        }
+        if layer = L_SELECT {
+            return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+        }
+        if layer = L_SHIFT {
+            return space.IsPressed()
+        }
+        if layer > L_SHIFT {
+            for i, key in Layers.mod_key_list {
+                if i == layer {
+                    return key.IsPressed()
+                }
+            }
+        }
+        ; if layer = L_FUNC {
+        ;     return f14.IsPressed()
+        ; }
+        return false
+    }
+
+    static Index(key) {
+        for i, v in Layers.mod_key_list {
+            if v == key
+                return i
+        }
+        Layers.mod_key_list.Push(key)
+        return Layers.mod_key_list.Length
+    }
+
+    static Length() {
+        return Layers.mod_key_list.Length
+    }
+
+    static Match(key, obj) {
+        if (Layers.mod_key_list[key] == obj)
+            return true
+        return false
+    }
+}
+
+init() {
+    start := Timer()
+    Layers.Init()
+    global LAYOUT_KEYS
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.long_press_mode_org := 1
+        keyObj.long_press_mode_ime_org := 1
+    }
 
     LoadLayoutConfig()
+    init_layer()
     KeyLogger.Load()
 
     end := Timer()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
 }
 
-init()
-
-/**
- * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
- * 他のレイヤーが同時にアクティブでないことも確認します。
- * @param {Integer} layer - 確認するレイヤー番号
- * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
- */
-LayerState(layer) {
-    ; Check the specified layer
-    if layer = L_NAVI_CTRL {
-        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SYMBOL1 {
-        return conv.IsPressed()
-    }
-    if layer = L_SYMBOL2 {
-        return f14.IsPressed()
-    }
-    if layer = L_SYMBOL_NUM {
-        return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
-    }
-    if layer = L_NUMPAD {
-        return tab.IsPressed()
-    }
-    if layer = L_SELECT {
-        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SHIFT {
-        return space.IsPressed()
-    }
-    ; if layer = L_FUNC {
-    ;     return f14.IsPressed()
-    ; }
-    return false
-}
 ; ============================================================================
 ; ホットキー定義（レイヤー）
 ; ============================================================================
 ;*** レイヤー（システム/アプリ制御） ***
-#HotIf LayerState(L_NAVI_CTRL)
+#HotIf Layers.State(L_NAVI_CTRL)
 
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 *Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
