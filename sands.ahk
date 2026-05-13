@@ -1056,10 +1056,13 @@ SendAndLog(c) {
  * @param {String} [key_ime_on=""] - IME が ON の場合に送信するキー文字列
  * 省略された場合は `key_ime_off` が使用される
  */
-SendBasedOnImeState(key_ime_off, key_ime_on := "") {
+SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
     if key_ime_off = key_ime_on {
         SendAndLog(key_ime_on)
-    } else if !ImeState.IsOn() || key_ime_on == "" {
+        return
+    }
+    ime_on := ime_state == -1 ? ImeState.IsOn() : ime_state == 1
+    if (!ime_on || key_ime_on == "") {
         SendAndLog(key_ime_off)
     } else {
         SendAndLog(key_ime_on)
@@ -1493,28 +1496,6 @@ class RKey {
         }
     }
 
-    SendLayerKey(layer_id) {
-        action := ""
-        if ImeState.IsOn() {
-            if (layer_id <= this.layer_ime_keys.Length)
-                action := this.layer_ime_keys[layer_id]
-        } else {
-            if (layer_id <= this.layer_keys.Length)
-                action := this.layer_keys[layer_id]
-        }
-
-        if (action == "") {
-            if (layer_id == L_SHIFT)
-                this.SendShiftedKey()
-        } else {
-            if action == "{none}"
-                return
-            RKey.last_key := this.org_key ; 最後に押されたキーとして記録（他キーの Up 時判定用）
-            SendAndLog(action)
-            return
-        }
-    }
-
     /**
      * IME OFF 時のキーマッピングを設定する
      * @param {String} key -  登録する文字列
@@ -1546,15 +1527,49 @@ class RKey {
      * 内部ヘルパー: IME 状態に基づいて正しいキーを送信する
      * @param {String} ime_key - IME ON 時に送信するキー
      * @param {String} normal_key - IME OFF 時に送信するキー
+     * @param {Int} ime_state - IME 状態 (-1: 現在の状態を内部で取得, 0: OFF, 1: ON)
      */
-    _SendKey(ime_key, normal_key) => SendBasedOnImeState(normal_key, ime_key)
+    _SendKey(ime_key, normal_key, ime_state := -1) => SendBasedOnImeState(normal_key, ime_key, ime_state)
 
-    SendShiftedKey(shift := true) {
+    /*============================================================================
+    	(Override) Sends the layer key.
+    	@param {Integer} layer_id - The layer ID.
+    	@param {Integer} [ime_state=-1] - IME state (-1: auto, 0: off, 1: on).
+    ============================================================================*/
+    SendLayerKey(layer_id, ime_state := -1) {
+        action := ""
+        ime_on := ime_state == -1 ? ImeState.IsOn() : ime_state == 1
+        if (ime_on) {
+            if (layer_id <= this.layer_ime_keys.Length)
+                action := this.layer_ime_keys[layer_id]
+        } else {
+            if (layer_id <= this.layer_keys.Length)
+                action := this.layer_keys[layer_id]
+        }
+
+        if (action == "") {
+            if (layer_id == L_SHIFT)
+                this.SendShiftedKey(true, ime_on)
+        } else {
+            if action == "{none}"
+                return
+            RKey.last_key := this.org_key ; 最後に押されたキーとして記録（他キーの Up 時判定用）
+            SendAndLog(action)
+            return
+        }
+    }
+
+    /*============================================================================
+    	(Override) Sends the layer key.
+    	@param {Integer} layer_id - The layer ID.
+    	@param {Integer} [ime_state=-1] - IME state (-1: auto, 0: off, 1: on).
+    ============================================================================*/
+    SendShiftedKey(shift := true, ime_state := -1) {
         Critical
         if shift {
-            this._SendKey(this.shift_ime_key_text, this.shift_key_text)
+            this._SendKey(this.shift_ime_key_text, this.shift_key_text, ime_state)
         } else {
-            this._SendKey(this.ime_key_text, this.key_text)
+            this._SendKey(this.ime_key_text, this.key_text, ime_state)
         }
         return shift
     }
@@ -1614,11 +1629,11 @@ class RKey {
  [モード説明]
 ・モード 0：リマップキー送信
 長押し判定を行わない標準的なリマップである。
-キーリピートは無効化される 。
+キーリピートは有効 。
 
 ・モード 1：短押し->リマップキー送信　長押し->置換
 押し下げ時に即座にリマップキーを送信する。
-一定時間以上の長押しが確定すると、送信済みの文字を Backspace で消去し、
+一定時間以上の長押しが確定すると、up時に送信済みの文字を Backspace で消去し、
 Shift 版（または指定キー）を再送信して置換する。
 キーリピートは無効化される 。
 
@@ -1626,12 +1641,12 @@ Shift 版（または指定キー）を再送信して置換する。
 押し下げ・離し時の出力を完全に抑制し、純粋なレイヤー切り替え等の修飾キーとして利用される。
 キーリピートは無効化される 。
 
-・モード 3：短押し->未送信　長押し->未送信(修飾キー利用)
-短押しして離した時のみキーを送信する。長押し中は何も送信されず、モディファイア（レイヤー用）として機能する。
-キーリピートは無効化される 。
+・モード 3：短押し->リマップキー送信　長押し->未送信(修飾キー利用)
+短押ししてup時にリマップキーを送信する。長押し中や確定後は何も送信されず、モディファイア（レイヤー用）として機能する。
+キーリピートは無効化される 。IME状態に依存しない。
 
 ・モード 4：リマップキー送信　長押しを維持でキーリピートなし(修飾キー利用)
-モード 0 と同様の挙動だが、キーリピートが無効な状態で動作する。
+キーリピートは無効化される以外は、モード 0 と同様の挙動。
 主に他のキーとの組み合わせを前提とした修飾キー用途で使用される 。
 
 ・モード 5：カスタム即時置換 (予約)
@@ -1647,15 +1662,12 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 ・物理状態の厳密判定
 各モードの分岐や Layers.State によるレイヤー判定には GetKeyState(..., "P") を使用し、ユーザーが実際に指でキーを押し込んでいるかという物理的な状態を正確に取得する 。
 
-・キー登録のルール
-送信キーの設定には、RKey と同様に SetKey (IME OFF 時) および SetImeKey (IME ON 時) メソッドを使用する 。モード 1 および 5 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
+・リマップキー登録のルール
+モード 1 および 5 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
 
----
-
-■ 実装上の注意：Map オブジェクトの運用
-
-・エラー回避 (Target key not found)
-AutoHotkey v2 の Map オブジェクトにおいて Default プロパティを設定していない場合、存在しないキーを参照すると実行時エラーが発生し、スクリプトが停止する 。不慮の停止を防ぐため、事前に .Has(Key) メソッドでキーの存在を確認するか、あらかじめ myMap.Default := "" のように初期値を設定することが推奨される 。===========================================================================*/
+・リマップキー
+モード３以外は、IME状態やシフト状態に応じてキーが送信される。
+*/
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
@@ -1750,23 +1762,23 @@ class LKey extends RKey {
      */
     Down() {
         Critical
-        if this.Layered
+        if this.Layered != -1
             return
-
-        this.long_press_mode := ImeState.IsOn() ? this.long_press_mode_ime_org : this.long_press_mode_org
+        ime_on := ImeState.IsOn()
+        this.long_press_mode := ime_on ? this.long_press_mode_ime_org : this.long_press_mode_org
         loop Layers.Length() {
             key := A_Index
             if (Layers.Match(key, this)) {
                 continue
             }
             if Layers.State(key) {
-                super.SendLayerKey(key)
-                this.Layered := true
+                super.SendLayerKey(key, ime_on)
+                this.Layered := -1
                 return
             }
         }
-        this.Layered := false
-        this._Down()
+        this.Layered := ime_on
+        this._Down(ime_on)
     }
 
     /**
@@ -1774,16 +1786,17 @@ class LKey extends RKey {
      */
     Up() {
         Critical
-        if !this.Layered
-            this._Up()
-        this.Layered := false
+        ;this.Layeredは、-1,0,1を取りうる
+        if this.Layered != -1
+            this._Up(this.Layered)
+        this.Layered := -1
         this.long_press_mode := -1
     }
 
-    _Down() {
+    _Down(ime_on) {
         ;Critical
 
-        ; モード 3 (短押し時のみ入力) の特殊処理
+        ; モード 3 (短押し時のみ入力) の特殊処理(scawのステートを保存)
         if this.long_press_mode = 3 {
             if (this.pressed_time != 0) {
                 return ; キーリピート防止
@@ -1798,7 +1811,7 @@ class LKey extends RKey {
         ; RKey.last_key := this.org_key
         ;    }
 
-        ; --- 以下、モード 0, 1, 2 共通の判定 ---
+        ; --- 以下、モード 0, 1, 2, 4 共通の判定 ---
         ; 1. 修飾キー (Ctrl/Alt/Win) が押されている場合はリマップせずパススルー
         if super._SendCAWKey(this.org_key) {
             this.pressed_time := 0
@@ -1806,10 +1819,10 @@ class LKey extends RKey {
             return
         }
 
-        ; 2. 長押し機能が無効（モード 0）またはモード 4 (即時送信・リピートなし) の場合
+        ; 2. 長押し機能が無効（モード 0）の場合
         if this.long_press_mode = 0 {
             shift := IsPhysicalShiftPressed()
-            this.SendShiftedKey(shift) ; 通常のリマップとして即座に送信
+            this.SendShiftedKey(shift, ime_on) ; 通常のリマップとして即座に送信
             this.pressed_time := 0
             RKey.last_key := this.org_key
             return
@@ -1820,10 +1833,10 @@ class LKey extends RKey {
             return
         }
 
-        ; 4. モード 1 の場合、まず「短押し用キー」を即座に送信する
+        ; 4. モード 1,4 の場合、まず「短押し用キー」を即座に送信する
         if this.long_press_mode = 1 || this.long_press_mode = 4 {
             shift := IsPhysicalShiftPressed()
-            this.SendShiftedKey(shift)
+            this.SendShiftedKey(shift, ime_on)
         }
 
         ; 5. 状態を記録し、長押し判定のためのタイマーを開始
@@ -1831,7 +1844,7 @@ class LKey extends RKey {
         RKey.last_key := this.org_key
     }
 
-    _Up() {
+    _Up(ime_on) {
         ;Critical
         if (this.pressed_time = 0) {
             return
@@ -1841,7 +1854,7 @@ class LKey extends RKey {
         duration := now - this.pressed_time
         is_long := (duration >= LKey.long_press_th)
 
-        ; モード 3: 短押しだった場合のみキーを送信
+        ; モード 3: 短押しだった場合のみキーを送信(IMEの状態に依存しない)
         if this.long_press_mode = 3 {
             ; 他のキーが間に押されておらず、かつタイムアウト内であれば送信
             if !is_long && (RKey.last_key == this.org_key) {
@@ -1852,17 +1865,14 @@ class LKey extends RKey {
             return
         }
 
-        ; モード 1, 2 の共通処理
-        ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
         if RKey.last_key == this.org_key {
             ; モード 1: 長押し確定時に既存文字を消去して置換
             if this.long_press_mode == 1 {
                 if is_long {
                     Send("{Backspace}")
-                    this.SendShiftedKey(true) ; 長押しアクション（Shift版）を実行
+                    this.SendShiftedKey(true, ime_on) ; 長押しアクション（Shift版）を実行
                 }
             }
-            ; モード 2, 4: 長押し・短押しに関わらず Up 時には何もしない
         }
         ; モード 2, 4 の場合、何もしない
 
