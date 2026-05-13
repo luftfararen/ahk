@@ -48,7 +48,8 @@ ks	こと
 st	して
 mt	みて
 rt	りて
-kt	こ
+zt	じて
+kt	こと
 nt	の
 nr	ない
 sk	し

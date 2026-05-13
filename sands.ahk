@@ -2549,19 +2549,37 @@ ChangeMinatoLayoutImpl() {
         RegistCombination(layer_key, f, "-")
         RegistCombination(layer_key, v, "ltu")
     }
-    ;RegistCombination(d, f, "ite") ;きて
-    RegistCombination(s, f, "ite") ;して
-    RegistCombination(a, f, "ite") ;にて
-    RegistCombination(c, f, "ite") ;みて
-    RegistCombination(e, f, "ite") ;りて
-    RegistCombination(z, f, "ite") ;じて
+    if False {
+        RegistCombination(s, f, "ite") ;して
+        RegistCombination(a, f, "ite") ;にて
+        RegistCombination(c, f, "ite") ;みて
+        RegistCombination(e, f, "ite") ;りて
+        RegistCombination(z, f, "ite") ;じて
 
-    RegistCombination(s, a, "a") ;した
-    RegistCombination(s, d, "ita") ;した
-    RegistCombination(s, e, "uru") ;する
-    RegistCombination(s, r, "areru") ;される
-    RegistCombination(d, f, "oto") ;こと
+        RegistCombination(s, a, "a") ;さ
+        RegistCombination(s, d, "ita") ;した
+        RegistCombination(s, e, "uru") ;する
+        RegistCombination(s, r, "areru") ;される
+        RegistCombination(d, f, "oto") ;こと
 
+        ; RegistCombination(j, k, "i")
+        ; RegistCombination(l, k, "i")
+    } else {
+        RegistCombination(s, f, "i") ;し
+        RegistCombination(a, f, "i") ;に
+        RegistCombination(c, f, "i") ;み
+        RegistCombination(e, f, "i") ;り
+        RegistCombination(z, f, "i") ;じ
+
+        RegistCombination(s, a, "a") ;さ
+        RegistCombination(s, d, "ita") ;した
+        RegistCombination(s, e, "uru") ;する
+        RegistCombination(s, r, "areru") ;される
+        RegistCombination(d, f, "oto") ;こと
+
+        ; RegistCombination(j, k, "i")
+        ; RegistCombination(l, k, "i")
+    }
     RegistCombination(i, e, "ru")
     RegistCombination(j, e, "ru")
     RegistCombination(k, e, "ru")
@@ -2573,8 +2591,6 @@ ChangeMinatoLayoutImpl() {
     RegistCombination(l, d, "ki")
     RegistCombination(semicolon, d, "ki")
 
-    RegistCombination(j, k, "i")
-    RegistCombination(l, k, "i")
 }
 
 ChangeFMIX13_minato_Layout() {
