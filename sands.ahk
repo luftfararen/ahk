@@ -57,7 +57,7 @@
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
 ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
 SetKeyDelay -1 ; キー入力後のディレイをなしに設定
-ListLines 0
+;ListLines 0
 SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
 
 InstallKeybdHook true ; キーボードフックを常にインストール
@@ -1057,8 +1057,8 @@ SendAndLog(c) {
  * 省略された場合は `key_ime_off` が使用される
  */
 SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
-    if key_ime_off = key_ime_on {
-        SendAndLog(key_ime_on)
+    if key_ime_off = key_ime_on || key_ime_on = "" {
+        SendAndLog(key_ime_off)
         return
     }
     ime_on := ime_state == -1 ? ImeState.IsOn() : ime_state == 1
@@ -1287,7 +1287,7 @@ TimerEvent() {
     counter++
 }
 
-SetTimer(TimerEvent, 100) ;
+;SetTimer(TimerEvent, 100) ;
 
 /*============================================================================
  [Class] MouseSpeed
@@ -1542,6 +1542,10 @@ class RKey {
         if (ime_on) {
             if (layer_id <= this.layer_ime_keys.Length)
                 action := this.layer_ime_keys[layer_id]
+            if (action == "") {
+                if (layer_id <= this.layer_keys.Length)
+                    action := this.layer_keys[layer_id]
+            }
         } else {
             if (layer_id <= this.layer_keys.Length)
                 action := this.layer_keys[layer_id]
@@ -1762,14 +1766,13 @@ class LKey extends RKey {
      */
     Down() {
         Critical
-        if this.Layered != -1
-            return
+        ;        if this.Layered = -1
+        ; return
         ime_on := ImeState.IsOn()
-        this.long_press_mode := ime_on ? this.long_press_mode_ime_org : this.long_press_mode_org
         loop Layers.Length() {
             key := A_Index
             if (Layers.Match(key, this)) {
-                continue
+                break
             }
             if Layers.State(key) {
                 super.SendLayerKey(key, ime_on)
@@ -1777,6 +1780,7 @@ class LKey extends RKey {
                 return
             }
         }
+        this.long_press_mode := ime_on ? this.long_press_mode_ime_org : this.long_press_mode_org
         this.Layered := ime_on
         this._Down(ime_on)
     }
@@ -2502,6 +2506,7 @@ ChangeFMIX13f_FMIX14fR_Layout() {
 
 RegistCombination(layer_key, key, text) {
     key.SetLayerImeKey(Layers.Index(layer_key), text)
+    layer_key.SetMode(-1, 4)
 }
 
 ChangeMinatoLayoutImpl() {
@@ -2543,14 +2548,33 @@ ChangeMinatoLayoutImpl() {
         RegistCombination(layer_key, a, "nn")
         RegistCombination(layer_key, f, "-")
         RegistCombination(layer_key, v, "ltu")
-        layer_key.SetMode(-1, 4)
     }
-    RegistCombination(s, f, "ite")
-    RegistCombination(s, e, "uru")
-    RegistCombination(s, r, "areru")
-    RegistCombination(d, f, "oto")
-    s.SetMode(-1, 4)
-    d.SetMode(-1, 4)
+    ;RegistCombination(d, f, "ite") ;きて
+    RegistCombination(s, f, "ite") ;して
+    RegistCombination(a, f, "ite") ;にて
+    RegistCombination(c, f, "ite") ;みて
+    RegistCombination(e, f, "ite") ;りて
+    RegistCombination(z, f, "ite") ;じて
+
+    RegistCombination(s, a, "a") ;した
+    RegistCombination(s, d, "ita") ;した
+    RegistCombination(s, e, "uru") ;する
+    RegistCombination(s, r, "areru") ;される
+    RegistCombination(d, f, "oto") ;こと
+
+    RegistCombination(i, e, "ru")
+    RegistCombination(j, e, "ru")
+    RegistCombination(k, e, "ru")
+    RegistCombination(l, e, "ru")
+    RegistCombination(semicolon, e, "ru")
+    RegistCombination(i, d, "ki")
+    RegistCombination(j, d, "ki")
+    RegistCombination(k, d, "ki")
+    RegistCombination(l, d, "ki")
+    RegistCombination(semicolon, d, "ki")
+
+    RegistCombination(j, k, "i")
+    RegistCombination(l, k, "i")
 }
 
 ChangeFMIX13_minato_Layout() {
@@ -2558,26 +2582,21 @@ ChangeFMIX13_minato_Layout() {
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
-
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
-
 ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
-
 ; 終了・リロード時に保存
 OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
-
 ; ============================================================================
 ; 設定の読み込み
 ; ============================================================================
-
 init_layer() {
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
@@ -2830,7 +2849,6 @@ init_layer() {
     colon.SetLayerKey(L_SHIFT, "+sc028")
     closebracket.SetLayerKey(L_SHIFT, "+]")
 }
-
 class Layers {
 
     static mod_key_list := [] ; [f13, noconv, conv, f14, f13, tab, space]
@@ -2849,35 +2867,39 @@ class Layers {
         if layer = L_NAVI_CTRL {
             return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
         }
-        if layer = L_SYMBOL1 {
-            return conv.IsPressed()
-        }
-        if layer = L_SYMBOL2 {
-            return f14.IsPressed()
-        }
         if layer = L_SYMBOL_NUM {
             return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
-        }
-        if layer = L_NUMPAD {
-            return tab.IsPressed()
         }
         if layer = L_SELECT {
             return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
         }
-        if layer = L_SHIFT {
-            return space.IsPressed()
+        if layer <= Layers.mod_key_list.Length {
+            return Layers.mod_key_list[layer].IsPressed()
         }
-        if layer > L_SHIFT {
-            for i, key in Layers.mod_key_list {
-                if i == layer {
-                    return key.IsPressed()
-                }
-            }
-        }
+        return false
+        ; if layer = L_SYMBOL1 {
+        ;     return conv.IsPressed()
+        ; }
+        ; if layer = L_SYMBOL2 {
+        ;     return f14.IsPressed()
+        ; }
+        ; if layer = L_NUMPAD {
+        ;     return tab.IsPressed()
+        ; }
+        ; if layer = L_SHIFT {
+        ;     return space.IsPressed()
+        ; }
+        ; if layer > L_SHIFT {
+        ;     for i, key in Layers.mod_key_list {
+        ;         if i == layer {
+        ;             return key.IsPressed()
+        ;         }
+        ;     }
+        ; }
         ; if layer = L_FUNC {
         ;     return f14.IsPressed()
         ; }
-        return false
+        ;return false
     }
 
     static Index(key) {
@@ -2899,7 +2921,6 @@ class Layers {
         return false
     }
 }
-
 init() {
     start := Timer()
     Layers.Init()
@@ -2916,22 +2937,18 @@ init() {
     end := Timer()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
 }
-
 ; ============================================================================
 ; ホットキー定義（レイヤー）
 ; ============================================================================
 ;*** レイヤー（システム/アプリ制御） ***
 #HotIf Layers.State(L_NAVI_CTRL)
-
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 *Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
-
 Esc:: {
     KeyLogger.Save()
     KeyLogger.SaveConfig()
     Reload()
 }
-
 q::#!space ; Win+Alt+Space
 *e:: Send(B_ESC) ; Esc
 r::+F3 ; Shift+F3
@@ -2981,7 +2998,6 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
-
 #HotIf
 ; ============================================================================
 ; グローバルホットキー (RKey / LKey バインド)
