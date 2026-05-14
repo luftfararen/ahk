@@ -1637,7 +1637,7 @@ class RKey {
 長押し判定を行わない標準的なリマップである。IME状態に応じて送信されるキーが変わる。
 キーリピートは有効 。
 
-・モード 1：短押し->リマップキー送信　長押し->置換
+・モード 1：短押し->リマップキー送信(down時 )　長押し->置換
 押し下げ時に即座にリマップキーを送信する。IME状態に応じて送信されるキーが変わる。
 up時に、一定時間以上の長押しされていた場合、送信済みの文字を Backspace で消去し、
 Shift 版（または指定キー）を再送信して置換する。
@@ -1648,19 +1648,27 @@ Shift 版（または指定キー）を再送信して置換する。
 モードの違いを明確かするために、短押し、長押しという表現を使っているが、このモードにおいてはその区別はない。、
 キーリピートは無効化される 。
 
-・モード 3：短押し->リマップキー送信　長押し->未送信(修飾キー利用)
-up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。長押し中や確定後は何も送信されず、
-修飾キー（レイヤー用）として機能する。IME状態に応じて送信されるキーが変わる。
-キーリピートは無効化される 。IME状態に依存しない。
+・モード 3：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+dowh時に、scawの状態を保持。
+up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+IME状態に依存しない。
+キーリピートは無効化される 。
 
-・モード 4：リマップキー送信　長押しを維持でキーリピートなし(修飾キー利用)
+・モード 4：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用)
+押し下げ時に即座にリマップキーを送信する。
 キーリピートは無効化される以外は、モード 0 と同様の挙動。
 キー送信後、キーが押され続けている間、修飾キーとして機能する 。
 
-・モード 5：カスタム即時置換 (予約)
+・モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+IME状態に応じて送信されるキーが変わる。
+キーリピートは無効化される 。
+
+・モード 6：カスタム即時置換 (予約)
 押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
 ---
-
 ■ 共通仕様および制約
 
 ・修飾キー (CAW) パススルー
@@ -1671,7 +1679,7 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 各モードの分岐や Layers.State によるレイヤー判定には GetKeyState(..., "P") を使用し、ユーザーが実際に指でキーを押し込んでいるかという物理的な状態を正確に取得する 。
 
 ・リマップキー登録のルール
-モード 1 および 5 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
+モード 1 および 6 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
 
 ・リマップキー
 モード３以外は、IME状態やシフト状態に応じてキーが送信される。
@@ -1819,7 +1827,7 @@ class LKey extends RKey {
         ; RKey.last_key := this.org_key
         ;    }
 
-        ; --- 以下、モード 0, 1, 2, 4 共通の判定 ---
+        ; --- 以下、モード 0, 1, 2, 4, 5 共通の判定 ---
         ; 1. 修飾キー (Ctrl/Alt/Win) が押されている場合はリマップせずパススルー
         if super._SendCAWKey(this.org_key) {
             this.pressed_time := 0
@@ -1847,6 +1855,8 @@ class LKey extends RKey {
             this.SendShiftedKey(shift, ime_on)
         }
 
+        ; モード 5 の場合、down時に何も送信しない。up時に長押し判定して、短押しの場合のみ
+
         ; 5. 状態を記録し、長押し判定のためのタイマーを開始
         this.pressed_time := A_TickCount
         RKey.last_key := this.org_key
@@ -1868,6 +1878,17 @@ class LKey extends RKey {
             if !is_long && (RKey.last_key == this.org_key) {
                 ;SendAndLog("{Blind}" . this.mod_str . this.org_key)
                 SendAndLog(this.mod_str . this.key_text)
+            }
+            this.pressed_time := 0
+            return
+        }
+
+        ; モード 5: 短押しだった場合のみキーを送信
+        if this.long_press_mode = 5 {
+            ; 他のキーが間に押されておらず、かつタイムアウト内であれば送信
+            if !is_long && (RKey.last_key == this.org_key) {
+                shift := IsPhysicalShiftPressed()
+                this.SendShiftedKey(shift, ime_on) ;
             }
             this.pressed_time := 0
             return
@@ -2508,9 +2529,9 @@ ChangeFMIX13f_FMIX14fR_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-RegistCombination(layer_key, key, text) {
+RegistIMECombination(layer_key, key, text, mode := 4) {
     key.SetLayerImeKey(Layers.Index(layer_key), text)
-    layer_key.SetMode(-1, 4)
+    layer_key.SetMode(-1, mode)
 }
 
 ChangeMinatoLayoutImpl() {
@@ -2547,52 +2568,115 @@ ChangeMinatoLayoutImpl() {
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
 
+    mode := 4
     target_layers := [i, j, k, l, semicolon, o, u, m]
     for layer_key in target_layers {
-        RegistCombination(layer_key, a, "nn")
-        RegistCombination(layer_key, f, "-")
-        RegistCombination(layer_key, v, "ltu")
+        RegistIMECombination(layer_key, a, "nn", mode)
+        RegistIMECombination(layer_key, f, "-", mode)
+        RegistIMECombination(layer_key, v, "ltu", mode)
     }
-    if False {
-        RegistCombination(s, f, "ite") ;して
-        RegistCombination(a, f, "ite") ;にて
-        RegistCombination(c, f, "ite") ;みて
-        RegistCombination(e, f, "ite") ;りて
-        RegistCombination(z, f, "ite") ;じて
+    ; RegistIMECombination(s, f, "ite", mode) ;して
+    ; RegistIMECombination(a, f, "ite", mode) ;にて
+    ; RegistIMECombination(c, f, "ite", mode) ;みて
+    ; RegistIMECombination(e, f, "ite", mode) ;りて
+    ; RegistIMECombination(z, f, "ite", mode) ;じて
 
-        RegistCombination(s, a, "a") ;さ
-        RegistCombination(s, d, "ita") ;した
-        RegistCombination(s, e, "uru") ;する
-        RegistCombination(s, r, "areru") ;される
-        RegistCombination(d, f, "oto") ;こと
+    ; RegistIMECombination(s, a, "a", mode) ;さ
+    ; RegistIMECombination(s, d, "ita", mode) ;した
+    ; RegistIMECombination(s, e, "uru", mode) ;する
+    ; RegistIMECombination(s, r, "areru", mode) ;される
+    ; RegistIMECombination(d, f, "oto", mode) ;こと
 
-    } else {
-        RegistCombination(s, f, "i") ;し
-        RegistCombination(a, f, "i") ;に
-        RegistCombination(c, f, "i") ;み
-        RegistCombination(e, f, "i") ;り
-        RegistCombination(z, f, "i") ;じ
+    RegistIMECombination(s, f, "i", mode) ;し
+    RegistIMECombination(a, f, "i", mode) ;に
+    RegistIMECombination(c, f, "i", mode) ;み
+    RegistIMECombination(e, f, "i", mode) ;り
+    RegistIMECombination(z, f, "i", mode) ;じ
 
-        RegistCombination(s, a, "a") ;さ
-        RegistCombination(s, d, "ita") ;した
-        RegistCombination(s, e, "uru") ;する
-        RegistCombination(s, r, "areru") ;される
-        RegistCombination(d, f, "oto") ;こと
+    RegistIMECombination(s, a, "a", mode) ;さ
+    RegistIMECombination(s, d, "ita", mode) ;した
+    RegistIMECombination(s, e, "uru", mode) ;する
+    RegistIMECombination(s, r, "areru", mode) ;される
+    RegistIMECombination(d, f, "oto", mode) ;こと
 
+    RegistIMECombination(j, k, "i", mode) ;あい
+    RegistIMECombination(l, k, "i", mode) ; えい
+    RegistIMECombination(i, e, "ru", mode) ;うる
+    RegistIMECombination(j, e, "ru", mode)
+    RegistIMECombination(k, e, "ru", mode)
+    RegistIMECombination(l, e, "ru", mode)
+    RegistIMECombination(semicolon, e, "ru", mode)
+    ; RegistIMECombination(i, d, "ki", mode)
+    ; RegistIMECombination(j, d, "ki", mode)
+    ; RegistIMECombination(k, d, "ki", mode)
+    ; RegistIMECombination(l, d, "ki", mode)
+    ; RegistIMECombination(semicolon, d, "ki", mode)
+}
+
+reg(key) {
+    mode := 5
+    target_layers := [i, j, k, l, semicolon, o, u, m]
+    ;static v_char := ["u","a","i","e","o", "yo","yu","ya"]
+    for i, v in target_layers {
+        RegistIMECombination(key, v, key.org_key_raw . v.org_key_raw, mode)
     }
-    RegistCombination(j, k, "i") ;あい
-    RegistCombination(l, k, "i") ; えい
-    RegistCombination(i, e, "ru") ;うる
-    RegistCombination(j, e, "ru")
-    RegistCombination(k, e, "ru")
-    RegistCombination(l, e, "ru")
-    RegistCombination(semicolon, e, "ru")
-    RegistCombination(i, d, "ki")
-    RegistCombination(j, d, "ki")
-    RegistCombination(k, d, "ki")
-    RegistCombination(l, d, "ki")
-    RegistCombination(semicolon, d, "ki")
+}
 
+ChangeMinatoLayoutImpl2() {
+    ResetIME()
+
+    ; IME ON 時の差分設定
+    q.SetImeKey("l", "?")
+    w.SetImeKey("wo")
+    e.SetImeKey("ru")
+    r.SetImeKey("de")
+    t.SetImeKey("fa")
+    a.SetImeKey("no", "(")
+    s.SetImeKey("si", ")")
+    d.SetImeKey("ki")
+    f.SetImeKey("te", "-")
+    ;g.SetImeKey("h")
+    z.SetImeKey("zi", "[")
+    x.SetImeKey("p", "]")
+    c.SetImeKey("mo")
+    v.SetImeKey("ha", "v")
+    b.SetImeKey("ba", "v")
+    y.SetImeKey("ya")
+    u.SetImeKey("yu")
+    i.SetImeKey("u", "ou")
+    o.SetImeKey("yo")
+    p.SetImeKey("-")
+    h.SetImeKey(";", "ann") ; ;=nn
+    j.SetImeKey("a", "ou")
+    k.SetImeKey("i", "xi")
+    l.SetImeKey("e", "xe")
+    semicolon.SetImeKey("o", "ou")
+    ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
+    n.SetImeKey("ou", "a-")
+    m.SetImeKey("ya", "ltu") ; :=ltu
+    ;slash.SetImeKey("f")
+
+    mode := 4
+    target_layers := [i, j, k, l, semicolon, o, u, m]
+    for layer_key in target_layers {
+        RegistIMECombination(layer_key, a, "nn", mode)
+        RegistIMECombination(layer_key, f, "-", mode)
+        RegistIMECombination(layer_key, v, "ltu", mode)
+    }
+
+    reg(k)
+    reg(s)
+    reg(t)
+    reg(n)
+    reg(h)
+    reg(m)
+    reg(r)
+    reg(w)
+    reg(g)
+    reg(z)
+    reg(d)
+    reg(b)
+    reg(p)
 }
 
 ChangeFMIX13_minato_Layout() {
@@ -2600,11 +2684,19 @@ ChangeFMIX13_minato_Layout() {
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
+ChangeFMIX13f_minato2_Layout() {
+    StoreLayout("FMIX13f-Minato2", "qwrfkylup;asdtghneiozxcvbjm,./")
+    ChangeMinatoLayoutImpl2()
+    ShowOSD(KeyLogger.current_layout . " layout")
+}
+
 ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
@@ -2984,6 +3076,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ;#d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13f_FMIX14fR_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
+#k:: ChangeFMIX13f_minato2_Layout()
 #n:: ChangeFMIX13fie_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
