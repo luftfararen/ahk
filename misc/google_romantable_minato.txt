@@ -52,6 +52,7 @@ kt	こと
 ks	こと
 nt	の
 nr	ない
+nd	ない
 tr	て
 sr	する
 sh	する
@@ -61,6 +62,7 @@ rw	れる
 rd	れ
 sd	される
 wr	を
+wd	わ
 nk	に
 hm	は
 zm	じ
