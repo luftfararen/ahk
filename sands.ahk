@@ -1439,6 +1439,16 @@ class RKey {
 
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
     static last_key := ""
+
+    ;org_key: {}付き、基本は物理キーを設定
+    ;org_key_raw: {}なし  基本は物理キーを設定
+    ;key_text: 送信用テキスト(ShiftOff,ImeOff)
+    ;shift_key_text: 送信用テキスト(ShiftOff,ImeOn)
+    ;ime_key_text: 送信用テキスト(ShiftOn,ImeOff)
+    ;shift_ime_key_text: 送信用テキスト(ShiftOn,ImeOn)
+    ;layer_keys: レイヤー用キー配列(IME Off)
+    ;layer_ime_keys: レイヤー用キー配列(IME On)
+
     /**
      * コンストラクタ
      * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
@@ -2535,6 +2545,11 @@ RegistIMECombination(layer_key, key, text, mode := 4) {
 }
 
 ChangeMinatoLayoutImpl() {
+    global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
+    global q, w, e, r, t, y, u, i, o, p, at, openbracket
+    global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
+    global z, x, c, v, b, n, m, comma, period, slash, backslash
+
     ResetIME()
 
     ; IME ON 時の差分設定
@@ -2569,48 +2584,45 @@ ChangeMinatoLayoutImpl() {
     ;slash.SetImeKey("f")
 
     mode := 4
-    target_layers := [i, j, k, l, semicolon, o, u, m]
+    target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
-        RegistIMECombination(layer_key, a, "nn", mode)
-        RegistIMECombination(layer_key, f, "-", mode)
-        RegistIMECombination(layer_key, v, "ltu", mode)
+        RegistIMECombination(layer_key, e, "nn", mode) ; ん
+        RegistIMECombination(layer_key, d, "nn", mode) ; ん
+        RegistIMECombination(layer_key, f, "-", mode) ;ー
+        RegistIMECombination(layer_key, v, "ltu", mode) ;
+        RegistIMECombination(layer_key, c, "ltuta", mode) ;
+        RegistIMECombination(layer_key, r, "ru", mode) ;
     }
-    ; RegistIMECombination(s, f, "ite", mode) ;して
-    ; RegistIMECombination(a, f, "ite", mode) ;にて
-    ; RegistIMECombination(c, f, "ite", mode) ;みて
-    ; RegistIMECombination(e, f, "ite", mode) ;りて
-    ; RegistIMECombination(z, f, "ite", mode) ;じて
+    static rm := Map(
+        "n", a, "s", s, "k", d, "t", f, "d", r, "m", c, "r", e, "w", w
+    )
 
-    ; RegistIMECombination(s, a, "a", mode) ;さ
-    ; RegistIMECombination(s, d, "ita", mode) ;した
-    ; RegistIMECombination(s, e, "uru", mode) ;する
-    ; RegistIMECombination(s, r, "areru", mode) ;される
-    ; RegistIMECombination(d, f, "oto", mode) ;こと
+    RegistIMECombination(rm["n"], s, "a", mode) ;な
+    RegistIMECombination(rm["n"], d, "i", mode) ;に
+    RegistIMECombination(rm["n"], e, "e", mode) ;ね
+    RegistIMECombination(rm["n"], f, "o", mode) ;の
 
-    RegistIMECombination(s, f, "i", mode) ;し
-    RegistIMECombination(a, f, "i", mode) ;に
-    RegistIMECombination(c, f, "i", mode) ;み
-    RegistIMECombination(e, f, "i", mode) ;り
-    RegistIMECombination(z, f, "i", mode) ;じ
+    RegistIMECombination(rm["s"], a, "a", mode) ;さ
+    RegistIMECombination(rm["s"], d, "i", mode) ;し
+    RegistIMECombination(rm["s"], r, "u", mode) ;す
+    RegistIMECombination(rm["s"], e, "e", mode) ;せ
+    RegistIMECombination(rm["s"], f, "o", mode) ;そ
 
-    RegistIMECombination(s, a, "a", mode) ;さ
-    RegistIMECombination(s, d, "ita", mode) ;した
-    RegistIMECombination(s, e, "uru", mode) ;する
-    RegistIMECombination(s, r, "areru", mode) ;される
-    RegistIMECombination(d, f, "oto", mode) ;こと
+    RegistIMECombination(rm["k"], a, "a", mode) ;か
+    RegistIMECombination(rm["k"], s, "i", mode) ;き
+    RegistIMECombination(rm["k"], f, "o", mode) ;こ
 
-    RegistIMECombination(j, k, "i", mode) ;あい
-    RegistIMECombination(l, k, "i", mode) ; えい
-    RegistIMECombination(i, e, "ru", mode) ;うる
-    RegistIMECombination(j, e, "ru", mode)
-    RegistIMECombination(k, e, "ru", mode)
-    RegistIMECombination(l, e, "ru", mode)
-    RegistIMECombination(semicolon, e, "ru", mode)
-    ; RegistIMECombination(i, d, "ki", mode)
-    ; RegistIMECombination(j, d, "ki", mode)
-    ; RegistIMECombination(k, d, "ki", mode)
-    ; RegistIMECombination(l, d, "ki", mode)
-    ; RegistIMECombination(semicolon, d, "ki", mode)
+    RegistIMECombination(rm["t"], a, "a", mode) ;た
+    RegistIMECombination(rm["t"], s, "i", mode) ;ち
+    RegistIMECombination(rm["t"], e, "e", mode) ;て
+    RegistIMECombination(rm["t"], d, "o", mode) ;と
+
+    RegistIMECombination(rm["d"], e, "e", mode) ;で
+    RegistIMECombination(rm["w"], r, "a", mode) ;わ
+    RegistIMECombination(rm["w"], e, "o", mode) ;を
+
+    RegistIMECombination(rm["m"], v, "o", mode) ;も
+
 }
 
 reg(key) {
