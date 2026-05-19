@@ -1047,10 +1047,13 @@ SendAndLog(c) {
  * @param {String} [key_ime_on=""] - IME が ON の場合に送信するキー文字列
  * 省略された場合は `key_ime_off` が使用される
  */
-SendBasedOnImeState(key_ime_off, key_ime_on := "") {
-    if key_ime_off = key_ime_on {
-        SendAndLog(key_ime_on)
-    } else if !ImeState.IsOn() || key_ime_on == "" {
+SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
+    if key_ime_off = key_ime_on || key_ime_on = "" {
+        SendAndLog(key_ime_off)
+        return
+    }
+    ime_on := ime_state == -1 ? ImeState.IsOn() : ime_state == 1
+    if (!ime_on || key_ime_on == "") {
         SendAndLog(key_ime_off)
     } else {
         SendAndLog(key_ime_on)
@@ -1416,6 +1419,13 @@ MakeModStr() {
 ;     }
 ; } ;class MKey
 
+class LayerItem {
+    __New(layer, key) {
+        this.layer := layer
+        this.key := key
+    }
+}
+
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
@@ -1427,6 +1437,16 @@ class RKey {
 
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
     static last_key := ""
+
+    ;org_key: {}付き、基本は物理キーを設定
+    ;org_key_raw: {}なし  基本は物理キーを設定
+    ;key_text: 送信用テキスト(ShiftOff,ImeOff)
+    ;shift_key_text: 送信用テキスト(ShiftOff,ImeOn)
+    ;ime_key_text: 送信用テキスト(ShiftOn,ImeOff)
+    ;shift_ime_key_text: 送信用テキスト(ShiftOn,ImeOn)
+    ;layer_keys: レイヤー用キー配列(IME Off)
+    ;layer_ime_keys: レイヤー用キー配列(IME On)
+
     /**
      * コンストラクタ
      * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
@@ -1501,7 +1521,8 @@ class RKey {
             this.shift_ime_key_text := shift_ime_key = "" ? this.shift_key_text : BuildSendText(shift_ime_key)
         } else {
             this.ime_key_text := BuildSendText(ime_key)
-            this.shift_ime_key_text := shift_ime_key = "" ? BuildSendText(ime_key, "+") : BuildSendText(shift_ime_key)
+            this.shift_ime_key_text := shift_ime_key = "" ? BuildSendText(ime_key, "+") : BuildSendText(
+                shift_ime_key)
         }
     }
 
@@ -1509,17 +1530,26 @@ class RKey {
      * 内部ヘルパー: IME 状態に基づいて正しいキーを送信する
      * @param {String} ime_key - IME ON 時に送信するキー
      * @param {String} normal_key - IME OFF 時に送信するキー
+     * @param {Int} ime_state - IME 状態 (-1: 現在の状態を内部で取得, 0: OFF, 1: ON)
      */
-    _SendKey(ime_key, normal_key) => SendBasedOnImeState(normal_key, ime_key)
-
-    SendShiftedKey(shift := true) {
+    _SendKey(ime_key, normal_key, ime_state := -1) => SendBasedOnImeState(normal_key, ime_key, ime_state)
+    /*============================================================================
+    	(Override) Sends the layer key.
+    	@param {Integer} layer_id - The layer ID.
+    	@param {Integer} [ime_state=-1] - IME state (-1: auto, 0: off, 1: on).
+    ============================================================================*/
+    SendShiftedKey(shift := true, ime_state := -1) {
         Critical
         if shift {
-            this._SendKey(this.shift_ime_key_text, this.shift_key_text)
+            this._SendKey(this.shift_ime_key_text, this.shift_key_text, ime_state)
         } else {
-            this._SendKey(this.ime_key_text, this.key_text)
+            this._SendKey(this.ime_key_text, this.key_text, ime_state)
         }
         return shift
+    }
+
+    SendKeyWithShift() {
+        return this.SendShiftedKey(IsPhysicalShiftPressed())
     }
 
     /**
@@ -1572,31 +1602,73 @@ class RKey {
 
 /*============================================================================
  [Class] LKey (長押し対応リマップキー)
- RKey を拡張し、一定時間の押し下げ（長押し）に応じたアクションを追加します。
+ RKey を拡張し、長押しと短押しとで応じたアクションを追加します。
+長押しは、モードに応じて挙動が異なり、送信されるキーが切り替えられたり、
+あるいは何も送信されず、修飾キーとして利用されたりします。
 
  [モード説明]
- 0: 通常のリマップ (RKey と同等。長押し判定なし)
- 1: 即時入力 + 長押し置換
-    - 押し下げ時にキーを即座に送信。
-    - 長押し判定時、送信済みのキーを Backspace で消去し、Shift 版のキーを再送信。
- 2: パススルー (入力抑制)
-    - 押し下げ時、離し時ともにリマップ出力を抑制する。
- 3: 短押し時のみ入力 (MKey 相当)
-    - 短押しで離した場合のみキーを送信。長押し時は何も送信しない。
- (予約) 4: 即時入力 + 長押しカスタム置換
-    - 押し下げ時に即座に送信し、長押し判定時にカスタムの長押しキーに置換。
+・モード 0：リマップキー送信
+長押し判定を行わない標準的なリマップ。IME状態に応じて送信されるキーが変わる。
+キーリピートは有効 。
 
- * モード 1, 2, 3, 4 ではキーリピートが無効化されます。
- * モード 0, 1, 2, 4 では Ctrl, Alt, Win (CAW) 押下時は物理キーの修飾としてパススルーされます。
- * 登録キーは RKey と同様に SetKey, SetImeKey で設定します。
- * モード 1, 4 で使用するキーは 1 文字（または 1 つの {スキャンコード}）である必要があります。
-============================================================================*/
+・モード 1：短押し->リマップキー送信(down時)　長押し->置換
+押し下げ時に即座にリマップキーを送信する。IME状態に応じて送信されるキーが変わる。
+一定時間以上の長押しされていた場合、送信済みの文字を Backspace で消去し、
+Shift 版（または指定キー）を再送信して置換する。
+キーリピートは無効化される 。
+
+・モード 2：短押し、長押し->未送信(修飾キー利用)
+押し下げ・離し時の出力を完全に抑制し、純粋なレイヤー切り替え等の修飾キーとして利用される。
+モードの違いを明確化するために、短押し、長押しという表現を使っているが、
+このモードにおいてはその区別はない。
+キーリピートは無効化される 。
+
+・モード 3：短押し->リマップキー送信　長押し->未送信(修飾キー利用)
+down時に、scawの状態を保持。
+up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+IME状態に依存しない。
+キーリピートは無効化される 。
+
+・モード 4：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用)
+押し下げ時に即座にリマップキーを送信する。
+キーリピートは無効化される以外は、モード 0 と同様の挙動。
+キー送信後、キーが押され続けている間、修飾キーとして機能する 。
+
+・モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+IME状態に応じて送信されるキーが変わる。
+キーリピートは無効化される 。
+
+・モード 6：カスタム即時置換 (予約)
+押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
+---
+■ 共通仕様および制約
+
+・修飾キー (CAW) パススルー
+Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、リマップをバイパスして物理キーをそのまま送信（パススルー）する 。
+※ モード 3 においては、キーを離した瞬間 (Up) に修飾状態が判定される 。
+
+・物理状態の厳密判定
+各モードの分岐や Layers.State によるレイヤー判定には GetKeyState(..., "P") を使用し、ユーザーが実際に指でキーを押し込んでいるかという物理的な状態を正確に取得する 。
+
+・リマップキー登録のルール
+モード 1 および 6 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
+
+・リマップキー
+モード３以外は、IME状態やシフト状態に応じてキーが送信される。
+*/
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
     static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
+    static st_init := 0
+    static st_pressing := 1
+    static st_processed := 2
+    static st_long_press_end := 3
 
+    state := 0
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
-    Layered := false
     /**
      * コンストラクタ
      * @param {String} key - 物理キー (例: "q", "{sc027}")。
@@ -1665,12 +1737,7 @@ class LKey extends RKey {
     ;IsPressed() => this.pressed_time != 0
     IsPressed() => GetKeyState(this.org_key_raw, "P")
 
-    /**
-     * キー押し下げ時の処理
-     */
-    Down() {
-        Critical
-
+    _SendLayedKey() {
         for _, key in RKey.layer_list {
             if LayerState(key) {
                 ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
@@ -1684,10 +1751,34 @@ class LKey extends RKey {
 
                 super.SendLayerKey(key)
                 this.Layered := true
-                return
+                return true
             }
         }
-        this.Layered := false
+        return false
+    }
+
+    /**
+     * キー押し下げ時の処理
+     */
+    Down() {
+        ;キーリピートガード
+        if this.state = LKey.st_processed {
+            return
+        }
+        if this._SendLayedKey() {
+            this.state := LKey.st_processed
+            ;ToolTip("_SendLayedKey")
+            return
+        }
+
+        ; 1. 修飾キー (Ctrl/Alt/Win) が押されている場合はリマップせずパススルー
+        if super._SendCAWKey(this.org_key) {
+            this.pressed_time := 0
+            this.state := LKey.st_processed
+            ;ToolTip("_SendCAWKey")
+            return
+        }
+        this.state := LKey.st_pressing
         this._Down()
     }
 
@@ -1695,118 +1786,116 @@ class LKey extends RKey {
      * キー離し時の処理
      */
     Up() {
-        Critical
-        if !this.Layered
-            this._Up()
-        this.Layered := false
+        ;Critical
+        ;this._Up()
+        this.state := LKey.st_init
+        this.pressed_time := 0
+    }
+
+    Wait(time := 250) {
+        stime := A_TickCount
+        ;ih := InputHook("L1 V")
+        ;ih.Start()
+        is_long := true
+        while (A_TickCount - stime < time) {
+            if !this.IsPressed() {
+                is_long := false
+                break
+            }
+            ; if ih.input != "" {
+            ;     ;is_long := false
+            ;     ToolTip("another key is pressed")
+            ;     break
+            ; }
+            Sleep(10)
+        }
+        ;ih.Stop()
+        return is_long
     }
 
     _Down() {
         ;Critical
 
-        ; モード 3 (短押し時のみ入力) の特殊処理
-        if this.long_press_mode = 3 {
-            if (this.pressed_time != 0) {
-                return ; キーリピート防止
-            }
-            this.mod_str := MakeModStr()
-            this.pressed_time := A_TickCount
-            RKey.last_key := this.org_key
-            return
-        }
-        ;    if this.long_press_mode = 2 || LKey.long_press_enabled = 0 {
-        ; this.pressed_time := A_TickCount
-        ; RKey.last_key := this.org_key
-        ;    }
-
-        ; --- 以下、モード 0, 1, 2 共通の判定 ---
-        ; 1. 修飾キー (Ctrl/Alt/Win) が押されている場合はリマップせずパススルー
-        if super._SendCAWKey(this.org_key) {
-            this.pressed_time := 0
-            RKey.last_key := ""
-            return
-        }
-
-        ; 2. 長押し機能が無効（モード 0）またはグローバル設定がオフの場合
+        ; 2. 長押し機能が無効（モード 0）
         if this.long_press_mode = 0 { ; || LKey.long_press_enabled = 0
-            shift := IsPhysicalShiftPressed()
-            this.SendShiftedKey(shift) ; 通常のリマップとして即座に送信
-            this.pressed_time := 0
-            RKey.last_key := this.org_key
+            this.SendKeyWithShift()
+            ;ToolTip("this.long_press_mode:" . this.long_press_mode)
             return
         }
 
-        ; 3. キーリピートによる多重実行を防止
+        ;キーリピートガード
         if this.pressed_time != 0 {
             return
         }
-
-        ; 4. モード 1 の場合、まず「短押し用キー」を即座に送信する
-        ;    （長押し確定時に Backspace で消去して置換する）
-        if this.long_press_mode = 1 {
-            shift := IsPhysicalShiftPressed()
-            this.SendShiftedKey(shift)
-        }
-
-        ; ; 5. モード 5 (KeyWait ベースの即時入力 + 長押し置換)
-        ; if this.long_press_mode = 5 {
-        ;     this.pressed_time := A_TickCount
-        ;     shift := IsPhysicalShiftPressed()
-        ;     this.SendShiftedKey(shift)
-        ;     Critical("Off")
-        ;     released := KeyWait(this.org_key_raw, "T" . (LKey.long_press_th / 1000))
-        ;     if !released {
-        ;         Send("{Backspace}")
-        ;         this.SendShiftedKey(true)
-        ;         KeyWait(this.org_key_raw)
-        ;     }
-        ;     this.pressed_time := 0
-        ;     return
-        ; }
-
-        ; 5. 状態を記録し、長押し判定のためのタイマーを開始
         this.pressed_time := A_TickCount
-        RKey.last_key := this.org_key
-    }
 
-    _Up() {
-        ;Critical
-        if (this.pressed_time = 0) {
-            return
-        }
-
-        now := A_TickCount
-        duration := now - this.pressed_time
-        is_long := (duration >= LKey.long_press_th)
-
-        ; モード 3: 短押しだった場合のみキーを送信
+        ; モード 3 (短押し時のみ入力) の特殊処理
         if this.long_press_mode = 3 {
-            ; 他のキーが間に押されておらず、かつタイムアウト内であれば送信
-            if !is_long && (RKey.last_key == this.org_key) {
-                ;SendAndLog("{Blind}" . this.mod_str . this.org_key)
-                SendAndLog(this.mod_str . this.key_text)
+            mod_str := MakeModStr()
+            if (!this.Wait()) {
+                SendAndLog(mod_str . this.key_text)
             }
-            this.pressed_time := 0
+            ;ToolTip("this.long_press_mode:" . this.long_press_mode)
+            return
+        }
+        ; モード 1 の場合、まず「短押し用キー」を即座に送信する
+        ; （長押し確定時に Backspace で消去して置換する）
+        if this.long_press_mode = 1 {
+            this.SendKeyWithShift()
+            ;ToolTip("this.long_press_mode:" . this.long_press_mode)
+            if this.Wait() {
+                Send("{Backspace}")
+                this.SendShiftedKey(true) ;
+                return
+            }
+        }
+
+        if this.long_press_mode = 4 { ; || LKey.long_press_enabled = 0
+            this.SendKeyWithShift()
+            ;ToolTip("this.long_press_mode:" . this.long_press_mode)
             return
         }
 
-        ; モード 1, 2 の共通処理
-        ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
-        if RKey.last_key == this.org_key {
-            ; モード 1: 長押し確定時に既存文字を消去して置換
-            if this.long_press_mode == 1 {
-                if is_long {
-                    Send("{Backspace}")
-                    this.SendShiftedKey(true) ; 長押しアクション（Shift版）を実行
-                }
-            }
-            ; モード 2: 長押し・短押しに関わらず Up 時には何もしない
-        }
-        ; モード2の場合、何もしない
-
-        ; 内部状態のリセット
-        this.pressed_time := 0
     }
+
+    ; _Up() {
+    ;     ;Critical
+    ;     ; if (this.pressed_time = 0) {
+    ;     ;     return
+    ;     ; }
+
+    ;     ; now := A_TickCount
+    ;     ; duration := now - this.pressed_time
+    ;     ; is_long := (duration >= LKey.long_press_th)
+
+    ;     ; モード 3: 短押しだった場合のみキーを送信
+    ;     ; if this.long_press_mode = 3 {
+    ;     ;     ; 他のキーが間に押されておらず、かつタイムアウト内であれば送信
+    ;     ;     if !is_long && (RKey.last_key == this.org_key) {
+    ;     ;         ;SendAndLog("{Blind}" . this.mod_str . this.org_key)
+    ;     ;         SendAndLog(this.mod_str . this.key_text)
+    ;     ;     }
+    ;     ;     this.pressed_time := 0
+    ;     ;     return
+    ;     ; }
+
+    ;     ; モード 1, 2 の共通処理
+    ;     ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
+    ;     ; if RKey.last_key == this.org_key {
+    ;     ;     ; モード 1: 長押し確定時に既存文字を消去して置換
+    ;     ;     if this.long_press_mode == 1 {
+    ;     ;         if is_long {
+    ;     ;             Send("{Backspace}")
+    ;     ;             this.SendShiftedKey(true) ; 長押しアクション（Shift版）を実行
+    ;     ;         }
+    ;     ;     }
+    ;     ;     ; モード 2: 長押し・短押しに関わらず Up 時には何もしない
+    ;     ; }
+    ;     ; モード2の場合、何もしない
+
+    ;     ; 内部状態のリセット
+    ;     this.pressed_time := 0
+    ; }
 } ;class LKey
 
 ; ============================================================================
@@ -1822,7 +1911,7 @@ class LKey extends RKey {
 ; f14 := MKey(R_ZENKAKU)
 ; colon := LKey(C_COLON, 2)
 
-f13 := LKey("f13", 2)
+f13 := LKey("f13", 3, C_TAB)
 space := LKey(R_SPACE, 3, C_SPACE)
 tab := LKey(R_TAB, 3, C_TAB)
 noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
@@ -1843,7 +1932,7 @@ k9 := LKey("9")
 k0 := LKey("0")
 minus := LKey("-")
 hat := LKey(C_HAT) ; ^
-yen := LKey("¥") ; ¥
+yen := LKey(C_YEN) ; ¥
 ;
 ; (QWERTY段)
 q := LKey("q")
