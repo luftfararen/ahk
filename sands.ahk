@@ -2713,20 +2713,6 @@ init() {
     v.SetLayerKey(L_SYMBOL2, "|")
     b.SetLayerKey(L_SYMBOL2, "\")
 
-    ; L_FUNC
-    q.SetLayerKey(L_SYMBOL2, B_F1)
-    w.SetLayerKey(L_SYMBOL2, B_F2)
-    e.SetLayerKey(L_SYMBOL2, B_F3)
-    r.SetLayerKey(L_SYMBOL2, B_F4)
-    a.SetLayerKey(L_SYMBOL2, B_F5)
-    s.SetLayerKey(L_SYMBOL2, B_F6)
-    d.SetLayerKey(L_SYMBOL2, B_F7)
-    f.SetLayerKey(L_SYMBOL2, B_F8)
-    z.SetLayerKey(L_SYMBOL2, B_F9)
-    x.SetLayerKey(L_SYMBOL2, B_F10)
-    c.SetLayerKey(L_SYMBOL2, B_F11)
-    v.SetLayerKey(L_SYMBOL2, B_F12)
-
     ; L_SHIFT
     ; for i, keyObj in LAYOUT_KEYS {
     ;     keyObj.SetLayerKey(L_SHIFT, keyObj.shift_key_text)
