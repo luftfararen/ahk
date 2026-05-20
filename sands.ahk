@@ -606,14 +606,15 @@ class LayoutString {
     GetElement(index) => (index <= this.arr.Length) ? this.arr[index] : ""
 }
 
-class KeyLogItem {
-    count := 0
-    count_d := 0
-    duration12 := 0
-    duration13 := 0
-}
-
 class KeyLogger {
+
+    class KeyLogItem {
+        count := 0
+        count_d := 0
+        duration12 := 0
+        duration13 := 0
+    }
+
     static IDLE_TIMEOUT := 3000     ; 3秒以上の打鍵間隔で履歴リセット
     static AUTOSAVE_INTERVAL := 300000 ; 5分ごとに自動保存
     static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
@@ -744,7 +745,7 @@ class KeyLogger {
                         valStr := SubStr(line, pos + 3)
                         vals := StrSplit(valStr, " ")
 
-                        item := KeyLogItem()
+                        item := KeyLogger.KeyLogItem()
                         item.count := Integer(vals[1])
                         if vals.Length >= 4 {
                             item.count_d := Integer(vals[2])
@@ -850,7 +851,7 @@ class KeyLogger {
 
             seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
             if !stats_map.Has(seq)
-                stats_map[seq] := KeyLogItem()
+                stats_map[seq] := KeyLogger.KeyLogItem()
 
             item := stats_map[seq]
             item.count += 1
@@ -882,7 +883,7 @@ class KeyLogger {
 
             for seq, mid_item in mid_map {
                 if !full_map.Has(seq)
-                    full_map[seq] := KeyLogItem()
+                    full_map[seq] := KeyLogger.KeyLogItem()
                 full_item := full_map[seq]
 
                 full_item.count += mid_item.count
@@ -1519,7 +1520,7 @@ class RKey {
     	@param {Integer} [ime_state=-1] - IME state (-1: auto, 0: off, 1: on).
     ============================================================================*/
     SendShiftedKey(shift := true, ime_state := -1) {
-        Critical
+        ;    Critical
         if shift {
             this._SendKey(this.shift_ime_key_text, this.shift_key_text, ime_state)
         } else {
@@ -2107,18 +2108,53 @@ L_SHIFT := 7
 
 ;L_FUNC := 4
 
-class LayerItem {
-    __New(layer_id, action) {
-        this.layer_id := layer_id
-        this.action := action
-    }
-}
-
 mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
 class Layers {
+    class LayerItem {
+        __New(layer_id, action) {
+            this.layer_id := layer_id
+            this.action := action
+        }
+    }
+
     ime_arr := []
     arr := []
     ;static layer_id_list := [L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT]
+
+    /**
+     * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
+     * 他のレイヤーが同時にアクティブでないことも確認します。
+     * @param {Integer} layer - 確認するレイヤー番号
+     * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+     */
+    static State(layer) {
+        ; Check the specified layer
+        if layer = L_NAVI_CTRL {
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+        }
+        if layer = L_SYMBOL1 {
+            return conv.IsPressed()
+        }
+        if layer = L_SYMBOL2 {
+            return f14.IsPressed()
+        }
+        if layer = L_SYMBOL_NUM {
+            return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
+        }
+        if layer = L_NUMPAD {
+            return tab.IsPressed()
+        }
+        if layer = L_SELECT {
+            return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+        }
+        if layer = L_SHIFT {
+            return space.IsPressed()
+        }
+        ; if layer = L_FUNC {
+        ;     return f14.IsPressed()
+        ; }
+        return false
+    }
 
     /**
      * レイヤー修飾キーを登録し、そのインデックスを返す
@@ -2147,11 +2183,11 @@ class Layers {
     }
 
     SetIMEAction(layer_id, action) {
-        Layers._Add(this.ime_arr, LayerItem(layer_id, action))
+        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action))
     }
 
     SetAction(layer_id, action) {
-        Layers._Add(this.arr, LayerItem(layer_id, action))
+        Layers._Add(this.arr, Layers.LayerItem(layer_id, action))
     }
 
     SendLayerKey(key_obj, ime_state) {
@@ -2159,7 +2195,7 @@ class Layers {
         for i, item in arr {
             layer_id := item.layer_id
             ;mod_key := mod_key_list[i]
-            if LayerState(layer_id) {
+            if Layers.State(layer_id) {
                 ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
                 if (layer_id == L_SHIFT && key_obj == space) ||
                 (layer_id == L_NUMPAD && key_obj == tab) ||
@@ -2899,45 +2935,11 @@ init() {
 
 init()
 
-/**
- * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
- * 他のレイヤーが同時にアクティブでないことも確認します。
- * @param {Integer} layer - 確認するレイヤー番号
- * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
- */
-LayerState(layer) {
-    ; Check the specified layer
-    if layer = L_NAVI_CTRL {
-        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SYMBOL1 {
-        return conv.IsPressed()
-    }
-    if layer = L_SYMBOL2 {
-        return f14.IsPressed()
-    }
-    if layer = L_SYMBOL_NUM {
-        return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
-    }
-    if layer = L_NUMPAD {
-        return tab.IsPressed()
-    }
-    if layer = L_SELECT {
-        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SHIFT {
-        return space.IsPressed()
-    }
-    ; if layer = L_FUNC {
-    ;     return f14.IsPressed()
-    ; }
-    return false
-}
 ; ============================================================================
 ; ホットキー定義（レイヤー）
 ; ============================================================================
 ;*** レイヤー（システム/アプリ制御） ***
-#HotIf LayerState(L_NAVI_CTRL)
+#HotIf Layers.State(L_NAVI_CTRL)
 
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 *Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
