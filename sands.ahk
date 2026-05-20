@@ -57,7 +57,7 @@
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
 ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
 SetKeyDelay -1 ; キー入力後のディレイをなしに設定
-ListLines 0
+;ListLines 0
 SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
 
 InstallKeybdHook true ; キーボードフックを常にインストール
@@ -1278,7 +1278,7 @@ TimerEvent() {
     counter++
 }
 
-SetTimer(TimerEvent, 100) ;
+;SetTimer(TimerEvent, 100) ;
 
 /*============================================================================
  [Class] MouseSpeed
@@ -1425,7 +1425,7 @@ MakeModStr() {
  登録する文字列の仕様については BuildSendText() のコメントを参照してください。
 ============================================================================*/
 class RKey {
-    static layer_list := [1, 2, 3, 4, 5, 6, 7]
+    ;static layer_list := [1, 2, 3, 4, 5, 6, 7]
     ;static layer_list := [L_NAVI_CTRL, L_SELECT, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SHIFT]
 
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
@@ -1446,9 +1446,7 @@ class RKey {
      * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。省略時は物理キーと同じ。
      */
     __New(key, reg_key := "") {
-        this.layer_keys := []
-        loop RKey.layer_list.Length
-            this.layer_keys.Push("")
+        this.layers := Layers()
 
         this.org_key := AddBraces(key)
         this.org_key_raw := RemoveBraces(key)
@@ -1465,31 +1463,20 @@ class RKey {
      * レイヤーキーを設定する
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
-     * @param {Boolean} reset_if_blank - actionが空の場合にリセットするかどうか
      */
-    SetLayerKey(layer_id, action, reset_if_blank := false) {
-        if action == "" {
-            if reset_if_blank {
-                this.layer_keys[layer_id] := ""
-            }
-        } else {
-            this.layer_keys[layer_id] := action
+    SetLayerKey(layer_id, action, ime := True) {
+        this.layers.SetAction(layer_id, action)
+        if ime {
+            this.layers.SetImeAction(layer_id, action)
         }
     }
 
-    SendLayerKey(layer_id) {
+    SetImeLayerKey(layer_id, action, reset_if_blank := false) {
+        this.layers.SetImeAction(layer_id, action)
+    }
 
-        action := this.layer_keys[layer_id]
-        if action == "" {
-            if (layer_id == L_SHIFT)
-                this.SendShiftedKey()
-        } else {
-            if action == "{none}"
-                return
-            RKey.last_key := this.org_key ; 最後に押されたキーとして記録（他キーの Up 時判定用）
-            SendAndLog(action)
-            return
-        }
+    SendLayerKey(ime_state) {
+        return this.layers.SendLayerKey(this, ime_state)
     }
 
     /**
@@ -1730,26 +1717,6 @@ class LKey extends RKey {
     ;IsPressed() => this.pressed_time != 0
     IsPressed() => GetKeyState(this.org_key_raw, "P")
 
-    _SendLayedKey() {
-        for _, key in RKey.layer_list {
-            if LayerState(key) {
-                ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
-                if (key == L_SHIFT && this == space) ||
-                (key == L_NUMPAD && this == tab) ||
-                (key == L_SYMBOL_NUM && this == noconv) ||
-                (key == L_SYMBOL1 && this == conv) ||
-                (key == L_SYMBOL2 && this == f14) ||
-                ((key == L_NAVI_CTRL || key == L_SELECT) && this == f13)
-                    continue
-
-                super.SendLayerKey(key)
-                this.Layered := true
-                return true
-            }
-        }
-        return false
-    }
-
     /**
      * キー押し下げ時の処理
      */
@@ -1759,9 +1726,9 @@ class LKey extends RKey {
         if this.state = LKey.st_processed {
             return
         }
-        if this._SendLayedKey() {
+
+        if super.SendLayerKey(ImeState.IsON()) {
             this.state := LKey.st_processed
-            ;ToolTip("_SendLayedKey")
             return
         }
 
@@ -2147,11 +2114,11 @@ class LayerItem {
     }
 }
 
+mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
 class Layers {
     ime_arr := []
     arr := []
     ;static layer_id_list := [L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT]
-    static mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
 
     /**
      * レイヤー修飾キーを登録し、そのインデックスを返す
@@ -2159,12 +2126,12 @@ class Layers {
      * @returns {Integer} 登録後のレイヤーIDのインデックス
      */
     static Index(key_obj) {
-        for i, key in Layers.mod_key_list {
+        for i, key in mod_key_list {
             if key_obj = key
                 return i
         }
-        Layers.mod_key_list.Push(key_obj)
-        return Layers.mod_key_list.Length
+        mod_key_list.Push(key_obj)
+        return mod_key_list.Length
     }
 
     static _Add(arr, item) {
@@ -2173,9 +2140,10 @@ class Layers {
                 v.action := item.action
                 return
             }
-
-            arr.Push(item)
         }
+        arr.Push(item)
+        ;ToolTip arr[arr.Length].layer_id " " arr[arr.Length].action
+
     }
 
     SetIMEAction(layer_id, action) {
@@ -2186,10 +2154,11 @@ class Layers {
         Layers._Add(this.arr, LayerItem(layer_id, action))
     }
 
-    SendLayedKey(key_obj, ime_state) {
+    SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
-        for _, item in arr {
+        for i, item in arr {
             layer_id := item.layer_id
+            ;mod_key := mod_key_list[i]
             if LayerState(layer_id) {
                 ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
                 if (layer_id == L_SHIFT && key_obj == space) ||
@@ -2200,15 +2169,14 @@ class Layers {
                 ((layer_id == L_NAVI_CTRL || layer_id == L_SELECT) && key_obj == f13)
                     continue
 
-                this.SendKey(layer_id, arr, key_obj)
+                this._SendKey(layer_id, item.action, key_obj)
                 return true
             }
         }
         return false
     }
 
-    SendKey(layer_id, arr, key_obj) {
-        action := arr[layer_id]
+    _SendKey(layer_id, action, key_obj) {
         if action == "" {
             if (layer_id == L_SHIFT)
                 key_obj.SendShiftedKey()
@@ -2216,6 +2184,7 @@ class Layers {
             if action == "{none}"
                 return
             SendAndLog(action)
+            ;ToolTip action . " " . layer_id
         }
     }
 
