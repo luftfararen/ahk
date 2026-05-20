@@ -1419,13 +1419,6 @@ MakeModStr() {
 ;     }
 ; } ;class MKey
 
-class LayerItem {
-    __New(layer, key) {
-        this.layer := layer
-        this.key := key
-    }
-}
-
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
@@ -1472,7 +1465,7 @@ class RKey {
      * レイヤーキーを設定する
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
-     * @param {Boolean} reset_if_blank - 空の場合にリセットするかどうか
+     * @param {Boolean} reset_if_blank - actionが空の場合にリセットするかどうか
      */
     SetLayerKey(layer_id, action, reset_if_blank := false) {
         if action == "" {
@@ -1761,6 +1754,7 @@ class LKey extends RKey {
      * キー押し下げ時の処理
      */
     Down() {
+        this.PriorKey := A_PriorKey
         ;キーリピートガード
         if this.state = LKey.st_processed {
             return
@@ -1792,25 +1786,50 @@ class LKey extends RKey {
         this.pressed_time := 0
     }
 
+    ; Wait(time := 250) {
+    ;     stime := A_TickCount
+    ;     ih := InputHook("L1")
+    ;     ih.KeyOpt("{All}", "+I +S")
+    ;     is_long := true
+    ;     another_key_pressed := false
+    ;     ; コールバック関数を定義（他のキーが押されたらフラグを立ててInputHookをストップ）
+    ;     ih.OnKeyDown := (ih, vk, sc) => (
+    ;         another_key_pressed := true,
+    ;         ih.Stop()
+    ;     )
+    ;     ih.Start()
+
+    ;     while (A_TickCount - stime < time) {
+    ;         if !this.IsPressed() { ;内部でGetKeyStateでチェック
+    ;             is_long := false
+    ;             break
+    ;         }
+    ;         if another_key_pressed {
+    ;             is_long := false
+    ;             ToolTip("another key is pressed")
+    ;             break
+    ;         }
+    ;         Sleep(10)
+    ;     }
+    ;     ih.Stop()
+    ;     return is_long
+    ; }
+
+    /*
+    @ret  0:長押し 1:短押し 2:他のキーが押された
+    */
     Wait(time := 250) {
         stime := A_TickCount
-        ;ih := InputHook("L1 V")
-        ;ih.Start()
-        is_long := true
         while (A_TickCount - stime < time) {
-            if !this.IsPressed() {
-                is_long := false
-                break
+            if !this.IsPressed() { ;内部でGetKeyStateでチェック
+                return 0
             }
-            ; if ih.input != "" {
-            ;     ;is_long := false
-            ;     ToolTip("another key is pressed")
-            ;     break
-            ; }
+            if (this.PriorKey != A_PriorKey) {
+                return 2
+            }
             Sleep(10)
         }
-        ;ih.Stop()
-        return is_long
+        return 1
     }
 
     _Down() {
@@ -1832,7 +1851,7 @@ class LKey extends RKey {
         ; モード 3 (短押し時のみ入力) の特殊処理
         if this.long_press_mode = 3 {
             mod_str := MakeModStr()
-            if (!this.Wait()) {
+            if (this.Wait() == 0) {
                 SendAndLog(mod_str . this.key_text)
             }
             ;ToolTip("this.long_press_mode:" . this.long_press_mode)
@@ -1843,7 +1862,7 @@ class LKey extends RKey {
         if this.long_press_mode = 1 {
             this.SendKeyWithShift()
             ;ToolTip("this.long_press_mode:" . this.long_press_mode)
-            if this.Wait() {
+            if (this.Wait() == 1) {
                 Send("{Backspace}")
                 this.SendShiftedKey(true) ;
                 return
@@ -2119,8 +2138,89 @@ L_SELECT := 5
 L_NUMPAD := 6
 L_SHIFT := 7
 
-;mod_key_list := [f13,noconv,conv,f14,f13,tab,space]
 ;L_FUNC := 4
+
+class LayerItem {
+    __New(layer_id, action) {
+        this.layer_id := layer_id
+        this.action := action
+    }
+}
+
+class Layers {
+    ime_arr := []
+    arr := []
+    ;static layer_id_list := [L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT]
+    static mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+
+    /**
+     * レイヤー修飾キーを登録し、そのインデックスを返す
+     * @param {HotKey} key_obj - 修飾キーオブジェクト
+     * @returns {Integer} 登録後のレイヤーIDのインデックス
+     */
+    static Index(key_obj) {
+        for i, key in Layers.mod_key_list {
+            if key_obj = key
+                return i
+        }
+        Layers.mod_key_list.Push(key_obj)
+        return Layers.mod_key_list.Length
+    }
+
+    static _Add(arr, item) {
+        for i, v in arr {
+            if (v.layer_id == item.layer_id) {
+                v.action := item.action
+                return
+            }
+
+            arr.Push(item)
+        }
+    }
+
+    SetIMEAction(layer_id, action) {
+        Layers._Add(this.ime_arr, LayerItem(layer_id, action))
+    }
+
+    SetAction(layer_id, action) {
+        Layers._Add(this.arr, LayerItem(layer_id, action))
+    }
+
+    SendLayedKey(key_obj, ime_state) {
+        arr := ime_state == 1 ? this.ime_arr : this.arr
+        for _, item in arr {
+            layer_id := item.layer_id
+            if LayerState(layer_id) {
+                ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
+                if (layer_id == L_SHIFT && key_obj == space) ||
+                (layer_id == L_NUMPAD && key_obj == tab) ||
+                (layer_id == L_SYMBOL_NUM && key_obj == noconv) ||
+                (layer_id == L_SYMBOL1 && key_obj == conv) ||
+                (layer_id == L_SYMBOL2 && key_obj == f14) ||
+                ((layer_id == L_NAVI_CTRL || layer_id == L_SELECT) && key_obj == f13)
+                    continue
+
+                this.SendKey(layer_id, arr, key_obj)
+                return true
+            }
+        }
+        return false
+    }
+
+    SendKey(layer_id, arr, key_obj) {
+        action := arr[layer_id]
+        if action == "" {
+            if (layer_id == L_SHIFT)
+                key_obj.SendShiftedKey()
+        } else {
+            if action == "{none}"
+                return
+            SendAndLog(action)
+        }
+    }
+
+}
+;
 
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
