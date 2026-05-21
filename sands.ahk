@@ -256,7 +256,7 @@ WriteConfig(value, section, key) {
 IsPhysicalShiftPressed() {
     ;global shift_lambda
     ;return shift_lambda()
-    return GetKeyState("Shift", "P")
+    return GetKeyState("Shift", "P") || space.IsPressed()
 }
 
 /*
@@ -2937,6 +2937,8 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination(rm["o"], j, "u", mode) ;おう
     RegistIMECombination(rm["s"], rm["r"], "uru", mode) ;する
     RegistIMECombination(rm["s"], rm["t"], "ite", mode) ;して
+    RegistIMECombination(rm["s"], r, "areru", mode) ;される
+    RegistIMECombination(rm["r"], r, "areru", mode) ;られる
     ; RegistIMECombination(rm["a"], rm["i"], "i", mode) ;あい
     ; RegistIMECombination(rm["e"], rm["i"], "i", mode) ;えい
 }
