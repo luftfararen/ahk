@@ -57,7 +57,7 @@
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
 ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
 SetKeyDelay -1 ; キー入力後のディレイをなしに設定
-;ListLines 0
+ListLines 0
 SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
 
 InstallKeybdHook true ; キーボードフックを常にインストール
@@ -1279,7 +1279,7 @@ TimerEvent() {
     counter++
 }
 
-;SetTimer(TimerEvent, 100) ;
+SetTimer(TimerEvent, 100) ;
 
 /*============================================================================
  [Class] MouseSpeed
@@ -1430,7 +1430,7 @@ class RKey {
     ;static layer_list := [L_NAVI_CTRL, L_SELECT, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SHIFT]
 
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
-    static last_key := ""
+    ;static last_key := ""
 
     ;org_key: {}付き、基本は物理キーを設定
     ;org_key_raw: {}なし  基本は物理キーを設定
@@ -1520,7 +1520,6 @@ class RKey {
     	@param {Integer} [ime_state=-1] - IME state (-1: auto, 0: off, 1: on).
     ============================================================================*/
     SendShiftedKey(shift := true, ime_state := -1) {
-        ;    Critical
         if shift {
             this._SendKey(this.shift_ime_key_text, this.shift_key_text, ime_state)
         } else {
@@ -1570,7 +1569,8 @@ class RKey {
      */
     Down() {
         Critical
-        RKey.last_key := this._SendSCAWKey(this.org_key) ? "" : this.org_key
+        ;RKey.last_key :=
+        this._SendSCAWKey(this.org_key) ? "" : this.org_key
     }
 
     /**
@@ -1642,7 +1642,6 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 */
 class LKey extends RKey {
     static long_press_th := 300 ; 長押しと判定する閾値 (ms)
-    static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -1658,7 +1657,16 @@ class LKey extends RKey {
      */
     __New(key, mode := 0, reg_key := "") {
         super.__New(key, reg_key) ; RKey の初期化
-        this.long_press_mode := mode
+        ;this.long_press_mode := mode
+        this.long_press_mode_org := mode
+        this.long_press_mode_ime_org := mode
+    }
+
+    SetMode(mode := 0, ime_mode := 0) {
+        if mode >= 0
+            this.long_press_mode_org := mode
+        if ime_mode >= 0
+            this.long_press_mode_ime_org := ime_mode
     }
 
     /**
@@ -1690,6 +1698,12 @@ class LKey extends RKey {
     ============================================================================*/
     SetKey(key, shift_key := "") {
         super.SetKey(key, shift_key)
+    }
+
+    SetImeKey(ime_key := "", shift_ime_key := "", mode := -1) {
+        super.SetImeKey(ime_key, shift_ime_key)
+        if (mode != -1)
+            this.long_press_mode_ime_org := mode
     }
 
     ; /**
@@ -1727,8 +1741,8 @@ class LKey extends RKey {
         if this.state = LKey.st_processed {
             return
         }
-
-        if super.SendLayerKey(ImeState.IsON()) {
+        ime_state := ImeState.IsON()
+        if super.SendLayerKey(ime_state) {
             this.state := LKey.st_processed
             return
         }
@@ -1741,7 +1755,7 @@ class LKey extends RKey {
             return
         }
         this.state := LKey.st_pressing
-        this._Down()
+        this._Down(ime_state)
     }
 
     /**
@@ -1784,7 +1798,7 @@ class LKey extends RKey {
     ; }
 
     /*
-    @ret  0:長押し 1:短押し 2:他のキーが押された
+    @ret  0:短押し 1:長押し 2:他のキーが押された
     */
     Wait(time := 250) {
         stime := A_TickCount
@@ -1800,11 +1814,11 @@ class LKey extends RKey {
         return 1
     }
 
-    _Down() {
-        ;Critical
+    _Down(ime_state) {
+        long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
 
         ; 2. 長押し機能が無効（モード 0）
-        if this.long_press_mode = 0 { ; || LKey.long_press_enabled = 0
+        if long_press_mode = 0 { ; || LKey.long_press_enabled = 0
             this.SendKeyWithShift()
             ;ToolTip("this.long_press_mode:" . this.long_press_mode)
             return
@@ -1817,7 +1831,7 @@ class LKey extends RKey {
         this.pressed_time := A_TickCount
 
         ; モード 3 (短押し時のみ入力) の特殊処理
-        if this.long_press_mode = 3 {
+        if long_press_mode = 3 {
             mod_str := MakeModStr()
             if (this.Wait() == 0) {
                 SendAndLog(mod_str . this.key_text)
@@ -1827,7 +1841,7 @@ class LKey extends RKey {
         }
         ; モード 1 の場合、まず「短押し用キー」を即座に送信する
         ; （長押し確定時に Backspace で消去して置換する）
-        if this.long_press_mode = 1 {
+        if long_press_mode = 1 {
             this.SendKeyWithShift()
             ;ToolTip("this.long_press_mode:" . this.long_press_mode)
             if (this.Wait() == 1) {
@@ -1837,7 +1851,7 @@ class LKey extends RKey {
             }
         }
 
-        if this.long_press_mode = 4 { ; || LKey.long_press_enabled = 0
+        if long_press_mode = 4 { ; || LKey.long_press_enabled = 0
             this.SendKeyWithShift()
             ;ToolTip("this.long_press_mode:" . this.long_press_mode)
             return
@@ -2156,6 +2170,36 @@ class Layers {
         return false
     }
 
+    static State2(layer, key_obj) {
+        ; Check the specified layer
+        if layer = L_NAVI_CTRL {
+            if f13 = key_obj
+                return false
+            if noconv = key_obj
+                return false
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+        }
+        if layer = L_SYMBOL_NUM {
+            if noconv = key_obj
+                return false
+            if f13 = key_obj
+                return false
+            return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
+        }
+        if layer = L_SELECT {
+            if f13 = key_obj
+                return false
+            if noconv = key_obj
+                return false
+            return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
+        }
+        key := mod_key_list[layer]
+        if key = key_obj
+            return false
+        return key.IsPressed()
+
+        ;return false
+    }
     /**
      * レイヤー修飾キーを登録し、そのインデックスを返す
      * @param {HotKey} key_obj - 修飾キーオブジェクト
@@ -2195,16 +2239,20 @@ class Layers {
         for i, item in arr {
             layer_id := item.layer_id
             ;mod_key := mod_key_list[i]
-            if Layers.State(layer_id) {
-                ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
-                if (layer_id == L_SHIFT && key_obj == space) ||
-                (layer_id == L_NUMPAD && key_obj == tab) ||
-                (layer_id == L_SYMBOL_NUM && key_obj == noconv) ||
-                (layer_id == L_SYMBOL1 && key_obj == conv) ||
-                (layer_id == L_SYMBOL2 && key_obj == f14) ||
-                ((layer_id == L_NAVI_CTRL || layer_id == L_SELECT) && key_obj == f13)
-                    continue
+            ; if Layers.State(layer_id) {
+            ;     ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
+            ;     if (layer_id == L_SHIFT && key_obj == space) ||
+            ;     (layer_id == L_NUMPAD && key_obj == tab) ||
+            ;     (layer_id == L_SYMBOL_NUM && key_obj == noconv) ||
+            ;     (layer_id == L_SYMBOL1 && key_obj == conv) ||
+            ;     (layer_id == L_SYMBOL2 && key_obj == f14) ||
+            ;     ((layer_id == L_NAVI_CTRL || layer_id == L_SELECT) && key_obj == f13)
+            ;         continue
 
+            ;     this._SendKey(layer_id, item.action, key_obj)
+            ;     return true
+            ; }
+            if Layers.State2(layer_id, key_obj) {
                 this._SendKey(layer_id, item.action, key_obj)
                 return true
             }
@@ -2686,10 +2734,10 @@ OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
 ; ============================================================================
 ; 設定の読み込み
 ; ============================================================================
-init() {
+init_layer() {
     start := Timer()
     for i, keyObj in LAYOUT_KEYS {
-        keyObj.long_press_mode := 1
+        keyObj.SetMode(1, 1)
     }
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
@@ -2925,7 +2973,16 @@ init() {
     hat.SetLayerKey(L_SHIFT, B_F12)
     colon.SetLayerKey(L_SHIFT, "+sc028")
     closebracket.SetLayerKey(L_SHIFT, "+]")
+}
 
+init() {
+    start := Timer()
+
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.long_press_mode := 1
+    }
+
+    init_layer()
     LoadLayoutConfig()
     KeyLogger.Load()
 
