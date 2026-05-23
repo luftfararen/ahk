@@ -1590,8 +1590,14 @@ class RKey {
      * @param {Boolean} ime_state - 現在の IME 状態
      * @returns {Boolean} レイヤーキーが送信された場合は true
      */
-    SendLayerKey(ime_state) {
-        return this.layers.SendLayerKey(this, ime_state)
+    SendLayerKey0(ime_state) {
+        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        if this.layers.IsLayerActive(this) {
+            if this.layers.SendLayerKey(this, ime_state) {
+                return true
+            }
+        }
+        return false
     }
 
     /**
@@ -1741,7 +1747,7 @@ up時に、一定時間以上の長押しされていなければ、リマップ
 IME状態に応じて送信されるキーが変わる。
 キーリピートは無効化される 。
 
-・モード 6：カスタム即時置換 (予約)
+・モード 6：
 押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
 ---
 ■ 共通仕様および制約
@@ -1836,8 +1842,7 @@ class LKey extends RKey {
 
         ; --- モード 0 の特殊処理 (キーリピートを許可する) ---
         if (long_press_mode == 0) {
-            ; レイヤーキーの判定
-            if super.SendLayerKey(ime_state) {
+            if super.SendLayerKey0(ime_state) {
                 return
             }
             ; 修飾キー (Ctrl/Alt/Win) が押されている場合はバイパス
@@ -1863,8 +1868,8 @@ class LKey extends RKey {
         ; 他のキーに「自分が押された」ことを通知（同時押し割り込み）
         LKey.InterruptOthers(this)
 
-        ; レイヤーキーの判定
-        if super.SendLayerKey(ime_state) {
+        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        if super.SendLayerKey0(ime_state) {
             this.state := LKey.st_processed
             return
         }
@@ -1878,7 +1883,7 @@ class LKey extends RKey {
 
         ; 押し込み中状態へ遷移
         this.state := LKey.st_pressing
-        this._Down(ime_state)
+        this._Down(ime_state, long_press_mode)
     }
 
     /**
@@ -1927,8 +1932,8 @@ class LKey extends RKey {
     /**
      * 押し下げ処理の実体（タイマーのセットや即時送信）
      */
-    _Down(ime_state) {
-        long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
+    _Down(ime_state, long_press_mode) {
+        ;long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
 
         switch long_press_mode {
             case 1: ; 短押し->即時送信、長押し->置換
@@ -2382,6 +2387,21 @@ class Layers {
             SendAndLog(action)
             ;ToolTip action . " " . layer_id
         }
+    }
+
+    /**
+     * 現在アクティブなレイヤーキーの押し下げ時間をチェックする
+     * 押し下げから 100ms 以内であれば、高速タイピング時の同時押しとみなしてレイヤー判定をスキップする
+     */
+    IsLayerActive(key_obj) {
+        for mod_key in mod_key_list {
+            if (mod_key != key_obj && mod_key.IsPressed()) {
+                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
 }
