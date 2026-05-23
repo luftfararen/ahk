@@ -1687,7 +1687,7 @@ class RKey {
      */
     Down() {
         Critical
-        ;RKey.last_key :=
+        LKey.InterruptOthers(this)
         this._SendSCAWKey(this.org_key) ? "" : this.org_key
     }
 
@@ -1763,27 +1763,32 @@ class LKey extends RKey {
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
-    static st_long_press_end := 3
+
+    static instances := []
 
     state := 0
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
+    interrupted := false  ; 他のキーが割り込んできたら true にするフラグ
+    down_ime_state := 0   ; Down時のIME状態を記録
+    saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
+    timer_name := ""      ; 非同期タイマーコールバック名
+
     /**
      * コンストラクタ
-     * @param {String} key - 物理キー (例: "q", "{sc027}")。
-     * @param {Integer} [mode=0] - 動作モード (0-4)。
-     * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。
      */
     __New(key, mode := 0, reg_key := "") {
-        super.__New(key, reg_key) ; RKey の初期化
-        ;this.long_press_mode := mode
+        super.__New(key, reg_key)
         this.long_press_mode_org := mode
         this.long_press_mode_ime_org := mode
+
+        ; タイマーが常に同じオブジェクトを参照するようにインスタンスに固定
+        this.timer_name := ObjBindMethod(this, "OnLongPressTimeout")
+
+        LKey.instances.Push(this)
     }
 
     /**
      * 長押し動作モードを設定します。
-     * @param {Integer} [mode=0] - IME OFF 時のモード
-     * @param {Integer} [ime_mode=0] - IME ON 時のモード
      */
     SetMode(mode := 0, ime_mode := 0) {
         if mode >= 0
@@ -1792,33 +1797,6 @@ class LKey extends RKey {
             this.long_press_mode_ime_org := ime_mode
     }
 
-    /**
-     * 長押し機能をグローバルに有効化、無効化、または切り替える
-     * @param {Integer} [m=2] - モード: 0=無効, 1=有効, 2=切り替え
-     * @param {Boolean} [show_info=False] - 画面上に通知を表示するかどうか
-     */
-    ; static EnableLongPress(m := 2, show_info := False) {
-    ;     if m == 0 {
-    ;         LKey.long_press_enabled := False
-    ;     } else if m == 1 {
-    ;         LKey.long_press_enabled := True
-    ;     } else {
-    ;         LKey.long_press_enabled := !LKey.long_press_enabled ; Toggle
-    ;     }
-    ;     if show_info {
-    ;         if LKey.long_press_enabled {
-    ;             ShowOSD("LKey is enabled")
-    ;         } else {
-    ;             ShowOSD("LKey is disabled")
-    ;         }
-    ;     }
-    ; }
-
-    /*============================================================================
-    	(Override) Sets the key mapping for when IME is OFF.
-    	@param {String} key - The base key to send.
-    	@param {String} [shift_key=""] - Key for Shift.
-    ============================================================================*/
     SetKey(key, shift_key := "") {
         super.SetKey(key, shift_key)
     }
@@ -1829,55 +1807,76 @@ class LKey extends RKey {
             this.long_press_mode_ime_org := mode
     }
 
-    ; /**
-    ;  * 長押し時に送信するキー文字列を設定する
-    ;  * @param {String} [long_key=""]
-    ;  */
-    ; SetLongKey(long_key := "") {
-    ;     if long_key = "" {
-    ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := this.shift_key_text ; デフォルトでは Shift 時のキーを使用
-    ;     } else if long_key = "none" {
-    ;         this.long_press_mode := 0 ; 長押しを無効化
-    ;         this.long_key_str := "none"
-    ;     } else if long_key = "skip" {
-    ;         this.long_press_mode := 2 ; 長押し、キーリピートを無効化
-    ;         this.long_key_str := "none"
-    ;     } else {
-    ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := long_key ; 指定されたキーを使用
-    ;     }
-    ; }
-
     /**
-     * キーが現在押し下げられているかどうかを確認する
+     * 他のすべての LKey インスタンスに対して割り込みを通知する
      */
-    ;IsPressed() => this.pressed_time != 0
+    static InterruptOthers(currentKey) {
+        for inst in LKey.instances {
+            ; 絶賛押し込み中のキー（st_pressing）があれば割り込みをかける
+            if (inst != currentKey && inst.state == LKey.st_pressing) {
+                inst.interrupted := true
+                ; モード1などのタイマーが走っていれば即時停止
+                if (inst.timer_name != "") {
+                    SetTimer(inst.timer_name, 0)
+                }
+                ; 割り込まれたキーは修飾キーとして確定（st_processed）させる
+                inst.state := LKey.st_processed
+            }
+        }
+    }
+
     IsPressed() => GetKeyState(this.org_key_raw, "P")
 
     /**
      * キー押し下げ時の処理
      */
     Down() {
-        this.PriorKey := A_PriorKey
-        ;キーリピートガード
-        if this.state = LKey.st_processed {
-            return
-        }
         ime_state := ImeState.IsON()
-        if super.SendLayerKey(ime_state) {
-            this.state := LKey.st_processed
-            ;Tooltip("SendLayerKey")
+        long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
+
+        ; --- モード 0 の特殊処理 (キーリピートを許可する) ---
+        if (long_press_mode == 0) {
+            ; レイヤーキーの判定
+            if super.SendLayerKey(ime_state) {
+                return
+            }
+            ; 修飾キー (Ctrl/Alt/Win) が押されている場合はバイパス
+            if super._SendCAWKey(this.org_key) {
+                return
+            }
+            ; 標準リマップ送信（OSのリピートをそのまま通す）
+            this.SendKeyWithShift()
             return
         }
 
-        ; 1. 修飾キー (Ctrl/Alt/Win) が押されている場合はリマップせずorg_keyベースで処理
+        ; --- モード 1〜6 のリピートガード ---
+        ; すでに押し込み中、または長押し確定済みのリピートイベントは完全に無視
+        if (this.state == LKey.st_pressing || this.state == LKey.st_processed) {
+            return
+        }
+
+        ; 状態の初期化
+        this.interrupted := false
+        this.pressed_time := A_TickCount
+        this.down_ime_state := ime_state
+
+        ; 他のキーに「自分が押された」ことを通知（同時押し割り込み）
+        LKey.InterruptOthers(this)
+
+        ; レイヤーキーの判定
+        if super.SendLayerKey(ime_state) {
+            this.state := LKey.st_processed
+            return
+        }
+
+        ; 修飾キー (Ctrl/Alt/Win) が押されている場合はバイパスして終了
         if super._SendCAWKey(this.org_key) {
             this.pressed_time := 0
             this.state := LKey.st_processed
-            ;ToolTip("_SendCAWKey")
             return
         }
+
+        ; 押し込み中状態へ遷移
         this.state := LKey.st_pressing
         this._Down(ime_state)
     }
@@ -1886,123 +1885,97 @@ class LKey extends RKey {
      * キー離し時の処理
      */
     Up() {
-        ;Critical
-        ;this._Up()
-        this.state := LKey.st_init
-        this.pressed_time := 0
-    }
+        ; モード0の場合はタイマー等がないため単純に初期化して終了
+        ime_state := ImeState.IsON()
+        long_press_mode := (this.pressed_time == 0) ? ((ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
+        ) : ((this.down_ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org)
 
-    /*
-    @ret  0:短押し 1:長押し 2:他のキーが押された
-    */
-    Wait(time := 450, SleepTime := 10) {
-        if time = -1
-            time := 99999999
-        stime := A_TickCount
-        while (A_TickCount - stime < time) {
-            if !this.IsPressed() { ;内部でGetKeyStateでチェック
-                return 0
-            }
-            if (this.PriorKey != A_PriorKey) {
-                return 2
-            }
-            Sleep(SleepTime)
+        if (long_press_mode == 0) {
+            this.state := LKey.st_init
+            this.pressed_time := 0
+            return
         }
-        return 1
+
+        ; 動作中のタイマーを確実にキャンセル
+        SetTimer(this.timer_name, 0)
+
+        duration := A_TickCount - this.pressed_time
+
+        ; まだ長押し確定（st_processed）しておらず、押し込み中（st_pressing）だった場合のみUp処理を実行
+        if (this.state == LKey.st_pressing) {
+            ; 短押し判定（閾値未満、かつ他キーの割り込みなし）
+            if (duration < LKey.long_press_th && !this.interrupted) {
+
+                ; モード 3: 短押し時のみ入力（down時に保持したscawを適用）
+                if (long_press_mode == 3) {
+                    SendAndLog(this.saved_scaw . this.key_text)
+                }
+                ; モード 5: 短押し時のみ入力（IME依存のリマップ送信）
+                else if (long_press_mode == 5) {
+                    this.SendKeyWithShift()
+                }
+            }
+        }
+
+        ; キーが離されたら状態を完全にクリーンアップ
+        this.pressed_time := 0
+        this.state := LKey.st_init
+        this.interrupted := false
+        this.saved_scaw := ""
     }
 
     /**
-     * 押し下げ処理の実体。指定された IME 状態と長押しモードに基づいて分岐処理を行います。
-     * @param {Boolean} ime_state - 現在の IME 状態
+     * 押し下げ処理の実体（タイマーのセットや即時送信）
      */
     _Down(ime_state) {
         long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
-        ; 2. 長押し機能が無効（モード 0）
-        if long_press_mode = 0 { ; || LKey.long_press_enabled = 0
-            this.SendKeyWithShift()
-            ;ToolTip("this.long_press_mode:" . this.long_press_mode)
-            return
-        }
 
-        ;キーリピートガード
-        if this.pressed_time != 0 {
-            return
-        }
-        this.pressed_time := A_TickCount
+        switch long_press_mode {
+            case 1: ; 短押し->即時送信、長押し->置換
+                this.SendKeyWithShift()
+                SetTimer(this.timer_name, -LKey.long_press_th)
 
-        ; モード 3 (短押し時のみ入力) の特殊処理
-        if long_press_mode = 3 {
-            mod_str := MakeModStr()
-            if (this.Wait() == 0) {
-                SendAndLog(mod_str . this.key_text)
-            }
-            ;ToolTip("this.long_press_mode:" . this.long_press_mode)
-            return
-        }
-        ; モード 1 の場合、まず「短押し用キー」を即座に送信する
-        ; （長押し確定時に Backspace で消去して置換する）
-        if long_press_mode = 1 {
-            this.SendKeyWithShift()
-            if (this.Wait() == 1) {
-                Send("{Backspace}")
-                this.SendShiftedKey(true) ;
-                return
-            }
-        }
+            case 3: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
+                ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
+                this.saved_scaw := MakeModStr()
 
-        if long_press_mode = 4 {
-            this.SendKeyWithShift()
-            return
+            case 4: ; 短押し->即時送信、長押し->修飾キー
+                this.SendKeyWithShift()
+
+            case 6: ; カスタム即時置換 (予約)
+                this.SendKeyWithShift()
+                SetTimer(this.timer_name, -LKey.long_press_th)
         }
-        ; if long_press_mode = 5 {
-        ;     ;if (this.Wait(-1) != 2) {
-        ;     ;0:短押し 1:長押し 2:他のキーが押された
-        ;     if (this.Wait(-1) != 1) {
-        ;         this.SendKeyWithShift()
-        ;         return
-        ;     }
-        ; }
     }
 
-    ; _Up() {
-    ;     ;Critical
-    ;     ; if (this.pressed_time = 0) {
-    ;     ;     return
-    ;     ; }
+    /**
+     * モード1 / モード6 の長押し確定用タイマーコールバック
+     */
+    OnLongPressTimeout() {
+        Critical
+        ; 指がまだ物理的に押されており、かつ他のキーの割り込みがない場合のみ実行
+        if (this.state == LKey.st_pressing && !this.interrupted && this.IsPressed()) {
 
-    ;     ; now := A_TickCount
-    ;     ; duration := now - this.pressed_time
-    ;     ; is_long := (duration >= LKey.long_press_th)
+            ime_state := this.down_ime_state
+            long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
 
-    ;     ; モード 3: 短押しだった場合のみキーを送信
-    ;     ; if this.long_press_mode = 3 {
-    ;     ;     ; 他のキーが間に押されておらず、かつタイムアウト内であれば送信
-    ;     ;     if !is_long && (RKey.last_key == this.org_key) {
-    ;     ;         ;SendAndLog("{Blind}" . this.mod_str . this.org_key)
-    ;     ;         SendAndLog(this.mod_str . this.key_text)
-    ;     ;     }
-    ;     ;     this.pressed_time := 0
-    ;     ;     return
-    ;     ; }
+            if (long_press_mode == 1) {
+                ; 送信済みの1文字をBackspaceで消去し、Shift版を再送信して置換
+                Send("{Backspace}")
+                this.SendShiftedKey(true)
+            }
+            else if (long_press_mode == 6) {
+                ; モード6用のカスタム置換（必要に応じて拡張可能）
+                Send("{Backspace}")
+                ; 例: 特定のカスタムキーを送信するなど
+            }
 
-    ;     ; モード 1, 2 の共通処理
-    ;     ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
-    ;     ; if RKey.last_key == this.org_key {
-    ;     ;     ; モード 1: 長押し確定時に既存文字を消去して置換
-    ;     ;     if this.long_press_mode == 1 {
-    ;     ;         if is_long {
-    ;     ;             Send("{Backspace}")
-    ;     ;             this.SendShiftedKey(true) ; 長押しアクション（Shift版）を実行
-    ;     ;         }
-    ;     ;     }
-    ;     ;     ; モード 2: 長押し・短押しに関わらず Up 時には何もしない
-    ;     ; }
-    ;     ; モード2の場合、何もしない
-
-    ;     ; 内部状態のリセット
-    ;     this.pressed_time := 0
-    ; }
-} ;class LKey
+            ; 長押し処理が確定したため、processed 状態へ移行（Upまでロック）
+            this.state := LKey.st_processed
+        }
+        this.timer_cb := ""
+    }
+}
 
 ; ============================================================================
 ; キーオブジェクトの生成
@@ -2385,20 +2358,6 @@ class Layers {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for i, item in arr {
             layer_id := item.layer_id
-            ;mod_key := mod_key_list[i]
-            ; if Layers.State(layer_id) {
-            ;     ; 自身がレイヤーキーの場合はレイヤー処理をスキップ
-            ;     if (layer_id == L_SHIFT && key_obj == space) ||
-            ;     (layer_id == L_NUMPAD && key_obj == tab) ||
-            ;     (layer_id == L_SYMBOL_NUM && key_obj == noconv) ||
-            ;     (layer_id == L_SYMBOL1 && key_obj == conv) ||
-            ;     (layer_id == L_SYMBOL2 && key_obj == f14) ||
-            ;     ((layer_id == L_NAVI_CTRL || layer_id == L_SELECT) && key_obj == f13)
-            ;         continue
-
-            ;     this._SendKey(layer_id, item.action, key_obj)
-            ;     return true
-            ; }
             if Layers.State2(layer_id, key_obj) {
                 this._SendKey(layer_id, item.action, key_obj)
                 return true
