@@ -56,7 +56,7 @@
 ; ============================================================================
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
 ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
-SetKeyDelay -1 ; キー入力後のディレイをなしに設定
+;SetKeyDelay; キー入力後のディレイをなしに設定
 ListLines 0
 SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
 
@@ -250,13 +250,23 @@ WriteConfig(value, section, key) {
 }
 
 /**
- * Shiftキーが物理的に押されているかを取得する
- * @returns {Boolean} Shiftが押されていれば true
+ * Shiftキーが物理的に押されているか、またはSpaceキーがシフト修飾として機能しているかを判定します。
+ * @param {Object} key_obj - 判定対象のキーオブジェクト
+ * @returns {Boolean} Shift状態（SandS含む）であれば true
  */
-IsPhysicalShiftPressed() {
+IsPhysicalShiftPressed(key_obj) {
     ;global shift_lambda
     ;return shift_lambda()
-    return GetKeyState("Shift", "P") || space.IsPressed()
+    
+    ; 物理Shiftキーが押されている場合
+    if GetKeyState("Shift", "P")
+        return true
+        
+    ; 判定対象のキー自身がSpaceキーではなく、かつSpaceキーが押されている場合 (SandS機能)
+    if (key_obj != space && space.IsPressed())
+        return true
+        
+    return false
 }
 
 /*
@@ -1149,10 +1159,10 @@ SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
         return
     }
     ime_on := ime_state == -1 ? ImeState.IsOn() : ime_state == 1
-    if (!ime_on || key_ime_on == "") {
-        SendAndLog(key_ime_off)
-    } else {
+    if (ime_on) {
         SendAndLog(key_ime_on)
+    } else {
+        SendAndLog(key_ime_off)
     }
 }
 
@@ -1648,7 +1658,7 @@ class RKey {
      * @returns {Boolean} 送信されたキーが Shift 版である場合は true
      */
     SendKeyWithShift() {
-        return this.SendShiftedKey(IsPhysicalShiftPressed())
+        return this.SendShiftedKey(IsPhysicalShiftPressed(this))
     }
 
     /**
@@ -1679,7 +1689,7 @@ class RKey {
         if this._SendCAWKey(pressed_key) {
             return true
         }
-        this.SendShiftedKey(IsPhysicalShiftPressed())
+        this.SendShiftedKey(IsPhysicalShiftPressed(this))
         return false
     }
 
@@ -1871,6 +1881,29 @@ class LKey extends RKey {
             this._Down(ime_state, long_press_mode)
         }
     }
+    /**
+     * 押し下げ処理の実体（タイマーのセットや即時送信）
+     */
+    _Down(ime_state, long_press_mode) {
+        ;long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
+
+        switch long_press_mode {
+            case 1: ; 短押し->即時送信、長押し->置換
+                this.SendKeyWithShift()
+                SetTimer(this.timer_name, -LKey.long_press_th)
+
+            case 3: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
+                ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
+                this.saved_scaw := MakeModStr()
+
+            case 4: ; 短押し->即時送信、長押し->修飾キー
+                this.SendKeyWithShift()
+
+            case 6: ; カスタム即時置換 (予約)
+                this.SendKeyWithShift()
+                SetTimer(this.timer_name, -LKey.long_press_th)
+        }
+    }
 
     /**
      * キー離し時の処理
@@ -1913,30 +1946,6 @@ class LKey extends RKey {
         this.state := LKey.st_init
         this.interrupted := false
         this.saved_scaw := ""
-    }
-
-    /**
-     * 押し下げ処理の実体（タイマーのセットや即時送信）
-     */
-    _Down(ime_state, long_press_mode) {
-        ;long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
-
-        switch long_press_mode {
-            case 1: ; 短押し->即時送信、長押し->置換
-                this.SendKeyWithShift()
-                SetTimer(this.timer_name, -LKey.long_press_th)
-
-            case 3: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
-                ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
-                this.saved_scaw := MakeModStr()
-
-            case 4: ; 短押し->即時送信、長押し->修飾キー
-                this.SendKeyWithShift()
-
-            case 6: ; カスタム即時置換 (予約)
-                this.SendKeyWithShift()
-                SetTimer(this.timer_name, -LKey.long_press_th)
-        }
     }
 
     /**
@@ -2340,22 +2349,22 @@ class Layers {
         Layers._Add(this.arr, Layers.LayerItem(layer_id, action))
     }
 
-    /**
-     * 指定されたキーが押された際、いずれかのレイヤーがアクティブであればそのレイヤーアクションを送信します。
-     * @param {Object} key_obj - トリガーされたキーオブジェクト
-     * @param {Boolean} ime_state - 現在の IME 状態
-     * @returns {Boolean} レイヤーキーとして送信された場合は true
-     */
-    _SendLayerKey(arr, key_obj, ime_state) {
-        for i, item in arr {
-            layer_id := item.layer_id
-            if Layers.State2(layer_id, key_obj) {
-                this._SendKey(layer_id, item.action, key_obj)
-                return true
-            }
-        }
-        return false
-    }
+    ; /**
+    ;  * 指定されたキーが押された際、いずれかのレイヤーがアクティブであればそのレイヤーアクションを送信します。
+    ;  * @param {Object} key_obj - トリガーされたキーオブジェクト
+    ;  * @param {Boolean} ime_state - 現在の IME 状態
+    ;  * @returns {Boolean} レイヤーキーとして送信された場合は true
+    ;  */
+    ; _SendLayerKey(arr, key_obj, ime_state) {
+    ;     for i, item in arr {
+    ;         layer_id := item.layer_id
+    ;         if Layers.State2(layer_id, key_obj) {
+    ;             this._SendKey(layer_id, item.action, key_obj)
+    ;             return true
+    ;         }
+    ;     }
+    ;     return false
+    ; }
 
     /**
      * 具体的なレイヤーアクションの送信を処理します（内部ヘルパー）。
@@ -2375,21 +2384,21 @@ class Layers {
         }
     }
 
-    /**
-     * 現在アクティブなレイヤーキーの押し下げ時間をチェックする
-     * 押し下げから 100ms 以内であれば、高速タイピング時の同時押しとみなしてレイヤー判定をスキップする
-     */
-    IsLayerActive(arr, key_obj) {
-        for item in arr {
-            mod_key := mod_key_list[item.layer_id]
-            if (mod_key != key_obj && mod_key.IsPressed()) {
-                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
-                    return true
-                }
-            }
-        }
-        return false
-    }
+    ; /**
+    ;  * 現在アクティブなレイヤーキーの押し下げ時間をチェックする
+    ;  * 押し下げから 100ms 以内であれば、高速タイピング時の同時押しとみなしてレイヤー判定をスキップする
+    ;  */
+    ; IsLayerActive(arr, key_obj) {
+    ;     for item in arr {
+    ;         mod_key := mod_key_list[item.layer_id]
+    ;         if (mod_key != key_obj && mod_key.IsPressed()) {
+    ;             if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
+    ;                 return true
+    ;             }
+    ;         }
+    ;     }
+    ;     return false
+    ; }
 
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
@@ -3220,10 +3229,6 @@ init_layer() {
  */
 init() {
     start := Timer()
-
-    for i, keyObj in LAYOUT_KEYS {
-        keyObj.long_press_mode := 1
-    }
 
     init_layer()
     LoadLayoutConfig()
