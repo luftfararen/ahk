@@ -1590,14 +1590,9 @@ class RKey {
      * @param {Boolean} ime_state - 現在の IME 状態
      * @returns {Boolean} レイヤーキーが送信された場合は true
      */
-    SendLayerKey0(ime_state) {
+    SendLayerKey(ime_state) {
         ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        if this.layers.IsLayerActive(this) {
-            if this.layers.SendLayerKey(this, ime_state) {
-                return true
-            }
-        }
-        return false
+        return this.layers.SendLayerKey(this, ime_state)
     }
 
     /**
@@ -1840,50 +1835,41 @@ class LKey extends RKey {
         ime_state := ImeState.IsON()
         long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
 
-        ; --- モード 0 の特殊処理 (キーリピートを許可する) ---
-        if (long_press_mode == 0) {
-            if super.SendLayerKey0(ime_state) {
-                return
-            }
-            ; 修飾キー (Ctrl/Alt/Win) が押されている場合はバイパス
-            if super._SendCAWKey(this.org_key) {
-                return
-            }
-            ; 標準リマップ送信（OSのリピートをそのまま通す）
-            this.SendKeyWithShift()
+        ; --- リピートガード (モード 1〜6 用) ---
+        if (long_press_mode != 0 && (this.state == LKey.st_pressing || this.state == LKey.st_processed)) {
             return
         }
-
-        ; --- モード 1〜6 のリピートガード ---
-        ; すでに押し込み中、または長押し確定済みのリピートイベントは完全に無視
-        if (this.state == LKey.st_pressing || this.state == LKey.st_processed) {
-            return
-        }
-
-        ; 状態の初期化
-        this.interrupted := false
-        this.pressed_time := A_TickCount
-        this.down_ime_state := ime_state
-
-        ; 他のキーに「自分が押された」ことを通知（同時押し割り込み）
-        LKey.InterruptOthers(this)
 
         ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        if super.SendLayerKey0(ime_state) {
-            this.state := LKey.st_processed
+        if super.SendLayerKey(ime_state) {
+            if (long_press_mode != 0) {
+                LKey.InterruptOthers(this)
+                this.state := LKey.st_processed
+            }
             return
         }
 
-        ; 修飾キー (Ctrl/Alt/Win) が押されている場合はバイパスして終了
+        ; 修飾キー (Ctrl/Alt/Win) パススルー判定
         if super._SendCAWKey(this.org_key) {
-            this.pressed_time := 0
-            this.state := LKey.st_processed
+            if (long_press_mode != 0) {
+                LKey.InterruptOthers(this)
+                this.pressed_time := 0
+                this.state := LKey.st_processed
+            }
             return
         }
 
-        ; 押し込み中状態へ遷移
-        this.state := LKey.st_pressing
-        this._Down(ime_state, long_press_mode)
+        ; 各モードに応じた処理の実行
+        if (long_press_mode == 0) {
+            this.SendKeyWithShift()
+        } else {
+            this.interrupted := false
+            this.pressed_time := A_TickCount
+            this.down_ime_state := ime_state
+            LKey.InterruptOthers(this)
+            this.state := LKey.st_pressing
+            this._Down(ime_state, long_press_mode)
+        }
     }
 
     /**
@@ -2271,33 +2257,34 @@ class Layers {
     /**
      * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを厳密に判定します。
      * @param {Integer} layer - レイヤーID
+     * @param {Array} arr - レイヤーアイテム配列
      * @param {Object} key_obj - 処理対象のキーオブジェクト
      * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
      */
-    static State2(layer, key_obj) {
+    static State2(layer_id, key_obj) {
         ; Check the specified layer
-        if layer = L_NAVI_CTRL {
+        if layer_id = L_NAVI_CTRL {
             if f13 = key_obj
                 return false
             if noconv = key_obj
                 return false
             return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
         }
-        if layer = L_SYMBOL_NUM {
+        if layer_id = L_SYMBOL_NUM {
             if noconv = key_obj
                 return false
             if f13 = key_obj
                 return false
             return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
         }
-        if layer = L_SELECT {
+        if layer_id = L_SELECT {
             if f13 = key_obj
                 return false
             if noconv = key_obj
                 return false
             return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
         }
-        key := mod_key_list[layer]
+        key := mod_key_list[layer_id]
         if key = key_obj
             return false
         return key.IsPressed()
@@ -2359,8 +2346,7 @@ class Layers {
      * @param {Boolean} ime_state - 現在の IME 状態
      * @returns {Boolean} レイヤーキーとして送信された場合は true
      */
-    SendLayerKey(key_obj, ime_state) {
-        arr := ime_state == 1 ? this.ime_arr : this.arr
+    _SendLayerKey(arr, key_obj, ime_state) {
         for i, item in arr {
             layer_id := item.layer_id
             if Layers.State2(layer_id, key_obj) {
@@ -2393,11 +2379,30 @@ class Layers {
      * 現在アクティブなレイヤーキーの押し下げ時間をチェックする
      * 押し下げから 100ms 以内であれば、高速タイピング時の同時押しとみなしてレイヤー判定をスキップする
      */
-    IsLayerActive(key_obj) {
-        for mod_key in mod_key_list {
+    IsLayerActive(arr, key_obj) {
+        for item in arr {
+            mod_key := mod_key_list[item.layer_id]
             if (mod_key != key_obj && mod_key.IsPressed()) {
                 if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
                     return true
+                }
+            }
+        }
+        return false
+    }
+
+    SendLayerKey(key_obj, ime_state) {
+        arr := ime_state == 1 ? this.ime_arr : this.arr
+        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        ;return this.IsLayerActive(arr, key_obj) && this._SendLayerKey(arr, key_obj, ime_state)
+        for item in arr {
+            mod_key := mod_key_list[item.layer_id]
+            if (mod_key != key_obj && mod_key.IsPressed()) {
+                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
+                    if Layers.State2(item.layer_id, key_obj) {
+                        this._SendKey(item.layer_id, item.action, key_obj)
+                        return true
+                    }
                 }
             }
         }
@@ -2918,6 +2923,8 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination(rm["s"], rm["t"], "ite", mode) ;して
     RegistIMECombination(rm["s"], r, "areru", mode) ;される
     RegistIMECombination(rm["r"], r, "areru", mode) ;られる
+    RegistIMECombination(rm["k"], rm["t"], "oto", mode) ;こと
+    RegistIMECombination(rm[z], v, "zyouhou", mode) ;
     ; RegistIMECombination(rm["a"], rm["i"], "i", mode) ;あい
     ; RegistIMECombination(rm["e"], rm["i"], "i", mode) ;えい
 }
@@ -2931,11 +2938,20 @@ ChangeFMIX13_minato_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
+RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
+    key_obj.SetLahyerKey(Layers.Index(layer_key_obj), text)
+    layer_key_obj.SetMode(mode, -1)
+}
+
 /**
  * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
+
+    ; RegistCombination(f, d, "h", 4)
+    ; RegistCombination(r, f, "e", 4)
+
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
