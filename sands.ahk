@@ -56,7 +56,7 @@
 ; ============================================================================
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
 ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
-;SetKeyDelay; キー入力後のディレイをなしに設定
+SetKeyDelay(15, 5)
 ListLines 0
 SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
 
@@ -257,15 +257,15 @@ WriteConfig(value, section, key) {
 IsPhysicalShiftPressed(key_obj) {
     ;global shift_lambda
     ;return shift_lambda()
-    
+
     ; 物理Shiftキーが押されている場合
     if GetKeyState("Shift", "P")
         return true
-        
+
     ; 判定対象のキー自身がSpaceキーではなく、かつSpaceキーが押されている場合 (SandS機能)
     if (key_obj != space && space.IsPressed())
         return true
-        
+
     return false
 }
 
@@ -1961,12 +1961,12 @@ class LKey extends RKey {
 
             if (long_press_mode == 1) {
                 ; 送信済みの1文字をBackspaceで消去し、Shift版を再送信して置換
-                Send("{Backspace}")
+                SendEvent("{Backspace}")
                 this.SendShiftedKey(true)
             }
             else if (long_press_mode == 6) {
                 ; モード6用のカスタム置換（必要に応じて拡張可能）
-                Send("{Backspace}")
+                SendEvent("{Backspace}")
                 ; 例: 特定のカスタムキーを送信するなど
             }
 
@@ -2209,6 +2209,9 @@ mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
  * キーボードレイヤーの状態管理と、レイヤーキー送信の差分ロジックをカプセル化するクラスです。
  */
 class Layers {
+
+    static press_th := 100
+
     /**
      * レイヤーにバインドされた個々のアクションを保持するインナークラスです。
      */
@@ -2407,7 +2410,7 @@ class Layers {
         for item in arr {
             mod_key := mod_key_list[item.layer_id]
             if (mod_key != key_obj && mod_key.IsPressed()) {
-                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
+                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > Layers.press_th) {
                     if Layers.State2(item.layer_id, key_obj) {
                         this._SendKey(item.layer_id, item.action, key_obj)
                         return true
