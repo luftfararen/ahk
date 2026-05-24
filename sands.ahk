@@ -2951,7 +2951,7 @@ ChangeFMIX13_minato_Layout() {
 }
 
 RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
-    key_obj.SetLahyerKey(Layers.Index(layer_key_obj), text)
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text)
     layer_key_obj.SetMode(mode, -1)
 }
 
