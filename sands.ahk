@@ -224,8 +224,6 @@ B_F12 := "{Blind}{F12}"
 ; GLOBAL FUNCTIONS
 ; ============================================================================
 
-;shift_lambda := () => GetKeyState("Shift", "P")
-
 /**
  * 指定されたセクションとキーから設定を読み込みます。
  * @param {String} section - セクション名
@@ -320,7 +318,7 @@ GetFocusedControlHandle() {
  * 特定のウィンドウの IME (Input Method Editor) 状態を設定する
  * @param {Ptr} hwnd - 対象ウィンドウハンドル
  * @param {Integer} state - 設定したい状態 (1: ON, 0: OFF)
- * @returns {LParam} DllCall の結
+ * @returns {LParam} DllCall の結果
  */
 SetImeStatus(hwnd, state) {
     return DllCall("SendMessage"
@@ -416,7 +414,7 @@ class ImeState {
         ; 同じウィンドウであれば強制フラグを確認
         if last_active_hwnd = hwnd {
             if ImeState.force_ime_on {
-                cached_state := true
+                ImeState.cached_state := true
                 ImeState.RecordCheck()
                 return true
             }
@@ -915,9 +913,6 @@ class KeyLogger {
                     char := " "
                 }
             }
-            ; よく使う記号のスキャンコードを文字に変換
-            ;char := char_from_sc_map.Get(char, char)
-
             if char = ""
                 continue
 
@@ -1300,8 +1295,6 @@ m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
 m_gui.BackColor := color_japanese
 WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
 
-;DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr") ; DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
-
 /**
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
  */
@@ -1361,30 +1354,18 @@ TimerEvent() {
     }
 
     UpdateImeIndicator()
-    ;static mouse_state := 0
-    ; if A_TimeIdleMouse < 300 { ;マウス操作時のみ処理時
-    ;     if (mouse_state == 0) {
-    ;         ;マウス操作でアクティブウィンドウが変わるため
-    ;         ;前回のIME状態チェックから一定時間の経過後チェック
-    ;         ImeState.SetMode(1, 500)
-    ;     }
-    ;     UpdateImeIndicator()
-    ;     mouse_state := 1
-    ; } else { ;マウス操作終了時
-    ;     if (mouse_state == 1) {
-    ;         ;キー入力に備えて設定
-    ;         ;前回のキー入力から一定時間の経過後チェック
-    ;         ;キーによるIME状態変更をフックしているので、
-    ;         ;そもそもキー押下時のチェックは不要だが、念のため
-    ;         ImeState.SetMode(0, 1000)
-    ;     }
-    ;     mouse_state := 0
-    ; }
 
     ; 20秒以上操作がない場合、ログを保存
     if (mod(counter, 100) == 0) {
         KeyLogger.SaveIfIdle(A_TimeIdlePhysical)
     }
+
+    ; 100msごとにキーロガーの最大処理時間をリセットして一時的な遅延スパイクから復帰可能にする
+    if KeyLogger.total_log_time > 0 {
+        KeyLogger.total_log_time2 := Max(KeyLogger.total_log_time2, KeyLogger.total_log_time)
+        KeyLogger.total_log_time := 0
+    }
+
     counter++
 }
 
@@ -1842,7 +1823,8 @@ class LKey extends RKey {
      * キー押し下げ時の処理
      */
     Down() {
-        ime_state := ImeState.IsON()
+        Critical
+        ime_state := ImeState.IsOn()
         long_press_mode := (ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
 
         ; --- リピートガード (モード 1〜6 用) ---
@@ -1909,8 +1891,9 @@ class LKey extends RKey {
      * キー離し時の処理
      */
     Up() {
+        Critical
         ; モード0の場合はタイマー等がないため単純に初期化して終了
-        ime_state := ImeState.IsON()
+        ime_state := ImeState.IsOn()
         long_press_mode := (this.pressed_time == 0) ? ((ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org
         ) : ((this.down_ime_state == 1) ? this.long_press_mode_ime_org : this.long_press_mode_org)
 
@@ -1973,22 +1956,12 @@ class LKey extends RKey {
             ; 長押し処理が確定したため、processed 状態へ移行（Upまでロック）
             this.state := LKey.st_processed
         }
-        this.timer_cb := ""
     }
 }
 
 ; ============================================================================
 ; キーオブジェクトの生成
 ; ============================================================================
-
-; --- モディファイアキー (MKey) ---
-; f13 := MKey("")
-; space := MKey(R_SPACE)
-; tab := MKey(R_TAB)
-; noconv := MKey(R_NOCONV)
-; conv := MKey(R_ENTER)
-; f14 := MKey(R_ZENKAKU)
-; colon := LKey(C_COLON, 2)
 
 f13 := LKey("f13", 3, C_TAB)
 space := LKey(R_SPACE, 3, C_SPACE)
@@ -2181,6 +2154,8 @@ LoadLayoutConfig() {
             case "FMIX14-14R": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
             case "FMIX13f-Minato": ChangeFMIX13f_minato_Layout()
+            case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
+            case "FMIX13f2-Minato": ChangeFMIX13f2_minato_Layout()
             case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
@@ -2431,8 +2406,22 @@ LoadLayoutFromIni(index) {
     global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
     name := ReadConfig(index, "name", "")
     if name = "" {
-        ChangeQwertyLayout()
-        return
+        ; index がセクション名ではなくレイアウト名である場合の検索処理
+        found := false
+        loop 21 {
+            sec := String(A_Index - 1)
+            sec_name := ReadConfig(sec, "name", "")
+            if sec_name = index {
+                index := sec
+                name := sec_name
+                found := true
+                break
+            }
+        }
+        if !found {
+            ChangeQwertyLayout()
+            return
+        }
     }
     ver := ReadConfig(index, "ver", "1")
     if ver = 1 {
@@ -2474,10 +2463,10 @@ ApplyLayoutFromIni(index) {
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := ReadConfig(name, "ImeLayout", "")
-    ime_num := ReadConfig(name, "ImeNum", "")
-    ime_shift_layout := ReadConfig(name, "ImeShiftLayout", "")
-    ime_shift_num := ReadConfig(name, "ImeShiftNum", "")
+    ime_layout := ReadConfig(index, "ImeLayout", "")
+    ime_num := ReadConfig(index, "ImeNum", "")
+    ime_shift_layout := ReadConfig(index, "ImeShiftLayout", "")
+    ime_shift_num := ReadConfig(index, "ImeShiftNum", "")
 
     if (ime_layout != "" || ime_num != "" || ime_shift_layout != "" || ime_shift_num != "") {
         if (ime_layout == "")
@@ -2936,9 +2925,7 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination(rm["s"], r, "areru", mode) ;される
     RegistIMECombination(rm["r"], r, "areru", mode) ;られる
     RegistIMECombination(rm["k"], rm["t"], "oto", mode) ;こと
-    RegistIMECombination(rm[z], v, "zyouhou", mode) ;
-    ; RegistIMECombination(rm["a"], rm["i"], "i", mode) ;あい
-    ; RegistIMECombination(rm["e"], rm["i"], "i", mode) ;えい
+    RegistIMECombination(z, v, "youhou", mode) ;
 }
 
 /**
@@ -2963,6 +2950,23 @@ ChangeFMIX13f_minato_Layout() {
 
     ; RegistCombination(f, d, "h", 4)
     ; RegistCombination(r, f, "e", 4)
+
+    ChangeMinatoLayoutImpl()
+    ShowOSD(KeyLogger.current_layout . " layout")
+}
+
+/**
+ * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
+ChangeFMIX13f2_minato_Layout() {
+    StoreLayout("FMIX13f2-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
+
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.SetMode(0, -1)
+    }
+
+    RegistCombination(f, d, "h", 4)
+    RegistCombination(e, r, "e", 4)
 
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
@@ -3275,6 +3279,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ;#d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13f_FMIX14fR_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
+#x:: ChangeFMIX13f2_minato_Layout()
 #n:: ChangeFMIX13fie_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
