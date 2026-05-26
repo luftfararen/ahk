@@ -1722,7 +1722,7 @@ class RKey {
 
 /*============================================================================
  [Class] LKey (長押し対応リマップキー)
- RKey を拡張し、長押しと短押しとで応じたアクションを追加します。
+ RKey を拡張し、長押し(Hold)と短押し(Tap)とで応じたアクションを追加します。
 長押しは、モードに応じて挙動が異なり、送信されるキーが切り替えられたり、
 あるいは何も送信されず、修飾キーとして利用されたりします。
 
@@ -1731,7 +1731,7 @@ class RKey {
 長押し判定を行わない標準的なリマップ。IME状態に応じて送信されるキーが変わる。
 キーリピートは有効 。
 
-・モード 1：短押し->リマップキー送信(down時)　長押し->置換
+・モード 1：短押し->リマップキー送信(down時)　長押し->シフト文字置換
 押し下げ時に即座にリマップキーを送信する。IME状態に応じて送信されるキーが変わる。
 一定時間以上の長押しされていた場合、送信済みの文字を Backspace で消去し、
 Shift 版（または指定キー）を再送信して置換する。
@@ -1739,7 +1739,7 @@ Shift 版（または指定キー）を再送信して置換する。
 
 ・モード 2：短押し、長押し->未送信(修飾キー利用)
 押し下げ・離し時の出力を完全に抑制し、純粋なレイヤー切り替え等の修飾キーとして利用される。
-モードの違いを明確化するために、短押し、長押しという表現を使っているが、
+モードの違いを明確化するために、説明では、短押し、長押しという表現を使っているが、
 このモードにおいてはその区別はない。
 キーリピートは無効化される 。
 
@@ -1756,13 +1756,13 @@ IME状態に依存しない。
 キーリピートは無効化される 。
 キー送信後、キーが押され続けている間、修飾キーとして機能する 。
 
-・モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
 up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
 長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
 IME状態に応じて送信されるキーが変わる。
 キーリピートは無効化される 。
 
-・モード 6：
+・（実験・予約）モード 6：
 押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
 ---
 ■ 共通仕様および制約
@@ -2732,10 +2732,12 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
     l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
     for i, keyObj in LAYOUT_NUM_KEYS {
         keyObj.SetKey(l_num.GetElement(i), l_snum.GetElement(i))
+        keyObj.SetMode(1, 0)
     }
     l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_CHAR_KEYS {
         keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
+        keyObj.SetMode(1, 0)
     }
 }
 
@@ -2774,6 +2776,7 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\
     l := LayoutString(layout), ls := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_KEYS {
         keyObj.SetKey(l.GetElement(i), ls.GetElement(i))
+        keyObj.SetMode(1, 0)
     }
 }
 
@@ -2801,6 +2804,7 @@ StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
         if (!shift_map.Has(key_text))
             shift_map[key_text] := ""
         keyObj.SetKey(layout_map[key_text], shift_map[key_text])
+        keyObj.SetMode(1, -1)
     }
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
@@ -2812,6 +2816,7 @@ StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
         if (!ime_shift_map.Has(key_text))
             ime_shift_map[key_text] := ""
         keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
+        keyObj.SetMode(-1, 0)
     }
 }
 
@@ -2990,8 +2995,10 @@ ChangeFMIX13f2_minato_Layout() {
     }
 
     RegistCombination(f, d, "h", 4) ;th
+    RegistCombination(f, e, "e", 4) ;te
     RegistCombination(e, r, "{Backspace}er", 4) ;er
     RegistCombination(r, e, "{Backspace}re", 4) ;re
+    RegistCombination(s, e, "e", 4) ;se
 
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
