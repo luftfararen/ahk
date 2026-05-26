@@ -515,6 +515,13 @@ RemoveBraces(key) {
  * 指定されたキー文字列に修飾記号 (+, ^, !, #, {Blind}) が含まれているか確認。
  */
 HasModifierSymbols(text) {
+    ; 単体の "{+}" や "{^}" などの場合は修飾記号ありとみなさない
+    if IsSingleBraceText(text) {
+        inner := SubStr(text, 2, StrLen(text) - 2)
+        if (inner == "+" || inner == "^" || inner == "!" || inner == "#") {
+            return false
+        }
+    }
     list := ["{Blind}", "+", "#", "^", "!"]
     for item in list {
         if InStr(text, item, false) > 0 {
@@ -633,12 +640,34 @@ ResolveKeyText(str) {
 }
 
 /**
+ * INIや定義から読み込んだ値を、AHKのSendで安全に動作する形式にパースします。
+ * @param {String} raw_str - 変換対象の文字列 (例: "*", "+", "ctrl")
+ * @returns {String} パース済みの文字列 (例: "{*}", "{+}", "ctrl")
+ */
+ParseIniValue(raw_str) {
+    ; AutoHotkeyのSendにおいて、1文字で書くと修飾キー化や誤動作する危険な記号リスト
+    static ahk_special_chars := ["+", "^", "!", "#", "{", "}", "*", "?", "<", ">", "=", "``", ";"]
+
+    if (StrLen(raw_str) == 1) {
+        for char in ahk_special_chars {
+            if (raw_str == char) {
+                return "{" . raw_str . "}"
+            }
+        }
+    }
+    return raw_str
+}
+
+/**
  * 【送信コマンドの構築】
  * 解決済みのキー表記に、修飾記号などを付与して「Send関数用」の最終文字列を作る。
  */
 BuildSendText(text, prefix := "") {
     if text == "" || text == "{none}"
         return ""
+
+    text := ParseIniValue(text)
+
     if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
         return text
     if (StrLen(text) == 1 || IsSingleBraceText(text)) {
@@ -2397,7 +2426,16 @@ class Layers {
     }
 
 }
-;
+
+RegistIMECombination(layer_key_obj, key_obj, text, mode := 4) {
+    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text)
+    layer_key_obj.SetMode(-1, mode)
+}
+
+RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, false)
+    layer_key_obj.SetMode(mode, -1)
+}
 
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
@@ -2863,11 +2901,6 @@ ChangeFMIX13f_FMIX14fR_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-RegistIMECombination(layer_key_obj, key_obj, text, mode := 4) {
-    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text)
-    layer_key_obj.SetMode(-1, mode)
-}
-
 /**
  * 湊（みなと）配列に特有な IME ON 時の差分マッピング（複合母音キーの割り当てなど）を設定する共通ヘルパーです。
  */
@@ -2937,20 +2970,11 @@ ChangeFMIX13_minato_Layout() {
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
-RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
-    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text)
-    layer_key_obj.SetMode(mode, -1)
-}
-
 /**
  * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
-
-    ; RegistCombination(f, d, "h", 4)
-    ; RegistCombination(r, f, "e", 4)
-
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -2965,8 +2989,9 @@ ChangeFMIX13f2_minato_Layout() {
         keyObj.SetMode(0, -1)
     }
 
-    RegistCombination(f, d, "h", 4)
-    RegistCombination(e, r, "e", 4)
+    RegistCombination(f, d, "h", 4) ;th
+    RegistCombination(e, r, "{Backspace}er", 4) ;er
+    RegistCombination(r, e, "{Backspace}re", 4) ;re
 
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
