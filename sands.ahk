@@ -641,12 +641,14 @@ ResolveKeyText(str) {
 
 /**
  * INIや定義から読み込んだ値を、AHKのSendで安全に動作する形式にパースします。
+ * 1文字の危険な記号のみを波括弧で安全に隔離し、2文字以上のマクロ等はそのまま通します。
  * @param {String} raw_str - 変換対象の文字列 (例: "*", "+", "ctrl")
  * @returns {String} パース済みの文字列 (例: "{*}", "{+}", "ctrl")
  */
 ParseIniValue(raw_str) {
     ; AutoHotkeyのSendにおいて、1文字で書くと修飾キー化や誤動作する危険な記号リスト
-    static ahk_special_chars := ["+", "^", "!", "#", "{", "}", "*", "?", "<", ">", "=", "``", ";"]
+    static ahk_special_chars := ["+", "^", "!", "#", "{", "}", "*", "?", "<", ">", "=", "``", ";", ":", "@", "[", "]",
+        "¥", "\"]
 
     if (StrLen(raw_str) == 1) {
         for char in ahk_special_chars {
@@ -666,19 +668,20 @@ BuildSendText(text, prefix := "") {
     if text == "" || text == "{none}"
         return ""
 
+    ; すでに単一の波括弧で囲まれている形式（{scXXX}など）や、
+    ; {Blind}、あるいは意図的な修飾記号付きマクロの場合はパースをスキップ
+    if IsSingleBraceText(text) || InStr(text, "{Blind}", false) || HasModifierSymbols(text)
+        return text
+
+    ; 1文字の素の記号のみを安全にエスケープ
     text := ParseIniValue(text)
 
-    if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
-        return text
     if (StrLen(text) == 1 || IsSingleBraceText(text)) {
         return prefix . text
     }
     return text
 }
 
-/**
- * レイアウト文字列のパース補助
- */
 /**
  * レイアウト文字列のパース補助クラス。
  */
