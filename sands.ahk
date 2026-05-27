@@ -668,13 +668,14 @@ BuildSendText(text, prefix := "") {
     if text == "" || text == "{none}"
         return ""
 
-    ; すでに単一の波括弧で囲まれている形式（{scXXX}など）や、
-    ; {Blind}、あるいは意図的な修飾記号付きマクロの場合はパースをスキップ
-    if IsSingleBraceText(text) || InStr(text, "{Blind}", false) || HasModifierSymbols(text)
+    ; {Blind} や 意図的な修飾記号付きマクロの場合はそのまま返す
+    if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
         return text
 
-    ; 1文字の素の記号のみを安全にエスケープ
-    text := ParseIniValue(text)
+    ; 1文字の素の記号のみを安全にエスケープ（ただし単一波括弧の場合はスキップ）
+    if !IsSingleBraceText(text) {
+        text := ParseIniValue(text)
+    }
 
     if (StrLen(text) == 1 || IsSingleBraceText(text)) {
         return prefix . text
