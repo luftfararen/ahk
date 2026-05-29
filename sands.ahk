@@ -236,7 +236,15 @@ B_F12 := "{Blind}{F12}"
  */
 ReadConfig(section, key, defaultValue) {
     static ConfigPath := A_ScriptDir . "\config.ini"
-    return IniRead(ConfigPath, section, key, defaultValue)
+    val := IniRead(ConfigPath, section, key, defaultValue)
+    pos := InStr(val, Chr(32) . Chr(59))
+    if pos == 0 {
+        pos := InStr(val, "`t" . Chr(59))
+    }
+    if pos > 0 {
+        val := SubStr(val, 1, pos - 1)
+    }
+    return Trim(val)
 }
 
 /**
@@ -437,7 +445,8 @@ class ImeState {
         state := 0
         default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
         ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
-        DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0, "UInt",
+        DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
+            "UInt",
             0x0002, "UInt", 50, "Ptr*", &state := 0)
 
         ImeState.cached_state := (state != 0)
@@ -558,7 +567,7 @@ char_from_str_map := Map(
     "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine",
     "9",
     "zero", "0",
-    "space", "Space", "tab", "Tab", "enter", "Enter", "esc", "Esc"
+    "space", "space", "tab", "tab", "enter", "enter", "esc", "esc"
 )
 char_from_str_map.Default := ""
 
@@ -614,12 +623,14 @@ StrFromChar(c) {
 
 ; --- 統合ロジック関数 (INI入出力用) ---
 /**
- * INIファイルのエントリー名を作る: スキャンコードや文字を名前形式に変換
- * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "Enter"
+ * INIファイルのエントリー名を作る: スキャンコードや文字を小文字の名前形式に変換
+ * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "enter"
  */
 EntryName(sc) {
-    c := CharFromSc(StrLower(sc))
-    return StrFromChar(c)
+    sc_raw := RemoveBraces(sc)
+    c := CharFromSc(StrLower(sc_raw))
+    name := StrFromChar(RemoveBraces(c))
+    return StrLower(RemoveBraces(name))
 }
 
 /**
@@ -645,6 +656,25 @@ ResolveKeyText(str) {
     c := CharFromStr(str)
     ; 文字からスキャンコードを取得（スキャンコード化できない文字はそのまま返る想定）
     return ScFromChar(c)
+}
+
+/**
+ * 文字列名から対応する LKey/RKey オブジェクトを取得します。
+ */
+GetKeyObjByName(name) {
+    static key_map := Map()
+    if key_map.Count == 0 {
+        global QWERTY_CHARS, LAYOUT_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_SPECIAL_KEYS
+        for i, c in QWERTY_CHARS {
+            key_map[EntryName(c)] := LAYOUT_KEYS[i]
+        }
+        for i, c in LAYOUT_SPECIAL_NAMES {
+            key_map[c] := LAYOUT_SPECIAL_KEYS[i]
+        }
+    }
+    ; "f", "space", ";" 等を内部のエントリー名 ("semicolon"等) に正規化して取得
+    name := EntryName(name)
+    return key_map.Get(name, false)
 }
 
 /**
@@ -1499,10 +1529,11 @@ class MouseSpeed {
  * @returns {String} 修飾キーのプレフィックス記号文字列 (例: "+^")
  */
 MakeModStr() {
+    is_shift := IsPhysicalShiftPressed("")
     return (GetKeyState("LWin", "P") || GetKeyState("RWin", "P") ? "#" : "")
     . (GetKeyState("Alt", "P") ? "!" : "")
     . (GetKeyState("Ctrl", "P") ? "^" : "")
-    . (GetKeyState("Shift", "P") ? "+" : "")
+    . (is_shift ? "+" : "")
 }
 
 /*============================================================================
@@ -2211,9 +2242,11 @@ ResetIME() {
 LoadLayoutConfig() {
     try {
         try {
-            LKey.hold_th := Integer(ReadConfig("Settings", "HoldTh", String(
-                LKey
-                .hold_th)))
+            LKey.hold_th := Integer(ReadConfig("Settings", "HoldTh", String(LKey.hold_th)))
+        } catch {
+        }
+        try {
+            Layers.HoldTh := Integer(ReadConfig("Settings", "LayerHoldTh", String(Layers.HoldTh)))
         } catch {
         }
         layout_name := ReadConfig("Settings", "StartupLayout", "")
@@ -2261,7 +2294,7 @@ mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
  */
 class Layers {
 
-    static press_th := 100
+    static HoldTh := 150
 
     /**
      * レイヤーにバインドされた個々のアクションを保持するインナークラスです。
@@ -2465,7 +2498,7 @@ class Layers {
         for item in arr {
             mod_key := mod_key_list[item.layer_id]
             if (mod_key != key_obj && mod_key.IsPressed()) {
-                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > Layers.press_th) {
+                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > Layers.HoldTh) {
                     if Layers.State2(item.layer_id, key_obj) {
                         this._SendKey(item.layer_id, item.action, key_obj)
                         return true
@@ -2621,6 +2654,29 @@ class IniMap {
     }
 }
 
+ReadLayerKey(layout_map, section_text, prefix, ini_path) {
+    if section_text != "" {
+        prefix_len := StrLen(prefix)
+        for line in StrSplit(section_text, "`n", "`r") {
+            line := Trim(line)
+            if line == ""
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key_name := Trim(SubStr(line, 1, pos - 1))
+                if SubStr(key_name, 1, prefix_len) == prefix {
+                    map_key := SubStr(key_name, prefix_len + 1)
+                    val := Trim(SubStr(line, pos + 1))
+                    val := ResolveKeyText(val)
+                    if val != "" {
+                        layout_map.Set(map_key, val)
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * config.ini の指定されたセクションとプレフィックスに登録されている各キーマッピングを読み込み、マップを更新します。
  * QWERTY_CHARS に含まれるキーおよび特殊キーが順次読み込まれます。
@@ -2647,22 +2703,46 @@ ReadEachLayoutFromIni(layout_map, section, prefix := "", ini_path := "") {
         section_text := ""
     }
 
-    if section_text != "" {
-        full_prefix := prefix . "m_"
-        prefix_len := StrLen(full_prefix)
-        for line in StrSplit(section_text, "`n", "`r") {
-            line := Trim(line)
-            if line == ""
-                continue
-            pos := InStr(line, "=")
-            if pos > 0 {
-                key_name := Trim(SubStr(line, 1, pos - 1))
-                if SubStr(key_name, 1, prefix_len) == full_prefix {
-                    map_key := SubStr(key_name, prefix_len + 1)
-                    val := Trim(SubStr(line, pos + 1))
-                    val := ResolveKeyText(val)
-                    if val != "" {
-                        layout_map.Set(map_key, val)
+    ; レイアウトの定義は、m_プレフィクスのキーで設定
+    ReadLayerKey(layout_map, section_text, "m_", ini_path)
+}
+
+/**
+ * config.iniから指定されたプレフィックスのコンビネーション（同時押し）定義を読み込み、適用します。
+ */
+ApplyCombinationsFromIni(section, prefix, is_ime) {
+    try {
+        section_text := IniRead(A_ScriptDir . "\config.ini", section)
+    } catch {
+        return
+    }
+    prefix_len := StrLen(prefix)
+    for line in StrSplit(section_text, "`n", "`r") {
+        line := Trim(line)
+        if line == "" || SubStr(line, 1, 1) == ";"
+            continue
+
+        pos := InStr(line, "=")
+        if pos > 0 {
+            key_name := Trim(SubStr(line, 1, pos - 1))
+            if SubStr(key_name, 1, prefix_len) == prefix {
+                key_pair := SubStr(key_name, prefix_len + 1) ; 例: "f+d"
+                val := Trim(SubStr(line, pos + 1))
+                val := ResolveKeyText(val)
+                if val == ""
+                    continue
+
+                ; "修飾キー + 対象キー" を分割
+                keys := StrSplit(key_pair, "+")
+                if keys.Length == 2 {
+                    layer_obj := GetKeyObjByName(Trim(keys[1]))
+                    target_obj := GetKeyObjByName(Trim(keys[2]))
+
+                    if (layer_obj && target_obj) {
+                        if is_ime
+                            RegistIMECombination(layer_obj, target_obj, val, 4)
+                        else
+                            RegistCombination(layer_obj, target_obj, val, 4)
                     }
                 }
             }
@@ -2676,43 +2756,58 @@ ReadEachLayoutFromIni(layout_map, section, prefix := "", ini_path := "") {
  * @returns {Boolean} 読み込みと適用に成功した場合は true
  */
 ApplyLayoutFromIni2(section) {
-    ; 必須のレイアウト文字列を取得
+    ; 必須のレイアウト名を取得
     name := ReadConfig(section, "Name", "")
     if (name == "")
         return false
 
-    hold_mode := ReadConfig(section, "HoldMode", "1")
-    hold_mode_ime := ReadConfig(section, "HoldModeIme", "0")
+    ; IME-off / IME-on のセクション名を取得
+    layout_sec := ReadConfig(section, "Layout", "")
+    if (layout_sec == "") {
+        ; 後方互換性のためのフォールバック
+        layout_sec := section
+    }
+    layout_ime_sec := ReadConfig(section, "LayoutIME", layout_sec)
+
+    ; LKey のモード指定を取得
+    hold_mode := ReadConfig(layout_sec, "Mode", "1")
+    hold_mode_ime := (layout_ime_sec != "") ? ReadConfig(layout_ime_sec, "Mode", "0") : hold_mode
     SetLKeyMode(hold_mode, hold_mode_ime)
 
-    layout := ReadLayoutTextFromIni(section, "L")
+    ; 1. IME-off レイアウトの読み込み
+    layout := ReadLayoutTextFromIni(layout_sec, "L")
     if (layout == "")
         layout_map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
     else
         layout_map := MakeLayoutMap(layout)
-    ReadEachLayoutFromIni(layout_map, section, "")
+    ReadEachLayoutFromIni(layout_map, layout_sec, "")
 
-    shift_layout := ReadLayoutTextFromIni(section, "S")
+    shift_layout := ReadLayoutTextFromIni(layout_sec, "S")
     if (shift_layout == "")
         shift_map := Map()
     else
         shift_map := MakeLayoutMap(shift_layout)
-    ReadEachLayoutFromIni(shift_map, section, "s_")
+    ReadEachLayoutFromIni(shift_map, layout_sec, "s_")
 
-    ; IME ON 時の個別設定があれば読み込む
-    ime_layout := ReadLayoutTextFromIni(section, "I")
-    if (ime_layout == "")
+    ; 2. IME-on レイアウトの読み込み
+    if (layout_ime_sec != "") {
+        ime_layout := ReadLayoutTextFromIni(layout_ime_sec, "L")
+        if (ime_layout == "")
+            ime_map := Map()
+        else
+            ime_map := MakeLayoutMap(ime_layout)
+        ReadEachLayoutFromIni(ime_map, layout_ime_sec, "")
+
+        ime_shift_layout := ReadLayoutTextFromIni(layout_ime_sec, "S")
+        if (ime_shift_layout == "")
+            ime_shift_map := Map()
+        else
+            ime_shift_map := MakeLayoutMap(ime_shift_layout)
+        ReadEachLayoutFromIni(ime_shift_map, layout_ime_sec, "s_")
+    } else {
         ime_map := Map()
-    else
-        ime_map := MakeLayoutMap(ime_layout)
-    ReadEachLayoutFromIni(ime_map, section, "i_")
-
-    ime_shift_layout := ReadLayoutTextFromIni(section, "IS")
-    if (ime_shift_layout == "")
         ime_shift_map := Map()
-    else
-        ime_shift_map := MakeLayoutMap(ime_shift_layout)
-    ReadEachLayoutFromIni(ime_shift_map, section, "is_")
+    }
 
     layout_map.Default := ""
     shift_map.Default := ""
@@ -2721,6 +2816,10 @@ ApplyLayoutFromIni2(section) {
 
     ; 基本レイアウトの設定
     StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map)
+
+    ; --- 追加: Mode 4 コンビネーションの動的読み込み ---
+    ApplyCombinationsFromIni(layout_sec, "m_", false)  ; IME OFF 用
+    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用
 
     ShowOSD("Loaded layout: " . name)
     return true
@@ -2896,7 +2995,7 @@ StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
 
     for i, keyObj in LAYOUT_KEYS {
         c := QWERTY_CHARS[i]
-        key_text := StrFromChar(c)
+        key_text := EntryName(c)
         if (!ime_map.Has(key_text))
             ime_map[key_text] := ""
         if (!ime_shift_map.Has(key_text))

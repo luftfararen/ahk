@@ -49,13 +49,14 @@ ks	き
 kr	け
 sk	し
 st	そ
-sr  せ
+sr	せ
 nt	の
 nk	に
 ns	な
 nr	ね
 tk	と
 tr	て
+rd  れ
 dr	で
 wr	を
 wd	わ
