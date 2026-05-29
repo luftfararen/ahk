@@ -55,7 +55,7 @@
 ; スクリプト設定
 ; ============================================================================
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
-ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
+ProcessSetPriority "High" ; 最高の応答性を確保するため優先度を高に設定
 SetKeyDelay(15, 5)
 ListLines 0
 SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
@@ -290,9 +290,9 @@ Timer() {
  * @returns {Int64} 周波数
  */
 QueryFrequency() {
-    ;DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
-    ;return freq
-    return 1000
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+    return freq
+    ;return 1000
 }
 
 /**
@@ -300,9 +300,9 @@ QueryFrequency() {
  * @returns {Int64} カウント値
  */
 QueryCounter() {
-    ;DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
-    ;return tick
-    return A_TickCount
+    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+    return tick
+    ;return A_TickCount
 }
 
 /**
@@ -319,7 +319,7 @@ GetFocusedControlHandle() {
     if hwnd {
         NumPut("UInt", cb_size, st_gti, 0)
         if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti) {
-            hwnd := NumGet(st_gti, 8 + ptr_size, "UInt")
+            hwnd := NumGet(st_gti, 8 + ptr_size, "Ptr")
         }
     }
     return hwnd
@@ -332,7 +332,7 @@ GetFocusedControlHandle() {
  * @returns {LParam} DllCall の結果
  */
 SetImeStatus(hwnd, state) {
-    default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+    default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
     ; 0x0002: SMTO_ABORTIFHUNG, timeout 50ms
     return DllCall("user32\SendMessageTimeout"
         , "Ptr", default_ime_wnd
@@ -443,7 +443,7 @@ class ImeState {
 
         ; 実際の IME 状態を確認
         state := 0
-        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
         ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
         DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
             "UInt",
@@ -700,8 +700,10 @@ ParseIniValue(raw_str) {
  * 解決済みのキー表記に、修飾記号などを付与して「Send関数用」の最終文字列を作る。
  */
 BuildSendText(text, prefix := "") {
-    if text == "" || text == "{none}"
+    if text == ""
         return ""
+    if text == "{none}"
+        return "{none}"
 
     ; {Blind} や 意図的な修飾記号付きマクロの場合はそのまま返す
     if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
@@ -1238,6 +1240,9 @@ SendAndLog(c) {
  * 省略された場合は `key_ime_off` が使用される
  */
 SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
+    if key_ime_on == "{none}" || key_ime_off == "{none}" {
+        return ; {none} が指定された場合は何も送信しない
+    }
     if key_ime_off = key_ime_on || key_ime_on = "" {
         SendAndLog(key_ime_off)
         return
