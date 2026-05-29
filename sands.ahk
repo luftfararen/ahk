@@ -280,8 +280,8 @@ IsPhysicalShiftPressed(key_obj) {
 * 高分解能タイマー(単位:millisecond)
 */
 Timer() {
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
-    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+    DllCall("QueryPerformanceCounter", "Int64*", &tick)
     return tick / freq * 1000.0
 }
 
@@ -290,7 +290,7 @@ Timer() {
  * @returns {Int64} 周波数
  */
 QueryFrequency() {
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq)
     return freq
     ;return 1000
 }
@@ -300,7 +300,7 @@ QueryFrequency() {
  * @returns {Int64} カウント値
  */
 QueryCounter() {
-    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+    DllCall("QueryPerformanceCounter", "Int64*", &tick)
     return tick
     ;return A_TickCount
 }
@@ -341,7 +341,7 @@ SetImeStatus(hwnd, state) {
         , "Ptr", state
         , "UInt", 0x0002  ; SMTO_ABORTIFHUNG
         , "UInt", 50      ; 50ms timeout
-        , "Ptr*", &result := 0)
+        , "Ptr*", &result)
 }
 
 /**
@@ -427,7 +427,7 @@ class ImeState {
         hwnd := GetFocusedControlHandle()
 
         ; 同じウィンドウであれば強制フラグを確認
-        if last_active_control_hwnd = hwnd {
+        if (last_active_control_hwnd == hwnd) {
             if ImeState.force_ime_on {
                 ImeState.cached_state := true
                 ImeState.RecordCheck()
@@ -447,7 +447,7 @@ class ImeState {
         ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
         DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
             "UInt",
-            0x0002, "UInt", 50, "Ptr*", &state := 0)
+            0x0002, "UInt", 50, "Ptr*", &state)
 
         ImeState.cached_state := (state != 0)
         ImeState.RecordCheck()
@@ -1063,35 +1063,35 @@ class KeyLogger {
      * @param {Integer} time - アイドル時間 (ms)
      */
     static SaveIfIdle(time) {
-        Critical
+        Critical()
         if (time < 20000) {
-            Critical "Off"
+            Critical("Off")
             return
         }
         if this.stats_short_idx == 0 {
-            Critical "Off"
+            Critical("Off")
             return
         }
 
         ; 前回saveから指定時間経っていたら保存
         if (A_TickCount - this.last_save_time >= this.AUTOSAVE_INTERVAL && time >= 60000) {
-            Critical "Off"
+            Critical("Off")
             this.Save()
             return
         }
 
         this._MergeShortTerm()
-        Critical "Off"
+        Critical("Off")
     }
 
     /**
      * 現在の統計情報をファイルに書き込む
      */
     static Save(sync := false) {
-        Critical
+        Critical()
         this._MergeShortTerm()
         this._Consolidate()
-        Critical "Off"
+        Critical("Off")
 
         if this.stats.Count == 0
             return
