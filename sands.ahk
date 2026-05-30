@@ -280,6 +280,7 @@ IsPhysicalShiftPressed(key_obj) {
 * 高分解能タイマー(単位:millisecond)
 */
 Timer() {
+    freq := 0, tick := 0
     DllCall("QueryPerformanceFrequency", "Int64*", &freq)
     DllCall("QueryPerformanceCounter", "Int64*", &tick)
     return tick / freq * 1000.0
@@ -290,6 +291,7 @@ Timer() {
  * @returns {Int64} 周波数
  */
 QueryFrequency() {
+    freq := 0
     DllCall("QueryPerformanceFrequency", "Int64*", &freq)
     return freq
     ;return 1000
@@ -300,6 +302,7 @@ QueryFrequency() {
  * @returns {Int64} カウント値
  */
 QueryCounter() {
+    tick := 0
     DllCall("QueryPerformanceCounter", "Int64*", &tick)
     return tick
     ;return A_TickCount
@@ -2547,13 +2550,15 @@ LoadLayoutFromIni(index) {
         }
         if !found {
             ChangeQwertyLayout()
+            ApplyDynamicLayersFromSettings()
             return
         }
     }
     ver := ReadConfig(index, "ver", "1")
+    success := false
     if ver = 1 {
         if ApplyLayoutFromIni(index)
-            return
+            success := true
     } else if ver = 2 {
         if ApplyLayoutFromIni2(index) {
             ApplyLayerLayoutFromIni(L_NAVI_CTRL, "NAVI_CTRL")
@@ -2562,10 +2567,13 @@ LoadLayoutFromIni(index) {
             ApplyLayerLayoutFromIni(L_SYMBOL2, "SYMBOL2")
             ApplyLayerLayoutFromIni(L_SELECT, "SELECT")
             ApplyLayerLayoutFromIni(L_NUMPAD, "NUMPAD")
-            return
+            success := true
         }
     }
-    ChangeQwertyLayout()
+    if !success {
+        ChangeQwertyLayout()
+    }
+    ApplyDynamicLayersFromSettings()
 }
 
 /**
@@ -2828,6 +2836,81 @@ ApplyLayoutFromIni2(section) {
 
     ShowOSD("Loaded layout: " . name)
     return true
+}
+
+/**
+ * config.ini の [Settings] セクションから動的レイヤーの紐付けを読み込み、適用します。
+ */
+ApplyDynamicLayersFromSettings() {
+    modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
+    for mod_name in modifiers {
+        key_entry := EntryName(mod_name)
+        sec := ReadConfig("Settings", key_entry, "")
+        if sec != "" {
+            ApplyDynamicLayer(key_entry, sec)
+        }
+    }
+}
+
+/**
+ * 指定されたモディファイアキーに対応するレイヤーに、INIセクションのキーバリュー定義を適用（追加・上書き）します。
+ */
+ApplyDynamicLayer(mod_key_name, section) {
+    mod_entry := EntryName(mod_key_name)
+    mod_key_obj := GetKeyObjByName(mod_entry)
+    if (!mod_key_obj)
+        return
+
+    ; mod_key_list から一致するレイヤーID (インデックス) を特定
+    layer_id := 0
+    global mod_key_list
+    for i, obj in mod_key_list {
+        if (obj == mod_key_obj) {
+            layer_id := i
+            break
+        }
+    }
+
+    if (layer_id == 0)
+        return
+
+    try {
+        section_text := IniRead(A_ScriptDir . "\config.ini", section)
+    } catch {
+        section_text := ""
+    }
+
+    if section_text != "" {
+        for line in StrSplit(section_text, "`n", "`r") {
+            line := Trim(line)
+            if (line == "" || SubStr(line, 1, 1) == ";")
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key_name := Trim(SubStr(line, 1, pos - 1))
+                val := Trim(SubStr(line, pos + 1))
+
+                ; インラインコメントの除去
+                c_pos := InStr(val, Chr(32) . Chr(59))
+                if c_pos == 0 {
+                    c_pos := InStr(val, "`t" . Chr(59))
+                }
+                if c_pos > 0 {
+                    val := SubStr(val, 1, c_pos - 1)
+                }
+                val := Trim(val)
+
+                val := ResolveKeyText(val)
+                if val != "" {
+                    key_entry := EntryName(key_name)
+                    key_obj := GetKeyObjByName(key_entry)
+                    if key_obj {
+                        key_obj.SetLayerKey(layer_id, val)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
