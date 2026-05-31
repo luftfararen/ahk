@@ -2263,17 +2263,17 @@ LoadLayoutConfig() {
 
         ; ハードコードされたレイアウトを確認
         switch layout_name {
-            case "Qwerty": ChangeQwertyLayout()
-            case "Oonishi": ChangeOonishiLayout()
-            case "Colemak": ChangeColemakLayout()
-            case "FMIX12f": ChangeFMIX12f_Layout()
-            case "FMIX12f-13fR": ChangeFMIX12f_FMIX13fR_Layout()
-            case "FMIX14-14R": ChangeFMIX14_FMIX14R_Layout()
-            case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
-            case "FMIX13f-Minato": ChangeFMIX13f_minato_Layout()
-            case "FMIX13-Minato": ChangeFMIX13_minato_Layout()
-            case "FMIX13f2-Minato": ChangeFMIX13f2_minato_Layout()
-            case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
+            case "Qwerty[Built-in]": ChangeQwertyLayout()
+            case "Oonishi[Built-in]": ChangeOonishiLayout()
+            case "Colemak[Built-in]": ChangeColemakLayout()
+            case "FMIX12f[Built-in]": ChangeFMIX12f_Layout()
+            case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
+            case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
+            case "FMIX13f-14fR[Built-in]": ChangeFMIX13f_FMIX14fR_Layout()
+            case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
+            case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
+            case "FMIX13f2-Minato[Built-in]": ChangeFMIX13f2_minato_Layout()
+            case "FMIX13fie-Minato[Built-in]": ChangeFMIX13fie_minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
@@ -3097,7 +3097,7 @@ StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
  * キーレイアウトを「Qwerty配列」に変更する
  */
 ChangeQwertyLayout() {
-    StoreLayout("Qwerty", "qwertyuiopasdfghjkl;zxcvbnm,./")
+    StoreLayout("Qwerty[Built-in]", "qwertyuiopasdfghjkl;zxcvbnm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -3106,7 +3106,7 @@ ChangeQwertyLayout() {
  * キーレイアウトを「大西配列」に変更する
  */
 ChangeOonishiLayout() {
-    StoreLayout("Oonishi", "qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
+    StoreLayout("Oonishi[Built-in]", "qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -3115,7 +3115,7 @@ ChangeOonishiLayout() {
  * キーレイアウトを「Colemak配列」に変更する
  */
 ChangeColemakLayout() {
-    StoreLayout("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./")
+    StoreLayout("Colemak[Built-in]", "qwfpgjluy;arstdhneiozxcvbkm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -3124,7 +3124,7 @@ ChangeColemakLayout() {
  * Changes layout to "FMIX12f".
  */
 ChangeFMIX12f_Layout() {
-    StoreLayout("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("[Built-in]FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -3133,7 +3133,7 @@ ChangeFMIX12f_Layout() {
  * Changes layout to "FMIX12f-FMIX13fR".
  */
 ChangeFMIX12f_FMIX13fR_Layout() {
-    StoreLayout("FMIX12f-13fR", "qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12f-13fR[Built-in]", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -3149,7 +3149,7 @@ ChangeFMIX12f_FMIX13fR_Layout() {
  * Changes layout to "FMIX14-FMIX14R".
  */
 ChangeFMIX14_FMIX14R_Layout() {
-    StoreLayout("FMIX14-14R", "qwldkylup;asrtghneiozxcvbjm,./")
+    StoreLayout("FMIX14-14R[Built-in]", "qwldkylup;asrtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -3166,7 +3166,7 @@ ChangeFMIX14_FMIX14R_Layout() {
  * Changes layout to "FMIX13f-FMIX14fR".
  */
 ChangeFMIX13f_FMIX14fR_Layout() {
-    StoreLayout("FMIX13f-14fR", "qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f-14fR[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -3244,7 +3244,7 @@ ChangeMinatoLayoutImpl() {
  * キーレイアウトを「FMIX13-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13_minato_Layout() {
-    StoreLayout("FMIX13-Minato", "qwrlkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13-Minato[Built-in]", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -3253,7 +3253,7 @@ ChangeFMIX13_minato_Layout() {
  * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13f_minato_Layout() {
-    StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
@@ -3263,7 +3263,7 @@ ChangeFMIX13f_minato_Layout() {
  * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13f2_minato_Layout() {
-    StoreLayout("FMIX13f2-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f2-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
 
     for i, keyObj in LAYOUT_KEYS {
         keyObj.SetMode(0, -1)
@@ -3284,7 +3284,7 @@ ChangeFMIX13f2_minato_Layout() {
  * キーレイアウトを「FMIX13fie-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13fie_minato_Layout() {
-    StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
+    StoreLayout("[Built-in]FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
