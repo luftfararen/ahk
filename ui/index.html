@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Layout Config Editor</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="app-header">
+            <div class="brand">
+                <span class="logo-dot"></span>
+                <h1>Key Layout <span>Config Editor</span></h1>
+            </div>
+            <div class="file-status-bar">
+                <span class="status-indicator warning" id="file-status">ファイルが読み込まれていません</span>
+            </div>
+            <div class="actions">
+                <button id="btn-open-file" class="btn primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    ファイルを開く
+                </button>
+                <button id="btn-save-file" class="btn success">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    保存 (Save)
+                </button>
+                <input type="file" id="file-input-fallback" accept=".ini" style="display: none;">
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <nav class="nav-menu">
+                    <div class="menu-section">
+                        <h3>メイン設定</h3>
+                        <a href="#settings" class="nav-item active" data-panel="panel-settings">
+                            <span class="icon">⚙️</span> 一般設定 (Settings)
+                        </a>
+                        <a href="#dynamic-layers" class="nav-item" data-panel="panel-dynamic-layers">
+                            <span class="icon">🔗</span> 動的レイヤー ( space / noconv )
+                        </a>
+                    </div>
+                    
+                    <div class="menu-section">
+                        <div class="section-header">
+                            <h3>レイアウトスロット</h3>
+                            <button id="btn-add-layout-slot" class="btn-icon-add" title="スロットの追加">+</button>
+                        </div>
+                        <div id="layout-slots-list" class="slots-list">
+                            <!-- Slots will be added dynamically here -->
+                            <div class="no-data">ファイル未読込</div>
+                        </div>
+                    </div>
+
+                    <div class="menu-section">
+                        <div class="section-header">
+                            <h3>キー配列定義</h3>
+                            <button id="btn-add-layout" class="btn-icon-add" title="配列の追加">+</button>
+                        </div>
+                        <div id="key-layouts-list" class="slots-list">
+                            <!-- Layout sections will be added dynamically here -->
+                            <div class="no-data">ファイル未読込</div>
+                        </div>
+                    </div>
+
+                    <div class="menu-section">
+                        <div class="section-header">
+                            <h3>モディファイアレイヤー</h3>
+                            <button id="btn-add-layer" class="btn-icon-add" title="レイヤーの追加">+</button>
+                        </div>
+                        <div id="layer-maps-list" class="slots-list">
+                            <!-- Layers will be added dynamically here -->
+                            <div class="no-data">ファイル未読込</div>
+                        </div>
+                    </div>
+
+                    <div class="menu-section">
+                        <h3>テキスト編集</h3>
+                        <a href="#raw" class="nav-item" data-panel="panel-raw">
+                            <span class="icon">📝</span> Raw config.ini
+                        </a>
+                    </div>
+                </nav>
+                <div class="sidebar-footer">
+                    <p>Key Layout Config Editor v2.0</p>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                
+                <!-- PANEL: General Settings -->
+                <section id="panel-settings" class="content-panel active">
+                    <div class="panel-header">
+                        <h2>一般設定 <span>[Settings] セクション</span></h2>
+                        <p>AutoHotkeyスクリプト全体の基本動作パラメータを調整します。</p>
+                    </div>
+                    <div class="card">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="setting-startup-layout">起動時レイアウト (StartupLayout)</label>
+                                <select id="setting-startup-layout" class="form-control">
+                                    <!-- Populated dynamically -->
+                                </select>
+                                <span class="help-text">スクリプト起動時に自動適用されるデフォルトレイアウト配列。</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="setting-hold-th">通常キー長押ししきい値 (HoldTh)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="setting-hold-th" class="form-control" min="50" max="1000" step="10">
+                                    <span class="unit">ms</span>
+                                </div>
+                                <span class="help-text">キーが長押し（レイヤーやモディファイア）されたと判定するミリ秒。</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="setting-layer-hold-th">レイヤーキー長押ししきい値 (LayerHoldTh)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="setting-layer-hold-th" class="form-control" min="50" max="1000" step="10">
+                                    <span class="unit">ms</span>
+                                </div>
+                                <span class="help-text">レイヤー修飾キーの切り替えしきい値（Layers.HoldThに設定されます）。</span>
+                            </div>
+                            <div class="form-group toggle-group">
+                                <div class="toggle-control">
+                                    <label class="switch">
+                                        <input type="checkbox" id="setting-ime-indicator">
+                                        <span class="slider round"></span>
+                                    </label>
+                                    <span class="toggle-label">IMEインジケーター有効 (ImeIndicatorEnabled)</span>
+                                </div>
+                                <span class="help-text">IMEがONのとき、マウスカーソルに追従するドットを表示します。</span>
+                            </div>
+                            <div class="form-group toggle-group">
+                                <div class="toggle-control">
+                                    <label class="switch">
+                                        <input type="checkbox" id="setting-log-enabled">
+                                        <span class="slider round"></span>
+                                    </label>
+                                    <span class="toggle-label">キーロガー有効 (LogEnabled)</span>
+                                </div>
+                                <span class="help-text">タイピング統計（出現頻度・打鍵間隔）を記録し、log.txt に出力します。</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="setting-max-log">キーロガー最大保存数 (MaxLog)</label>
+                                <input type="number" id="setting-max-log" class="form-control" min="100" max="100000">
+                                <span class="help-text">log.txt に記録する最大ログ行数。</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PANEL: Dynamic Layers -->
+                <section id="panel-dynamic-layers" class="content-panel">
+                    <div class="panel-header">
+                        <h2>動的レイヤー設定</h2>
+                        <p>[Settings] セクションでの、各モディファイアキーとカスタムレイヤーとの紐付けを設定します。</p>
+                    </div>
+                    <div class="card">
+                        <div class="info-alert">
+                            ここで設定された修飾キー（space等）を長押ししている間、割り当てられたカスタムレイヤーの配列が動的に適用されます。
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>修飾キー</th>
+                                        <th>割り当てカスタムレイヤー</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dynamic-layers-table-body">
+                                    <!-- Populated dynamically: space, noconv, conv, tab, f13, f14 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PANEL: Layout Slot Editor -->
+                <section id="panel-slot" class="content-panel">
+                    <div class="panel-header-action">
+                        <div>
+                            <h2 id="slot-title">レイアウトスロット設定</h2>
+                            <p>スロットの表示名と、使用するレイアウト定義セクションを紐付けます。</p>
+                        </div>
+                        <button id="btn-delete-slot" class="btn danger btn-sm">このスロットを削除</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="slot-name-input">スロット名 (Name)</label>
+                                <input type="text" id="slot-name-input" class="form-control">
+                                <span class="help-text">メニューやOSDに表示されるレイアウトの識別名。</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="slot-layout-select">IME OFF 時のキー配列定義 (Layout)</label>
+                                <select id="slot-layout-select" class="form-control"></select>
+                                <span class="help-text">英数モード（IME OFF）のときに適用されるキー配列セクション。</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="slot-layout-ime-select">IME ON 時のキー配列定義 (LayoutIME)</label>
+                                <select id="slot-layout-ime-select" class="form-control"></select>
+                                <span class="help-text">かな入力モード（IME ON）のときに適用されるキー配列セクション。空欄時はIME OFFと同じ定義を使用します。</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PANEL: Layout Config Editor -->
+                <section id="panel-layout" class="content-panel">
+                    <div class="panel-header-action">
+                        <div>
+                            <h2 id="layout-title">キー配列定義</h2>
+                            <p>4段のキー配列、Shift状態の配列、同時押し（コンビネーション）などを定義します。</p>
+                        </div>
+                        <div class="action-buttons-group" style="display: flex; gap: 8px;">
+                            <button id="btn-import-layout" class="btn secondary btn-sm">レイアウト読み込み (.klt)</button>
+                            <button id="btn-export-layout" class="btn secondary btn-sm">レイアウト保存 (.klt)</button>
+                            <button id="btn-delete-layout" class="btn danger btn-sm">この配列定義を削除</button>
+                        </div>
+                    </div>
+                    <input type="file" id="layout-file-input" accept=".klt" style="display: none;">
+
+                    <!-- Layout Info Card -->
+                    <div class="card layout-info-card">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="layout-section-name-input">セクション名</label>
+                                <input type="text" id="layout-section-name-input" class="form-control font-mono">
+                                <span class="help-text">config.ini 内のセクション名。英数字のみ。変更すると関連するスロットの紐付けも自動更新されます。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Keyboard Visualizer Panel -->
+                    <div class="visualizer-container">
+                        <div class="visualizer-header">
+                            <div class="visualizer-tabs">
+                                <h3 id="visual-keyboard-sec-title" class="tab-btn active">配列プレビュー</h3>
+                            </div>
+                            <div class="keyboard-controls">
+                                <label class="checkbox-control">
+                                    <input type="checkbox" id="keyboard-shift-toggle">
+                                    <span class="checkbox-label">Shift キー押下状態 (S00〜S03)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Keyboard Body -->
+                        <div class="keyboard-outer">
+                            <div class="keyboard-mode-indicator">
+                                LKey 動作モード (Mode): 
+                                <select id="layout-mode-select" class="select-inline">
+                                    <option value="0">Mode 0: 長押し無効 (単入力)</option>
+                                    <option value="1">Mode 1: 置換モード (短押しでリマップ、長押しでShift再入力)</option>
+                                    <option value="4">Mode 4: コンビネーション優先モード (短押しでリマップ、長押しで修飾)</option>
+                                </select>
+                            </div>
+                            <div id="virtual-keyboard" class="keyboard">
+                                <!-- Keyboard keys will be rendered here -->
+                            </div>
+                        </div>
+
+                        <!-- Key Editor (Appears when a key is clicked) -->
+                        <div class="key-editor-card card" id="key-editor">
+                            <div class="key-editor-header">
+                                <h3>キー設定: <span id="key-editor-physical-key">-</span></h3>
+                                <span class="key-status-badge" id="key-editor-status-badge">Row Mapping</span>
+                            </div>
+                            <div class="key-editor-body">
+                                <div class="form-group">
+                                    <label for="key-mapping-value">マップ先出力 (キー名/ショートカット)</label>
+                                    <div class="input-action-group">
+                                        <input type="text" id="key-mapping-value" class="form-control text-center font-mono" placeholder="文字または {Left}, ^c など">
+                                        <button id="btn-clear-key-mapping" class="btn secondary">クリア</button>
+                                    </div>
+                                    <div class="help-text">
+                                        物理キーを押した際に送信するキーやコマンドを指定します。<br>
+                                        例： <code>a</code> (そのまま入力), <code>{Left}</code> (矢印キー), <code>^c</code> (Ctrl+C), <code>+a</code> (Shift+A), <code>{none}</code> (無効化)
+                                    </div>
+                                </div>
+                                <div class="override-controls">
+                                    <label class="checkbox-control">
+                                        <input type="checkbox" id="key-override-toggle">
+                                        <span class="checkbox-label">この物理キーを個別オーバーライドする (例: <code>e=r</code>)</span>
+                                    </label>
+                                    <span class="help-text">行配列(L00-L03)からではなく、セクションに直接個別記述として登録します。</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mode 4 Combinations & Layout Overrides -->
+                    <div class="row-layout">
+                        <!-- Mode 4 Combinations -->
+                        <div class="col card flex-1">
+                            <div class="card-header">
+                                <h3>同時押し定義 (Combination) <span>[Mode 4用]</span></h3>
+                                <button id="btn-add-combination" class="btn success btn-xs">+ 追加</button>
+                            </div>
+                            <div class="table-container compact">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>キーの組み合わせ (物理)</th>
+                                            <th>出力文字列</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="combinations-table-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- All Layout Key Overrides (Text representation) -->
+                        <div class="col card flex-1">
+                            <div class="card-header">
+                                <h3>個別キー・特殊キーのオーバーライド一覧</h3>
+                            </div>
+                            <div class="table-container compact">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>物理キー</th>
+                                            <th>状態</th>
+                                            <th>マップ先</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="overrides-table-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PANEL: Layer Map Editor -->
+                <section id="panel-layer" class="content-panel">
+                    <div class="panel-header-action">
+                        <div>
+                            <h2 id="layer-title-name">モディファイアレイヤー設定</h2>
+                            <p>修飾キー（F13やSpaceなど）を押し下げている間のキーリマップを定義します。</p>
+                        </div>
+                        <button id="btn-delete-layer" class="btn danger btn-sm">このレイヤーを削除</button>
+                    </div>
+
+                    <!-- Layer Info Card -->
+                    <div class="card layout-info-card" style="margin-bottom: 20px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="layer-section-name-input">レイヤーセクション名</label>
+                                <input type="text" id="layer-section-name-input" class="form-control font-mono">
+                                <span class="help-text">config.ini 内のセクション名。変更すると関連する Settings の動的レイヤー割り当ても自動更新されます。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="layer-editor-layout">
+                        <!-- Key Maps List inside the layer -->
+                        <div class="card flex-1">
+                            <div class="card-header">
+                                <h3>キーマッピング一覧</h3>
+                                <button id="btn-add-layer-map" class="btn success btn-xs">+ 追加</button>
+                            </div>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>物理キー (QWERTY)</th>
+                                            <th>送信キー・マクロ</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="layer-maps-table-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Keyboard helper for visual mapping -->
+                        <div class="card flex-1">
+                            <div class="card-header">
+                                <h3>キー配置プレビュー (レイヤー適用時)</h3>
+                            </div>
+                            <p class="help-text">レイヤー適用時のキー割り当てを可視化します。キーをクリックするとマッピングを即座に作成/編集できます。</p>
+                            <div id="layer-virtual-keyboard" class="keyboard compact-keyboard">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PANEL: Raw text config.ini -->
+                <section id="panel-raw" class="content-panel">
+                    <div class="panel-header">
+                        <h2>Raw config.ini エディタ</h2>
+                        <p>設定ファイルの生のテキストデータを直接表示・編集できます。</p>
+                    </div>
+                    <div class="card flex-fill-column">
+                        <textarea id="raw-textarea" class="font-mono raw-editor" spellcheck="false" placeholder="config.ini のテキストがここに表示されます..."></textarea>
+                        <div class="raw-actions">
+                            <button id="btn-apply-raw" class="btn primary">変更をビジュアル表示に適用</button>
+                            <span class="help-text">※ ここでの編集内容は、「適用」ボタンを押すとUI上に反映されます。</span>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL: Add Layout Slot -->
+    <div class="modal-backdrop" id="modal-add-layout-slot">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>レイアウトスロットの追加</h3>
+                <span class="modal-close" onclick="closeModal('modal-add-layout-slot')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-slot-name">スロット表示名</label>
+                    <input type="text" id="add-slot-name" class="form-control" placeholder="例: Qwerty (Custom)">
+                </div>
+                <div class="form-group">
+                    <label for="add-slot-layout">IME OFF用レイアウト配列定義</label>
+                    <select id="add-slot-layout" class="form-control">
+                        <!-- Populated with Layout sections -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="add-slot-layout-ime">IME ON用レイアウト配列定義（任意）</label>
+                    <select id="add-slot-layout-ime" class="form-control">
+                        <!-- Populated with Layout sections -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" onclick="closeModal('modal-add-layout-slot')">キャンセル</button>
+                <button class="btn success" id="btn-add-layout-slot-confirm">追加する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Add Layout Section -->
+    <div class="modal-backdrop" id="modal-add-layout">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>新規キー配列定義の追加</h3>
+                <span class="modal-close" onclick="closeModal('modal-add-layout')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-layout-section-name">レイアウトセクション名</label>
+                    <input type="text" id="add-layout-section-name" class="form-control" placeholder="例: CustomLayout">
+                    <span class="help-text">config.ini 内でキーマップ定義を保存するセクション名です（アルファベットのみ）。</span>
+                </div>
+                <div class="form-group">
+                    <label for="add-layout-template">初期配置テンプレート</label>
+                    <select id="add-layout-template" class="form-control">
+                        <option value="qwerty">Qwerty配列</option>
+                        <option value="fmix13">FMIX13 配列風 (JIS)</option>
+                        <option value="kanade">かな入力 (Kanade) 風</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" onclick="closeModal('modal-add-layout')">キャンセル</button>
+                <button class="btn success" id="btn-add-layout-confirm">追加する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Add Custom Layer -->
+    <div class="modal-backdrop" id="modal-add-layer">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>新規カスタムレイヤーの追加</h3>
+                <span class="modal-close" onclick="closeModal('modal-add-layer')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-layer-name">レイヤーセクション名</label>
+                    <input type="text" id="add-layer-name" class="form-control" placeholder="例: MY_NAV_LAYER">
+                    <span class="help-text"><code>[Settings]</code> で割り当てたり、レイアウトから参照したりできるセクション名になります。</span>
+                </div>
+                <div class="form-group">
+                    <label for="add-layer-template">初期マッピングテンプレート</label>
+                    <select id="add-layer-template" class="form-control">
+                        <option value="empty">空のレイヤー</option>
+                        <option value="navi">NAVI_CTRL (h,j,k,l=カーソル等)</option>
+                        <option value="shortcut">SHORTCUT_CTRL (a,s,c,v=コピペ等)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" onclick="closeModal('modal-add-layer')">キャンセル</button>
+                <button class="btn success" id="btn-add-layer-confirm">追加する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Add Combination Key -->
+    <div class="modal-backdrop" id="modal-add-combination">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>同時押し定義の追加</h3>
+                <span class="modal-close" onclick="closeModal('modal-add-combination')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label for="add-comb-key1">修飾キー (物理)</label>
+                        <select id="add-comb-key1" class="form-control font-mono">
+                            <!-- Populated with lowercase physical keys -->
+                        </select>
+                    </div>
+                    <div class="plus-sign">+</div>
+                    <div class="form-group flex-1">
+                        <label for="add-comb-key2">対象キー (物理)</label>
+                        <select id="add-comb-key2" class="form-control font-mono">
+                            <!-- Populated with lowercase physical keys -->
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group mt-3">
+                    <label for="add-comb-value">出力文字列</label>
+                    <input type="text" id="add-comb-value" class="form-control font-mono" placeholder="例: areru">
+                    <span class="help-text">同時押しされた際に送信する単語やマクロです。</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" onclick="closeModal('modal-add-combination')">キャンセル</button>
+                <button class="btn success" id="btn-add-combination-confirm">追加する</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
