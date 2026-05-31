@@ -2780,7 +2780,7 @@ ApplyLayoutFromIni2(section) {
         ; 後方互換性のためのフォールバック
         layout_sec := section
     }
-    layout_ime_sec := ReadConfig(section, "LayoutIME", layout_sec)
+    layout_ime_sec := ReadConfig(section, "LayoutIME", "layout_sec")
 
     ; LKey のモード指定を取得
     hold_mode := ReadConfig(layout_sec, "Mode", "1")
@@ -3255,6 +3255,7 @@ ChangeFMIX13_minato_Layout() {
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
+    InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
@@ -3275,6 +3276,7 @@ ChangeFMIX13f2_minato_Layout() {
     RegistCombination(s, e, "e", 4) ;se
 
     ChangeMinatoLayoutImpl()
+    InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
@@ -3284,6 +3286,7 @@ ChangeFMIX13f2_minato_Layout() {
 ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
+    InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
 
@@ -3301,7 +3304,7 @@ SetLKeyMode(mode, ime_mode := -1) {
 /**
  * 各レイヤー（ナビゲーション、記号、テンキー、選択、Shiftなど）に対する、物理キーから送信キーへの具体的なマッピングを初期設定します。
  */
-init_layer() {
+InitModLayer() {
     start := Timer()
 
     SetLKeyMode(1, 0)
@@ -3542,14 +3545,25 @@ init_layer() {
 }
 
 /**
+ * キー配列設定エディタ UI を既定のブラウザで開きます。
+ */
+OpenConfigEditor(*) {
+    Run('"' . A_ScriptDir . '\ui\index.html"')
+}
+
+/**
  * スクリプト起動時の初期化処理（長押し動作の基本有効化、各レイヤーバインドの設定、設定ファイルやログの読み込み）を行います。
  */
 init() {
     start := Timer()
 
-    init_layer()
+    InitModLayer()
     LoadLayoutConfig()
     KeyLogger.Load()
+
+    ; トレイメニューに「Key Layout Config Editorを開く」を追加
+    A_TrayMenu.Add() ; セパレータ
+    A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
 
     end := Timer()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
@@ -3584,6 +3598,7 @@ F14:: ToggleImeState() ; F14/Enter
 sc079:: ToggleImeState() ; Convert
 space:: ToggleImeState() ;Send(C_BS)
 #f:: ToggleForceImeModeOn() ;Toggle Force IME Mode ON
+#p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()

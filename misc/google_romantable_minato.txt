@@ -56,7 +56,7 @@ ns	な
 nr	ね
 tk	と
 tr	て
-rd  れ
+rd	れ
 dr	で
 wr	を
 wd	わ
