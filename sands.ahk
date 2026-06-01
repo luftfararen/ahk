@@ -76,6 +76,19 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 
 }
 
+; ============================================================================
+; レイヤー番号定義（グローバル定数）
+; ============================================================================
+global L_NAVI_CTRL := 1
+global L_SYMBOL_NUM := 2
+global L_SYMBOL1 := 3
+global L_SYMBOL2 := 4
+global L_SELECT := 5
+global L_NUMPAD := 6
+global L_SHIFT := 7
+
+global mod_key_list := []
+
 ; --- 無変換キー ---
 R_NOCONV := "sc07B"
 C_NOCONV := "{sc07B}"
@@ -1461,16 +1474,16 @@ TimerEvent() {
         KeyLogger.SaveIfIdle(A_TimeIdlePhysical)
     }
 
-    ; 100msごとにキーロガーの最大処理時間をリセットして一時的な遅延スパイクから復帰可能にする
-    if KeyLogger.total_log_time > 0 {
-        KeyLogger.total_log_time2 := Max(KeyLogger.total_log_time2, KeyLogger.total_log_time)
-        KeyLogger.total_log_time := 0
+    ; 10秒ごとにキーロガーの最大処理時間をリセットして一時的な遅延スパイクから復帰可能にする
+    if (Mod(counter, 100) == 0) {
+        if KeyLogger.total_log_time > 0 {
+            KeyLogger.total_log_time2 := Max(KeyLogger.total_log_time2, KeyLogger.total_log_time)
+            KeyLogger.total_log_time := 0
+        }
     }
 
     counter++
 }
-
-SetTimer(TimerEvent, 100) ;
 
 /*============================================================================
  [Class] MouseSpeed
@@ -2075,108 +2088,118 @@ class LKey extends RKey {
 }
 
 ; ============================================================================
-; キーオブジェクトの生成
+; キーオブジェクトの生成とグローバル変数の宣言
 ; ============================================================================
+global f13, space, tab, noconv, conv, f14
+global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
+global q, w, e, r, t, y, u, i, o, p, at, openbracket
+global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
+global z, x, c, v, b, n, m, comma, period, slash, backslash, enter
+global up, down, left, right
+global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_CHAR_KEYS, LAYOUT_KEYS, QWERTY_CHARS
 
-f13 := LKey("f13", 3, C_TAB)
-space := LKey(R_SPACE, 3, C_SPACE)
-tab := LKey(R_TAB, 3, C_TAB)
-noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
-conv := LKey(R_CONV, 3, C_ENTER)
-f14 := LKey("f14", 3, C_ZENKAKU)
+InitGlobalKeys() {
+    global
+    f13 := LKey("f13", 3, C_TAB)
+    space := LKey(R_SPACE, 3, C_SPACE)
+    tab := LKey(R_TAB, 3, C_TAB)
+    noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
+    conv := LKey(R_CONV, 3, C_ENTER)
+    f14 := LKey("f14", 3, C_ZENKAKU)
 
-; --- リマップキー (RKey) ---
-; (数字列)
-k1 := LKey("1")
-k2 := LKey("2")
-k3 := LKey("3")
-k4 := LKey("4")
-k5 := LKey("5")
-k6 := LKey("6")
-k7 := LKey("7")
-k8 := LKey("8")
-k9 := LKey("9")
-k0 := LKey("0")
-minus := LKey("-")
-hat := LKey(C_HAT) ; ^
-yen := LKey(C_YEN) ; ¥
-;
-; (QWERTY段)
-q := LKey("q")
-w := LKey("w")
-e := LKey("e")
-r := LKey("r")
-t := LKey("t")
-;
-y := LKey("y")
-u := LKey("u")
-i := LKey("i")
-o := LKey("o")
-p := LKey("p")
-at := LKey("@")
-openbracket := LKey("[")
-;
-; (ASDF段)
-a := LKey("a")
-s := LKey("s")
-d := LKey("d")
-f := LKey("f")
-g := LKey("g")
-;
-h := LKey("h")
-j := LKey("j")
-k := LKey("k")
-l := LKey("l")
-semicolon := LKey(C_SEMICOLON)
-colon := LKey(C_COLON)
-closebracket := LKey("]")
-;
-; (ZXCV段)
-z := LKey("z")
-x := LKey("x")
-c := LKey("c")
-v := LKey("v")
-b := LKey("b")
-;
-n := LKey("n")
-m := LKey("m")
-comma := LKey(C_COMMA) ; ,
-period := LKey(".") ; .
-slash := LKey("/") ; /
-backslash := LKey(C_BACKSLASH) ; \ _
+    ; --- リマップキー (RKey) ---
+    ; (数字列)
+    k1 := LKey("1")
+    k2 := LKey("2")
+    k3 := LKey("3")
+    k4 := LKey("4")
+    k5 := LKey("5")
+    k6 := LKey("6")
+    k7 := LKey("7")
+    k8 := LKey("8")
+    k9 := LKey("9")
+    k0 := LKey("0")
+    minus := LKey("-")
+    hat := LKey(C_HAT) ; ^
+    yen := LKey(C_YEN) ; ¥
+    ;
+    ; (QWERTY段)
+    q := LKey("q")
+    w := LKey("w")
+    e := LKey("e")
+    r := LKey("r")
+    t := LKey("t")
+    ;
+    y := LKey("y")
+    u := LKey("u")
+    i := LKey("i")
+    o := LKey("o")
+    p := LKey("p")
+    at := LKey("@")
+    openbracket := LKey("[")
+    ;
+    ; (ASDF段)
+    a := LKey("a")
+    s := LKey("s")
+    d := LKey("d")
+    f := LKey("f")
+    g := LKey("g")
+    ;
+    h := LKey("h")
+    j := LKey("j")
+    k := LKey("k")
+    l := LKey("l")
+    semicolon := LKey(C_SEMICOLON)
+    colon := LKey(C_COLON)
+    closebracket := LKey("]")
+    ;
+    ; (ZXCV段)
+    z := LKey("z")
+    x := LKey("x")
+    c := LKey("c")
+    v := LKey("v")
+    b := LKey("b")
+    ;
+    n := LKey("n")
+    m := LKey("m")
+    comma := LKey(C_COMMA) ; ,
+    period := LKey(".") ; .
+    slash := LKey("/") ; /
+    backslash := LKey(C_BACKSLASH) ; \ _
 
-enter := LKey(C_ENTER)
+    enter := LKey(C_ENTER)
 
-; (矢印キー - リマップ用)
-up := RKey(C_UP)
-down := RKey(C_DOWN)
-left := RKey(C_LEFT)
-right := RKey(C_RIGHT)
+    ; (矢印キー - リマップ用)
+    up := RKey(C_UP)
+    down := RKey(C_DOWN)
+    left := RKey(C_LEFT)
+    right := RKey(C_RIGHT)
 
-; --- レイアウト用キー登録（ループ用） ---
-LAYOUT_SPECIAL_KEYS := [space, tab, noconv, conv, f14, enter, up, down, left, right]
-LAYOUT_SPECIAL_NAMES := ["space", "tab", "noconv", "conv", "f14", "enter", "up", "down", "left", "right"]
+    ; --- レイアウト用キー登録（ループ用） ---
+    LAYOUT_SPECIAL_KEYS := [space, tab, noconv, conv, f14, enter, up, down, left, right]
+    LAYOUT_SPECIAL_NAMES := ["space", "tab", "noconv", "conv", "f14", "enter", "up", "down", "left", "right"]
 
-LAYOUT_NUM_KEYS := [k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus]
-LAYOUT_CHAR_KEYS := [
-    q, w, e, r, t, y, u, i, o, p,
-    a, s, d, f, g, h, j, k, l, semicolon,
-    z, x, c, v, b, n, m, comma, period, slash
-]
+    LAYOUT_NUM_KEYS := [k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus]
+    LAYOUT_CHAR_KEYS := [
+        q, w, e, r, t, y, u, i, o, p,
+        a, s, d, f, g, h, j, k, l, semicolon,
+        z, x, c, v, b, n, m, comma, period, slash
+    ]
 
-LAYOUT_KEYS := [
-    k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
-    q, w, e, r, t, y, u, i, o, p, at, openbracket,
-    a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
-    z, x, c, v, b, n, m, comma, period, slash, backslash
-]
+    LAYOUT_KEYS := [
+        k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
+        q, w, e, r, t, y, u, i, o, p, at, openbracket,
+        a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
+        z, x, c, v, b, n, m, comma, period, slash, backslash
+    ]
 
-QWERTY_CHARS := [
-    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
-    "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
-    "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
-    "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
-]
+    QWERTY_CHARS := [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
+        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
+        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
+        "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
+    ]
+}
 
 ; I_1 := 0
 ; I_2 := 1
@@ -2285,17 +2308,7 @@ LoadLayoutConfig() {
 ; ============================================================================
 ; レイヤー状態判定関数
 ; ============================================================================
-L_NAVI_CTRL := 1
-L_SYMBOL_NUM := 2
-L_SYMBOL1 := 3
-L_SYMBOL2 := 4
-L_SELECT := 5
-L_NUMPAD := 6
-L_SHIFT := 7
-
-;L_FUNC := 4
-
-mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+; (L_NAVI_CTRL 等のレイヤー定数、および mod_key_list はスクリプト先頭付近で定義され、Init() 内で初期化されます)
 
 /**
  * キーボードレイヤーの状態管理と、レイヤーキー送信の差分ロジックをカプセル化するクラスです。
@@ -2780,7 +2793,7 @@ ApplyLayoutFromIni2(section) {
         ; 後方互換性のためのフォールバック
         layout_sec := section
     }
-    layout_ime_sec := ReadConfig(section, "LayoutIME", "layout_sec")
+    layout_ime_sec := ReadConfig(section, "LayoutIME", layout_sec)
 
     ; LKey のモード指定を取得
     hold_mode := ReadConfig(layout_sec, "Mode", "1")
@@ -3124,7 +3137,7 @@ ChangeColemakLayout() {
  * Changes layout to "FMIX12f".
  */
 ChangeFMIX12f_Layout() {
-    StoreLayout("[Built-in]FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12f[Built-in]", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
@@ -3284,7 +3297,7 @@ ChangeFMIX13f2_minato_Layout() {
  * キーレイアウトを「FMIX13fie-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX13fie_minato_Layout() {
-    StoreLayout("[Built-in]FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
+    StoreLayout("FMIX13fie-Minato[Built-in]", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
@@ -3554,22 +3567,33 @@ OpenConfigEditor(*) {
 /**
  * スクリプト起動時の初期化処理（長押し動作の基本有効化、各レイヤーバインドの設定、設定ファイルやログの読み込み）を行います。
  */
-init() {
+Init() {
     start := Timer()
 
+    ; 0. グローバルキー変数の初期化
+    InitGlobalKeys()
+
+    ; 1. モディファイアキーリストの初期化
+    global mod_key_list
+    mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+
+    ; 2. レイヤーとレイアウトの適用
     InitModLayer()
     LoadLayoutConfig()
     KeyLogger.Load()
 
-    ; トレイメニューに「Key Layout Config Editorを開く」を追加
+    ; 3. トレイメニューやUIの設定
     A_TrayMenu.Add() ; セパレータ
     A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
+
+    ; 4. タイマーの開始 (初期化完了後に実行)
+    SetTimer(TimerEvent, 100)
 
     end := Timer()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
 }
 
-init()
+Init()
 
 ; ============================================================================
 ; ホットキー定義（レイヤー）
