@@ -3586,6 +3586,11 @@ Init() {
     A_TrayMenu.Add() ; セパレータ
     A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
 
+    ; スクリプトと同じフォルダにあるアイコンファイルを指定
+    if FileExist("klt.ico") {
+        TraySetIcon("klt.ico")
+    }
+
     ; 4. タイマーの開始 (初期化完了後に実行)
     SetTimer(TimerEvent, 100)
 
