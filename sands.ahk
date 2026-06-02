@@ -1892,12 +1892,34 @@ IME状態に依存しない。
 キーリピートは無効化される 。
 キー送信後、キーが押され続けている間、修飾キーとして機能する 。
 
-・モード 7：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用、モード4のタイミング拡張)
-修飾キーをdown,holdしてからx ms以上（Layers.HoldTh）経過しメインキーが押されてたら、修飾キーのコンビネーション（アクション）を送信する。
-修飾キーをdown,holdしてから(Layers.HoldTh-b_time)ms未満にメインキーがdownされたら、メインキーの通常キー（アクション）を送信する。
-(Layers.hold_th-b_time)ms以上x ms未満に押された場合は残り時間待機し、修飾キーが押され続けていればコンビネーション、離されたら通常キーを送信する。
+・モード 7：短押し -> 通常キー送信(down時) / 長押し -> 未送信(修飾キーとして利用)
+  (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
+  【パラメーター定義】
+  - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
+  - Layers.HoldTh  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
+  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
 
-・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+ 条件1: 修飾キーDown後、十分な時間が経過してからメインキーがDownされた場合
+ [判定基準] t >= Layers.HoldTh
+ [アクション] 修飾キーのコンビネーション（修飾キー + メインキー）を送信する。
+
+ 条件2: 修飾キーDown後、ごく短時間（バッファ未満）でメインキーがDownされた場合
+ [判定基準] t < (Layers.HoldTh - b_time)
+ [アクション] メインキーの通常キー（単体アクション）を即座に送信する（Down時確定）。
+
+ 条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
+ [判定基準] (Layers.HoldTh - b_time) <= t < Layers.HoldTh
+ [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
+   │   [アクション] メインキーの通常キー（単体アクション）を送信する。
+   ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
+   │   [アクション] メインキーの通常キー（単体アクション）を送信する。
+   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.HoldTh を超えた場合
+       [アクション] 閾値（Layers.HoldTh）に達した瞬間に、修飾キーのコンビネーション
+                    （修飾キー + メインキー）の送信へと切り替える。
+
+    ・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
 up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
 長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
 IME状態に応じて送信されるキーが変わる。
@@ -2610,10 +2632,26 @@ class Layers {
                             } else if (t < x - LKey.b_time) {
                                 is_held := false
                             } else {
-                                ; x - LKey.b_time <= t < x: wait for the remaining time
-                                Sleep(x - t)
-                                ; Check if mod key is still physically held and active after sleep
-                                is_held := mod_key.IsPressed() && Layers.State2(item.layer_id, key_obj)
+                                ; Grey zone: (x - LKey.b_time) <= t < x
+                                ; Pend decision and monitor key states
+                                loop {
+                                    if !mod_key.IsPressed() {
+                                        ; Case 3-B: Mod key released first -> Send normal key
+                                        is_held := false
+                                        break
+                                    }
+                                    if !key_obj.IsPressed() {
+                                        ; Case 3-A: Main key released first -> Send normal key
+                                        is_held := false
+                                        break
+                                    }
+                                    if (A_TickCount - mod_key.pressed_time >= x) {
+                                        ; Case 3-C: Both remain held, time exceeds Layers.HoldTh -> Send combination
+                                        is_held := true
+                                        break
+                                    }
+                                    Sleep(1)
+                                }
                             }
                         } else {
                             is_held := (t > x)
