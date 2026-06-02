@@ -668,6 +668,22 @@ DispStr(str, remove_braces := true) {
  * 例: "semicolon" -> "{sc027}", "one" -> "1", "{Enter}" -> "{Enter}"
  */
 ResolveKeyText(str) {
+    if (InStr(str, "|") && str != "|") {
+        parts := StrSplit(str, "|")
+        resolved_parts := []
+        for part in parts {
+            resolved_parts.Push(ResolveKeyText_Single(Trim(part)))
+        }
+        res := ""
+        for part in resolved_parts {
+            res .= (res == "" ? "" : "|") . part
+        }
+        return res
+    }
+    return ResolveKeyText_Single(str)
+}
+
+ResolveKeyText_Single(str) {
     ; 名前（semicolon等）から文字（;等）を取得
     c := CharFromStr(str)
     ; 文字からスキャンコードを取得（スキャンコード化できない文字はそのまま返る想定）
@@ -1674,10 +1690,18 @@ class RKey {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetLayerKey(layer_id, action, ime := True) {
-        this.layers.SetAction(layer_id, action)
+    SetLayerKey(layer_id, action, action2 := "", ime := True) {
+        action1 := action
+        if action2 == "" && InStr(action, "|") && action != "|" {
+            parts := StrSplit(action, "|")
+            if parts.Length >= 2 {
+                action1 := parts[1]
+                action2 := parts[2]
+            }
+        }
+        this.layers.SetAction(layer_id, action1, action2)
         if ime {
-            this.layers.SetImeAction(layer_id, action)
+            this.layers.SetImeAction(layer_id, action1, action2)
         }
     }
 
@@ -1687,8 +1711,16 @@ class RKey {
      * @param {String} action - 設定するアクション
      * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
-    SetLayerImeKey(layer_id, action, reset_if_blank := false) {
-        this.layers.SetImeAction(layer_id, action)
+    SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
+        action1 := action
+        if action2 == "" && InStr(action, "|") && action != "|" {
+            parts := StrSplit(action, "|")
+            if parts.Length >= 2 {
+                action1 := parts[1]
+                action2 := parts[2]
+            }
+        }
+        this.layers.SetImeAction(layer_id, action1, action2)
     }
 
     /**
@@ -1795,6 +1827,7 @@ class RKey {
     Down() {
         Critical
         LKey.InterruptOthers(this)
+        Layers.last_active_item := ""
         this._SendSCAWKey(this.org_key)
     }
 
@@ -1841,6 +1874,11 @@ IME状態に依存しない。
 キーリピートは無効化される以外は、モード 0 と同様の挙動。
 キーリピートは無効化される 。
 キー送信後、キーが押され続けている間、修飾キーとして機能する 。
+
+・モード 7：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用、モード4のタイミング拡張)
+修飾キーをdown,holdしてからx ms以上（Layers.HoldTh）経過しメインキーが押されてたら、修飾キーのコンビネーション（アクション）を送信する。
+修飾キーをdown,holdしてから(x-20)ms未満にメインキーがdownされたら、メインキーの通常キー（アクション）を送信する。
+(x-20)ms以上x ms未満に押された場合は残り時間待機し、修飾キーが押され続けていればコンビネーション、離されたら通常キーを送信する。
 
 ・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
 up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
@@ -1968,6 +2006,9 @@ class LKey extends RKey {
             return
         }
 
+        ; レイヤーキー判定で送信されなかった場合、連続打鍵をリセットする
+        Layers.last_active_item := ""
+
         ; 修飾キー (Ctrl/Alt/Win) パススルー判定
         if super._SendCAWKey(this.org_key) {
             if (hold_mode != 0) {
@@ -2005,7 +2046,7 @@ class LKey extends RKey {
                 ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
                 this.saved_scaw := MakeModStr()
 
-            case 4: ; 短押し->即時送信、長押し->修飾キー
+            case 4, 7: ; 短押し->即時送信、長押し->修飾キー
                 this.SendKeyWithShift()
 
             case 6: ; カスタム即時置換 (予約)
@@ -2104,7 +2145,8 @@ InitGlobalKeys() {
     space := LKey(R_SPACE, 3, C_SPACE)
     tab := LKey(R_TAB, 3, C_TAB)
     noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
-    conv := LKey(R_CONV, 3, C_ENTER)
+    ;conv := LKey(R_CONV, 3, C_ENTER)
+    conv := LKey(R_CONV, 3, C_BS)
     f14 := LKey("f14", 3, C_ZENKAKU)
 
     ; --- リマップキー (RKey) ---
@@ -2316,6 +2358,7 @@ LoadLayoutConfig() {
 class Layers {
 
     static HoldTh := 150
+    static last_active_item := ""
 
     /**
      * レイヤーにバインドされた個々のアクションを保持するインナークラスです。
@@ -2325,10 +2368,15 @@ class Layers {
          * コンストラクタ
          * @param {Integer} layer_id - レイヤーID
          * @param {String} action - 送信されるアクション定義
+         * @param {String} [action2=""] - 2回目以降の送信されるアクション定義
          */
-        __New(layer_id, action) {
+        __New(layer_id, action, action2 := "") {
             this.layer_id := layer_id
             this.action := action
+            this.action2 := action2
+            this.tap_count := 0
+            this.last_mod_key := ""
+            this.last_mod_press_start := 0
         }
     }
 
@@ -2371,7 +2419,7 @@ class Layers {
      * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを厳密に判定します。
      * @param {Integer} layer - レイヤーID
      * @param {Array} arr - レイヤーアイテム配列
-     * @param {Object} key_obj - 処理対象のキーオブジェクト
+     * @param {Object} key_obj - 処理対象 of キーオブジェクト
      * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
      */
     static State2(layer_id, key_obj) {
@@ -2435,6 +2483,7 @@ class Layers {
         for i, v in arr {
             if (v.layer_id == item.layer_id) {
                 v.action := item.action
+                v.action2 := item.action2
                 return
             }
         }
@@ -2448,8 +2497,8 @@ class Layers {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetIMEAction(layer_id, action) {
-        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action))
+    SetIMEAction(layer_id, action, action2 := "") {
+        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2))
     }
 
     /**
@@ -2457,8 +2506,8 @@ class Layers {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetAction(layer_id, action) {
-        Layers._Add(this.arr, Layers.LayerItem(layer_id, action))
+    SetAction(layer_id, action, action2 := "") {
+        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2))
     }
 
     ; /**
@@ -2514,14 +2563,55 @@ class Layers {
 
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
-        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        ;return this.IsLayerActive(arr, key_obj) && this._SendLayerKey(arr, key_obj, ime_state)
         for item in arr {
             mod_key := mod_key_list[item.layer_id]
             if (mod_key != key_obj && mod_key.IsPressed()) {
-                if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > Layers.HoldTh) {
-                    if Layers.State2(item.layer_id, key_obj) {
-                        this._SendKey(item.layer_id, item.action, key_obj)
+                if Layers.State2(item.layer_id, key_obj) {
+                    mod_hold_mode := (ime_state == 1) ? mod_key.hold_mode_ime_org : mod_key.hold_mode_org
+
+                    is_held := false
+                    if (mod_key.pressed_time == 0) {
+                        is_held := true
+                    } else {
+                        t := A_TickCount - mod_key.pressed_time
+                        x := Layers.HoldTh
+
+                        if (mod_hold_mode == 7) {
+                            if (t >= x) {
+                                is_held := true
+                            } else if (t < x - 20) {
+                                is_held := false
+                            } else {
+                                ; x - 20 <= t < x: wait for the remaining time
+                                Sleep(x - t)
+                                ; Check if mod key is still physically held and active after sleep
+                                is_held := mod_key.IsPressed() && Layers.State2(item.layer_id, key_obj)
+                            }
+                        } else {
+                            is_held := (t > x)
+                        }
+                    }
+
+                    if is_held {
+                        action_to_send := item.action
+                        if (item.action2 != "") {
+                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                            if (item.last_mod_key == mod_key && item.last_mod_press_start == mod_key.pressed_time &&
+                                Layers.last_active_item == item) {
+                                item.tap_count += 1
+                            } else {
+                                item.tap_count := 1
+                                item.last_mod_key := mod_key
+                                item.last_mod_press_start := mod_key.pressed_time
+                            }
+                            if (item.tap_count >= 2) {
+                                action_to_send := item.action2
+                            }
+                        }
+                        ; 直近のアクティブなレイヤーアイテムを更新
+                        Layers.last_active_item := item
+
+                        this._SendKey(item.layer_id, action_to_send, key_obj)
                         return true
                     }
                 }
@@ -2535,6 +2625,10 @@ class Layers {
 RegistIMECombination(layer_key_obj, key_obj, text, mode := 4) {
     key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text)
     layer_key_obj.SetMode(-1, mode)
+}
+
+RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "") {
+    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2)
 }
 
 RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
@@ -3234,7 +3328,7 @@ ChangeMinatoLayoutImpl() {
         "n", a, "s", s, "k", d, "t", f, "d", r, "m", c, "r", e, "w", w,
         "a", j, "i", k, "u", i, "e", l, "o", semicolon
     )
-    mode := 4
+    mode := 7
     static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
         ;RegistIMECombination(layer_key, e, "nn", mode) ; ん
@@ -3245,10 +3339,11 @@ ChangeMinatoLayoutImpl() {
         RegistIMECombination(layer_key, e, "ru", mode) ;
     }
     RegistIMECombination(rm["o"], j, "u", mode) ;おう
-    RegistIMECombination(rm["s"], rm["r"], "uru", mode) ;する
-    RegistIMECombination(rm["s"], rm["t"], "ite", mode) ;して
+    ;RegistIMECombination(rm["o"], l, "u", mode) ;おう
+    RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
     RegistIMECombination(rm["s"], r, "areru", mode) ;される
-    RegistIMECombination(rm["r"], r, "areru", mode) ;られる
+    RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
     RegistIMECombination(rm["k"], rm["t"], "oto", mode) ;こと
     RegistIMECombination(z, v, "youhou", mode) ;
 }
@@ -3319,8 +3414,6 @@ SetLKeyMode(mode, ime_mode := -1) {
  */
 InitModLayer() {
     start := Timer()
-
-    SetLKeyMode(1, 0)
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
     global q, w, e, r, t, y, u, i, o, p, at, openbracket
