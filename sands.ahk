@@ -3415,7 +3415,7 @@ ChangeMinatoLayoutImpl() {
     v.SetImeKey("h", "v")
     b.SetImeKey("b", "v")
     y.SetImeKey("ya")
-    u.SetImeKey("yu")
+    u.SetImeKey("yu", "{BS}")
     i.SetImeKey("u", "ou")
     o.SetImeKey("yo")
     p.SetImeKey("ou")
@@ -3431,7 +3431,7 @@ ChangeMinatoLayoutImpl() {
 
     static rm := Map(
         "n", a, "s", s, "k", d, "t", f, "d", r, "m", c, "r", e, "w", w,
-        "a", j, "i", k, "u", i, "e", l, "o", semicolon
+        "a", j, "i", k, "u", i, "e", l, "o", semicolon, "u", i
     )
     SetLKeyMode(-1, 7)
 
@@ -3451,6 +3451,8 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
     RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
     RegistIMECombination2(z, v, "youhou") ;
+    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
 }
 
 /**
