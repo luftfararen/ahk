@@ -563,33 +563,41 @@ HasModifierSymbols(text) {
     return false
 }
 
-; --- 変換マップ定義 ---
+/**
+ * スキャンコードと文字、およびキーの日本語文字/文字名の相互変換を行うためのマッピング情報を初期化します。
+ */
+InitMaps() {
+    global sc_from_char_map
+    global char_from_sc_map
+    global char_from_str_map
+    global str_from_char_map
 
-; 記号 -> スキャンコード形式 scXXX (波括弧なし)
-sc_from_char_map := Map(
-    ";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
-    "\", "sc073", "^", "sc00D", "@", "sc010", "[", "sc01A", "]", "sc01B"
-)
-sc_from_char_map.Default := ""
+    ; 記号 -> スキャンコード形式 scXXX (波括弧なし)
+    sc_from_char_map := Map(
+        ";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
+        "\", "sc073", "^", "sc00D", "@", "sc010", "[", "sc01A", "]", "sc01B"
+    )
+    sc_from_char_map.Default := ""
 
-; スキャンコード形式(波括弧なし) -> 記号文字
-char_from_sc_map := FlipMap(sc_from_char_map)
-char_from_sc_map.Default := ""
+    ; スキャンコード形式(波括弧なし) -> 記号文字
+    char_from_sc_map := FlipMap(sc_from_char_map)
+    char_from_sc_map.Default := ""
 
-; 文字列名 -> 文字
-char_from_str_map := Map(
-    "semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
-    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]",
-    "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine",
-    "9",
-    "zero", "0",
-    "space", "space", "tab", "tab", "enter", "enter", "esc", "esc"
-)
-char_from_str_map.Default := ""
+    ; 文字列名 -> 文字
+    char_from_str_map := Map(
+        "semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+        "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]",
+        "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine",
+        "9",
+        "zero", "0",
+        "space", "space", "tab", "tab", "enter", "enter", "esc", "esc"
+    )
+    char_from_str_map.Default := ""
 
-; 文字 -> 文字列名
-str_from_char_map := FlipMap(char_from_str_map)
-str_from_char_map.Default := ""
+    ; 文字 -> 文字列名
+    str_from_char_map := FlipMap(char_from_str_map)
+    str_from_char_map.Default := ""
+}
 
 ; --- 変換基本関数 ---
 
@@ -884,6 +892,7 @@ class KeyLogger {
             WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
             WriteConfig(String(this.max_log), "Settings", "MaxLog")
             WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+            WriteConfig(String(LKey.b_time), "Settings", "b_time")
         } catch {
         }
     }
@@ -1411,16 +1420,24 @@ ShowOSD(text, duration := 3000, key_close := False) {
     }
 }
 
-; --- 設定 ---
-color_japanese := "Red"
-dot_size := 8
-; ------------
+/**
+ * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
+ */
+InitGUI() {
+    global color_japanese
+    global dot_size
+    global m_gui
 
-; キャレット表示用のGUI作成
-; 描画用のウィンドウ（GUI）作成
-m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
-m_gui.BackColor := color_japanese
-WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+    color_japanese := "Red"
+    dot_size := 8
+    ; ------------
+
+    ; キャレット表示用のGUI作成
+    ; 描画用のウィンドウ（GUI）作成
+    m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+    m_gui.BackColor := color_japanese
+    WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+}
 
 /**
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
@@ -1877,8 +1894,8 @@ IME状態に依存しない。
 
 ・モード 7：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用、モード4のタイミング拡張)
 修飾キーをdown,holdしてからx ms以上（Layers.HoldTh）経過しメインキーが押されてたら、修飾キーのコンビネーション（アクション）を送信する。
-修飾キーをdown,holdしてから(x-20)ms未満にメインキーがdownされたら、メインキーの通常キー（アクション）を送信する。
-(x-20)ms以上x ms未満に押された場合は残り時間待機し、修飾キーが押され続けていればコンビネーション、離されたら通常キーを送信する。
+修飾キーをdown,holdしてから(Layers.HoldTh-b_time)ms未満にメインキーがdownされたら、メインキーの通常キー（アクション）を送信する。
+(Layers.hold_th-b_time)ms以上x ms未満に押された場合は残り時間待機し、修飾キーが押され続けていればコンビネーション、離されたら通常キーを送信する。
 
 ・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
 up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
@@ -1905,6 +1922,7 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 */
 class LKey extends RKey {
     static hold_th := 300 ; 長押しと判定する閾値 (ms)
+    static b_time := 50 ; 長押しと判定する閾値 (ms)
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -2032,7 +2050,9 @@ class LKey extends RKey {
         }
     }
     /**
-     * 押し下げ処理の実体（タイマーのセットや即時送信）
+     * 各モード（モード1, 3, 4, 7, 6）における押し下げ処理の具体的な振る舞いを実行します。
+     * @param {Boolean} ime_state - 現在のIME状態
+     * @param {Integer} hold_mode - 長押し動作モード
      */
     _Down(ime_state, hold_mode) {
         ;hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
@@ -2139,6 +2159,10 @@ global z, x, c, v, b, n, m, comma, period, slash, backslash, enter
 global up, down, left, right
 global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_CHAR_KEYS, LAYOUT_KEYS, QWERTY_CHARS
 
+/**
+ * すべての物理キーに対応する RKey / LKey オブジェクトのインスタンスを生成し、
+ * レイループ用配列（LAYOUT_KEYS など）に一括してグローバルに登録・初期化します。
+ */
 InitGlobalKeys() {
     global
     f13 := LKey("f13", 3, C_TAB)
@@ -2316,6 +2340,10 @@ LoadLayoutConfig() {
     try {
         try {
             LKey.hold_th := Integer(ReadConfig("Settings", "HoldTh", String(LKey.hold_th)))
+        } catch {
+        }
+        try {
+            LKey.b_time := Integer(ReadConfig("Settings", "b_time", String(LKey.b_time)))
         } catch {
         }
         try {
@@ -2579,10 +2607,10 @@ class Layers {
                         if (mod_hold_mode == 7) {
                             if (t >= x) {
                                 is_held := true
-                            } else if (t < x - 20) {
+                            } else if (t < x - LKey.b_time) {
                                 is_held := false
                             } else {
-                                ; x - 20 <= t < x: wait for the remaining time
+                                ; x - LKey.b_time <= t < x: wait for the remaining time
                                 Sleep(x - t)
                                 ; Check if mod key is still physically held and active after sleep
                                 is_held := mod_key.IsPressed() && Layers.State2(item.layer_id, key_obj)
@@ -2622,18 +2650,50 @@ class Layers {
 
 }
 
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）とその動作モードを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 送信するキーアクション定義
+ * @param {Integer} [mode=4] - 設定する長押し動作モード
+ */
 RegistIMECombination(layer_key_obj, key_obj, text, mode := 4) {
     key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text)
     layer_key_obj.SetMode(-1, mode)
 }
 
+/**
+ * IME OFF 時の特定キーの同時押し（コンビネーション）とその動作モードを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 送信するキーアクション定義
+ * @param {Integer} [mode=4] - 設定する長押し動作モード
+ */
+RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, false)
+    layer_key_obj.SetMode(mode, -1)
+}
+
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 1回目の押下時に送信するキーアクション定義
+ * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
+ */
 RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "") {
     key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2)
 }
 
-RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
-    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, false)
-    layer_key_obj.SetMode(mode, -1)
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 1回目の押下時に送信するキーアクション定義
+ * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
+ */
+RegistCombination2(layer_key_obj, key_obj, text, text2 := "") {
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, text2)
 }
 
 /**
@@ -2774,6 +2834,13 @@ class IniMap {
     }
 }
 
+/**
+ * INIファイルから読み込んだセクション定義から、指定したプレフィックスを持つレイヤーキー設定をパースし、レイアウトマップに格納します。
+ * @param {Map} layout_map - 取得したキー設定を格納するマップ
+ * @param {String} section_text - INIファイルから読み出したセクション全体のテキスト
+ * @param {String} prefix - 抽出対象 of プレフィックス（例: "m_"）
+ * @param {String} ini_path - INIファイルの絶対パス
+ */
 ReadLayerKey(layout_map, section_text, prefix, ini_path) {
     if section_text != "" {
         prefix_len := StrLen(prefix)
@@ -2860,9 +2927,9 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
 
                     if (layer_obj && target_obj) {
                         if is_ime
-                            RegistIMECombination(layer_obj, target_obj, val, 4)
+                            RegistIMECombination(layer_obj, target_obj, val, 7)
                         else
-                            RegistCombination(layer_obj, target_obj, val, 4)
+                            RegistCombination(layer_obj, target_obj, val, 7)
                     }
                 }
             }
@@ -3328,24 +3395,24 @@ ChangeMinatoLayoutImpl() {
         "n", a, "s", s, "k", d, "t", f, "d", r, "m", c, "r", e, "w", w,
         "a", j, "i", k, "u", i, "e", l, "o", semicolon
     )
-    mode := 7
+    SetLKeyMode(-1, 7)
+
     static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
         ;RegistIMECombination(layer_key, e, "nn", mode) ; ん
-        RegistIMECombination(layer_key, d, "nn", mode) ; ん
-        RegistIMECombination(layer_key, f, "-", mode) ;ー
-        RegistIMECombination(layer_key, v, "ltu", mode) ;
-        RegistIMECombination(layer_key, c, "ltuta", mode) ;
-        RegistIMECombination(layer_key, e, "ru", mode) ;
+        RegistIMECombination2(layer_key, d, "nn") ; ん
+        RegistIMECombination2(layer_key, f, "-") ;ー
+        RegistIMECombination2(layer_key, v, "ltu") ;
+        RegistIMECombination2(layer_key, c, "ltute", "ltuta") ;
+        RegistIMECombination2(layer_key, e, "ru", "{BS}rareru") ;
     }
-    RegistIMECombination(rm["o"], j, "u", mode) ;おう
-    ;RegistIMECombination(rm["o"], l, "u", mode) ;おう
+    RegistIMECombination2(rm["o"], j, "u") ;おう
     RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
     RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    RegistIMECombination(rm["s"], r, "areru", mode) ;される
+    RegistIMECombination2(rm["s"], r, "areru") ;される
     RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination(rm["k"], rm["t"], "oto", mode) ;こと
-    RegistIMECombination(z, v, "youhou", mode) ;
+    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination2(z, v, "youhou") ;
 }
 
 /**
@@ -3663,19 +3730,27 @@ OpenConfigEditor(*) {
 Init() {
     start := Timer()
 
-    ; 0. グローバルキー変数の初期化
+    ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
+    InitMaps()
+
+    ; 2. グローバルキー変数の初期化
     InitGlobalKeys()
 
-    ; 1. モディファイアキーリストの初期化
+    ; 3. モディファイアキーリストの初期化
     global mod_key_list
     mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
 
-    ; 2. レイヤーとレイアウトの適用
+    ; 4. レイヤーとレイアウトの適用
     InitModLayer()
+
+    ; 5. UI/GUI関連の初期化
+    InitGUI()
+
+    ; 6. レイアウト設定・ログの読み込み
     LoadLayoutConfig()
     KeyLogger.Load()
 
-    ; 3. トレイメニューやUIの設定
+    ; 7. トレイメニューやUIの設定
     A_TrayMenu.Add() ; セパレータ
     A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
 
@@ -3684,7 +3759,7 @@ Init() {
         TraySetIcon("klt.ico")
     }
 
-    ; 4. タイマーの開始 (初期化完了後に実行)
+    ; 8. タイマーの開始 (初期化完了後に実行)
     SetTimer(TimerEvent, 100)
 
     end := Timer()

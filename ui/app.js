@@ -266,6 +266,7 @@ ImeIndicatorEnabled=1
 StartupLayout=FMIX13f-Minato
 HoldTh=300
 LayerHoldTh=150 ;Layers.HoldThに設定される
+b_time=50
 LogEnabled=0
 MaxLog=5000
 space=NAVI_CTRL
@@ -434,6 +435,10 @@ const App = {
         });
         document.getElementById('setting-layer-hold-th').addEventListener('change', (e) => {
             this.doc.setValue('Settings', 'LayerHoldTh', e.target.value);
+            this.markModified();
+        });
+        document.getElementById('setting-b-time').addEventListener('change', (e) => {
+            this.doc.setValue('Settings', 'b_time', e.target.value);
             this.markModified();
         });
         document.getElementById('setting-ime-indicator').addEventListener('change', (e) => {
@@ -1198,6 +1203,7 @@ const App = {
         // Settings values
         document.getElementById('setting-hold-th').value = this.doc.getValue('Settings', 'HoldTh', '300');
         document.getElementById('setting-layer-hold-th').value = this.doc.getValue('Settings', 'LayerHoldTh', '150');
+        document.getElementById('setting-b-time').value = this.doc.getValue('Settings', 'b_time', '50');
         document.getElementById('setting-ime-indicator').checked = this.doc.getValue('Settings', 'ImeIndicatorEnabled', '1') === "1";
         document.getElementById('setting-log-enabled').checked = this.doc.getValue('Settings', 'LogEnabled', '0') === "1";
         document.getElementById('setting-max-log').value = this.doc.getValue('Settings', 'MaxLog', '5000');
