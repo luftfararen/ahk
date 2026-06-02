@@ -5,19 +5,28 @@
 ; ============================================================================
 ; このスクリプトは、AutoHotkey v2 用の高度なキーカスタマイズを提供します。
 ; 主な機能:
-; 1. センターモディファイア (MKey): Space、Enter、無変換などのキーを、
+; 1. センターモディファイア (LKey Mode 3): Space、Enter、無変換などのキーを、
 ;    短押し（タップ）では通常のキーとして、長押しではモディファイアキー
 ;    （レイヤー切り替え）として機能させます。
 ; 2. キーリマップ (RKey): キーをリマップし、Shift押下状態、IMEのON/OFF状態
 ;    に応じて異なる挙動を設定できます。
 ; 3. 長押しキー (LKey): RKey を拡張し、キーの長押しに別の機能を割り当てます
-;    （例：短押しで ';'、長押しで ':'）。
-; 4. キーレイヤー (#HotIf): MKey を使用して、複数のキーボードレイヤー
+;    （例：短押しで ';'、長押しで ':'）
+; 4. キーレイヤー (#HotIf): LKey を使用して、複数のキーボードレイヤー
 ;    （ナビゲーション、テンキー、記号レイヤーなど）を作成します。
 ; 5. レイアウト切り替え: キーボードレイアウト（Colemak, FMIX, 大西配列など）
 ;    を動的に変更する関数。
 ; 6. IME制御: IMEの状態を取得、設定、切り替える関数。
 ; 7. マウス速度制御: ホットキーを使用してシステムのマウス速度を調整するクラス。
+; 8. KeyLogger: タイピングの統計（3キーシーケンス（トリグラム）の出現頻度と
+;    打鍵間隔）を記録します。各配列の効率分析や、自身のタイピング傾向の把握に
+;    活用できます。
+; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
+;    日本語入力が ON の間、マウスカーソルに追従する小さなドットを表示します。
+;
+;  リアルシフトキーとスペースシフトキーの挙動は個別に設定可能
+;  スペースシフトキー修飾として各キーの動作が登録されていればその動作を
+;  登録されていれなければ、リアルシフトキーに登録された動作を行う
 ; ============================================================================
 
 ; ============================================================================
@@ -42,12 +51,43 @@
 ; C_... : Send互換の文字列 (例: "{sc07B}")
 ; B_... : Blindモード用のSend文字列 (例: "{Blind}{sc07B}")
 
+; ============================================================================
+; スクリプト設定
+; ============================================================================
+;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
+ProcessSetPriority "High" ; 最高の応答性を確保するため優先度を高に設定
+SetKeyDelay(15, 5)
+ListLines 0
+SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
+
+InstallKeybdHook true ; キーボードフックを常にインストール
+InstallMouseHook true ; マウスフックを常にインストール（MouseSpeedクラス用）
+#UseHook true ; ホットキーにフックの使用を強制
+#MaxThreadsBuffer True ; 中断された場合にホットキーをバッファリングする
+;#MaxThreadsPerHotkey 3 ;（コメントアウト）ホットキーあたりのスレッド数を制限
+
+; Win+Alt+v / Ctrl+Win+Alt+v パススルー設定
+; これらをホットキーとして登録し何もしないことで、クリップボード履歴 (clipboard_history_list) などの
+; 外部アプリ/OSのショートカットが本スクリプトにブロックされるのを防ぎ、正しく動作させます。
 ~^#!v:: {
 
 }
 ~#!v:: {
 
 }
+
+; ============================================================================
+; レイヤー番号定義（グローバル定数）
+; ============================================================================
+global L_NAVI_CTRL := 1
+global L_SYMBOL_NUM := 2
+global L_SYMBOL1 := 3
+global L_SYMBOL2 := 4
+global L_SELECT := 5
+global L_NUMPAD := 6
+global L_SHIFT := 7
+
+global mod_key_list := []
 
 ; --- 無変換キー ---
 R_NOCONV := "sc07B"
@@ -197,53 +237,88 @@ B_F11 := "{Blind}{F11}"
 B_F12 := "{Blind}{F12}"
 
 ; ============================================================================
-; スクリプト設定
-; ============================================================================
-;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
-ProcessSetPriority "Realtime" ; 最高の応答性を確保するため優先度をリアルタイムに設定
-SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
-
-InstallKeybdHook true ; キーボードフックを常にインストール
-InstallMouseHook true ; マウスフックを常にインストール（MouseSpeedクラス用）
-#UseHook true ; ホットキーにフックの使用を強制
-#MaxThreadsBuffer True ; 中断された場合にホットキーをバッファリングする
-;#MaxThreadsPerHotkey 3 ;（コメントアウト）ホットキーあたりのスレッド数を制限
-SetKeyDelay 0 ; キー入力後のディレイをなしに設定
-
-KeyLogger.Load()
-; 終了・リロード時に保存
-OnExit((*) => (KeyLogger.Save(), KeyLogger.SaveConfig()))
-
-; ============================================================================
 ; GLOBAL FUNCTIONS
 ; ============================================================================
 
-;shift_lambda := () => GetKeyState("Shift", "P")
+/**
+ * 指定されたセクションとキーから設定を読み込みます。
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
+ * @param {String} defaultValue - デフォルト値
+ * @returns {String} 読み込んだ設定値
+ */
+ReadConfig(section, key, defaultValue) {
+    static ConfigPath := A_ScriptDir . "\config.ini"
+    val := IniRead(ConfigPath, section, key, defaultValue)
+    pos := InStr(val, Chr(32) . Chr(59))
+    if pos == 0 {
+        pos := InStr(val, "`t" . Chr(59))
+    }
+    if pos > 0 {
+        val := SubStr(val, 1, pos - 1)
+    }
+    return Trim(val)
+}
 
 /**
- * Shiftキーが物理的に押されているかを取得する
- * @returns {Boolean} Shiftが押されていれば true
+ * 指定されたセクションとキーに設定を書き込みます。
+ * @param {String} value - 書き込む値
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
  */
-IsPhysicalShiftPressed() {
-    ;global shift_lambda
-    ;return shift_lambda()
-    return GetKeyState("Shift", "P")
+WriteConfig(value, section, key) {
+    static ConfigPath := A_ScriptDir . "\config.ini"
+    return IniWrite(value, ConfigPath, section, key)
 }
 
+/**
+ * Shiftキーが物理的に押されているか、またはSpaceキーがシフト修飾として機能しているかを判定します。
+ * @param {Object} key_obj - 判定対象のキーオブジェクト
+ * @returns {Boolean} Shift状態（SandS含む）であれば true
+ */
+IsPhysicalShiftPressed(key_obj) {
+    global space
+    ; 物理Shiftキーが押されている場合
+    if GetKeyState("Shift", "P")
+        return true
+
+    ; 判定対象のキー自身がSpaceキーではなく、かつSpaceキーが押されている場合 (SandS機能)
+    if (IsSet(space) && key_obj != space && space.IsPressed())
+        return true
+
+    return false
+}
+
+/*
+* 高分解能タイマー(単位:millisecond)
+*/
 Timer() {
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
-    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
-    return tick / freq
+    freq := 0, tick := 0
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+    DllCall("QueryPerformanceCounter", "Int64*", &tick)
+    return tick / freq * 1000.0
 }
 
-QueryPerformanceFrequency() {
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
+/**
+ * 高精度タイマーの周波数を取得します。
+ * @returns {Int64} 周波数
+ */
+QueryFrequency() {
+    freq := 0
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq)
     return freq
+    ;return 1000
 }
 
-QueryPerformanceCounter() {
-    DllCall("QueryPerformanceCounter", "Int64*", &tick := 0)
+/**
+ * 高精度タイマーの現在のカウント値を取得します。
+ * @returns {Int64} カウント値
+ */
+QueryCounter() {
+    tick := 0
+    DllCall("QueryPerformanceCounter", "Int64*", &tick)
     return tick
+    ;return A_TickCount
 }
 
 /**
@@ -260,7 +335,7 @@ GetFocusedControlHandle() {
     if hwnd {
         NumPut("UInt", cb_size, st_gti, 0)
         if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti) {
-            hwnd := NumGet(st_gti, 8 + ptr_size, "UInt")
+            hwnd := NumGet(st_gti, 8 + ptr_size, "Ptr")
         }
     }
     return hwnd
@@ -270,16 +345,24 @@ GetFocusedControlHandle() {
  * 特定のウィンドウの IME (Input Method Editor) 状態を設定する
  * @param {Ptr} hwnd - 対象ウィンドウハンドル
  * @param {Integer} state - 設定したい状態 (1: ON, 0: OFF)
- * @returns {LParam} DllCall の結
+ * @returns {LParam} DllCall の結果
  */
 SetImeStatus(hwnd, state) {
-    return DllCall("SendMessage"
-        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
+    default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+    ; 0x0002: SMTO_ABORTIFHUNG, timeout 50ms
+    return DllCall("user32\SendMessageTimeout"
+        , "Ptr", default_ime_wnd
         , "UInt", 0x0283  ; WM_IME_CONTROL
         , "Ptr", 0x006    ; IMC_SETOPENSTATUS (開状態を設定)
-        , "Ptr", state)  ; 1 = ON, 0 = OFF
+        , "Ptr", state
+        , "UInt", 0x0002  ; SMTO_ABORTIFHUNG
+        , "UInt", 50      ; 50ms timeout
+        , "Ptr*", &result)
 }
 
+/**
+ * IME（日本語入力）の状態を管理・監視するクラスです。
+ */
 class ImeState {
     static force_ime_on := false
     static cached_state := false
@@ -316,6 +399,9 @@ class ImeState {
         ImeState.last_action_time := A_TickCount
     }
 
+    /**
+     * IME状態の最終チェック時刻を記録します。
+     */
     static RecordCheck() {
         ImeState.last_check_time := A_TickCount
     }
@@ -327,6 +413,10 @@ class ImeState {
         ImeState.last_check_time := 0
     }
 
+    /**
+     * 現在のモードと時間経過に基づき、IME状態のチェックが必要かどうかを判定します。
+     * @returns {Boolean} チェックが必要な場合は true
+     */
     static MustCheck() {
         if (ImeState.mode == 0) {
             ;キー入力が長時間されない場合、チェックする
@@ -343,16 +433,19 @@ class ImeState {
         }
     }
 
+    /**
+     * 現在フォーカスされているウィンドウの実際の IME 状態を取得し、キャッシュを更新します。
+     * @returns {Boolean} 更新後の IME 状態 (ON なら true)
+     */
     static UpdateState() {
-        static last_active_hwnd := 0
+        static last_active_control_hwnd := 0
 
         hwnd := GetFocusedControlHandle()
-        time := A_TickCount
 
         ; 同じウィンドウであれば強制フラグを確認
-        if last_active_hwnd = hwnd {
+        if (last_active_control_hwnd == hwnd) {
             if ImeState.force_ime_on {
-                cached_state := true
+                ImeState.cached_state := true
                 ImeState.RecordCheck()
                 return true
             }
@@ -362,14 +455,15 @@ class ImeState {
             ImeState.force_ime_on := false
         }
 
-        last_active_hwnd := hwnd
+        last_active_control_hwnd := hwnd
 
         ; 実際の IME 状態を確認
-        state := DllCall("SendMessage"
-            , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd)
-            , "UInt", 0x0283  ; WM_IME_CONTROL
-            , "Ptr", 0x0005   ; IMC_GETOPENSTATUS (開状態を取得)
-            , "Ptr", 0)      ; 1 = ON, 0 = OFF
+        state := 0
+        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+        ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
+        DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
+            "UInt",
+            0x0002, "UInt", 50, "Ptr*", &state)
 
         ImeState.cached_state := (state != 0)
         ImeState.RecordCheck()
@@ -404,44 +498,320 @@ class ImeState {
     }
 }
 
-; よく使う記号のスキャンコードを文字に変換(;:,.¥_\)
-sc_to_char_map := Map("sc027", ";", "sc028", ":", "sc033", ",", "sc034", ".", "sc035", "/", "sc07D", "¥",
-    "sc073", "\", "sc00D", "^")
-sc_to_char_map.default := " "
+/* ============================================================================
+    STRING CONVERSION & HELPERS
+============================================================================ */
 
-; 記号をスキャンコードに変換
-char_to_sc_map := Map(";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
-    "\", "sc073", "^", "sc00D")
-char_to_sc_map.default := ""
-
-text_to_char_map := Map("semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
-    "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]", "one", "1", "two", "2",
-    "three", "3",
-    "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9", "zero", "0")
-
-text_to_char(text) {
-    text_to_char_map.Default := ""
-    c := text_to_char_map[text]
-    if (c == "") {
-        return text
+/**
+ * マップのキーと値を入れ替えた新しいマップを返します。
+ */
+FlipMap(originalMap) {
+    flipped := Map()
+    for key, value in originalMap {
+        flipped[value] := key
     }
-    return c
+    return flipped
 }
 
-class KeyLogItem {
-    count := 0
-    count_d := 0
-    duration12 := 0
-    duration13 := 0
+/**
+ * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
+ */
+IsSingleBraceText(text) {
+    return (StrLen(text) >= 3
+    && SubStr(text, 1, 1) = "{"
+    && SubStr(text, -1) = "}"
+    && !InStr(text, "{", false, 2))
 }
 
+/**
+ * 文字列に波括弧を追加する。既に囲まれている場合はそのまま。
+ */
+AddBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return key
+    }
+    return "{" . key . "}"
+}
+
+/**
+ * 文字列から波括弧を除去する。
+ */
+RemoveBraces(key) {
+    if (IsSingleBraceText(key)) {
+        return SubStr(key, 2, StrLen(key) - 2)
+    }
+    return key
+}
+
+/**
+ * 指定されたキー文字列に修飾記号 (+, ^, !, #, {Blind}) が含まれているか確認。
+ */
+HasModifierSymbols(text) {
+    ; 単体の "{+}" や "{^}" などの場合は修飾記号ありとみなさない
+    if IsSingleBraceText(text) {
+        inner := SubStr(text, 2, StrLen(text) - 2)
+        if (inner == "+" || inner == "^" || inner == "!" || inner == "#") {
+            return false
+        }
+    }
+    list := ["{Blind}", "+", "#", "^", "!"]
+    for item in list {
+        if InStr(text, item, false) > 0 {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * スキャンコードと文字、およびキーの日本語文字/文字名の相互変換を行うためのマッピング情報を初期化します。
+ */
+InitMaps() {
+    global sc_from_char_map
+    global char_from_sc_map
+    global char_from_str_map
+    global str_from_char_map
+
+    ; 記号 -> スキャンコード形式 scXXX (波括弧なし)
+    sc_from_char_map := Map(
+        ";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
+        "\", "sc073", "^", "sc00D", "@", "sc010", "[", "sc01A", "]", "sc01B"
+    )
+    sc_from_char_map.Default := ""
+
+    ; スキャンコード形式(波括弧なし) -> 記号文字
+    char_from_sc_map := FlipMap(sc_from_char_map)
+    char_from_sc_map.Default := ""
+
+    ; 文字列名 -> 文字
+    char_from_str_map := Map(
+        "semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+        "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]",
+        "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine",
+        "9",
+        "zero", "0",
+        "space", "space", "tab", "tab", "enter", "enter", "esc", "esc"
+    )
+    char_from_str_map.Default := ""
+
+    ; 文字 -> 文字列名
+    str_from_char_map := FlipMap(char_from_str_map)
+    str_from_char_map.Default := ""
+}
+
+; --- 変換基本関数 ---
+
+/**
+ * 文字（例: ";"）をスキャンコード形式（例: "{sc027}"）に変換します。英数字はそのまま返します。
+ * @param {String} c - 変換対象の文字
+ * @returns {String} スキャンコード形式の文字列
+ */
+ScFromChar(c) {
+    sc := sc_from_char_map[c]
+    if (sc == "") {
+        return c
+    }
+    return AddBraces(sc)
+}
+
+/**
+ * スキャンコード形式（例: "{sc027}"）を文字（例: ";"）に変換します。
+ * @param {String} sc - 変換対象のスキャンコード
+ * @returns {String} 変換後の文字
+ */
+CharFromSc(sc) {
+    sc_raw := RemoveBraces(sc)
+    c := char_from_sc_map[sc_raw]
+    return (c == "") ? sc : c
+}
+
+/**
+ * キーの名前（例: "semicolon"）を対応する文字（例: ";"）に変換します。
+ * @param {String} str - キーの名前
+ * @returns {String} 対応する文字
+ */
+CharFromStr(str) {
+    c := char_from_str_map[str]
+    return (c == "") ? str : c
+}
+
+/**
+ * 文字（例: ";"）を対応するキーの名前（例: "semicolon"）に変換します。
+ * @param {String} c - 変換対象の文字
+ * @returns {String} キーの名前
+ */
+StrFromChar(c) {
+    str := str_from_char_map[c]
+    return (str == "") ? c : str
+}
+
+; --- 統合ロジック関数 (INI入出力用) ---
+/**
+ * INIファイルのエントリー名を作る: スキャンコードや文字を小文字の名前形式に変換
+ * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "enter"
+ */
+EntryName(sc) {
+    sc_raw := RemoveBraces(sc)
+    c := CharFromSc(StrLower(sc_raw))
+    name := StrFromChar(RemoveBraces(c))
+    return StrLower(RemoveBraces(name))
+}
+
+/**
+ * 表示用の文字・文字列に変換
+ * 例: "{sc027}" -> ";", ";" -> ";", "one" -> "1", "a" -> "a", "{Enter}" -> "Enter"
+ */
+DispStr(str, remove_braces := true) {
+    c := CharFromStr(str) ; "semicolon" -> ";"
+    if (c == str) {         ; 変換されなかった場合（名前ではない場合）
+        c := CharFromSc(str) ; "{sc027}" -> ";"
+    }
+    return remove_braces ? RemoveBraces(c) : c ; "{Esc}" -> "Esc" などの最終調整
+}
+
+/**
+ * 【キー表記の解決】
+ * 人間用の名前や文字を、AHKが送信・管理で利用する標準的な形式に整える。
+ * (名前があればスキャンコードへ、そうでなければ元の文字や表記を維持)
+ * 例: "semicolon" -> "{sc027}", "one" -> "1", "{Enter}" -> "{Enter}"
+ */
+ResolveKeyText(str) {
+    if (InStr(str, "|") && str != "|") {
+        parts := StrSplit(str, "|")
+        resolved_parts := []
+        for part in parts {
+            resolved_parts.Push(ResolveKeyText_Single(Trim(part)))
+        }
+        res := ""
+        for part in resolved_parts {
+            res .= (res == "" ? "" : "|") . part
+        }
+        return res
+    }
+    return ResolveKeyText_Single(str)
+}
+
+ResolveKeyText_Single(str) {
+    ; 名前（semicolon等）から文字（;等）を取得
+    c := CharFromStr(str)
+    ; 文字からスキャンコードを取得（スキャンコード化できない文字はそのまま返る想定）
+    return ScFromChar(c)
+}
+
+/**
+ * 文字列名から対応する LKey/RKey オブジェクトを取得します。
+ */
+GetKeyObjByName(name) {
+    static key_map := Map()
+    if key_map.Count == 0 {
+        global QWERTY_CHARS, LAYOUT_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_SPECIAL_KEYS
+        for i, c in QWERTY_CHARS {
+            key_map[EntryName(c)] := LAYOUT_KEYS[i]
+        }
+        for i, c in LAYOUT_SPECIAL_NAMES {
+            key_map[c] := LAYOUT_SPECIAL_KEYS[i]
+        }
+    }
+    ; "f", "space", ";" 等を内部のエントリー名 ("semicolon"等) に正規化して取得
+    name := EntryName(name)
+    return key_map.Get(name, false)
+}
+
+/**
+ * INIや定義から読み込んだ値を、AHKのSendで安全に動作する形式にパースします。
+ * 1文字の危険な記号のみを波括弧で安全に隔離し、2文字以上のマクロ等はそのまま通します。
+ * @param {String} raw_str - 変換対象の文字列 (例: "*", "+", "ctrl")
+ * @returns {String} パース済みの文字列 (例: "{*}", "{+}", "ctrl")
+ */
+ParseIniValue(raw_str) {
+    if (raw_str == " ") {
+        return "{Space}"
+    }
+    if (StrLen(raw_str) == 1) {
+        if InStr("+^!#{}*?<>=``;:@[]¥\", raw_str) {
+            return "{" . raw_str . "}"
+        }
+    }
+    return raw_str
+}
+
+/**
+ * 【送信コマンドの構築】
+ * 解決済みのキー表記に、修飾記号などを付与して「Send関数用」の最終文字列を作る。
+ */
+BuildSendText(text, prefix := "") {
+    if text == ""
+        return ""
+    if text == "{none}"
+        return "{none}"
+
+    ; {Blind} や 意図的な修飾記号付きマクロの場合はそのまま返す
+    if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
+        return text
+
+    ; 1文字の素の記号のみを安全にエスケープ（ただし単一波括弧の場合はスキップ）
+    if !IsSingleBraceText(text) {
+        text := ParseIniValue(text)
+    }
+
+    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
+        return prefix . text
+    }
+    return text
+}
+
+/**
+ * レイアウト文字列のパース補助クラス。
+ */
+class LayoutString {
+    arr := []
+    /**
+     * コンストラクタ
+     * @param {String} layout_str - パースするレイアウト文字列
+     */
+    __New(layout_str) {
+        this.layout_str := layout_str
+        if this.layout_str = ""
+            return
+        if InStr(this.layout_str, " ") {
+            this.arr := []
+            for item in StrSplit(Trim(this.layout_str), " ") {
+                if item != ""
+                    this.arr.Push(item)
+            }
+        } else {
+            this.arr := StrSplit(this.layout_str)
+        }
+    }
+    /**
+     * 指定されたインデックスの要素を取得します。
+     * @param {Integer} index - インデックス（1-indexed）
+     * @returns {String} 要素文字列
+     */
+    GetElement(index) => (index <= this.arr.Length) ? this.arr[index] : ""
+}
+
+/**
+ * タイピングログ（トリグラム頻度、打鍵間隔など）を記録・集計・保存するクラスです。
+ */
 class KeyLogger {
+
+    /**
+     * 各キー配列ログアイテムの統計情報を保持する構造体クラス。
+     */
+    class KeyLogItem {
+        count := 0
+        count_d := 0
+        duration12 := 0
+        duration13 := 0
+    }
+
     static IDLE_TIMEOUT := 3000     ; 3秒以上の打鍵間隔で履歴リセット
     static AUTOSAVE_INTERVAL := 300000 ; 5分ごとに自動保存
     static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
 
     static log_file := A_ScriptDir . "\log.txt"
-    static config_file := A_ScriptDir . "\config.ini"
+    ;static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
     static is_showing_ime_indicator := true
     static stats := Map()     ; 段階3: フル辞書 (長期保存用)
@@ -471,6 +841,9 @@ class KeyLogger {
         this.tick_1 := 0, this.tick_2 := 0, this.tick_3 := 0
     }
 
+    /**
+     * キーロギングの有効/無効を切り替えます。
+     */
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
         this.SaveConfig()
@@ -490,21 +863,21 @@ class KeyLogger {
      * 設定ファイルから設定を読み込む
      */
     static LoadConfig() {
-        this.freq := QueryPerformanceFrequency()
+        this.freq := QueryFrequency()
         try {
-            val := IniRead(this.config_file, "Settings", "LogEnabled", "0")
+            val := ReadConfig("Settings", "LogEnabled", "0")
             this.is_logging_enabled := (val == "1")
         } catch {
             this.is_logging_enabled := false
         }
         try {
-            val := IniRead(this.config_file, "Settings", "ImeIndicatorEnabled", "1")
+            val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
             this.is_showing_ime_indicator := (val == "1")
         } catch {
             this.is_showing_ime_indicator := true
         }
         try {
-            this.max_log := Integer(IniRead(this.config_file, "Settings", "MaxLog", "5000"))
+            this.max_log := Integer(ReadConfig("Settings", "MaxLog", "5000"))
         } catch {
             this.max_log := 2000
         }
@@ -515,10 +888,11 @@ class KeyLogger {
      */
     static SaveConfig() {
         try {
-            IniWrite(this.is_logging_enabled ? "1" : "0", this.config_file, "Settings", "LogEnabled")
-            IniWrite(this.is_showing_ime_indicator ? "1" : "0", this.config_file, "Settings", "ImeIndicatorEnabled")
-            IniWrite(String(this.max_log), this.config_file, "Settings", "MaxLog")
-            IniWrite(String(LKey.long_press_th), this.config_file, "Settings", "long_press_th")
+            WriteConfig(this.is_logging_enabled ? "1" : "0", "Settings", "LogEnabled")
+            WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
+            WriteConfig(String(this.max_log), "Settings", "MaxLog")
+            WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+            WriteConfig(String(LKey.b_time), "Settings", "b_time")
         } catch {
         }
     }
@@ -566,7 +940,7 @@ class KeyLogger {
                         valStr := SubStr(line, pos + 3)
                         vals := StrSplit(valStr, " ")
 
-                        item := KeyLogItem()
+                        item := KeyLogger.KeyLogItem()
                         item.count := Integer(vals[1])
                         if vals.Length >= 4 {
                             item.count_d := Integer(vals[2])
@@ -594,6 +968,7 @@ class KeyLogger {
             for seq, item in stats_map
                 total += item.count
 
+            ; マップ全体を舐め終わった後に判定する
             if total > this.max_log {
                 keysToDel := []
                 for seq, item in stats_map {
@@ -608,10 +983,18 @@ class KeyLogger {
         }
     }
 
+    /**
+     * レイアウトの名称を設定します。
+     * @param {String} section - 設定するレイアウトセクション名
+     */
     static SetLayoutName(section) {
         this.current_layout := section
     }
 
+    /**
+     * レイアウトを切り替え、それまでのログの統合・圧縮を行います。
+     * @param {String} section - 新しいレイアウトセクション名
+     */
     static ChangeLayout(section) {
         this._MergeShortTerm()
         this._Consolidate()
@@ -619,6 +1002,9 @@ class KeyLogger {
         this.SetLayoutName(section)
     }
 
+    /**
+     * 短期バッファ（stats_short）のログデータを解析し、中間辞書（stats_mid）に集計・統合します。
+     */
     static _MergeShortTerm() {
         if this.stats_short_idx == 0 {
             return
@@ -628,7 +1014,7 @@ class KeyLogger {
         if !this.stats_mid.Has(layout)
             this.stats_mid[layout] := Map()
         stats_map := this.stats_mid[layout]
-
+        def_save := char_from_sc_map.Default
         loop this.stats_short_idx {
             entry := this.stats_short[A_Index]
             char := entry.c
@@ -638,20 +1024,11 @@ class KeyLogger {
             if InStr(char, "{") {
                 if SubStr(char, 1, 7) = "{Blind}"
                     char := SubStr(char, 8) ; {Blind} を除去
-
+                char := DispStr(char, false)
                 if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
-                    if SubStr(char, 1, 3) = "{sc" && SubStr(char, -1) = "}" {
-                        char := sc_to_char_map[SubStr(char, 2, -1)] ; {sc033} を文字に変換
-                    } else {
-                        char := " "
-                        ;continue ; 記録対象外の特殊キー ({Enter} 等) は無視
-                    }
+                    char := " "
                 }
             }
-
-            ; よく使う記号のスキャンコードを文字に変換
-            ;char := sc_to_char_map.Get(char, char)
-
             if char = ""
                 continue
 
@@ -678,7 +1055,7 @@ class KeyLogger {
 
             seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
             if !stats_map.Has(seq)
-                stats_map[seq] := KeyLogItem()
+                stats_map[seq] := KeyLogger.KeyLogItem()
 
             item := stats_map[seq]
             item.count += 1
@@ -689,6 +1066,8 @@ class KeyLogger {
                 item.duration13 += t
             }
         }
+        char_from_sc_map.Default := def_save
+
         this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
         this.total_log_time := 0
         this.stats_short_idx := 0
@@ -708,7 +1087,7 @@ class KeyLogger {
 
             for seq, mid_item in mid_map {
                 if !full_map.Has(seq)
-                    full_map[seq] := KeyLogItem()
+                    full_map[seq] := KeyLogger.KeyLogItem()
                 full_item := full_map[seq]
 
                 full_item.count += mid_item.count
@@ -720,34 +1099,52 @@ class KeyLogger {
         this.stats_mid := Map()
     }
 
+    /**
+     * 指定されたアイドル時間に基づき、必要に応じてログデータを自動保存します。
+     * @param {Integer} time - アイドル時間 (ms)
+     */
     static SaveIfIdle(time) {
-        Critical
+        Critical()
         if (time < 20000) {
+            Critical("Off")
             return
         }
-        if this.stats_short_idx == 0
+        if this.stats_short_idx == 0 {
+            Critical("Off")
             return
+        }
 
         ; 前回saveから指定時間経っていたら保存
         if (A_TickCount - this.last_save_time >= this.AUTOSAVE_INTERVAL && time >= 60000) {
+            Critical("Off")
             this.Save()
             return
         }
 
         this._MergeShortTerm()
+        Critical("Off")
     }
 
     /**
      * 現在の統計情報をファイルに書き込む
      */
-    static Save() {
-        Critical
+    static Save(sync := false) {
+        Critical()
         this._MergeShortTerm()
         this._Consolidate()
+        Critical("Off")
 
         if this.stats.Count == 0
             return
 
+        if sync {
+            this._SaveAsync()
+        } else {
+            SetTimer(ObjBindMethod(this, "_SaveAsync"), -1)
+        }
+    }
+
+    static _SaveAsync() {
         this._Compaction()
 
         output := ""
@@ -780,7 +1177,8 @@ class KeyLogger {
                         item := stats_map[seq]
                         avg12 := item.count_d > 0 ? (item.duration12 // item.count_d) : 0
                         avg13 := item.count_d > 0 ? (item.duration13 // item.count_d) : 0
-                        output .= seq . " : " . item.count . " " . item.count_d . " " . avg12 . " " . avg13 . "`r`n"
+                        output .= seq . " : " . item.count . " " . item.count_d . " " . avg12 . " " . avg13 .
+                            "`r`n"
                     }
                 }
             }
@@ -795,14 +1193,19 @@ class KeyLogger {
         this.last_save_time := A_TickCount
     }
 
+    /**
+     * 入力された文字をロガーに記録します。
+     * @param {String} char - 記録対象の文字
+     */
     static Log(char) {
         if !this.is_logging_enabled
             return
+        if WinActive("ahk_group RemoteDesktops")
+            return
 
-        current_max := (this.total_log_time * 100)
-        if (current_max > this.freq) {
+        if (this.total_log_time > 50) {
             Tooltip("Too fast")
-            ; 10msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
+            ; 50msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
             return
         }
 
@@ -810,40 +1213,19 @@ class KeyLogger {
             return
         if !ImeState.IsOn()
             return
-        start := QueryPerformanceCounter()
+        start := QueryCounter()
         if this.stats_short_idx < this.stats_short_max {
             this.stats_short_idx += 1
             entry := this.stats_short[this.stats_short_idx]
             entry.c := char
             entry.t := A_TickCount
+        } else {
+            return
         }
-        end := QueryPerformanceCounter()
+        end := QueryCounter()
         time := end - start
         this.total_log_time := Max(time, this.total_log_time)
 
-    }
-}
-
-class LayoutString {
-    arr := []
-
-    __New(layout_str) {
-        this.layout_str := layout_str
-
-        if this.layout_str = ""
-            return
-        if InStr(this.layout_str, " ") {
-            ; 複数の連続するスペースを一つとしてパース
-            this.arr := StrSplit(RegExReplace(Trim(this.layout_str), " +", " "), " ")
-        } else {
-            this.arr := StrSplit(this.layout_str)
-        }
-    }
-
-    GetElement(index) {
-        if index <= this.arr.Length
-            return this.arr[index]
-        return ""
     }
 }
 
@@ -857,9 +1239,11 @@ ToggleForceImeModeOn() {
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
+/**
+ * クリティカルセクション内で指定された IME 制御キーまたは文字を送信し、IMEキャッシュ状態を更新します。
+ * @param {String} c - 送信するキーまたは文字
+ */
 SendImeChar(c) {
-    Critical
-    ;ImeState.Reset()
     Send(c)
     ImeState.UpdateState()
 }
@@ -896,13 +1280,19 @@ SendAndLog(c) {
  * @param {String} [key_ime_on=""] - IME が ON の場合に送信するキー文字列
  * 省略された場合は `key_ime_off` が使用される
  */
-SendBasedOnImeState(key_ime_off, key_ime_on := "") {
-    if key_ime_off = key_ime_on {
-        SendAndLog(key_ime_on)
-    } else if !ImeState.IsOn() || key_ime_on == "" {
+SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
+    if key_ime_on == "{none}" || key_ime_off == "{none}" {
+        return ; {none} が指定された場合は何も送信しない
+    }
+    if key_ime_off = key_ime_on || key_ime_on = "" {
         SendAndLog(key_ime_off)
-    } else {
+        return
+    }
+    ime_on := ime_state == -1 ? ImeState.IsOn() : ime_state == 1
+    if (ime_on) {
         SendAndLog(key_ime_on)
+    } else {
+        SendAndLog(key_ime_off)
     }
 }
 
@@ -921,6 +1311,7 @@ AutoSuspendForRemoteDesktop() {
     static auto_suspended := false
     if WinActive("ahk_group RemoteDesktops") {
         if !A_IsSuspended {
+            LKey.ResetAll()
             Suspend(true)
             auto_suspended := true
         }
@@ -931,6 +1322,58 @@ AutoSuspendForRemoteDesktop() {
         }
     }
     return auto_suspended
+}
+
+/**
+ * フォント管理クラス
+ * 起動時に一度だけチェックを行い、結果を保持する
+ */
+class FontManager {
+    static Monospace := this._DetermineMonospace()
+
+    /**
+     * システムにインストールされている等幅フォントから最適な候補を決定します。
+     * @returns {String} フォント名
+     */
+    static _DetermineMonospace() {
+        ; 優先順位リスト
+        candidates := ["PlemolJP", "PlemolJP Console", "MS Gothic", "游ゴシック", "游明朝", "Consolas"]
+
+        for name in candidates {
+            if this.IsInstalled(name)
+                return name
+        }
+        return "Consolas" ; 最終バックアップ
+    }
+
+    /**
+     * システムにフォントが存在するか厳密に判定する
+     */
+    static IsInstalled(name) {
+        ; 1. フォントを作成してデバイスコンテキストに選択
+        hFont := DllCall("CreateFont", "Int", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 400
+            , "Int", 0, "Int", 0, "Int", 0, "Int", 1, "Int", 0, "Int", 0, "Int", 0, "Int", 0
+            , "Str", name, "Ptr")
+
+        if !hFont
+            return false
+
+        hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+        oldObj := DllCall("SelectObject", "Ptr", hdc, "Ptr", hFont, "Ptr")
+
+        ; 2. Windowsが実際に割り当てたフォント名を取得
+        nameBuf := Buffer(512)
+        DllCall("GetTextFace", "Ptr", hdc, "Int", 256, "Ptr", nameBuf)
+        actualName := StrGet(nameBuf)
+
+        ; 3. 後処理
+        DllCall("SelectObject", "Ptr", hdc, "Ptr", oldObj, "Ptr")
+        DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
+        DllCall("DeleteObject", "Ptr", hFont)
+
+        ; 指定した名前と実際に当たった名前が一致するか（代替フォントでないか）
+        return actualName = name
+    }
 }
 
 /**
@@ -945,7 +1388,7 @@ ShowOSD(text, duration := 3000, key_close := False) {
 
     my_gui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
     my_gui.BackColor := "333333"
-    my_gui.SetFont("s12 cWhite w700", "Consolas")
+    my_gui.SetFont("s16 cWhite w700", FontManager.Monospace)
 
     ; テキスト周囲の余白
     my_gui.MarginX := 20
@@ -977,18 +1420,24 @@ ShowOSD(text, duration := 3000, key_close := False) {
     }
 }
 
-; --- 設定 ---
-color_japanese := "Red"
-dot_size := 8
-; ------------
+/**
+ * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
+ */
+InitGUI() {
+    global color_japanese
+    global dot_size
+    global m_gui
 
-; キャレット表示用のGUI作成
-; 描画用のウィンドウ（GUI）作成
-m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
-m_gui.BackColor := color_japanese
-WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+    color_japanese := "Red"
+    dot_size := 8
+    ; ------------
 
-;DllCall("SetThreadDpiAwarenessContext", "ptr", -3, "ptr") ; DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+    ; キャレット表示用のGUI作成
+    ; 描画用のウィンドウ（GUI）作成
+    m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+    m_gui.BackColor := color_japanese
+    WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+}
 
 /**
  * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
@@ -1042,41 +1491,32 @@ UpdateImeIndicator(precise := False) {
  */
 TimerEvent() {
     static counter := 0
-    if (mod(counter, 5) == 0) {
-        if (AutoSuspendForRemoteDesktop()) {
-            return
-        }
+    static is_rdp := false
+    if (Mod(counter, 5) == 0) {
+        is_rdp := AutoSuspendForRemoteDesktop()
+    }
+    if is_rdp {
+        counter++
+        return
     }
 
     UpdateImeIndicator()
-    ;static mouse_state := 0
-    ; if A_TimeIdleMouse < 300 { ;マウス操作時のみ処理時
-    ;     if (mouse_state == 0) {
-    ;         ;マウス操作でアクティブウィンドウが変わるため
-    ;         ;前回のIME状態チェックから一定時間の経過後チェック
-    ;         ImeState.SetMode(1, 500)
-    ;     }
-    ;     UpdateImeIndicator()
-    ;     mouse_state := 1
-    ; } else { ;マウス操作終了時
-    ;     if (mouse_state == 1) {
-    ;         ;キー入力に備えて設定
-    ;         ;前回のキー入力から一定時間の経過後チェック
-    ;         ;キーによるIME状態変更をフックしているので、
-    ;         ;そもそもキー押下時のチェックは不要だが、念のため
-    ;         ImeState.SetMode(0, 1000)
-    ;     }
-    ;     mouse_state := 0
-    ; }
 
     ; 20秒以上操作がない場合、ログを保存
-    if (mod(counter, 100) == 0) {
+    if (Mod(counter, 100) == 0) {
         KeyLogger.SaveIfIdle(A_TimeIdlePhysical)
     }
+
+    ; 10秒ごとにキーロガーの最大処理時間をリセットして一時的な遅延スパイクから復帰可能にする
+    if (Mod(counter, 100) == 0) {
+        if KeyLogger.total_log_time > 0 {
+            KeyLogger.total_log_time2 := Max(KeyLogger.total_log_time2, KeyLogger.total_log_time)
+            KeyLogger.total_log_time := 0
+        }
+    }
+
     counter++
 }
-
-SetTimer(TimerEvent, 100) ;
 
 /*============================================================================
  [Class] MouseSpeed
@@ -1111,7 +1551,7 @@ class MouseSpeed {
         }
         DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", val, "UInt", 0)
         ToolTip("MouseSpeed: " . val)
-        SetTimer(ToolTip, 3000) ; ツールチップを3秒間表示する
+        SetTimer(ToolTip, -3000) ; ツールチップを3秒間表示する
         return val
     }
 
@@ -1138,11 +1578,16 @@ class MouseSpeed {
     }
 }    ;class MouseSpeed
 
+/**
+ * 現在物理的に押されている修飾キー (Win, Alt, Ctrl, Shift) の AHK プレフィックス記号を構築します。
+ * @returns {String} 修飾キーのプレフィックス記号文字列 (例: "+^")
+ */
 MakeModStr() {
+    is_shift := IsPhysicalShiftPressed("")
     return (GetKeyState("LWin", "P") || GetKeyState("RWin", "P") ? "#" : "")
     . (GetKeyState("Alt", "P") ? "!" : "")
     . (GetKeyState("Ctrl", "P") ? "^" : "")
-    . (GetKeyState("Shift", "P") ? "+" : "")
+    . (is_shift ? "+" : "")
 }
 
 /*============================================================================
@@ -1151,175 +1596,103 @@ MakeModStr() {
  - タイムアウト時間内に離された場合（短押し）はデフォルトキーを送信します。
  - タイムアウト時間を超えて押し続けられた場合は、モディファイアキーとして機能します。
 ============================================================================*/
-class MKey {
-    /**
-     * コンストラクタ
-     * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
-     * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
-     */
-    __New(key, timeout := 180) {
-        if key = "" { ; F13のような「仮想」モディファイア用
-            this.key_str := ""
-            this.key := key ; 登録されたキー
-        } else {
-            this.key := removeBraces(key)
-            this.key_str := addBraces(key)
-        }
-        this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
-        this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
-        this.timeout := timeout
-    }
-    /**
-     * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
-     * @returns {Boolean} 押されていれば true
-     */
-    IsPressed() => (this.pressed_time != 0)
-    ;IsPressed() => GetKeyState(this.key_str, "P")
+; class MKey {
+;     /**
+;      * コンストラクタ
+;      * @param {String} key - 監視するキー (例: "SPACE", "sc07B")。"{...}" 形式でも可。
+;      * @param {Integer} [timeout=180] - 短押しと長押しを判別する時間 (ms)。
+;      */
+;     __New(key, timeout := 180) {
+;         if key = "" { ; F13のような「仮想」モディファイア用
+;             this.key_str := ""
+;             this.key := key ; 登録されたキー
+;         } else {
+;             this.key := RemoveBraces(key)
+;             this.key_str := AddBraces(key)
+;         }
+;         this.pressed_time := 0 ; 0 = 押されていない, >0 = 押し下げ開始時間
+;         this.mod_str := ""     ; 押下時に保持されていた他の修飾キーを保存 (例: "+^")
+;         this.timeout := timeout
+;     }
+;     /**
+;      * キーが現在「押し下げ」状態（Down()が呼ばれた）かどうかを確認する
+;      * @returns {Boolean} 押されていれば true
+;      */
+;     IsPressed() => (this.pressed_time != 0)
+;     ;IsPressed() => GetKeyState(this.key_str, "P")
 
-    /**
-     * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
-     */
-    SetModStr() {
-        this.mod_str := MakeModStr()
-    }
+;     /**
+;      * このキーが押された瞬間の他の修飾キー（Shift, Ctrl, Alt, Win）の状態を保存する
+;      */
+;     SetModStr() {
+;         this.mod_str := MakeModStr()
+;     }
 
-    /**
-     * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
-     * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
-     */
-    Down() {
-        Critical
-        if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
-            return false
-        }
-        this.pressed_time := A_TickCount ; 押し下げ時間を記録
-        this.SetModStr()                 ; 他の修飾キーを記録
-        return true
-    }
+;     /**
+;      * キー押し下げ時のホットキーで呼び出す (例: `*Space::space.Down()`)
+;      * @returns {Boolean} 既に押し下げ済みであれば false (キーリピート防止)、そうでなければ true
+;      */
+;     Down() {
+;         Critical
+;         if this.pressed_time != 0 { ; 既に押し下げ処理中のため無視
+;             return false
+;         }
+;         this.pressed_time := A_TickCount ; 押し下げ時間を記録
+;         this.SetModStr()                 ; 他の修飾キーを記録
+;         return true
+;     }
 
-    /**
-     * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
-     * 短押しだった場合は元のキー（修飾キー付き）を送信します。
-     */
-    Up() {
-        Critical
-        if (A_TickCount - this.pressed_time < this.timeout) {
-            SendAndLog("{Blind}" . this.mod_str . this.key_str)
-        }
-        this.pressed_time := 0
-    }
+;     /**
+;      * キー離し時のホットキーで呼び出す (例: `*Space up::space.Up()`)
+;      * 短押しだった場合は元のキー（修飾キー付き）を送信します。
+;      */
+;     Up() {
+;         Critical
+;         if (A_TickCount - this.pressed_time < this.timeout) {
+;             SendAndLog("{Blind}" . this.mod_str . this.key_str)
+;         }
+;         this.pressed_time := 0
+;     }
 
-    /**
-     * キーの押し下げ状態を強制的にリセットする
-     */
-    Reset() {
-        this.pressed_time := 0
-    }
-} ;class MKey
-
-/**
- * 文字列に波括弧を追加する
- * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
- * @returns {String} 波括弧で囲まれた文字列
- */
-addBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return key
-    }
-    return "{" . key . "}"
-}
-
-removeBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return SubStr(key, 2, StrLen(key) - 2)
-    }
-    return key
-}
-
-/**
- * 指定されたキー文字列に修飾記号が含まれているかを確認するヘルパー関数
- * @param {String} text - キー文字列 (例: "^c", "{Blind}a")
- * @returns {Boolean} 修飾記号が含まれていれば true
- */
-HasModifierSymbols(text) {
-    list := ["{Blind}", "+", "#", "^", "!"]
-    for index, item in list {
-        if InStr(text, item, 'Off') > 0 {
-            return true
-        }
-    }
-    return false
-}
-
-/**
- * 1つの波括弧で囲まれた文字列か判定する
- * @param {String} text - 文字列
- * @returns {Boolean} 1つの波括弧で囲まれていれば true 複数の波括弧ペアなら false
- */
-IsSingleBraceText(text) {
-    ; 1. 全体が3文字以上であること（ "{x}" の最小構成 ）
-    ; 2. 先頭が "{" で、末尾が "}" であること
-    ; 3. 2文字目以降に "{" が含まれていないこと（複数のペア "{}{}" を防ぐ）
-    return (StrLen(text) >= 3
-    && SubStr(text, 1, 1) = "{"
-    && SubStr(text, -1) = "}"
-    && !InStr(text, "{", false, 2))
-}
-
-/**
- * キー送信用の文字列を生成する。
- * 
- * 【入力文字列の仕様】
- * 1. 単独の文字 (例: "a") > プレフィックスをつけて返す
- * 2. 特殊記号を含む文字列 (例: "+a", "{Blind}s") -> そのまま返す
- * 3. 波括弧で囲まれた文字列(キー名/スキャンコード) (例: "{space}", "{sc027}") > プレフィックスをつけて返す
- * 4. 複数の文字、または、波括弧で囲まれた文字列 (例: "abc","{text}{text2}") -> そのまま返す
- * ※プレフィックス指定は1,3のみ適用 (例: prefix="+", text="a") -> "+a"
- * プレフィックスが空白も可
- * @param {String} text - 変換対象のキー文字列
- * @param {String} [prefix=""] - キー名の前に付与する接頭辞 (例: "+" で Shift)
- * @returns {String} 送信文字列
- */
-MakeKeyText(text, prefix := "") {
-    if text == "" || text == "{none}"
-        return ""
-
-    ; すでに {Blind} がついている場合は、二重付与を防ぐためにそのまま返す
-    if InStr(text, "{Blind}", false)
-        return text
-
-    ; 入力テキスト自体に修飾記号 (+, ^, !, #) が含まれている場合はそのまま返す
-    if HasModifierSymbols(text)
-        return text
-
-    ; 判定ロジック
-    ; 1. 単独の文字 (StrLen == 1)
-    ; 2. 1つの波括弧ペアのみで構成される (IsSingleBraceText == true)
-    ; 上記のいずれかの場合のみ,prefix を付与する
-    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
-        return prefix . text
-    }
-
-    ; それ以外（"abc" や "{a}{b}" など）はそのまま返す
-    return text
-}
+;     /**
+;      * キーの押し下げ状態を強制的にリセットする
+;      */
+;     Reset() {
+;         this.pressed_time := 0
+;     }
+; } ;class MKey
 
 /*============================================================================
  [Class] RKey (リマップキー)
  キーリマップを管理し、Shift、IME ON/OFF の状態に応じて異なる出力を処理します。
- 登録する文字列の仕様については MakeKeyText() のコメントを参照してください。
+ 登録する文字列の仕様については BuildSendText() のコメントを参照してください。
 ============================================================================*/
 class RKey {
+    ;static layer_list := [1, 2, 3, 4, 5, 6, 7]
+    ;static layer_list := [L_NAVI_CTRL, L_SELECT, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SHIFT]
+
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
-    static last_key := ""
+    ;static last_key := ""
+
+    ;org_key: {}付き、基本は物理キーを設定
+    ;org_key_raw: {}なし  基本は物理キーを設定
+    ;key_text: 送信用テキスト(ShiftOff,ImeOff)
+    ;shift_key_text: 送信用テキスト(ShiftOff,ImeOn)
+    ;ime_key_text: 送信用テキスト(ShiftOn,ImeOff)
+    ;shift_ime_key_text: 送信用テキスト(ShiftOn,ImeOn)
+    ;layer_keys: レイヤー用キー配列(IME Off)
+    ;layer_ime_keys: レイヤー用キー配列(IME On)
+
     /**
      * コンストラクタ
      * @param {String} key - 物理キー (例: "q", "{sc027}")。基本的には 1 文字または 1 つのスキャンコード。
      * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。省略時は物理キーと同じ。
      */
     __New(key, reg_key := "") {
-        this.org_key := addBraces(key)
-        this.org_key_raw := removeBraces(key)
+        this.layers := Layers()
+
+        this.org_key := AddBraces(key)
+        this.org_key_raw := RemoveBraces(key)
         if reg_key = "" {
             this.SetKey(key)   ; IME OFF 時のキーを設定
             this.SetImeKey(key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
@@ -1330,13 +1703,61 @@ class RKey {
     }
 
     /**
+     * レイヤーキーを設定する
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     */
+    SetLayerKey(layer_id, action, action2 := "", ime := True) {
+        action1 := action
+        if action2 == "" && InStr(action, "|") && action != "|" {
+            parts := StrSplit(action, "|")
+            if parts.Length >= 2 {
+                action1 := parts[1]
+                action2 := parts[2]
+            }
+        }
+        this.layers.SetAction(layer_id, action1, action2)
+        if ime {
+            this.layers.SetImeAction(layer_id, action1, action2)
+        }
+    }
+
+    /**
+     * IME ON 時の特定レイヤーのアクションを設定します。
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
+     */
+    SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
+        action1 := action
+        if action2 == "" && InStr(action, "|") && action != "|" {
+            parts := StrSplit(action, "|")
+            if parts.Length >= 2 {
+                action1 := parts[1]
+                action2 := parts[2]
+            }
+        }
+        this.layers.SetImeAction(layer_id, action1, action2)
+    }
+
+    /**
+     * 現在アクティブなレイヤーに基づいてキーを送信します。
+     * @param {Boolean} ime_state - 現在の IME 状態
+     * @returns {Boolean} レイヤーキーが送信された場合は true
+     */
+    SendLayerKey(ime_state) {
+        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        return this.layers.SendLayerKey(this, ime_state)
+    }
+
+    /**
      * IME OFF 時のキーマッピングを設定する
      * @param {String} key -  登録する文字列
      * @param {String} [shift_key=""] - Shift 時の登録する文字列。
      */
     SetKey(key, shift_key := "") {
-        this.key_text := MakeKeyText(key)
-        this.shift_key_text := shift_key == "" ? MakeKeyText(key, "+") : MakeKeyText(shift_key)
+        this.key_text := BuildSendText(key)
+        this.shift_key_text := shift_key == "" ? BuildSendText(key, "+") : BuildSendText(shift_key)
     }
 
     /**
@@ -1348,10 +1769,11 @@ class RKey {
     SetImeKey(ime_key := "", shift_ime_key := "") {
         if ime_key = "" {
             this.ime_key_text := this.key_text
-            this.shift_ime_key_text := shift_ime_key = "" ? this.shift_key_text : MakeKeyText(shift_ime_key)
+            this.shift_ime_key_text := shift_ime_key = "" ? this.shift_key_text : BuildSendText(shift_ime_key)
         } else {
-            this.ime_key_text := MakeKeyText(ime_key)
-            this.shift_ime_key_text := shift_ime_key = "" ? MakeKeyText(ime_key, "+") : MakeKeyText(shift_ime_key)
+            this.ime_key_text := BuildSendText(ime_key)
+            this.shift_ime_key_text := shift_ime_key = "" ? BuildSendText(ime_key, "+") : BuildSendText(
+                shift_ime_key)
         }
     }
 
@@ -1359,17 +1781,29 @@ class RKey {
      * 内部ヘルパー: IME 状態に基づいて正しいキーを送信する
      * @param {String} ime_key - IME ON 時に送信するキー
      * @param {String} normal_key - IME OFF 時に送信するキー
+     * @param {Int} ime_state - IME 状態 (-1: 現在の状態を内部で取得, 0: OFF, 1: ON)
      */
-    _SendKey(ime_key, normal_key) => SendBasedOnImeState(normal_key, ime_key)
-
-    SendShiftedKey(shift := true) {
-        Critical
+    _SendKey(ime_key, normal_key, ime_state := -1) => SendBasedOnImeState(normal_key, ime_key, ime_state)
+    /*============================================================================
+    	(Override) Sends the layer key.
+    	@param {Integer} layer_id - The layer ID.
+    	@param {Integer} [ime_state=-1] - IME state (-1: auto, 0: off, 1: on).
+    ============================================================================*/
+    SendShiftedKey(shift := true, ime_state := -1) {
         if shift {
-            this._SendKey(this.shift_ime_key_text, this.shift_key_text)
+            this._SendKey(this.shift_ime_key_text, this.shift_key_text, ime_state)
         } else {
-            this._SendKey(this.ime_key_text, this.key_text)
+            this._SendKey(this.ime_key_text, this.key_text, ime_state)
         }
         return shift
+    }
+
+    /**
+     * 物理的な Shift キーの押下状態に基づいて、対応するキーマッピングを送信します。
+     * @returns {Boolean} 送信されたキーが Shift 版である場合は true
+     */
+    SendKeyWithShift() {
+        return this.SendShiftedKey(IsPhysicalShiftPressed(this))
     }
 
     /**
@@ -1400,7 +1834,7 @@ class RKey {
         if this._SendCAWKey(pressed_key) {
             return true
         }
-        this.SendShiftedKey(IsPhysicalShiftPressed())
+        this.SendShiftedKey(IsPhysicalShiftPressed(this))
         return false
     }
 
@@ -1409,7 +1843,9 @@ class RKey {
      */
     Down() {
         Critical
-        RKey.last_key := this._SendSCAWKey(this.org_key) ? "" : this.org_key
+        LKey.InterruptOthers(this)
+        Layers.last_active_item := ""
+        this._SendSCAWKey(this.org_key)
     }
 
     /**
@@ -1422,98 +1858,148 @@ class RKey {
 
 /*============================================================================
  [Class] LKey (長押し対応リマップキー)
- RKey を拡張し、一定時間の押し下げ（長押し）に応じたアクションを追加します。
+ RKey を拡張し、長押し(Hold)と短押し(Tap)とで応じたアクションを追加します。
+長押しは、モードに応じて挙動が異なり、送信されるキーが切り替えられたり、
+あるいは何も送信されず、修飾キーとして利用されたりします。
 
  [モード説明]
- 0: 通常のリマップ (RKey と同等。長押し判定なし)
- 1: 即時入力 + 長押し置換
-    - 押し下げ時にキーを即座に送信。
-    - 長押し判定時、送信済みのキーを Backspace で消去し、Shift 版のキーを再送信。
- 2: パススルー (入力抑制)
-    - 押し下げ時、離し時ともにリマップ出力を抑制する。
- 3: 短押し時のみ入力 (MKey 相当)
-    - 短押しで離した場合のみキーを送信。長押し時は何も送信しない。
- (予約) 4: 即時入力 + 長押しカスタム置換
-    - 押し下げ時に即座に送信し、長押し判定時にカスタムの長押しキーに置換。
+・モード 0：リマップキー送信
+長押し判定を行わない標準的なリマップ。IME状態に応じて送信されるキーが変わる。
+キーリピートは有効 。
 
- * モード 1, 2, 3, 4 ではキーリピートが無効化されます。
- * モード 0, 1, 2, 4 では Ctrl, Alt, Win (CAW) 押下時は物理キーの修飾としてパススルーされます。
- * 登録キーは RKey と同様に SetKey, SetImeKey で設定します。
- * モード 1, 4 で使用するキーは 1 文字（または 1 つの {スキャンコード}）である必要があります。
-============================================================================*/
+・モード 1：短押し->リマップキー送信(down時)　長押し->シフト文字置換
+押し下げ時に即座にリマップキーを送信する。IME状態に応じて送信されるキーが変わる。
+一定時間以上の長押しされていた場合、送信済みの文字を Backspace で消去し、
+Shift 版（または指定キー）を再送信して置換する。
+キーリピートは無効化される 。
+
+・モード 2：短押し、長押し->未送信(修飾キー利用)
+押し下げ・離し時の出力を完全に抑制し、純粋なレイヤー切り替え等の修飾キーとして利用される。
+モードの違いを明確化するために、説明では、短押し、長押しという表現を使っているが、
+このモードにおいてはその区別はない。
+キーリピートは無効化される 。
+
+・モード 3：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+down時に、scawの状態を保持。
+up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+IME状態に依存しない。
+キーリピートは無効化される 。
+
+・モード 4：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用)
+押し下げ時に即座にリマップキーを送信する。
+キーリピートは無効化される以外は、モード 0 と同様の挙動。
+キーリピートは無効化される 。
+キー送信後、キーが押され続けている間、修飾キーとして機能する 。
+
+・モード 7：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用、モード4のタイミング拡張)
+修飾キーをdown,holdしてからx ms以上（Layers.HoldTh）経過しメインキーが押されてたら、修飾キーのコンビネーション（アクション）を送信する。
+修飾キーをdown,holdしてから(Layers.HoldTh-b_time)ms未満にメインキーがdownされたら、メインキーの通常キー（アクション）を送信する。
+(Layers.hold_th-b_time)ms以上x ms未満に押された場合は残り時間待機し、修飾キーが押され続けていればコンビネーション、離されたら通常キーを送信する。
+
+・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+IME状態に応じて送信されるキーが変わる。
+キーリピートは無効化される 。
+
+・（実験・予約）モード 6：
+押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
+---
+■ 共通仕様および制約
+
+・修飾キー (CAW) が押される場合はリマップをバイパスして処理
+Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、リマップをバイパスして物理キーをそのまま送信する 。
+
+・物理状態の厳密判定
+各モードの分岐や Layers.State によるレイヤー判定には GetKeyState(..., "P") を使用し、ユーザーが実際に指でキーを押し込んでいるかという物理的な状態を正確に取得する 。
+
+・リマップキー登録のルール
+モード 1 および 6 では、Backspace による正確な消去を行うため、登録するキーは「1 文字」または「1 つのスキャンコード (例: {sc027})」である必要がある 。
+
+・リマップキー
+モード３以外は、IME状態やシフト状態に応じてキーが送信される。
+*/
 class LKey extends RKey {
-    static long_press_th := 300 ; 長押しと判定する閾値 (ms)
-    static last_key := ""       ; リピート防止のため最後に押されたキーを追跡
-    ;static long_press_enabled := true ; この機能のグローバルな切り替えフラグ
+    static hold_th := 300 ; 長押しと判定する閾値 (ms)
+    static b_time := 50 ; 長押しと判定する閾値 (ms)
+    static st_init := 0
+    static st_pressing := 1
+    static st_processed := 2
 
+    static instances := []
+
+    static ResetAll() {
+        for inst in LKey.instances {
+            inst.state := LKey.st_init
+            inst.pressed_time := 0
+            inst.interrupted := false
+            inst.saved_scaw := ""
+            if (inst.timer_name != "") {
+                SetTimer(inst.timer_name, 0)
+            }
+        }
+    }
+
+    state := 0
     pressed_time := 0     ; 物理的に押し下げを開始した時刻
+    interrupted := false  ; 他のキーが割り込んできたら true にするフラグ
+    down_ime_state := 0   ; Down時のIME状態を記録
+    saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
+    timer_name := ""      ; 非同期タイマーコールバック名
 
     /**
      * コンストラクタ
-     * @param {String} key - 物理キー (例: "q", "{sc027}")。
-     * @param {Integer} [mode=0] - 動作モード (0-4)。
-     * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。
      */
     __New(key, mode := 0, reg_key := "") {
-        super.__New(key, reg_key) ; RKey の初期化
-        this.long_press_mode := mode
+        super.__New(key, reg_key)
+        this.hold_mode_org := mode
+        this.hold_mode_ime_org := mode
+
+        ; タイマーが常に同じオブジェクトを参照するようにインスタンスに固定
+        this.timer_name := ObjBindMethod(this, "OnHoldTimeout")
+
+        LKey.instances.Push(this)
     }
 
     /**
-     * 長押し機能をグローバルに有効化、無効化、または切り替える
-     * @param {Integer} [m=2] - モード: 0=無効, 1=有効, 2=切り替え
-     * @param {Boolean} [show_info=False] - 画面上に通知を表示するかどうか
+     * 長押し動作モードを設定します。
      */
-    ; static EnableLongPress(m := 2, show_info := False) {
-    ;     if m == 0 {
-    ;         LKey.long_press_enabled := False
-    ;     } else if m == 1 {
-    ;         LKey.long_press_enabled := True
-    ;     } else {
-    ;         LKey.long_press_enabled := !LKey.long_press_enabled ; Toggle
-    ;     }
-    ;     if show_info {
-    ;         if LKey.long_press_enabled {
-    ;             ShowOSD("LKey is enabled")
-    ;         } else {
-    ;             ShowOSD("LKey is disabled")
-    ;         }
-    ;     }
-    ; }
+    SetMode(mode := 0, ime_mode := 0) {
+        if mode >= 0
+            this.hold_mode_org := mode
+        if ime_mode >= 0
+            this.hold_mode_ime_org := ime_mode
+    }
 
-    /*============================================================================
-    	(Override) Sets the key mapping for when IME is OFF.
-    	@param {String} key - The base key to send.
-    	@param {String} [shift_key=""] - Key for Shift.
-    ============================================================================*/
     SetKey(key, shift_key := "") {
         super.SetKey(key, shift_key)
     }
 
-    ; /**
-    ;  * 長押し時に送信するキー文字列を設定する
-    ;  * @param {String} [long_key=""]
-    ;  */
-    ; SetLongKey(long_key := "") {
-    ;     if long_key = "" {
-    ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := this.shift_key_text ; デフォルトでは Shift 時のキーを使用
-    ;     } else if long_key = "none" {
-    ;         this.long_press_mode := 0 ; 長押しを無効化
-    ;         this.long_key_str := "none"
-    ;     } else if long_key = "skip" {
-    ;         this.long_press_mode := 2 ; 長押し、キーリピートを無効化
-    ;         this.long_key_str := "none"
-    ;     } else {
-    ;         this.long_press_mode := 1 ; 長押しを有効化
-    ;         this.long_key_str := long_key ; 指定されたキーを使用
-    ;     }
-    ; }
+    SetImeKey(ime_key := "", shift_ime_key := "", mode := -1) {
+        super.SetImeKey(ime_key, shift_ime_key)
+        if (mode != -1)
+            this.hold_mode_ime_org := mode
+    }
 
     /**
-     * キーが現在押し下げられているかどうかを確認する
+     * 他のすべての LKey インスタンスに対して割り込みを通知する
      */
-    ;IsPressed() => this.pressed_time != 0
+    static InterruptOthers(currentKey) {
+        for inst in LKey.instances {
+            ; 絶賛押し込み中のキー（st_pressing）があれば割り込みをかける
+            if (inst != currentKey && inst.state == LKey.st_pressing) {
+                inst.interrupted := true
+                ; モード1などのタイマーが走っていれば即時停止
+                if (inst.timer_name != "") {
+                    SetTimer(inst.timer_name, 0)
+                }
+                ; 割り込まれたキーは修飾キーとして確定（st_processed）させる
+                inst.state := LKey.st_processed
+            }
+        }
+    }
+
     IsPressed() => GetKeyState(this.org_key_raw, "P")
 
     /**
@@ -1521,53 +2007,72 @@ class LKey extends RKey {
      */
     Down() {
         Critical
+        ime_state := ImeState.IsOn()
+        hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
 
-        ; モード 3 (短押し時のみ入力) の特殊処理
-        if this.long_press_mode = 3 {
-            if (this.pressed_time != 0) {
-                return ; キーリピート防止
+        ; --- リピートガード (モード 1〜6 用) ---
+        if (hold_mode != 0 && (this.state == LKey.st_pressing || this.state == LKey.st_processed)) {
+            return
+        }
+
+        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        if super.SendLayerKey(ime_state) {
+            if (hold_mode != 0) {
+                LKey.InterruptOthers(this)
+                this.state := LKey.st_processed
             }
-            this.mod_str := MakeModStr()
-            this.pressed_time := A_TickCount
             return
         }
-        ;    if this.long_press_mode = 2 || LKey.long_press_enabled = 0 {
-        ; this.pressed_time := A_TickCount
-        ; RKey.last_key := this.org_key
-        ;    }
 
-        ; --- 以下、モード 0, 1, 2 共通の判定 ---
-        ; 1. 修飾キー (Ctrl/Alt/Win) が押されている場合はリマップせずパススルー
+        ; レイヤーキー判定で送信されなかった場合、連続打鍵をリセットする
+        Layers.last_active_item := ""
+
+        ; 修飾キー (Ctrl/Alt/Win) パススルー判定
         if super._SendCAWKey(this.org_key) {
-            this.pressed_time := 0
-            RKey.last_key := ""
+            if (hold_mode != 0) {
+                LKey.InterruptOthers(this)
+                this.pressed_time := 0
+                this.state := LKey.st_processed
+            }
             return
         }
 
-        ; 2. 長押し機能が無効（モード 0）またはグローバル設定がオフの場合
-        if this.long_press_mode = 0 { ; || LKey.long_press_enabled = 0
-            shift := IsPhysicalShiftPressed()
-            this.SendShiftedKey(shift) ; 通常のリマップとして即座に送信
-            this.pressed_time := 0
-            RKey.last_key := this.org_key
-            return
+        ; 各モードに応じた処理の実行
+        if (hold_mode == 0) {
+            this.SendKeyWithShift()
+        } else {
+            this.interrupted := false
+            this.pressed_time := A_TickCount
+            this.down_ime_state := ime_state
+            LKey.InterruptOthers(this)
+            this.state := LKey.st_pressing
+            this._Down(ime_state, hold_mode)
         }
+    }
+    /**
+     * 各モード（モード1, 3, 4, 7, 6）における押し下げ処理の具体的な振る舞いを実行します。
+     * @param {Boolean} ime_state - 現在のIME状態
+     * @param {Integer} hold_mode - 長押し動作モード
+     */
+    _Down(ime_state, hold_mode) {
+        ;hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
 
-        ; 3. キーリピートによる多重実行を防止
-        if this.pressed_time != 0 {
-            return
+        switch hold_mode {
+            case 1: ; 短押し->即時送信、長押し->置換
+                this.SendKeyWithShift()
+                SetTimer(this.timer_name, -LKey.hold_th)
+
+            case 3: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
+                ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
+                this.saved_scaw := MakeModStr()
+
+            case 4, 7: ; 短押し->即時送信、長押し->修飾キー
+                this.SendKeyWithShift()
+
+            case 6: ; カスタム即時置換 (予約)
+                this.SendKeyWithShift()
+                SetTimer(this.timer_name, -LKey.hold_th)
         }
-
-        ; 4. モード 1 の場合、まず「短押し用キー」を即座に送信する
-        ;    （長押し確定時に Backspace で消去して置換する）
-        if this.long_press_mode = 1 {
-            shift := IsPhysicalShiftPressed()
-            this.SendShiftedKey(shift)
-        }
-
-        ; 5. 状態を記録し、長押し判定のためのタイマーを開始
-        this.pressed_time := A_TickCount
-        RKey.last_key := this.org_key
     }
 
     /**
@@ -1575,194 +2080,246 @@ class LKey extends RKey {
      */
     Up() {
         Critical
-        if (this.pressed_time = 0) {
-            return
-        }
+        ; モード0の場合はタイマー等がないため単純に初期化して終了
+        ime_state := ImeState.IsOn()
+        hold_mode := (this.pressed_time == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
+        ) : ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
 
-        now := A_TickCount
-        duration := now - this.pressed_time
-        is_long := (duration >= LKey.long_press_th)
-
-        ; モード 3: 短押しだった場合のみキーを送信
-        if this.long_press_mode = 3 {
-            if !is_long {
-                ;SendAndLog("{Blind}" . this.mod_str . this.org_key)
-                SendAndLog(this.mod_str . this.key_text)
-            }
+        if (hold_mode == 0) {
+            this.state := LKey.st_init
             this.pressed_time := 0
             return
         }
 
-        ; モード 1, 2 の共通処理
-        ; 前回のホットキーと同じキー（リピートや割り込みがない）場合のみ判定を行う
-        if RKey.last_key == this.org_key {
-            ; モード 1: 長押し確定時に既存文字を消去して置換
-            if this.long_press_mode == 1 {
-                if is_long {
-                    Send("{Backspace}")
-                    this.SendShiftedKey(true) ; 長押しアクション（Shift版）を実行
+        ; 動作中のタイマーを確実にキャンセル
+        SetTimer(this.timer_name, 0)
+
+        duration := A_TickCount - this.pressed_time
+
+        ; まだ長押し確定（st_processed）しておらず、押し込み中（st_pressing）だった場合のみUp処理を実行
+        if (this.state == LKey.st_pressing) {
+            ; 短押し判定（閾値未満、かつ他キーの割り込みなし）
+            if (duration < LKey.hold_th && !this.interrupted) {
+
+                ; モード 3: 短押し時のみ入力（down時に保持したscawを適用）
+                if (hold_mode == 3) {
+                    SendAndLog(this.saved_scaw . this.key_text)
+                }
+                ; モード 5: 短押し時のみ入力（IME依存のリマップ送信）
+                else if (hold_mode == 5) {
+                    this.SendKeyWithShift()
                 }
             }
-            ; モード 2: 長押し・短押しに関わらず Up 時には何もしない
         }
-        ; モード2の場合、何もしない
 
-        ; 内部状態のリセット
+        ; キーが離されたら状態を完全にクリーンアップ
         this.pressed_time := 0
+        this.state := LKey.st_init
+        this.interrupted := false
+        this.saved_scaw := ""
     }
-} ;class LKey
+
+    /**
+     * モード1 / モード6 の長押し確定用タイマーコールバック
+     */
+    OnHoldTimeout() {
+        Critical
+        ; 指がまだ物理的に押されており、かつ他のキーの割り込みがない場合のみ実行
+        if (this.state == LKey.st_pressing && !this.interrupted && this.IsPressed()) {
+
+            ime_state := this.down_ime_state
+            hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
+
+            if (hold_mode == 1) {
+                ; ※注意: モード1（長押し置換）は、IME ON での入力・変換中は Backspace が
+                ; 未確定文字列のみを消してしまうため、IME OFF（英語入力）時のみの使用を推奨します。
+                SendEvent("{Backspace}")
+                this.SendShiftedKey(true)
+            }
+            else if (hold_mode == 6) {
+                ; モード6用のカスタム置換（必要に応じて拡張可能）
+                SendEvent("{Backspace}")
+                ; 例: 特定のカスタムキーを送信するなど
+            }
+
+            ; 長押し処理が確定したため、processed 状態へ移行（Upまでロック）
+            this.state := LKey.st_processed
+        }
+    }
+}
 
 ; ============================================================================
-; キーオブジェクトの生成
+; キーオブジェクトの生成とグローバル変数の宣言
 ; ============================================================================
+global f13, space, tab, noconv, conv, f14
+global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
+global q, w, e, r, t, y, u, i, o, p, at, openbracket
+global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
+global z, x, c, v, b, n, m, comma, period, slash, backslash, enter
+global up, down, left, right
+global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_CHAR_KEYS, LAYOUT_KEYS, QWERTY_CHARS
 
-; --- モディファイアキー (MKey) ---
-; f13 := MKey("")
-; space := MKey(R_SPACE)
-; tab := MKey(R_TAB)
-; noconv := MKey(R_NOCONV)
-; conv := MKey(R_ENTER)
-; f14 := MKey(R_ZENKAKU)
-; colon := LKey(C_COLON, 2)
+/**
+ * すべての物理キーに対応する RKey / LKey オブジェクトのインスタンスを生成し、
+ * レイループ用配列（LAYOUT_KEYS など）に一括してグローバルに登録・初期化します。
+ */
+InitGlobalKeys() {
+    global
+    f13 := LKey("f13", 3, C_TAB)
+    space := LKey(R_SPACE, 3, C_SPACE)
+    tab := LKey(R_TAB, 3, C_TAB)
+    noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
+    ;conv := LKey(R_CONV, 3, C_ENTER)
+    conv := LKey(R_CONV, 3, C_BS)
+    f14 := LKey("f14", 3, C_ZENKAKU)
 
-f13 := LKey("f13", 2)
-space := LKey(R_SPACE, 3, C_SPACE)
-tab := LKey(R_TAB, 3, C_TAB)
-noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
-conv := LKey(R_CONV, 3, C_ENTER)
-f14 := LKey("f14", 3, C_ZENKAKU)
+    ; --- リマップキー (RKey) ---
+    ; (数字列)
+    k1 := LKey("1")
+    k2 := LKey("2")
+    k3 := LKey("3")
+    k4 := LKey("4")
+    k5 := LKey("5")
+    k6 := LKey("6")
+    k7 := LKey("7")
+    k8 := LKey("8")
+    k9 := LKey("9")
+    k0 := LKey("0")
+    minus := LKey("-")
+    hat := LKey(C_HAT) ; ^
+    yen := LKey(C_YEN) ; ¥
+    ;
+    ; (QWERTY段)
+    q := LKey("q")
+    w := LKey("w")
+    e := LKey("e")
+    r := LKey("r")
+    t := LKey("t")
+    ;
+    y := LKey("y")
+    u := LKey("u")
+    i := LKey("i")
+    o := LKey("o")
+    p := LKey("p")
+    at := LKey("@")
+    openbracket := LKey("[")
+    ;
+    ; (ASDF段)
+    a := LKey("a")
+    s := LKey("s")
+    d := LKey("d")
+    f := LKey("f")
+    g := LKey("g")
+    ;
+    h := LKey("h")
+    j := LKey("j")
+    k := LKey("k")
+    l := LKey("l")
+    semicolon := LKey(C_SEMICOLON)
+    colon := LKey(C_COLON)
+    closebracket := LKey("]")
+    ;
+    ; (ZXCV段)
+    z := LKey("z")
+    x := LKey("x")
+    c := LKey("c")
+    v := LKey("v")
+    b := LKey("b")
+    ;
+    n := LKey("n")
+    m := LKey("m")
+    comma := LKey(C_COMMA) ; ,
+    period := LKey(".") ; .
+    slash := LKey("/") ; /
+    backslash := LKey(C_BACKSLASH) ; \ _
 
-; --- リマップキー (RKey) ---
-; (数字列)
-k1 := LKey("1")
-k2 := LKey("2")
-k3 := LKey("3")
-k4 := LKey("4")
-k5 := LKey("5")
-k6 := LKey("6")
-k7 := LKey("7")
-k8 := LKey("8")
-k9 := LKey("9")
-k0 := LKey("0")
-minus := LKey("-")
-hat := LKey(C_HAT) ; ^
-yen := LKey("¥") ; ¥
-;
-; (QWERTY段)
-q := LKey("q")
-w := LKey("w")
-e := LKey("e")
-r := LKey("r")
-t := LKey("t")
-;
-y := LKey("y")
-u := LKey("u")
-i := LKey("i")
-o := LKey("o")
-p := LKey("p")
-at := LKey("@")
-openbracket := LKey("[")
-;
-; (ASDF段)
-a := LKey("a")
-s := LKey("s")
-d := LKey("d")
-f := LKey("f")
-g := LKey("g")
-;
-h := LKey("h")
-j := LKey("j")
-k := LKey("k")
-l := LKey("l")
-semicolon := LKey(C_SEMICOLON)
-colon := LKey(C_COLON)
-closebracket := LKey("]")
-;
-; (ZXCV段)
-z := LKey("z")
-x := LKey("x")
-c := LKey("c")
-v := LKey("v")
-b := LKey("b")
-;
-n := LKey("n")
-m := LKey("m")
-comma := LKey(C_COMMA) ; ,
-period := LKey(".") ; .
-slash := LKey("/") ; /
-backslash := LKey(C_BACKSLASH) ; \ _
-enter := LKey("{Enter}")
-;
-; (矢印キー - リマップ用)
-up := RKey(C_UP)
-down := RKey(C_DOWN)
-left := RKey(C_LEFT)
-right := RKey(C_RIGHT)
-; --- レイアウト用キー登録（ループ用） ---
-LAYOUT_NUM_KEYS := [k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus]
-LAYOUT_CHAR_KEYS := [
-    q, w, e, r, t, y, u, i, o, p,
-    a, s, d, f, g, h, j, k, l, semicolon,
-    z, x, c, v, b, n, m, comma, period, slash
-]
-LAYOUT_KEYS := [
-    k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
-    q, w, e, r, t, y, u, i, o, p, at, openbracket,
-    a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
-    z, x, c, v, b, n, m, comma, period, slash, backslash
-]
-I_1 := 0
-I_2 := 1
-I_3 := 2
-I_4 := 3
-I_5 := 4
-I_6 := 5
-I_7 := 6
-I_8 := 7
-I_9 := 8
-I_0 := 9
-I_minus := 10
-I_hat := 11
-I_yen := 12
-I_q := 13
-I_w := 14
-I_e := 15
-I_r := 16
-I_t := 17
-I_y := 18
-I_u := 19
-I_i := 20
-I_o := 21
-I_p := 22
-I_at := 23
-I_openbracket := 24
-I_a := 25
-I_s := 26
-I_d := 27
-I_f := 28
-I_g := 29
-I_h := 30
-I_j := 31
-I_k := 32
-I_l := 33
-I_semicolon := 34
-I_colon := 35
-I_closebracket := 36
-I_z := 37
-I_x := 38
-I_c := 39
-I_v := 40
-I_b := 41
-I_n := 42
-I_m := 43
-I_comma := 44
-I_period := 45
-I_slash := 46
-I_backslash := 47
-I_up := 48
-I_down := 49
-I_left := 50
-I_right := 51
+    enter := LKey(C_ENTER)
+
+    ; (矢印キー - リマップ用)
+    up := RKey(C_UP)
+    down := RKey(C_DOWN)
+    left := RKey(C_LEFT)
+    right := RKey(C_RIGHT)
+
+    ; --- レイアウト用キー登録（ループ用） ---
+    LAYOUT_SPECIAL_KEYS := [space, tab, noconv, conv, f14, enter, up, down, left, right]
+    LAYOUT_SPECIAL_NAMES := ["space", "tab", "noconv", "conv", "f14", "enter", "up", "down", "left", "right"]
+
+    LAYOUT_NUM_KEYS := [k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus]
+    LAYOUT_CHAR_KEYS := [
+        q, w, e, r, t, y, u, i, o, p,
+        a, s, d, f, g, h, j, k, l, semicolon,
+        z, x, c, v, b, n, m, comma, period, slash
+    ]
+
+    LAYOUT_KEYS := [
+        k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen,
+        q, w, e, r, t, y, u, i, o, p, at, openbracket,
+        a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket,
+        z, x, c, v, b, n, m, comma, period, slash, backslash
+    ]
+
+    QWERTY_CHARS := [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
+        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
+        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
+        "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
+    ]
+}
+
+; I_1 := 0
+; I_2 := 1
+; I_3 := 2
+; I_4 := 3
+; I_5 := 4
+; I_6 := 5
+; I_7 := 6
+; I_8 := 7
+; I_9 := 8
+; I_0 := 9
+; I_minus := 10
+; I_hat := 11
+; I_yen := 12
+; I_q := 13
+; I_w := 14
+; I_e := 15
+; I_r := 16
+; I_t := 17
+; I_y := 18
+; I_u := 19
+; I_i := 20
+; I_o := 21
+; I_p := 22
+; I_at := 23
+; I_openbracket := 24
+; I_a := 25
+; I_s := 26
+; I_d := 27
+; I_f := 28
+; I_g := 29
+; I_h := 30
+; I_j := 31
+; I_k := 32
+; I_l := 33
+; I_semicolon := 34
+; I_colon := 35
+; I_closebracket := 36
+; I_z := 37
+; I_x := 38
+; I_c := 39
+; I_v := 40
+; I_b := 41
+; I_n := 42
+; I_m := 43
+; I_comma := 44
+; I_period := 45
+; I_slash := 46
+; I_backslash := 47
+; I_up := 48
+; I_down := 49
+; I_left := 50
+; I_right := 51
+
 ; ============================================================================
 ; キーレイアウト切り替え関数
 ; ============================================================================
@@ -1775,29 +2332,41 @@ ResetIME() {
         keyObj.SetIMEKey()
     }
 }
+
+/**
+ * 設定ファイルから起動時のレイアウト設定を読み込み、適用します。
+ */
 LoadLayoutConfig() {
     try {
         try {
-            LKey.long_press_th := Integer(IniRead(A_ScriptDir . "\config.ini", "Settings", "long_press_th", String(
-                LKey
-                .long_press_th)))
+            LKey.hold_th := Integer(ReadConfig("Settings", "HoldTh", String(LKey.hold_th)))
         } catch {
         }
-        layout_name := IniRead(A_ScriptDir . "\config.ini", "Settings", "StartupLayout", "")
+        try {
+            LKey.b_time := Integer(ReadConfig("Settings", "b_time", String(LKey.b_time)))
+        } catch {
+        }
+        try {
+            Layers.HoldTh := Integer(ReadConfig("Settings", "LayerHoldTh", String(Layers.HoldTh)))
+        } catch {
+        }
+        layout_name := ReadConfig("Settings", "StartupLayout", "")
         if layout_name = ""
             return
 
         ; ハードコードされたレイアウトを確認
         switch layout_name {
-            case "Qwerty": ChangeQwertyLayout()
-            case "Oonishi": ChangeOonishiLayout()
-            case "Colemak": ChangeColemakLayout()
-            case "FMIX12f": ChangeFMIX12f_Layout()
-            case "FMIX12f-13fR": ChangeFMIX12f_FMIX13fR_Layout()
-            case "FMIX14-14R": ChangeFMIX14_FMIX14R_Layout()
-            case "FMIX13f-14fR": ChangeFMIX13f_FMIX14fR_Layout()
-            case "FMIX13f-Minato": ChangeFMIX13f_minato_Layout()
-            case "FMIX13fie-Minato": ChangeFMIX13fie_minato_Layout()
+            case "Qwerty[Built-in]": ChangeQwertyLayout()
+            case "Oonishi[Built-in]": ChangeOonishiLayout()
+            case "Colemak[Built-in]": ChangeColemakLayout()
+            case "FMIX12f[Built-in]": ChangeFMIX12f_Layout()
+            case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
+            case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
+            case "FMIX13f-14fR[Built-in]": ChangeFMIX13f_FMIX14fR_Layout()
+            case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
+            case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
+            case "FMIX13f2-Minato[Built-in]": ChangeFMIX13f2_minato_Layout()
+            case "FMIX13fie-Minato[Built-in]": ChangeFMIX13fie_minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
@@ -1805,114 +2374,746 @@ LoadLayoutConfig() {
     } catch {
     }
 }
+
+; ============================================================================
+; レイヤー状態判定関数
+; ============================================================================
+; (L_NAVI_CTRL 等のレイヤー定数、および mod_key_list はスクリプト先頭付近で定義され、Init() 内で初期化されます)
+
+/**
+ * キーボードレイヤーの状態管理と、レイヤーキー送信の差分ロジックをカプセル化するクラスです。
+ */
+class Layers {
+
+    static HoldTh := 150
+    static last_active_item := ""
+
+    /**
+     * レイヤーにバインドされた個々のアクションを保持するインナークラスです。
+     */
+    class LayerItem {
+        /**
+         * コンストラクタ
+         * @param {Integer} layer_id - レイヤーID
+         * @param {String} action - 送信されるアクション定義
+         * @param {String} [action2=""] - 2回目以降の送信されるアクション定義
+         */
+        __New(layer_id, action, action2 := "") {
+            this.layer_id := layer_id
+            this.action := action
+            this.action2 := action2
+            this.tap_count := 0
+            this.last_mod_key := ""
+            this.last_mod_press_start := 0
+        }
+    }
+
+    ime_arr := []
+    arr := []
+    ;static layer_id_list := [L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT]
+
+    /**
+     * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
+     * 他のレイヤーが同時にアクティブでないことも確認します。
+     * @param {Integer} layer - 確認するレイヤー番号
+     * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+     */
+    static State(layer) {
+        if WinActive("ahk_group RemoteDesktops")
+            return false
+
+        if (layer < 1 || layer > mod_key_list.Length)
+            return false
+
+        key_navi := mod_key_list[L_NAVI_CTRL]
+        key_symbol := mod_key_list[L_SYMBOL_NUM]
+
+        ; Check the specified layer
+        if layer = L_NAVI_CTRL {
+            return key_navi.IsPressed() && !(GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer = L_SYMBOL_NUM {
+            return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
+        }
+        if layer = L_SELECT {
+            return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+
+        ; その他の単純なレイヤー判定は、対応するキーの押下状態を返す
+        return mod_key_list[layer].IsPressed()
+    }
+
+    /**
+     * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを厳密に判定します。
+     * @param {Integer} layer - レイヤーID
+     * @param {Array} arr - レイヤーアイテム配列
+     * @param {Object} key_obj - 処理対象 of キーオブジェクト
+     * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
+     */
+    static State2(layer_id, key_obj) {
+        if WinActive("ahk_group RemoteDesktops")
+            return false
+
+        if (layer_id < 1 || layer_id > mod_key_list.Length)
+            return false
+
+        key_navi := mod_key_list[L_NAVI_CTRL]
+        key_symbol := mod_key_list[L_SYMBOL_NUM]
+
+        ; Check the specified layer
+        if layer_id = L_NAVI_CTRL {
+            if key_navi = key_obj
+                return false
+            if key_symbol = key_obj
+                return false
+            return key_navi.IsPressed() && !(GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer_id = L_SYMBOL_NUM {
+            if key_symbol = key_obj
+                return false
+            if key_navi = key_obj
+                return false
+            return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
+        }
+        if layer_id = L_SELECT {
+            if key_navi = key_obj
+                return false
+            if key_symbol = key_obj
+                return false
+            return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+
+        key := mod_key_list[layer_id]
+        if key = key_obj
+            return false
+        return key.IsPressed()
+    }
+    /**
+     * レイヤー修飾キーを登録し、そのインデックスを返す
+     * @param {HotKey} key_obj - 修飾キーオブジェクト
+     * @returns {Integer} 登録後のレイヤーIDのインデックス
+     */
+    static Index(key_obj) {
+        for i, key in mod_key_list {
+            if key_obj = key
+                return i
+        }
+        mod_key_list.Push(key_obj)
+        return mod_key_list.Length
+    }
+
+    /**
+     * アレイ内に同一レイヤーIDの項目が存在すれば更新し、なければ末尾に追加します（内部ユーティリティ）。
+     * @param {Array} arr - 対象 of レイヤーアイテム配列
+     * @param {LayerItem} item - 追加・更新するレイヤーアイテム
+     */
+    static _Add(arr, item) {
+        for i, v in arr {
+            if (v.layer_id == item.layer_id) {
+                v.action := item.action
+                v.action2 := item.action2
+                return
+            }
+        }
+        arr.Push(item)
+        ;ToolTip arr[arr.Length].layer_id " " arr[arr.Length].action
+
+    }
+
+    /**
+     * IME ON 時のレイヤーアクションを設定します。
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     */
+    SetIMEAction(layer_id, action, action2 := "") {
+        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2))
+    }
+
+    /**
+     * IME OFF 時のレイヤーアクションを設定します。
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     */
+    SetAction(layer_id, action, action2 := "") {
+        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2))
+    }
+
+    ; /**
+    ;  * 指定されたキーが押された際、いずれかのレイヤーがアクティブであればそのレイヤーアクションを送信します。
+    ;  * @param {Object} key_obj - トリガーされたキーオブジェクト
+    ;  * @param {Boolean} ime_state - 現在の IME 状態
+    ;  * @returns {Boolean} レイヤーキーとして送信された場合は true
+    ;  */
+    ; _SendLayerKey(arr, key_obj, ime_state) {
+    ;     for i, item in arr {
+    ;         layer_id := item.layer_id
+    ;         if Layers.State2(layer_id, key_obj) {
+    ;             this._SendKey(layer_id, item.action, key_obj)
+    ;             return true
+    ;         }
+    ;     }
+    ;     return false
+    ; }
+
+    /**
+     * 具体的なレイヤーアクションの送信を処理します（内部ヘルパー）。
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 送信するキーアクション定義
+     * @param {Object} key_obj - トリガーキーオブジェクト
+     */
+    _SendKey(layer_id, action, key_obj) {
+        if action == "" {
+            if (layer_id == L_SHIFT)
+                key_obj.SendShiftedKey()
+        } else {
+            if action == "{none}"
+                return
+            SendAndLog(action)
+            ;ToolTip action . " " . layer_id
+        }
+    }
+
+    ; /**
+    ;  * 現在アクティブなレイヤーキーの押し下げ時間をチェックする
+    ;  * 押し下げから 100ms 以内であれば、高速タイピング時の同時押しとみなしてレイヤー判定をスキップする
+    ;  */
+    ; IsLayerActive(arr, key_obj) {
+    ;     for item in arr {
+    ;         mod_key := mod_key_list[item.layer_id]
+    ;         if (mod_key != key_obj && mod_key.IsPressed()) {
+    ;             if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
+    ;                 return true
+    ;             }
+    ;         }
+    ;     }
+    ;     return false
+    ; }
+
+    SendLayerKey(key_obj, ime_state) {
+        arr := ime_state == 1 ? this.ime_arr : this.arr
+        for item in arr {
+            mod_key := mod_key_list[item.layer_id]
+            if (mod_key != key_obj && mod_key.IsPressed()) {
+                if Layers.State2(item.layer_id, key_obj) {
+                    mod_hold_mode := (ime_state == 1) ? mod_key.hold_mode_ime_org : mod_key.hold_mode_org
+
+                    is_held := false
+                    if (mod_key.pressed_time == 0) {
+                        is_held := true
+                    } else {
+                        t := A_TickCount - mod_key.pressed_time
+                        x := Layers.HoldTh
+
+                        if (mod_hold_mode == 7) {
+                            if (t >= x) {
+                                is_held := true
+                            } else if (t < x - LKey.b_time) {
+                                is_held := false
+                            } else {
+                                ; x - LKey.b_time <= t < x: wait for the remaining time
+                                Sleep(x - t)
+                                ; Check if mod key is still physically held and active after sleep
+                                is_held := mod_key.IsPressed() && Layers.State2(item.layer_id, key_obj)
+                            }
+                        } else {
+                            is_held := (t > x)
+                        }
+                    }
+
+                    if is_held {
+                        action_to_send := item.action
+                        if (item.action2 != "") {
+                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                            if (item.last_mod_key == mod_key && item.last_mod_press_start == mod_key.pressed_time &&
+                                Layers.last_active_item == item) {
+                                item.tap_count += 1
+                            } else {
+                                item.tap_count := 1
+                                item.last_mod_key := mod_key
+                                item.last_mod_press_start := mod_key.pressed_time
+                            }
+                            if (item.tap_count >= 2) {
+                                action_to_send := item.action2
+                            }
+                        }
+                        ; 直近のアクティブなレイヤーアイテムを更新
+                        Layers.last_active_item := item
+
+                        this._SendKey(item.layer_id, action_to_send, key_obj)
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+}
+
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）とその動作モードを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 送信するキーアクション定義
+ * @param {Integer} [mode=4] - 設定する長押し動作モード
+ */
+RegistIMECombination(layer_key_obj, key_obj, text, mode := 4) {
+    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text)
+    layer_key_obj.SetMode(-1, mode)
+}
+
+/**
+ * IME OFF 時の特定キーの同時押し（コンビネーション）とその動作モードを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 送信するキーアクション定義
+ * @param {Integer} [mode=4] - 設定する長押し動作モード
+ */
+RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, false)
+    layer_key_obj.SetMode(mode, -1)
+}
+
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 1回目の押下時に送信するキーアクション定義
+ * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
+ */
+RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "") {
+    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2)
+}
+
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
+ * @param {String} text - 1回目の押下時に送信するキーアクション定義
+ * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
+ */
+RegistCombination2(layer_key_obj, key_obj, text, text2 := "") {
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, text2)
+}
+
 /**
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
  */
 LoadLayoutFromIni(index) {
-    name := IniRead(A_ScriptDir . "\config.ini", index, "name", "")
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
+    name := ReadConfig(index, "name", "")
     if name = "" {
-        ChangeQwertyLayout()
-        return
+        ; index がセクション名ではなくレイアウト名である場合の検索処理
+        found := false
+        loop 21 {
+            sec := String(A_Index - 1)
+            sec_name := ReadConfig(sec, "name", "")
+            if sec_name = index {
+                index := sec
+                name := sec_name
+                found := true
+                break
+            }
+        }
+        if !found {
+            ChangeQwertyLayout()
+            ApplyDynamicLayersFromSettings()
+            return
+        }
     }
-    ver := IniRead(A_ScriptDir . "\config.ini", index, "ver", "1")
+    ver := ReadConfig(index, "ver", "1")
+    success := false
     if ver = 1 {
         if ApplyLayoutFromIni(index)
-            return
+            success := true
     } else if ver = 2 {
-        if ApplyLayoutFromIni2(index)
-            return
-
+        if ApplyLayoutFromIni2(index) {
+            ApplyLayerLayoutFromIni(L_NAVI_CTRL, "NAVI_CTRL")
+            ApplyLayerLayoutFromIni(L_SYMBOL_NUM, "SYMBOL_NUM")
+            ApplyLayerLayoutFromIni(L_SYMBOL1, "SYMBOL1")
+            ApplyLayerLayoutFromIni(L_SYMBOL2, "SYMBOL2")
+            ApplyLayerLayoutFromIni(L_SELECT, "SELECT")
+            ApplyLayerLayoutFromIni(L_NUMPAD, "NUMPAD")
+            success := true
+        }
     }
-    ChangeQwertyLayout()
+    if !success {
+        ChangeQwertyLayout()
+    }
+    ApplyDynamicLayersFromSettings()
 }
+
 /**
  * config.ini の指定されたセクションからレイアウト配列を読み込み、適用する
  * @param {String} name - レイアウト名（INIのセクション名）
  * @returns {Boolean} 読み込みに成功した場合は true
  */
 ApplyLayoutFromIni(index) {
-    ini_path := A_ScriptDir . "\config.ini"
+    ;ini_path := A_ScriptDir . "\config.ini"
 
     ; 必須のレイアウト文字列を取得
-    name := IniRead(ini_path, index, "Name", "")
+    name := ReadConfig(index, "Name", "")
     if name = ""
         return false
-    layout := IniRead(ini_path, index, "Layout", "")
-    num := IniRead(ini_path, index, "Num", "1234567890-")
-    shift_layout := IniRead(ini_path, index, "ShiftLayout", "")
-    shift_num := IniRead(ini_path, index, "ShiftNum", "")
+    layout := ReadConfig(index, "Layout", "")
+    num := ReadConfig(index, "Num", "1234567890-")
+    shift_layout := ReadConfig(index, "ShiftLayout", "")
+    shift_num := ReadConfig(index, "ShiftNum", "")
 
     ; 基本レイアウトの設定
     StoreLayout(name, layout, num, shift_layout, shift_num)
     ResetIME() ; IME ON 時の個別設定を一旦リセット
 
     ; IME ON 時の個別設定があれば読み込む
-    ime_layout := IniRead(ini_path, name, "ImeLayout", "")
-    ime_num := IniRead(ini_path, name, "ImeNum", "")
-    ime_shift_layout := IniRead(ini_path, name, "ImeShiftLayout", "")
-    ime_shift_num := IniRead(ini_path, name, "ImeShiftNum", "")
+    ime_layout := ReadConfig(index, "ImeLayout", "")
+    ime_num := ReadConfig(index, "ImeNum", "")
+    ime_shift_layout := ReadConfig(index, "ImeShiftLayout", "")
+    ime_shift_num := ReadConfig(index, "ImeShiftNum", "")
 
     if (ime_layout != "" || ime_num != "" || ime_shift_layout != "" || ime_shift_num != "") {
-        if (ime_layout == "") ime_layout := layout
-            if (ime_num == "") ime_num := num
-                StoreIMELayout(name, ime_layout, ime_num, ime_shift_layout, ime_shift_num)
+        if (ime_layout == "")
+            ime_layout := layout
+        if (ime_num == "")
+            ime_num := num
+        StoreIMELayout(name, ime_layout, ime_num, ime_shift_layout, ime_shift_num)
     }
 
     ShowOSD("Loaded layout: " . name)
     return true
 }
-ApplyLayoutFromIni2(index) {
-    ini_path := A_ScriptDir . "\config.ini"
 
-    ; 必須のレイアウト文字列を取得
-    name := IniRead(ini_path, index, "Name", "")
-    if name = ""
-        return false
-
-    layout := IniRead(ini_path, index, "l00", "")
+/**
+ * INIファイルから複数スロットに分かれたレイアウト定義を読み込み、一つのレイアウト文字列に結合します。
+ * @param {String} section - INIのセクション名
+ * @param {String} prefix - キー名のプレフィックス (例: "L", "S")
+ * @returns {String} 結合されたレイアウト文字列
+ */
+ReadLayoutTextFromIni(section, prefix) {
+    layout := ReadConfig(section, prefix . "00", "")
     loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "l" . Format("{:02d}", A_Index), "")
+        str := ReadConfig(section, prefix . Format("{:02d}", A_Index), "")
         if str == ""
             break
         layout .= " " . str
     }
+    return layout
+}
 
-    shift_layout := IniRead(ini_path, index, "s00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "s" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        shift_layout .= " " . str
+/**
+ * INIファイルからキー配列設定を動的に読み込み、マップにマッピングするためのヘルパークラスです。
+ */
+class IniMap {
+    /**
+     * コンストラクタ
+     * @param {Map} map - 保存先マップ
+     * @param {String} section - INIのセクション名
+     * @param {String} [prefix=""] - キー名のプレフィックス
+     * @param {String} [ini_path=""] - INIファイルのパス
+     */
+    __New(map, section, prefix := "", ini_path := "") {
+        this.map := map
+        this.inipath := ini_path == "" ? A_ScriptDir . "\config.ini" : ini_path
+        this.section := section
+        this.prefix := prefix
     }
+
+    /**
+     * 指定された文字に対する設定をINIから読み込んでマップにセットします。
+     * @param {String} c - 処理対象の文字
+     */
+    Set(c) {
+        key := EntryName(c)
+        if key == "" {
+            return
+        }
+        val := IniRead(this.inipath, this.section, this.prefix . key, "")
+        val := ResolveKeyText(val)
+        if val != "" {
+            this.map.Set(key, val)
+        }
+    }
+}
+
+/**
+ * INIファイルから読み込んだセクション定義から、指定したプレフィックスを持つレイヤーキー設定をパースし、レイアウトマップに格納します。
+ * @param {Map} layout_map - 取得したキー設定を格納するマップ
+ * @param {String} section_text - INIファイルから読み出したセクション全体のテキスト
+ * @param {String} prefix - 抽出対象 of プレフィックス（例: "m_"）
+ * @param {String} ini_path - INIファイルの絶対パス
+ */
+ReadLayerKey(layout_map, section_text, prefix, ini_path) {
+    if section_text != "" {
+        prefix_len := StrLen(prefix)
+        for line in StrSplit(section_text, "`n", "`r") {
+            line := Trim(line)
+            if line == ""
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key_name := Trim(SubStr(line, 1, pos - 1))
+                if SubStr(key_name, 1, prefix_len) == prefix {
+                    map_key := SubStr(key_name, prefix_len + 1)
+                    val := Trim(SubStr(line, pos + 1))
+                    val := ResolveKeyText(val)
+                    if val != "" {
+                        layout_map.Set(map_key, val)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * config.ini の指定されたセクションとプレフィックスに登録されている各キーマッピングを読み込み、マップを更新します。
+ * QWERTY_CHARS に含まれるキーおよび特殊キーが順次読み込まれます。
+ * @param {Map} layout_map - 更新対象のレイアウトマップ
+ * @param {String} section - INIのセクション名
+ * @param {String} [prefix=""] - キープレフィックス
+ * @param {String} [ini_path=""] - INIファイルのパス
+ */
+ReadEachLayoutFromIni(layout_map, section, prefix := "", ini_path := "") {
+    ini_map_loader := IniMap(layout_map, section, prefix, ini_path)
+    for i, c in QWERTY_CHARS {
+        ini_map_loader.Set(c)
+    }
+    ; 特殊キーの個別読み込み
+    for i, c in LAYOUT_SPECIAL_NAMES {
+        ini_map_loader.Set(c)
+    }
+
+    ; m_から始まるキー名の読み込み
+    try {
+        config_path := A_ScriptDir . "\config.ini"
+        section_text := IniRead(config_path, section)
+    } catch {
+        section_text := ""
+    }
+
+    ; レイアウトの定義は、m_プレフィクスのキーで設定
+    ReadLayerKey(layout_map, section_text, "m_", ini_path)
+}
+
+/**
+ * config.iniから指定されたプレフィックスのコンビネーション（同時押し）定義を読み込み、適用します。
+ */
+ApplyCombinationsFromIni(section, prefix, is_ime) {
+    try {
+        section_text := IniRead(A_ScriptDir . "\config.ini", section)
+    } catch {
+        return
+    }
+    prefix_len := StrLen(prefix)
+    for line in StrSplit(section_text, "`n", "`r") {
+        line := Trim(line)
+        if line == "" || SubStr(line, 1, 1) == ";"
+            continue
+
+        pos := InStr(line, "=")
+        if pos > 0 {
+            key_name := Trim(SubStr(line, 1, pos - 1))
+            if SubStr(key_name, 1, prefix_len) == prefix {
+                key_pair := SubStr(key_name, prefix_len + 1) ; 例: "f+d"
+                val := Trim(SubStr(line, pos + 1))
+                val := ResolveKeyText(val)
+                if val == ""
+                    continue
+
+                ; "修飾キー + 対象キー" を分割
+                keys := StrSplit(key_pair, "+")
+                if keys.Length == 2 {
+                    layer_obj := GetKeyObjByName(Trim(keys[1]))
+                    target_obj := GetKeyObjByName(Trim(keys[2]))
+
+                    if (layer_obj && target_obj) {
+                        if is_ime
+                            RegistIMECombination(layer_obj, target_obj, val, 7)
+                        else
+                            RegistCombination(layer_obj, target_obj, val, 7)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * config.ini のセクションから、各キーマッピングおよび Shift / IME 用のマッピングを個別キー単位で詳細に読み込み、適用します。
+ * @param {String} section - INIのセクション名
+ * @returns {Boolean} 読み込みと適用に成功した場合は true
+ */
+ApplyLayoutFromIni2(section) {
+    ; 必須のレイアウト名を取得
+    name := ReadConfig(section, "Name", "")
+    if (name == "")
+        return false
+
+    ; IME-off / IME-on のセクション名を取得
+    layout_sec := ReadConfig(section, "Layout", "")
+    if (layout_sec == "") {
+        ; 後方互換性のためのフォールバック
+        layout_sec := section
+    }
+    layout_ime_sec := ReadConfig(section, "LayoutIME", layout_sec)
+
+    ; LKey のモード指定を取得
+    hold_mode := ReadConfig(layout_sec, "Mode", "1")
+    hold_mode_ime := (layout_ime_sec != "") ? ReadConfig(layout_ime_sec, "Mode", "0") : hold_mode
+    SetLKeyMode(hold_mode, hold_mode_ime)
+
+    ; 1. IME-off レイアウトの読み込み
+    layout := ReadLayoutTextFromIni(layout_sec, "L")
+    if (layout == "")
+        layout_map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
+    else
+        layout_map := MakeLayoutMap(layout)
+    ReadEachLayoutFromIni(layout_map, layout_sec, "")
+
+    shift_layout := ReadLayoutTextFromIni(layout_sec, "S")
+    if (shift_layout == "")
+        shift_map := Map()
+    else
+        shift_map := MakeLayoutMap(shift_layout)
+    ReadEachLayoutFromIni(shift_map, layout_sec, "s_")
+
+    ; 2. IME-on レイアウトの読み込み
+    if (layout_ime_sec != "") {
+        ime_layout := ReadLayoutTextFromIni(layout_ime_sec, "L")
+        if (ime_layout == "")
+            ime_map := Map()
+        else
+            ime_map := MakeLayoutMap(ime_layout)
+        ReadEachLayoutFromIni(ime_map, layout_ime_sec, "")
+
+        ime_shift_layout := ReadLayoutTextFromIni(layout_ime_sec, "S")
+        if (ime_shift_layout == "")
+            ime_shift_map := Map()
+        else
+            ime_shift_map := MakeLayoutMap(ime_shift_layout)
+        ReadEachLayoutFromIni(ime_shift_map, layout_ime_sec, "s_")
+    } else {
+        ime_map := Map()
+        ime_shift_map := Map()
+    }
+
+    layout_map.Default := ""
+    shift_map.Default := ""
+    ime_map.Default := ""
+    ime_shift_map.Default := ""
 
     ; 基本レイアウトの設定
-    StoreLayout2(name, layout, shift_layout)
-    ResetIME() ; IME ON 時の個別設定を一旦リセット
+    StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map)
 
-    ; IME ON 時の個別設定があれば読み込む
-    ime_layout := IniRead(ini_path, index, "i00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "i" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        ime_layout .= " " . str
-    }
-
-    ime_shift_layout := IniRead(ini_path, index, "is00", "")
-    loop LAYOUT_KEYS.Length - 1 {
-        str := IniRead(ini_path, index, "is" . Format("{:02d}", A_Index), "")
-        if str == ""
-            break
-        ime_shift_layout .= " " . str
-    }
-
-    if (ime_layout != "" || ime_shift_layout != "") {
-        StoreIMELayout2(name, ime_layout, ime_shift_layout)
-    }
+    ; --- 追加: Mode 4 コンビネーションの動的読み込み ---
+    ApplyCombinationsFromIni(layout_sec, "m_", false)  ; IME OFF 用
+    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用
 
     ShowOSD("Loaded layout: " . name)
     return true
 }
+
+/**
+ * config.ini の [Settings] セクションから動的レイヤーの紐付けを読み込み、適用します。
+ */
+ApplyDynamicLayersFromSettings() {
+    modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
+    for mod_name in modifiers {
+        key_entry := EntryName(mod_name)
+        sec := ReadConfig("Settings", key_entry, "")
+        if sec != "" {
+            ApplyDynamicLayer(key_entry, sec)
+        }
+    }
+}
+
+/**
+ * 指定されたモディファイアキーに対応するレイヤーに、INIセクションのキーバリュー定義を適用（追加・上書き）します。
+ */
+ApplyDynamicLayer(mod_key_name, section) {
+    mod_entry := EntryName(mod_key_name)
+    mod_key_obj := GetKeyObjByName(mod_entry)
+    if (!mod_key_obj)
+        return
+
+    ; mod_key_list から一致するレイヤーID (インデックス) を特定
+    layer_id := 0
+    global mod_key_list
+    for i, obj in mod_key_list {
+        if (obj == mod_key_obj) {
+            layer_id := i
+            break
+        }
+    }
+
+    if (layer_id == 0)
+        return
+
+    try {
+        section_text := IniRead(A_ScriptDir . "\config.ini", section)
+    } catch {
+        section_text := ""
+    }
+
+    if section_text != "" {
+        for line in StrSplit(section_text, "`n", "`r") {
+            line := Trim(line)
+            if (line == "" || SubStr(line, 1, 1) == ";")
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key_name := Trim(SubStr(line, 1, pos - 1))
+                val := Trim(SubStr(line, pos + 1))
+
+                ; インラインコメントの除去
+                c_pos := InStr(val, Chr(32) . Chr(59))
+                if c_pos == 0 {
+                    c_pos := InStr(val, "`t" . Chr(59))
+                }
+                if c_pos > 0 {
+                    val := SubStr(val, 1, c_pos - 1)
+                }
+                val := Trim(val)
+
+                val := ResolveKeyText(val)
+                if val != "" {
+                    key_entry := EntryName(key_name)
+                    key_obj := GetKeyObjByName(key_entry)
+                    if key_obj {
+                        key_obj.SetLayerKey(layer_id, val)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * config.ini の指定されたセクションから、特定のレイヤー用のキー配列を読み込み適用する
+ * @param {Integer} layer_id - レイヤー番号
+ * @param {String} section - INIのセクション名
+ */
+ApplyLayerLayoutFromIni(layer_id, section) {
+    ini_path := A_ScriptDir . "\config.ini"
+
+    layout_text := ReadLayoutTextFromIni(section, "L")
+    layout_map := (layout_text != "") ? MakeLayoutMap(layout_text) : Map()
+
+    ReadEachLayoutFromIni(layout_map, section, "", ini_path)
+
+    for i, keyObj in LAYOUT_KEYS {
+        name := EntryName(QWERTY_CHARS[i])
+
+        ;layout_map[name]が"
+        keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
+    }
+
+    for i, keyObj in LAYOUT_SPECIAL_KEYS {
+        name := EntryName(LAYOUT_SPECIAL_NAMES[i])
+        keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
+    }
+
+}
+
 /**
  * 新しい IME-ON 時のキーレイアウトを保存・設定します
  * @param {String} name - レイアウト名
@@ -1924,7 +3125,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -1938,11 +3139,18 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }
-StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+
+/**
+ * すべてのキー配列オブジェクトに対し、指定されたキーレイアウト定義から IME ON 時のキーマッピングを設定・保存します。
+ * @param {String} name - レイアウト識別名
+ * @param {String} [layout="..."] - 数字・記号を含む全キー配置文字列
+ * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
+ */
+StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
     KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -1952,6 +3160,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,
         keyObj.SetIMEKey(l.GetElement(i), ls.GetElement(i))
     }
 }
+
 /**
  * 現在のキーレイアウトを指定された設定に保存・適用する
  * @param {String} name - レイアウト名
@@ -1962,7 +3171,7 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
     KeyLogger.SetLayoutName(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -1970,38 +3179,43 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
     l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
     for i, keyObj in LAYOUT_NUM_KEYS {
         keyObj.SetKey(l_num.GetElement(i), l_snum.GetElement(i))
+        keyObj.SetMode(1, 0)
     }
     l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_CHAR_KEYS {
         keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
+    SetLKeyMode(1, 0)
 }
-MakeLayoutMap(layout) {
-    static qwerty_keys := [
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "^", "¥",
-        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@", "[",
-        "a", "s", "d", "f", "g", "h", "j", "k", "l", ";", ":", "]",
-        "z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\"
-    ]
-    map := Map()
-    l := LayoutString(layout)
-    for i, key in qwerty_keys {
-        map[key] = l.GetElement(i)
+
+/**
+ * レイアウト文字列から、QWERTY_CHARS の各キーエントリー名をキーとする配置マップを構築します。
+ * @param {String} [layout_str=""] - スペース区切りまたは連続文字からなるレイアウト文字列
+ * @returns {Map} エントリー名 -> 割り当て文字のマップ
+ */
+MakeLayoutMap(layout_str := "") {
+    res_map := Map()
+    if (layout_str == "") {
+        return res_map
     }
-
-    ;scは{}なし
-    ; for i, sc in sc_to_char_map.Keys() {
-    ;     map[sc] = map[sc_to_char_map[sc]]
-    ; }
-
-    return map
-
+    l := LayoutString(layout_str)
+    for i, key in QWERTY_CHARS {
+        res_map.Set(EntryName(key), l.GetElement(i))
+    }
+    return res_map
 }
-StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\", shift_layout := "") {
+
+/**
+ * すべてのキー配列オブジェクトに対し、指定されたキーレイアウト定義から基本キー（IME OFF時）のマッピングを設定・保存します。
+ * @param {String} name - レイアウト識別名
+ * @param {String} [layout="..."] - 基本の全キー配置文字列
+ * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
+ */
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\", shift_layout := "") {
     ;KeyLogger.ChangeLayout(name)
     if name != "" {
         try {
-            IniWrite(name, A_ScriptDir . "\config.ini", "Settings", "StartupLayout")
+            WriteConfig(name, "Settings", "StartupLayout")
         } catch {
         }
     }
@@ -2010,44 +3224,90 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjklo:];zxcvbnm,./\
     for i, keyObj in LAYOUT_KEYS {
         keyObj.SetKey(l.GetElement(i), ls.GetElement(i))
     }
+    SetLKeyMode(1, 0)
 }
+
+/**
+ * 読み込まれた各状態マッピング（基本、Shift、IME ON、IME Shift）のマップを、すべての物理キー配列オブジェクトに設定・適用します。
+ * @param {String} name - レイアウト識別名
+ * @param {Map} layout_map - 基本キーマッピング
+ * @param {Map} shift_map - Shiftキーマッピング
+ * @param {Map} ime_map - IME ON時キーマッピング
+ * @param {Map} ime_shift_map - IME Shiftキーマッピング
+ */
+StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
+    if name != "" {
+        try {
+            WriteConfig(name, "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+    global QWERTY_CHARS
+    for i, keyObj in LAYOUT_KEYS {
+        c := QWERTY_CHARS[i]
+        key_text := EntryName(c)
+        if (!layout_map.Has(key_text))
+            layout_map[key_text] := ""
+        if (!shift_map.Has(key_text))
+            shift_map[key_text] := ""
+        keyObj.SetKey(layout_map[key_text], shift_map[key_text])
+        keyObj.SetMode(1, -1)
+    }
+    ResetIME() ; IME ON 時の個別設定を一旦リセット
+
+    for i, keyObj in LAYOUT_KEYS {
+        c := QWERTY_CHARS[i]
+        key_text := EntryName(c)
+        if (!ime_map.Has(key_text))
+            ime_map[key_text] := ""
+        if (!ime_shift_map.Has(key_text))
+            ime_shift_map[key_text] := ""
+        keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
+        keyObj.SetMode(-1, 0)
+    }
+}
+
 /**
  * キーレイアウトを「Qwerty配列」に変更する
  */
 ChangeQwertyLayout() {
-    StoreLayout("Qwerty", "qwertyuiopasdfghjkl;zxcvbnm,./")
+    StoreLayout("Qwerty[Built-in]", "qwertyuiopasdfghjkl;zxcvbnm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * キーレイアウトを「大西配列」に変更する
  */
 ChangeOonishiLayout() {
-    StoreLayout("Oonishi", "qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
+    StoreLayout("Oonishi[Built-in]", "qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * キーレイアウトを「Colemak配列」に変更する
  */
 ChangeColemakLayout() {
-    StoreLayout("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./")
+    StoreLayout("Colemak[Built-in]", "qwfpgjluy;arstdhneiozxcvbkm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * Changes layout to "FMIX12f".
  */
 ChangeFMIX12f_Layout() {
-    StoreLayout("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12f[Built-in]", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * Changes layout to "FMIX12f-FMIX13fR".
  */
 ChangeFMIX12f_FMIX13fR_Layout() {
-    StoreLayout("FMIX12f-13fR", "qwfrkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX12f-13fR[Built-in]", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -2063,7 +3323,7 @@ ChangeFMIX12f_FMIX13fR_Layout() {
  * Changes layout to "FMIX14-FMIX14R".
  */
 ChangeFMIX14_FMIX14R_Layout() {
-    StoreLayout("FMIX14-14R", "qwldkylup;asrtghneiozxcvbjm,./")
+    StoreLayout("FMIX14-14R[Built-in]", "qwldkylup;asrtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -2075,11 +3335,12 @@ ChangeFMIX14_FMIX14R_Layout() {
 
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
 /**
  * Changes layout to "FMIX13f-FMIX14fR".
  */
 ChangeFMIX13f_FMIX14fR_Layout() {
-    StoreLayout("FMIX13f-14fR", "qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f-14fR[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
     ResetIME()
 
     global e, r, t, u, d
@@ -2091,7 +3352,12 @@ ChangeFMIX13f_FMIX14fR_Layout() {
 
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
+/**
+ * 湊（みなと）配列に特有な IME ON 時の差分マッピング（複合母音キーの割り当てなど）を設定する共通ヘルパーです。
+ */
 ChangeMinatoLayoutImpl() {
+    global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
     ResetIME()
 
     ; IME ON 時の差分設定
@@ -2120,169 +3386,403 @@ ChangeMinatoLayoutImpl() {
     k.SetImeKey("i", "xi")
     l.SetImeKey("e", "xe")
     semicolon.SetImeKey("o", "ou")
+    ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
     n.SetImeKey("-", "a-")
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
+
+    static rm := Map(
+        "n", a, "s", s, "k", d, "t", f, "d", r, "m", c, "r", e, "w", w,
+        "a", j, "i", k, "u", i, "e", l, "o", semicolon
+    )
+    SetLKeyMode(-1, 7)
+
+    static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
+    for layer_key in target_layers {
+        ;RegistIMECombination(layer_key, e, "nn", mode) ; ん
+        RegistIMECombination2(layer_key, d, "nn") ; ん
+        RegistIMECombination2(layer_key, f, "-") ;ー
+        RegistIMECombination2(layer_key, v, "ltu") ;
+        RegistIMECombination2(layer_key, c, "ltute", "ltuta") ;
+        RegistIMECombination2(layer_key, e, "ru", "{BS}rareru") ;
+    }
+    RegistIMECombination2(rm["o"], j, "u") ;おう
+    RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    RegistIMECombination2(rm["s"], r, "areru") ;される
+    RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination2(z, v, "youhou") ;
 }
+
+/**
+ * キーレイアウトを「FMIX13-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
 ChangeFMIX13_minato_Layout() {
-    StoreLayout("FMIX13-Minato", "qwrlkyfup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13-Minato[Built-in]", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
+
+/**
+ * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
 ChangeFMIX13f_minato_Layout() {
-    StoreLayout("FMIX13f-Minato", "qwrfkylup;asdtghneiozxcvbjm,./")
+    StoreLayout("FMIX13f-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
+    InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
 }
-ChangeFMIX13fie_minato_Layout() {
-    StoreLayout("FMIX13fie-Minato", "qwrfkylup;asdtghnieozxcvbjm,./")
+
+/**
+ * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
+ChangeFMIX13f2_minato_Layout() {
+    StoreLayout("FMIX13f2-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
+
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.SetMode(0, -1)
+    }
+
+    RegistCombination(f, d, "h", 4) ;th
+    RegistCombination(f, e, "e", 4) ;te
+    RegistCombination(e, r, "{Backspace}er", 4) ;er
+    RegistCombination(r, e, "{Backspace}re", 4) ;re
+    RegistCombination(s, e, "e", 4) ;se
+
     ChangeMinatoLayoutImpl()
+    InitModLayer()
     ShowOSD(KeyLogger.current_layout . " layout")
+}
+
+/**
+ * キーレイアウトを「FMIX13fie-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
+ChangeFMIX13fie_minato_Layout() {
+    StoreLayout("FMIX13fie-Minato[Built-in]", "qwrfkylup;asdtghnieozxcvbjm,./")
+    ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(KeyLogger.current_layout . " layout")
+}
+
+; 終了・リロード時に保存
+OnExit((*) => (KeyLogger.Save(true), KeyLogger.SaveConfig()))
+
+SetLKeyMode(mode, ime_mode := -1) {
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.SetMode(mode, ime_mode)
+    }
 }
 ; ============================================================================
 ; 設定の読み込み
 ; ============================================================================
-init() {
-    for i, keyObj in LAYOUT_KEYS {
-        keyObj.long_press_mode := 1
+/**
+ * 各レイヤー（ナビゲーション、記号、テンキー、選択、Shiftなど）に対する、物理キーから送信キーへの具体的なマッピングを初期設定します。
+ */
+InitModLayer() {
+    start := Timer()
+
+    global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
+    global q, w, e, r, t, y, u, i, o, p, at, openbracket
+    global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
+    global z, x, c, v, b, n, m, comma, period, slash, backslash
+
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT
+
+    ; L_SELECT
+    k1.SetLayerKey(L_SELECT, "^z")
+    k2.SetLayerKey(L_SELECT, "^x")
+    k3.SetLayerKey(L_SELECT, "^c")
+    k4.SetLayerKey(L_SELECT, "^v")
+    z.SetLayerKey(L_SELECT, "^z")
+    x.SetLayerKey(L_SELECT, "^x")
+    c.SetLayerKey(L_SELECT, "^c")
+    v.SetLayerKey(L_SELECT, "^v")
+    b.SetLayerKey(L_SELECT, "^z")
+    y.SetLayerKey(L_SELECT, R_REDO)
+    u.SetLayerKey(L_SELECT, C_BS)
+    i.SetLayerKey(L_SELECT, "+{Up}")
+    o.SetLayerKey(L_SELECT, "+{PgUp}")
+    p.SetLayerKey(L_SELECT, "+{PgDn}")
+    at.SetLayerKey(L_SELECT, C_CSHOME)
+    openbracket.SetLayerKey(L_SELECT, C_CSEND)
+    h.SetLayerKey(L_SELECT, "+{Home}")
+    j.SetLayerKey(L_SELECT, "+{Left}")
+    k.SetLayerKey(L_SELECT, "+{Down}")
+    l.SetLayerKey(L_SELECT, "+{Right}")
+    semicolon.SetLayerKey(L_SELECT, "+{Enter}")
+    enter.SetLayerKey(L_SELECT, B_ENTER)
+    n.SetLayerKey(L_SELECT, "+{End}")
+    m.SetLayerKey(L_SELECT, C_DEL)
+    comma.SetLayerKey(L_SELECT, "^+{Left}")
+    period.SetLayerKey(L_SELECT, "^+{Right}")
+    space.SetLayerKey(L_SELECT, C_BS)
+    up.SetLayerKey(L_SELECT, "+{Up}")
+    left.SetLayerKey(L_SELECT, "+{Left}")
+    down.SetLayerKey(L_SELECT, "+{Down}")
+    right.SetLayerKey(L_SELECT, "+{Right}")
+
+    ; L_NAVI_CTRL
+    k1.SetLayerKey(L_NAVI_CTRL, B_F1)
+    k2.SetLayerKey(L_NAVI_CTRL, B_F2)
+    k3.SetLayerKey(L_NAVI_CTRL, B_F3)
+    k4.SetLayerKey(L_NAVI_CTRL, B_F4)
+    k5.SetLayerKey(L_NAVI_CTRL, B_F5)
+    k6.SetLayerKey(L_NAVI_CTRL, B_F6)
+    k7.SetLayerKey(L_NAVI_CTRL, B_F7)
+    k8.SetLayerKey(L_NAVI_CTRL, B_F8)
+    k9.SetLayerKey(L_NAVI_CTRL, B_F9)
+    k0.SetLayerKey(L_NAVI_CTRL, B_F10)
+    minus.SetLayerKey(L_NAVI_CTRL, B_F11)
+    hat.SetLayerKey(L_NAVI_CTRL, B_F12)
+    yen.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
+    z.SetLayerKey(L_NAVI_CTRL, B_UNDO)
+    x.SetLayerKey(L_NAVI_CTRL, B_CUT)
+    c.SetLayerKey(L_NAVI_CTRL, B_COPY)
+    v.SetLayerKey(L_NAVI_CTRL, B_PASTE)
+    b.SetLayerKey(L_NAVI_CTRL, B_UNDO)
+    y.SetLayerKey(L_NAVI_CTRL, B_UNDO)
+    u.SetLayerKey(L_NAVI_CTRL, B_BS)
+    i.SetLayerKey(L_NAVI_CTRL, B_UP)
+    o.SetLayerKey(L_NAVI_CTRL, B_PGUP)
+    p.SetLayerKey(L_NAVI_CTRL, B_PGDN)
+    at.SetLayerKey(L_NAVI_CTRL, B_CHOME)
+    openbracket.SetLayerKey(L_NAVI_CTRL, B_CEND)
+    h.SetLayerKey(L_NAVI_CTRL, B_HOME)
+    j.SetLayerKey(L_NAVI_CTRL, B_LEFT)
+    k.SetLayerKey(L_NAVI_CTRL, B_DOWN)
+    l.SetLayerKey(L_NAVI_CTRL, B_RIGHT)
+    semicolon.SetLayerKey(L_NAVI_CTRL, B_ENTER)
+    closebracket.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
+    n.SetLayerKey(L_NAVI_CTRL, B_END)
+    m.SetLayerKey(L_NAVI_CTRL, B_DEL)
+    comma.SetLayerKey(L_NAVI_CTRL, B_CLEFT)
+    period.SetLayerKey(L_NAVI_CTRL, B_CRIGHT)
+    slash.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
+    enter.SetLayerKey(L_NAVI_CTRL, "{Blind}^{Enter}")
+    a.SetLayerKey(L_NAVI_CTRL, "{Blind}^a")
+
+    ; L_SYMBOL_NUM
+    k1.SetLayerKey(L_SYMBOL_NUM, B_F1)
+    k2.SetLayerKey(L_SYMBOL_NUM, B_F2)
+    k3.SetLayerKey(L_SYMBOL_NUM, B_F3)
+    k4.SetLayerKey(L_SYMBOL_NUM, B_F4)
+    k5.SetLayerKey(L_SYMBOL_NUM, B_F5)
+    k6.SetLayerKey(L_SYMBOL_NUM, B_F6)
+    k7.SetLayerKey(L_SYMBOL_NUM, B_F7)
+    k8.SetLayerKey(L_SYMBOL_NUM, B_F8)
+    k9.SetLayerKey(L_SYMBOL_NUM, B_F9)
+    k0.SetLayerKey(L_SYMBOL_NUM, B_F10)
+    minus.SetLayerKey(L_SYMBOL_NUM, B_F11)
+    hat.SetLayerKey(L_SYMBOL_NUM, B_F12)
+    q.SetLayerKey(L_SYMBOL_NUM, "?")
+    w.SetLayerKey(L_SYMBOL_NUM, "{Blind}/")
+    e.SetLayerKey(L_SYMBOL_NUM, B_NMUL)
+    r.SetLayerKey(L_SYMBOL_NUM, B_NADD)
+    t.SetLayerKey(L_SYMBOL_NUM, "+F3")
+    a.SetLayerKey(L_SYMBOL_NUM, "(")
+    s.SetLayerKey(L_SYMBOL_NUM, ")")
+    d.SetLayerKey(L_SYMBOL_NUM, "_")
+    f.SetLayerKey(L_SYMBOL_NUM, "{Blind}-")
+    g.SetLayerKey(L_SYMBOL_NUM, "=")
+    y.SetLayerKey(L_SYMBOL_NUM, B_BS)
+    u.SetLayerKey(L_SYMBOL_NUM, C_N7)
+    i.SetLayerKey(L_SYMBOL_NUM, C_N8)
+    o.SetLayerKey(L_SYMBOL_NUM, C_N9)
+    p.SetLayerKey(L_SYMBOL_NUM, "+^p")
+    h.SetLayerKey(L_SYMBOL_NUM, "=")
+    j.SetLayerKey(L_SYMBOL_NUM, C_N0)
+    k.SetLayerKey(L_SYMBOL_NUM, C_N1)
+    l.SetLayerKey(L_SYMBOL_NUM, C_N2)
+    semicolon.SetLayerKey(L_SYMBOL_NUM, B_ENTER)
+    n.SetLayerKey(L_SYMBOL_NUM, "+3")
+    m.SetLayerKey(L_SYMBOL_NUM, C_N3)
+    comma.SetLayerKey(L_SYMBOL_NUM, C_N4)
+    period.SetLayerKey(L_SYMBOL_NUM, C_N5)
+    slash.SetLayerKey(L_SYMBOL_NUM, C_N6)
+    z.SetLayerKey(L_SYMBOL_NUM, "[")
+    x.SetLayerKey(L_SYMBOL_NUM, "]")
+    c.SetLayerKey(L_SYMBOL_NUM, "+[")
+    v.SetLayerKey(L_SYMBOL_NUM, "+]")
+    b.SetLayerKey(L_SYMBOL_NUM, C_BACKSLASH)
+    space.SetLayerKey(L_SYMBOL_NUM, B_BS)
+
+    ; L_SYMBOL1
+    k1.SetLayerKey(L_SYMBOL1, B_F1)
+    k2.SetLayerKey(L_SYMBOL1, B_F2)
+    k3.SetLayerKey(L_SYMBOL1, B_F3)
+    k4.SetLayerKey(L_SYMBOL1, B_F4)
+    k5.SetLayerKey(L_SYMBOL1, B_F5)
+    k6.SetLayerKey(L_SYMBOL1, B_F6)
+    k7.SetLayerKey(L_SYMBOL1, B_F7)
+    k8.SetLayerKey(L_SYMBOL1, B_F8)
+    k9.SetLayerKey(L_SYMBOL1, B_F9)
+    k0.SetLayerKey(L_SYMBOL1, B_F10)
+    minus.SetLayerKey(L_SYMBOL1, B_F11)
+    hat.SetLayerKey(L_SYMBOL1, B_F12)
+    q.SetLayerKey(L_SYMBOL1, "?")
+    w.SetLayerKey(L_SYMBOL1, "{Blind}/")
+    e.SetLayerKey(L_SYMBOL1, B_NMUL)
+    r.SetLayerKey(L_SYMBOL1, B_NADD)
+    t.SetLayerKey(L_SYMBOL1, "+F3")
+    a.SetLayerKey(L_SYMBOL1, "(")
+    s.SetLayerKey(L_SYMBOL1, ")")
+    d.SetLayerKey(L_SYMBOL1, "_")
+    f.SetLayerKey(L_SYMBOL1, "{Blind}-")
+    g.SetLayerKey(L_SYMBOL1, "=")
+    y.SetLayerKey(L_SYMBOL1, B_BS)
+    u.SetLayerKey(L_SYMBOL1, C_N7)
+    i.SetLayerKey(L_SYMBOL1, C_N8)
+    o.SetLayerKey(L_SYMBOL1, C_N9)
+    p.SetLayerKey(L_SYMBOL1, "+^p")
+    h.SetLayerKey(L_SYMBOL1, "=")
+    j.SetLayerKey(L_SYMBOL1, C_N0)
+    k.SetLayerKey(L_SYMBOL1, C_N1)
+    l.SetLayerKey(L_SYMBOL1, C_N2)
+    semicolon.SetLayerKey(L_SYMBOL1, B_ENTER)
+    n.SetLayerKey(L_SYMBOL1, "+3")
+    m.SetLayerKey(L_SYMBOL1, C_N3)
+    comma.SetLayerKey(L_SYMBOL1, C_N4)
+    period.SetLayerKey(L_SYMBOL1, C_N5)
+    slash.SetLayerKey(L_SYMBOL1, C_N6)
+    z.SetLayerKey(L_SYMBOL1, "+[")
+    x.SetLayerKey(L_SYMBOL1, "+]")
+    c.SetLayerKey(L_SYMBOL1, "[")
+    v.SetLayerKey(L_SYMBOL1, "]")
+    b.SetLayerKey(L_SYMBOL1, C_BACKSLASH)
+    space.SetLayerKey(L_SYMBOL1, C_BS)
+
+    ; L_NUMPAD
+    k6.SetLayerKey(L_NUMPAD, "{Escape}")
+    t.SetLayerKey(L_NUMPAD, B_NADD)
+    a.SetLayerKey(L_NUMPAD, "(")
+    s.SetLayerKey(L_NUMPAD, ")")
+    f.SetLayerKey(L_NUMPAD, "-")
+    g.SetLayerKey(L_NUMPAD, "=")
+    k7.SetLayerKey(L_NUMPAD, C_N7)
+    k8.SetLayerKey(L_NUMPAD, C_N8)
+    k9.SetLayerKey(L_NUMPAD, C_N9)
+    k0.SetLayerKey(L_NUMPAD, B_NMUL)
+    minus.SetLayerKey(L_NUMPAD, B_NSUB)
+    hat.SetLayerKey(L_NUMPAD, C_HAT)
+    yen.SetLayerKey(L_NUMPAD, "\")
+    y.SetLayerKey(L_NUMPAD, C_BS)
+    u.SetLayerKey(L_NUMPAD, C_N4)
+    i.SetLayerKey(L_NUMPAD, C_N5)
+    o.SetLayerKey(L_NUMPAD, C_N6)
+    p.SetLayerKey(L_NUMPAD, B_NADD)
+    at.SetLayerKey(L_NUMPAD, B_UP)
+    h.SetLayerKey(L_NUMPAD, "=")
+    j.SetLayerKey(L_NUMPAD, C_N1)
+    k.SetLayerKey(L_NUMPAD, C_N2)
+    l.SetLayerKey(L_NUMPAD, C_N3)
+    semicolon.SetLayerKey(L_NUMPAD, B_LEFT)
+    colon.SetLayerKey(L_NUMPAD, B_DOWN)
+    closebracket.SetLayerKey(L_NUMPAD, B_RIGHT)
+    n.SetLayerKey(L_NUMPAD, C_DEL)
+
+    ; L_SYMBOL2
+    q.SetLayerKey(L_SYMBOL2, "+1")
+    w.SetLayerKey(L_SYMBOL2, "+2")
+    e.SetLayerKey(L_SYMBOL2, "+3")
+    r.SetLayerKey(L_SYMBOL2, "+4")
+    t.SetLayerKey(L_SYMBOL2, "+5")
+    a.SetLayerKey(L_SYMBOL2, "+6")
+    s.SetLayerKey(L_SYMBOL2, "+7")
+    d.SetLayerKey(L_SYMBOL2, C_HAT)
+    g.SetLayerKey(L_SYMBOL2, "+@")
+    z.SetLayerKey(L_SYMBOL2, "~")
+    x.SetLayerKey(L_SYMBOL2, "@")
+    c.SetLayerKey(L_SYMBOL2, ":")
+    v.SetLayerKey(L_SYMBOL2, "|")
+    b.SetLayerKey(L_SYMBOL2, "\")
+
+    ; L_SHIFT
+    ; for i, keyObj in LAYOUT_KEYS {
+    ;     keyObj.SetLayerKey(L_SHIFT, keyObj.shift_key_text)
+    ; }
+    k1.SetLayerKey(L_SHIFT, B_F1)
+    k2.SetLayerKey(L_SHIFT, B_F2)
+    k3.SetLayerKey(L_SHIFT, B_F3)
+    k4.SetLayerKey(L_SHIFT, B_F4)
+    k5.SetLayerKey(L_SHIFT, B_F5)
+    k6.SetLayerKey(L_SHIFT, B_F6)
+    k7.SetLayerKey(L_SHIFT, B_F7)
+    k8.SetLayerKey(L_SHIFT, B_F8)
+    k9.SetLayerKey(L_SHIFT, B_F9)
+    k0.SetLayerKey(L_SHIFT, B_F10)
+    minus.SetLayerKey(L_SHIFT, B_F11)
+    hat.SetLayerKey(L_SHIFT, B_F12)
+    colon.SetLayerKey(L_SHIFT, "+sc028")
+    closebracket.SetLayerKey(L_SHIFT, "+]")
+}
+
+/**
+ * キー配列設定エディタ UI を既定のブラウザで開きます。
+ */
+OpenConfigEditor(*) {
+    Run('"' . A_ScriptDir . '\ui\index.html"')
+}
+
+/**
+ * スクリプト起動時の初期化処理（長押し動作の基本有効化、各レイヤーバインドの設定、設定ファイルやログの読み込み）を行います。
+ */
+Init() {
+    start := Timer()
+
+    ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
+    InitMaps()
+
+    ; 2. グローバルキー変数の初期化
+    InitGlobalKeys()
+
+    ; 3. モディファイアキーリストの初期化
+    global mod_key_list
+    mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+
+    ; 4. レイヤーとレイアウトの適用
+    InitModLayer()
+
+    ; 5. UI/GUI関連の初期化
+    InitGUI()
+
+    ; 6. レイアウト設定・ログの読み込み
+    LoadLayoutConfig()
+    KeyLogger.Load()
+
+    ; 7. トレイメニューやUIの設定
+    A_TrayMenu.Add() ; セパレータ
+    A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
+
+    ; スクリプトと同じフォルダにあるアイコンファイルを指定
+    if FileExist("klt.ico") {
+        TraySetIcon("klt.ico")
     }
 
-    ;colon.long_press_mode := 2
+    ; 8. タイマーの開始 (初期化完了後に実行)
+    SetTimer(TimerEvent, 100)
+
+    end := Timer()
+    ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
 }
-LoadLayoutConfig()
-init()
-; ============================================================================
-; レイヤー状態判定関数
-; ============================================================================
-L_NAVL_CTRL := 1
-L_SYMBOL_NUM := 2
-L_SYMBOL1 := 7
-L_SYMBOL2 := 6
-L_SELECT := 3
-L_NUMPAD := 4
-L_SHIFT := 5
-L_FUNC := 6
-/**
- * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
- * 他のレイヤーが同時にアクティブでないことも確認します。
- * @param {Integer} layer - 確認するレイヤー番号
- * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
- */
-LayerState(layer) {
-    ; Check the specified layer
-    if layer = L_NAVL_CTRL {
-        return f13.IsPressed() && !(GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SYMBOL1 {
-        return conv.IsPressed()
-    }
-    if layer = L_SYMBOL2 {
-        return f14.IsPressed()
-    }
-    if layer = L_SYMBOL_NUM {
-        return noconv.IsPressed() && !(GetKeyState("F13", "P") || GetKeyState("Alt", "P"))
-    }
-    if layer = L_NUMPAD {
-        return tab.IsPressed()
-    }
-    if layer = L_SELECT {
-        return f13.IsPressed() && (GetKeyState("Alt", "P") || GetKeyState(R_NOCONV, "P"))
-    }
-    if layer = L_SHIFT {
-        return space.IsPressed()
-    }
-    ; if layer = L_FUNC {
-    ;     return f14.IsPressed()
-    ; }
-    return false
-}
+
+Init()
+
 ; ============================================================================
 ; ホットキー定義（レイヤー）
 ; ============================================================================
-;*** レイヤー（Shift付き編集） ***
-#HotIf LayerState(L_SELECT)
-; --- 編集（Shift付き） ---
-*1:: Send("^z") ; Undo
-*2:: Send("^x") ; Cut
-*3:: Send("^c") ; Copy
-*4:: Send("^v") ; Paste
-*z:: Send("^z") ; Undo
-*x:: Send("^x") ; Cut
-*c:: Send("^c") ; Copy
-*v:: Send("^v") ; Paste
-*b:: Send("^z") ; Undo
-; --- ナビゲーション（Shift付き） ---
-*y:: Send(R_REDO) ; Redo (^y)
-*u:: Send(C_BS)   ; Backspace
-*i:: Send("+{Up}")   ; Shift+Up
-*o:: Send("+{PgUp}") ; Shift+PgUp
-*p:: Send("+{PgDn}") ; Shift+PgDn
-*@:: Send(C_CSHOME) ; Ctrl+Shift+Home
-*[:: Send(C_CSEND)  ; Ctrl+Shift+End
-*h:: Send("+{Home}")  ; Shift+Home
-*j:: Send("+{Left}")  ; Shift+Left
-*k:: Send("+{Down}")  ; Shift+Down
-*l:: Send("+{Right}") ; Shift+Right
-*sc027:: Send("+{Enter}") ; Semicolon (;) -> Shift+Enter
-*Enter:: SendAndLog(B_ENTER)
-*n:: Send("+{End}")   ; Shift+End
-*m:: Send(C_DEL)    ; Delete
-*sc033:: Send("^+{Left}") ; Comma (,) -> Ctrl+Shift+Left
-*.:: Send("^+{Right}") ; Period (.)
-*space:: Send(C_BS) ; Space -> Backspace
-*up:: Send("+{Up}")
-*left:: Send("+{Left}")
-*down:: Send("+{Down}")
-*right:: Send("+{Right}")
-#HotIf
 ;*** レイヤー（システム/アプリ制御） ***
-#HotIf LayerState(L_NAVL_CTRL)
-*1:: Send(B_F1)
-*2:: Send(B_F2)
-*3:: Send(B_F3)
-*4:: Send(B_F4)
-*5:: Send(B_F5)
-*6:: Send(B_F6)
-*7:: Send(B_F7)
-*8:: Send(B_F8)
-*9:: Send(B_F9)
-*0:: Send(B_F10)
-*-:: Send(B_F11)
-*sc00D:: Send(B_F12) ; ^ -> F12
-sc07D:: Send("^+{sc07D}") ; ¥ -> |
-*z:: Send(B_UNDO)  ; Undo
-*x:: Send(B_CUT)   ; Cut
-*c:: Send(B_COPY)  ; Copy
-*v:: Send(B_PASTE) ; Paste
-*b:: Send(B_UNDO)  ; Undo
-; --- 編集・ナビゲーション（Shiftなし） ---
-*y:: Send(B_UNDO)  ; Undo (^z)
-*u:: Send(B_BS)    ; Backspace
-*i:: Send(B_UP)    ; Up
-*o:: Send(B_PGUP)  ; PgUp
-*p:: Send(B_PGDN)  ; PgDn
-*@:: Send(B_CHOME) ; Ctrl+Home
-*[:: Send(B_CEND)  ; Ctrl+End
-*h:: Send(B_HOME)  ; Home
-*j:: Send(B_LEFT)  ; Left
-*k:: Send(B_DOWN)  ; Down
-*l:: Send(B_RIGHT) ; Right
-*sc027:: SendAndLog(B_ENTER) ; Semicolon (;) -> Enter
-;sc028::Return ; Colon (:) -> Disabled
-*]:: Send("+^¥")
-*n:: Send(B_END)   ; End
-*m:: Send(B_DEL)   ; Delete
-*sc033:: Send(B_CLEFT) ; Comma (,) -> Ctrl+Left
-*.:: Send(B_CRIGHT) ; Period (.) -> Ctrl+Right
-sc035:: Send("^+{sc07D}") ; / -> |
-*Enter:: SendAndLog("{Blind}^{Enter}") ; Enter -> Ctrl+Enter
-*a:: Send("{Blind}^a") ; Select All
+#HotIf Layers.State(L_NAVI_CTRL)
+
 sc029:: Send(C_EISU) ; Zen/Han -> Eisu
+*Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
+
 Esc:: {
-    KeyLogger.Save()
+    KeyLogger.Save(true)
     KeyLogger.SaveConfig()
     Reload()
 }
+
 q::#!space ; Win+Alt+Space
 *e:: Send(B_ESC) ; Esc
 r::+F3 ; Shift+F3
@@ -2295,11 +3795,13 @@ F14:: ToggleImeState() ; F14/Enter
 sc079:: ToggleImeState() ; Convert
 space:: ToggleImeState() ;Send(C_BS)
 #f:: ToggleForceImeModeOn() ;Toggle Force IME Mode ON
+#p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13f_FMIX14fR_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
+#x:: ChangeFMIX13f2_minato_Layout()
 #n:: ChangeFMIX13fie_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
@@ -2332,226 +3834,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
-#HotIf
-;*** レイヤー2 (記号と数字) ***
-#HotIf LayerState(L_SYMBOL_NUM)
-*1:: Send(B_F1)
-*2:: Send(B_F2)
-*3:: Send(B_F3)
-*4:: Send(B_F4)
-*5:: Send(B_F5)
-*6:: Send(B_F6)
-*7:: Send(B_F7)
-*8:: Send(B_F8)
-*9:: Send(B_F9)
-*0:: Send(B_F10)
-*-:: Send(B_F11)
-*sc00D:: Send(B_F12) ; ^ -> F12
-q:: Send("?")
-*w:: Send("{Blind}/")
-*e:: Send(B_NMUL) ; Numpad *
-*r:: Send(B_NADD) ; Numpad +
-t::+F3
-*a:: Send("(")
-*s:: Send(")")
-*d:: Send("_")
-*f:: Send("{Blind}-")
-g:: Send("=")
-y:: Send(B_BS)
-u:: Send(C_N7)
-i:: Send(C_N8)
-o:: Send(C_N9)
-p:: Send("+^p")
-h:: Send("=")
-j:: Send(C_N0)
-k:: Send(C_N1)
-l:: Send(C_N2)
-sc027:: SendAndLog(B_ENTER)
-n:: Send("+3")
-m:: Send(C_N3)
-sc033:: Send(C_N4)
-.:: Send(C_N5)
-sc035:: Send(C_N6)
-z:: Send("[")
-x:: Send("]")
-c:: Send("+[")
-v:: Send("+]")
-b:: Send(C_BACKSLASH)  ; Undo
-*space:: Send(B_BS)
-#HotIf
-;*** レイヤー (記号) ***
-#HotIf LayerState(L_SYMBOL1)
-*1:: Send(B_F1)
-*2:: Send(B_F2)
-*3:: Send(B_F3)
-*4:: Send(B_F4)
-*5:: Send(B_F5)
-*6:: Send(B_F6)
-*7:: Send(B_F7)
-*8:: Send(B_F8)
-*9:: Send(B_F9)
-*0:: Send(B_F10)
-*-:: Send(B_F11)
-*sc00D:: Send(B_F12) ; ^ -> F12
-q:: Send("?")
-*w:: Send("{Blind}/")
-*e:: Send(B_NMUL) ; テンキー *
-*r:: Send(B_NADD) ; テンキー +
-t::+F3
-*a:: Send("(")
-*s:: Send(")")
-*d:: Send("_")
-*f:: Send("{Blind}-")
-g:: Send("=")
-y:: Send(B_BS)
-u:: Send(C_N7)
-i:: Send(C_N8)
-o:: Send(C_N9)
-p:: Send("+^p")
-h:: Send("=")
-j:: Send(C_N0)
-k:: Send(C_N1)
-l:: Send(C_N2)
-sc027:: SendAndLog(B_ENTER)
-n:: Send("+3")
-m:: Send(C_N3)
-sc033:: Send(C_N4)
-.:: Send(C_N5)
-sc035:: Send(C_N6)
-z:: Send("+[")
-x:: Send("+]")
-c:: Send("[")
-v:: Send("]")
-b:: Send(C_BACKSLASH)  ; Undo
-space:: Send(C_BS)
-#HotIf
-;*** レイヤー (テンキーレイヤー) ***
-#HotIf LayerState(L_NUMPAD)
-; --- 左手 ---
-6:: Send("{Escape}")
-t:: Send(B_NADD) ; テンキー +
-a:: Send("(")
-s:: Send(")")
-f:: Send("-")
-g:: Send("=")
-; --- 右手 (テンキー) ---
-7:: Send(C_N7)
-8:: Send(C_N8)
-9:: Send(C_N9)
-0:: Send(B_NMUL) ; テンキー *
--:: Send(B_NSUB) ; テンキー -
-sc00D:: Send(C_HAT) ; ^
-sc07D:: Send("\") ; ¥
-y:: Send(C_BS) ; Backspace
-u:: Send(C_N4)
-i:: Send(C_N5)
-o:: Send(C_N6)
-p:: Send(B_NADD) ; テンキー +
-@:: Send(B_UP)   ; Up
-h:: Send("=")
-j:: Send(C_N1)
-k:: Send(C_N2)
-l:: Send(C_N3)
-sc027:: Send(B_LEFT)  ; ; -> Left
-sc028:: Send(B_DOWN)  ; : -> Down
-]:: Send(B_RIGHT) ; ] -> Right
-n:: Send(C_DEL) ; DeleteH ; _
-space:: Send(C_BS)
-#HotIf
-#HotIf LayerState(L_SYMBOL2)
-q:: Send("+1")
-w:: Send("+2")
-e:: Send("+3")
-r:: Send("+4")
-t:: Send("+5")
-a:: Send("+6") ;
-s:: Send("+7") ;
-d:: Send(C_HAT) ;
-g:: Send("+@") ;` grave accent
-z:: Send("~") ;
-x:: Send("@")
-c:: Send(":")
-v:: Send("|") ; |
-b:: Send("\") ; \
-#HotIf
-#HotIf LayerState(L_FUNC)
-q:: Send(B_F1)
-w:: Send(B_F2)
-e:: Send(B_F3)
-r:: Send(B_F4)
-a:: Send(B_F5)
-s:: Send(B_F6)
-d:: Send(B_F7)
-f:: Send(B_F8)
-z:: Send(B_F9)
-x:: Send(B_F10)
-c:: Send(B_F11)
-v:: Send(B_F12)
-#HotIf
-#HotIf LayerState(L_SHIFT)
-; 1::k1.SendShiftedKey()
-; 2::k2.SendShiftedKey()
-; 3::k3.SendShiftedKey()
-; 4::k4.SendShiftedKey()
-; 5::k5.SendShiftedKey()
-*1:: Send(B_F1)
-*2:: Send(B_F2)
-*3:: Send(B_F3)
-*4:: Send(B_F4)
-*5:: Send(B_F5)
-q:: q.SendShiftedKey()
-w:: w.SendShiftedKey()
-e:: e.SendShiftedKey()
-r:: r.SendShiftedKey()
-t:: t.SendShiftedKey()
-a:: a.SendShiftedKey()
-s:: s.SendShiftedKey()
-d:: d.SendShiftedKey()
-f:: f.SendShiftedKey()
-g:: g.SendShiftedKey()
-z:: z.SendShiftedKey()
-x:: x.SendShiftedKey()
-c:: c.SendShiftedKey()
-v:: v.SendShiftedKey()
-b:: b.SendShiftedKey()
-; 6::k6.SendShiftedKey()
-; 7::k7.SendShiftedKey()
-; 8::k8.SendShiftedKey()
-; 9::k9.SendShiftedKey()
-; -::minus.SendShiftedKey()
-; sc00D::hat.SendShiftedKey()
-sc07D:: yen.SendShiftedKey()
-*6:: Send(B_F6)
-*7:: Send(B_F7)
-*8:: Send(B_F8)
-*9:: Send(B_F9)
-*0:: Send(B_F10)
-*-:: Send(B_F11)
-*sc00D:: Send(B_F12) ; ^ -> F12
-y:: y.SendShiftedKey()
-u:: u.SendShiftedKey()
-i:: i.SendShiftedKey()
-o:: o.SendShiftedKey()
-p:: p.SendShiftedKey()
-@:: at.SendShiftedKey()
-[:: openbracket.SendShiftedKey()
-h:: h.SendShiftedKey()
-j:: j.SendShiftedKey()
-k:: k.SendShiftedKey()
-l:: l.SendShiftedKey()
-sc027:: semicolon.SendShiftedKey()
-sc028::+sc028 ; : -> * (Not using RKey object)
-]::+]         ; ] -> } (Not using RKey object)
-n:: n.SendShiftedKey()
-m:: m.SendShiftedKey()
-sc033:: comma.SendShiftedKey()
-.:: period.SendShiftedKey()
-sc035:: slash.SendShiftedKey()
-sc073:: backslash.SendShiftedKey()
-Up:: up.SendShiftedKey()
-Down:: down.SendShiftedKey()
-Left:: left.SendShiftedKey()
-Right:: right.SendShiftedKey()
+
 #HotIf
 ; ============================================================================
 ; グローバルホットキー (RKey / LKey バインド)
@@ -2559,6 +3842,7 @@ Right:: right.SendShiftedKey()
 ; これらのホットキーはレイヤーが押されていない時にアクティブになります。
 ; それぞれの RKey/LKey オブジェクトの Down() と Up() メソッドを呼び出し、
 ; リマップ、モディファイアのパススルー、および長押しのロジックを処理します。
+#HotIf !WinActive("ahk_group RemoteDesktops")
 *1:: k1.Down()
 *1 up:: k1.Up()
 *2:: k2.Down()
@@ -2667,10 +3951,10 @@ Right:: right.SendShiftedKey()
 *Right up:: right.Up()
 ;#Hotif ; コンテキスト依存ホットキーの終了
 ; ============================================================================
-; グローバルホットキー (MKey バインド)
+; グローバルホットキー (モディファイアキー バインド)
 ; ============================================================================
 ; これらのホットキーは常にアクティブで、物理キーを
-; MKey（モディファイア）オブジェクトにバインドします。
+; LKey（モディファイアモード）オブジェクトにバインドします。
 *Space:: space.Down()
 *Space up:: space.Up()
 *tab:: tab.Down()
@@ -2695,6 +3979,7 @@ Right:: right.SendShiftedKey()
 ; 標準 IME 切り替え (全角/半角キー)
 +sc029:: Send(C_EISU) ; Shift + 全角/半角 -> 英数
 sc029:: ToggleImeState() ; 全角/半角 -> IME 切り替え
+#HotIf
 ; --- サスペンド（一時停止）ホットキー ---
 #SuspendExempt ; 一時停止中でもサスペンドホットキーが動作するように許可
 #!Enter:: Suspend ; Win+Alt+Enter でスクリプトの一時停止を切り替え
