@@ -552,19 +552,39 @@ const App = {
             this.closeKeyEditor();
         });
 
-        // Key Editor Inputs
-        document.getElementById('key-mapping-value').addEventListener('input', (e) => {
-            this.applyKeyMappingChange(e.target.value);
+        // Layout Panel Tab switching
+        document.querySelectorAll('.layout-tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetTabId = e.currentTarget.getAttribute('data-tab');
+                document.querySelectorAll('.layout-tab-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                document.querySelectorAll('.layout-tab-content').forEach(content => content.classList.remove('active'));
+                const activeContent = document.getElementById(targetTabId);
+                if (activeContent) activeContent.classList.add('active');
+            });
         });
 
+        // Key Editor Inputs
         document.getElementById('btn-clear-key-mapping').addEventListener('click', () => {
             document.getElementById('key-mapping-value').value = "";
-            this.applyKeyMappingChange("");
         });
 
-        document.getElementById('key-override-toggle').addEventListener('change', (e) => {
-            const val = document.getElementById('key-mapping-value').value;
-            this.applyKeyMappingChange(val, e.target.checked);
+        // Apply mapping button in Modal
+        document.getElementById('btn-apply-key-mapping').addEventListener('click', () => {
+            try {
+                const val = document.getElementById('key-mapping-value').value;
+                const forceOverride = document.getElementById('key-override-toggle').checked;
+                this.applyKeyMappingChange(val, forceOverride);
+                this.closeKeyEditor();
+            } catch (err) {
+                console.error("Error applying key mapping:", err);
+                alert("設定の適用中にエラーが発生しました: " + err.message);
+            }
+        });
+
+        // Cancel mapping button in Modal
+        document.getElementById('btn-cancel-key-mapping').addEventListener('click', () => {
+            this.closeKeyEditor();
         });
 
         // Add Combination
@@ -945,6 +965,7 @@ const App = {
             if (response.ok) {
                 this.isModified = false;
                 this.updateStatusBar();
+                this.clearSaveButtonHighlight();
                 alert("config.ini を保存しました。");
                 return;
             }
@@ -996,6 +1017,7 @@ const App = {
                 await writable.close();
                 this.isModified = false;
                 this.updateStatusBar();
+                this.clearSaveButtonHighlight();
                 alert("config.ini を上書き保存しました。");
                 
                 // Status bar details update
@@ -1026,6 +1048,7 @@ const App = {
         
         this.isModified = false;
         this.updateStatusBar();
+        this.clearSaveButtonHighlight();
     },
 
     async exportLayout() {
@@ -1184,7 +1207,22 @@ const App = {
     markModified() {
         this.isModified = true;
         this.updateStatusBar();
+        this.highlightSaveButton();
         document.getElementById('raw-textarea').value = this.doc.toString();
+    },
+
+    highlightSaveButton() {
+        const saveBtn = document.getElementById('btn-save-file');
+        if (saveBtn) {
+            saveBtn.classList.add('glow-highlight');
+        }
+    },
+
+    clearSaveButtonHighlight() {
+        const saveBtn = document.getElementById('btn-save-file');
+        if (saveBtn) {
+            saveBtn.classList.remove('glow-highlight');
+        }
     },
 
     updateStatusBar() {
@@ -1642,7 +1680,7 @@ const App = {
 
         const mapVal = hasOverride ? overrideVal : keysArr[idx];
 
-        document.getElementById('key-editor').style.display = 'block';
+        document.getElementById('modal-key-editor').classList.add('show');
         document.getElementById('key-editor-physical-key').textContent = `${physKey.toUpperCase()} (${entryName})`;
         document.getElementById('key-mapping-value').value = mapVal;
         
@@ -1695,7 +1733,10 @@ const App = {
 
     closeKeyEditor() {
         this.selectedKeyIndex = null;
-        document.getElementById('key-editor').style.display = 'none';
+        closeModal('modal-key-editor');
+        document.querySelectorAll('#virtual-keyboard .keycap').forEach(el => {
+            el.classList.remove('active');
+        });
     },
 
     renderLayoutOverridesTable() {

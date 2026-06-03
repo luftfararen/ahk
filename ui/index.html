@@ -241,77 +241,57 @@
                     <!-- Layout Info Card -->
                     <div class="card layout-info-card">
                         <div class="form-row">
-                            <div class="form-group">
+                            <div class="form-group flex-1">
                                 <label for="layout-section-name-input">セクション名</label>
                                 <input type="text" id="layout-section-name-input" class="form-control font-mono">
                                 <span class="help-text">config.ini 内のセクション名。英数字のみ。変更すると関連するスロットの紐付けも自動更新されます。</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Keyboard Visualizer Panel -->
-                    <div class="visualizer-container">
-                        <div class="visualizer-header">
-                            <div class="visualizer-tabs">
-                                <h3 id="visual-keyboard-sec-title" class="tab-btn active">配列プレビュー</h3>
-                            </div>
-                            <div class="keyboard-controls">
-                                <label class="checkbox-control">
-                                    <input type="checkbox" id="keyboard-shift-toggle">
-                                    <span class="checkbox-label">Shift キー押下状態 (S00〜S03)</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Keyboard Body -->
-                        <div class="keyboard-outer">
-                            <div class="keyboard-mode-indicator">
-                                LKey 動作モード (Mode): 
-                                <select id="layout-mode-select" class="select-inline">
+                            <div class="form-group" style="min-width: 300px;">
+                                <label for="layout-mode-select">LKey 動作モード (Mode)</label>
+                                <select id="layout-mode-select" class="form-control">
                                     <option value="0">Mode 0: 長押し無効 (単入力)</option>
                                     <option value="1">Mode 1: 置換モード (短押しでリマップ、長押しでShift再入力)</option>
                                     <option value="4">Mode 4: コンビネーション優先モード (短押しでリマップ、長押しで修飾)</option>
                                     <option value="7">Mode 7: コンビネーション優先モード (誤爆防止・タイミング制御付き)</option>
                                 </select>
                             </div>
-                            <div id="virtual-keyboard" class="keyboard">
-                                <!-- Keyboard keys will be rendered here -->
-                            </div>
                         </div>
+                    </div>
 
-                        <!-- Key Editor (Appears when a key is clicked) -->
-                        <div class="key-editor-card card" id="key-editor">
-                            <div class="key-editor-header">
-                                <h3>キー設定: <span id="key-editor-physical-key">-</span></h3>
-                                <span class="key-status-badge" id="key-editor-status-badge">Row Mapping</span>
-                            </div>
-                            <div class="key-editor-body">
-                                <div class="form-group">
-                                    <label for="key-mapping-value">マップ先出力 (キー名/ショートカット)</label>
-                                    <div class="input-action-group">
-                                        <input type="text" id="key-mapping-value" class="form-control text-center font-mono" placeholder="文字または {Left}, ^c など">
-                                        <button id="btn-clear-key-mapping" class="btn secondary">クリア</button>
-                                    </div>
-                                    <div class="help-text">
-                                        物理キーを押した際に送信するキーやコマンドを指定します。<br>
-                                        例： <code>a</code> (そのまま入力), <code>{Left}</code> (矢印キー), <code>^c</code> (Ctrl+C), <code>+a</code> (Shift+A), <code>{none}</code> (無効化)
-                                    </div>
-                                </div>
-                                <div class="override-controls">
+                    <!-- Layout Sub-panels (Tabs) -->
+                    <div class="layout-tabs-container">
+                        <div class="layout-tabs">
+                            <button class="layout-tab-btn active" data-tab="tab-keyboard">⌨️ キー配列プレビュー</button>
+                            <button class="layout-tab-btn" data-tab="tab-combinations">🤝 同時押し定義 (Combination)</button>
+                            <button class="layout-tab-btn" data-tab="tab-overrides">📝 個別オーバーライド一覧</button>
+                        </div>
+                    </div>
+
+                    <!-- TAB CONTENT: Keyboard Visualizer -->
+                    <div id="tab-keyboard" class="layout-tab-content active">
+                        <div class="visualizer-container">
+                            <div class="visualizer-header">
+                                <h3 id="visual-keyboard-sec-title" style="font-size: 1rem; font-weight: 600;">キー配列プレビュー</h3>
+                                <div class="keyboard-controls">
                                     <label class="checkbox-control">
-                                        <input type="checkbox" id="key-override-toggle">
-                                        <span class="checkbox-label">この物理キーを個別オーバーライドする (例: <code>e=r</code>)</span>
+                                        <input type="checkbox" id="keyboard-shift-toggle">
+                                        <span class="checkbox-label">Shift キー押下状態 (S00〜S03を表示)</span>
                                     </label>
-                                    <span class="help-text">行配列(L00-L03)からではなく、セクションに直接個別記述として登録します。</span>
+                                </div>
+                            </div>
+
+                            <!-- Keyboard Body -->
+                            <div class="keyboard-outer">
+                                <div id="virtual-keyboard" class="keyboard">
+                                    <!-- Keyboard keys will be rendered here -->
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Mode 4 Combinations & Layout Overrides -->
-                    <div class="row-layout">
-                        <!-- Mode 4 Combinations -->
-                        <div class="col card flex-1">
+                    <!-- TAB CONTENT: Mode 4 Combinations -->
+                    <div id="tab-combinations" class="layout-tab-content">
+                        <div class="card">
                             <div class="card-header">
                                 <h3>同時押し定義 (Combination) <span>[Mode 4/7用]</span></h3>
                                 <button id="btn-add-combination" class="btn success btn-xs">+ 追加</button>
@@ -331,9 +311,11 @@
                                 </table>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- All Layout Key Overrides (Text representation) -->
-                        <div class="col card flex-1">
+                    <!-- TAB CONTENT: Key Overrides -->
+                    <div id="tab-overrides" class="layout-tab-content">
+                        <div class="card">
                             <div class="card-header">
                                 <h3>個別キー・特殊キーのオーバーライド一覧</h3>
                             </div>
@@ -554,6 +536,50 @@
             <div class="modal-footer">
                 <button class="btn secondary" onclick="closeModal('modal-add-combination')">キャンセル</button>
                 <button class="btn success" id="btn-add-combination-confirm">追加する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Key Mapping Editor -->
+    <div class="modal-backdrop" id="modal-key-editor">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>キー設定: <span id="key-editor-physical-key">-</span></h3>
+                <span class="key-status-badge" id="key-editor-status-badge">Row Mapping</span>
+                <span class="modal-close" onclick="App.closeKeyEditor()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="key-mapping-value">マップ先出力 (キー名/ショートカット)</label>
+                    <div class="input-action-group">
+                        <input type="text" id="key-mapping-value" class="form-control text-center font-mono" placeholder="文字または {Left}, ^c など" style="font-size: 1.1rem; font-weight: 600;">
+                        <button id="btn-clear-key-mapping" class="btn secondary">クリア</button>
+                    </div>
+                    <div class="help-text mt-2">
+                        物理キーを押した際に送信するキーやコマンドを指定します。<br>
+                        例： <code>a</code> (そのまま入力), <code>{Left}</code> (矢印キー), <code>^c</code> (Ctrl+C), <code>+a</code> (Shift+A), <code>{none}</code> (無効化)
+                    </div>
+                </div>
+                <div class="override-controls mt-3">
+                    <label class="checkbox-control">
+                        <input type="checkbox" id="key-override-toggle">
+                        <span class="checkbox-label">この物理キーを個別オーバーライドする (例: <code>e=r</code>)</span>
+                    </label>
+                    <span class="help-text">行配列(L00-L03)からではなく、セクションに直接個別記述として登録します。</span>
+                </div>
+                
+                <!-- Explicit Save Prompt Warning -->
+                <div class="info-alert warning mt-3" style="font-size: 0.85rem; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; background-color: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); color: #fef3c7;">
+                    <span style="font-size: 1.1rem; line-height: 1;">💡</span>
+                    <div>
+                        <strong>設定の保存について:</strong><br>
+                        「適用する」ボタンでこの配列に一時保存されます。変更を完全にファイルへ保存して AHK に適用するには、設定完了後に画面右上の <strong>「保存 (Save)」</strong> ボタンを必ずクリックしてください。
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn secondary" id="btn-cancel-key-mapping">キャンセル</button>
+                <button class="btn success" id="btn-apply-key-mapping">設定を適用する</button>
             </div>
         </div>
     </div>
