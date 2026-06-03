@@ -1726,6 +1726,7 @@ class RKey {
      * IME ON 時の特定レイヤーのアクションを設定します。
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
+     * @param {String} action2 - 2回目以降の連続押下時に送信するアクション
      * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
     SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
@@ -1860,7 +1861,8 @@ class RKey {
  [Class] LKey (長押し対応リマップキー)
  RKey を拡張し、長押し(Hold)と短押し(Tap)とで応じたアクションを追加します。
 長押しは、モードに応じて挙動が異なり、送信されるキーが切り替えられたり、
-あるいは何も送信されず、修飾キーとして利用されたりします。
+あるいは何も送信されず、修飾キーとして利用されたりする。
+モードは修飾キーの動作を規定。ここでは被修飾キーをメインキーと呼ぶ。
 
  [モード説明]
 ・モード 0：リマップキー送信
@@ -1892,6 +1894,34 @@ IME状態に依存しない。
 キーリピートは無効化される 。
 キー送信後、キーが押され続けている間、修飾キーとして機能する 。
 
+・モード 5：短押し -> 通常キー送信(up時) / 長押し -> 未送信(修飾キーとして利用)
+  (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
+  【パラメーター定義】
+  - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
+  - Layers.HoldTh  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
+  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
+
+ 条件1: 修飾キーDown後、十分な時間が経過してからメインキーがDownされた場合
+ [判定基準] t >= Layers.HoldTh
+ [アクション] 修飾キーのコンビネーション（修飾キー + メインキー）を送信する。
+
+ 条件2: 修飾キーDown後、ごく短時間（バッファ未満）で修飾キーがUpされた場合
+ [判定基準] t < (Layers.HoldTh - b_time)
+ [アクション] 修飾キーを送信（up時確定）。
+
+ 条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
+ [判定基準] (Layers.HoldTh - b_time) <= t < Layers.HoldTh
+ [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
+   │   [アクション] 修飾キー、メインキーの通常キーを送信する。
+   ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
+   │   [アクション] 修飾キー、メインキーの通常キーを送信する。
+   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.HoldTh を超えた場合
+       [アクション] 閾値（Layers.HoldTh）に達した瞬間に、
+            修飾キーのコンビネーション（修飾キー + メインキー）の送信する。
+
+
 ・モード 7：短押し -> 通常キー送信(down時) / 長押し -> 未送信(修飾キーとして利用)
   (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
   【パラメーター定義】
@@ -1906,24 +1936,18 @@ IME状態に依存しない。
 
  条件2: 修飾キーDown後、ごく短時間（バッファ未満）でメインキーがDownされた場合
  [判定基準] t < (Layers.HoldTh - b_time)
- [アクション] メインキーの通常キー（単体アクション）を即座に送信する（Down時確定）。
+ [アクション] メインキーの通常キーを即座に送信する（Down時確定）。
 
  条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
  [判定基準] (Layers.HoldTh - b_time) <= t < Layers.HoldTh
  [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
    ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
-   │   [アクション] メインキーの通常キー（単体アクション）を送信する。
+   │   [アクション] メインキーの通常キーを送信する。
    ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
-   │   [アクション] メインキーの通常キー（単体アクション）を送信する。
+   │   [アクション] メインキーの通常キーを送信する。
    └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.HoldTh を超えた場合
        [アクション] 閾値（Layers.HoldTh）に達した瞬間に、修飾キーのコンビネーション
                     （修飾キー + メインキー）の送信へと切り替える。
-
-    ・（実験・予約）モード 5：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
-up時に、一定時間以上の長押しされていなければ、リマップキーを送信する。
-長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
-IME状態に応じて送信されるキーが変わる。
-キーリピートは無効化される 。
 
 ・（実験・予約）モード 6：
 押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
@@ -2615,47 +2639,43 @@ class Layers {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for item in arr {
             mod_key := mod_key_list[item.layer_id]
-            if (mod_key != key_obj && mod_key.IsPressed()) {
+            if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
                 if Layers.State2(item.layer_id, key_obj) {
                     mod_hold_mode := (ime_state == 1) ? mod_key.hold_mode_ime_org : mod_key.hold_mode_org
 
                     is_held := false
-                    if (mod_key.pressed_time == 0) {
-                        is_held := true
-                    } else {
-                        t := A_TickCount - mod_key.pressed_time
-                        x := Layers.HoldTh
+                    t := A_TickCount - mod_key.pressed_time
+                    x := Layers.HoldTh
 
-                        if (mod_hold_mode == 7) {
-                            if (t >= x) {
-                                is_held := true
-                            } else if (t < x - LKey.b_time) {
-                                is_held := false
-                            } else {
-                                ; Grey zone: (x - LKey.b_time) <= t < x
-                                ; Pend decision and monitor key states
-                                loop {
-                                    if !mod_key.IsPressed() {
-                                        ; Case 3-B: Mod key released first -> Send normal key
-                                        is_held := false
-                                        break
-                                    }
-                                    if !key_obj.IsPressed() {
-                                        ; Case 3-A: Main key released first -> Send normal key
-                                        is_held := false
-                                        break
-                                    }
-                                    if (A_TickCount - mod_key.pressed_time >= x) {
-                                        ; Case 3-C: Both remain held, time exceeds Layers.HoldTh -> Send combination
-                                        is_held := true
-                                        break
-                                    }
-                                    Sleep(1)
-                                }
-                            }
+                    if (mod_hold_mode == 7) {
+                        if (t >= x) {
+                            is_held := true
+                        } else if (t < x - LKey.b_time) {
+                            is_held := false
                         } else {
-                            is_held := (t > x)
+                            ; Grey zone: (x - LKey.b_time) <= t < x
+                            ; Pend decision and monitor key states
+                            loop {
+                                if !mod_key.IsPressed() {
+                                    ; Case 3-B: Mod key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if !key_obj.IsPressed() {
+                                    ; Case 3-A: Main key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if (A_TickCount - mod_key.pressed_time >= x) {
+                                    ; Case 3-C: Both remain held, time exceeds Layers.HoldTh -> Send combination
+                                    is_held := true
+                                    break
+                                }
+                                Sleep(1)
+                            }
                         }
+                    } else {
+                        is_held := (t > x)
                     }
 
                     if is_held {
@@ -3441,10 +3461,10 @@ ChangeMinatoLayoutImpl() {
         RegistIMECombination2(layer_key, d, "nn") ; ん
         RegistIMECombination2(layer_key, f, "-") ;ー
         RegistIMECombination2(layer_key, v, "ltu") ;
-        RegistIMECombination2(layer_key, c, "ltute", "ltuta") ;
+        RegistIMECombination2(layer_key, c, "ltute", "{BS}ta") ;
         RegistIMECombination2(layer_key, e, "ru", "{BS}rareru") ;
     }
-    RegistIMECombination2(rm["o"], j, "u") ;おう
+    RegistIMECombination2(rm["o"], j, "u") ;
     RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
     RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
     RegistIMECombination2(rm["s"], r, "areru") ;される
@@ -3452,7 +3472,18 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
     RegistIMECombination2(z, v, "youhou") ;
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination2(a, j, "{BS}0", "0") ;
+    RegistIMECombination2(a, k, "{BS}1", "1") ;
+    RegistIMECombination2(a, l, "{BS}2", "2") ;
+    RegistIMECombination2(a, m, "{BS}3", "3") ;
+    RegistIMECombination2(a, comma, "{BS}4", "4") ;
+    RegistIMECombination2(a, period, "{BS}5", "5") ;
+    RegistIMECombination2(a, slash, "{BS}6", "6") ;
+    RegistIMECombination2(a, u, "{BS}7", "7") ;
+    RegistIMECombination2(a, i, "{BS}8", "8") ;
+    RegistIMECombination2(a, o, "{BS}9", "9") ;
 }
 
 /**
