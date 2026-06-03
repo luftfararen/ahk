@@ -261,6 +261,43 @@ ReadConfig(section, key, defaultValue) {
 }
 
 /**
+ * INIファイルから指定されたセクションのすべての行をテキストとして取得します。
+ * Windows APIのエンコーディング制限を回避するため、UTF-8で直接ファイルを解析します。
+ */
+GetIniSection(filename, sectionName) {
+    try {
+        content := FileRead(filename, "UTF-8")
+    } catch {
+        return ""
+    }
+
+    in_section := false
+    section_text := ""
+
+    for line in StrSplit(content, "`n", "`r") {
+        line := Trim(line)
+        if line == ""
+            continue
+
+        ; セクションヘッダーの判定 (例: [Minato])
+        if (SubStr(line, 1, 1) == "[" && SubStr(line, -1) == "]") {
+            current_sec := SubStr(line, 2, StrLen(line) - 2)
+            if (current_sec = sectionName) {
+                in_section := true
+            } else {
+                in_section := false
+            }
+            continue
+        }
+
+        if in_section {
+            section_text .= line . "`n"
+        }
+    }
+    return section_text
+}
+
+/**
  * 指定されたセクションとキーに設定を書き込みます。
  * @param {String} value - 書き込む値
  * @param {String} section - セクション名
@@ -715,6 +752,22 @@ GetKeyObjByName(name) {
     ; "f", "space", ";" 等を内部のエントリー名 ("semicolon"等) に正規化して取得
     name := EntryName(name)
     return key_map.Get(name, false)
+}
+
+/**
+ * 論理キー名（レイアウト適用後の文字・記号）から物理キーオブジェクトを取得します。
+ * 一致するマッピングがない場合は、QWERTY物理キー名としてフォールバックします。
+ */
+GetKeyObjByLogicalName(name, is_ime := false) {
+    global LAYOUT_KEYS
+    norm_name := EntryName(name)
+    for keyObj in LAYOUT_KEYS {
+        current_text := is_ime ? keyObj.ime_key_text : keyObj.key_text
+        if (EntryName(current_text) == norm_name) {
+            return keyObj
+        }
+    }
+    return GetKeyObjByName(name)
 }
 
 /**
@@ -2378,6 +2431,38 @@ ResetIME() {
 }
 
 /**
+ * 登録されているカスタムキーコンビネーション（レイヤーID > 7）および
+ * 動的に拡張された修飾キーリスト（mod_key_list）を初期状態（長さ7）にリセットします。
+ */
+ResetCombinations() {
+    global LAYOUT_KEYS, mod_key_list
+
+    ; mod_key_list を初期の7要素にリセット
+    if (mod_key_list.Length > 7) {
+        mod_key_list.RemoveAt(8, mod_key_list.Length - 7)
+    }
+
+    ; すべてのキーからカスタムコンビネーション（layer_id > 7）を削除
+    for keyObj in LAYOUT_KEYS {
+        new_arr := []
+        for item in keyObj.layers.arr {
+            if (item.layer_id <= 7) {
+                new_arr.Push(item)
+            }
+        }
+        keyObj.layers.arr := new_arr
+
+        new_ime_arr := []
+        for item in keyObj.layers.ime_arr {
+            if (item.layer_id <= 7) {
+                new_ime_arr.Push(item)
+            }
+        }
+        keyObj.layers.ime_arr := new_ime_arr
+    }
+}
+
+/**
  * 設定ファイルから起動時のレイアウト設定を読み込み、適用します。
  */
 LoadLayoutConfig() {
@@ -2414,6 +2499,19 @@ LoadLayoutConfig() {
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
+        }
+
+        ; ビルトインレイアウトに対しても、INIファイルからキーコンビネーションの読み込みを試行
+        if InStr(layout_name, "[Built-in]") {
+            clean_name := StrReplace(layout_name, "[Built-in]", "")
+            parts := StrSplit(clean_name, "-")
+            if (parts.Length >= 1) {
+                layout_sec := parts[1]
+                ApplyCombinationsFromIni(layout_sec, "m_", false)
+
+                layout_ime_sec := parts.Length >= 2 ? parts[2] : layout_sec
+                ApplyCombinationsFromIni(layout_ime_sec, "m_", true)
+            }
         }
     } catch {
     }
@@ -2584,23 +2682,6 @@ class Layers {
         Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2))
     }
 
-    ; /**
-    ;  * 指定されたキーが押された際、いずれかのレイヤーがアクティブであればそのレイヤーアクションを送信します。
-    ;  * @param {Object} key_obj - トリガーされたキーオブジェクト
-    ;  * @param {Boolean} ime_state - 現在の IME 状態
-    ;  * @returns {Boolean} レイヤーキーとして送信された場合は true
-    ;  */
-    ; _SendLayerKey(arr, key_obj, ime_state) {
-    ;     for i, item in arr {
-    ;         layer_id := item.layer_id
-    ;         if Layers.State2(layer_id, key_obj) {
-    ;             this._SendKey(layer_id, item.action, key_obj)
-    ;             return true
-    ;         }
-    ;     }
-    ;     return false
-    ; }
-
     /**
      * 具体的なレイヤーアクションの送信を処理します（内部ヘルパー）。
      * @param {Integer} layer_id - レイヤーID
@@ -2618,22 +2699,6 @@ class Layers {
             ;ToolTip action . " " . layer_id
         }
     }
-
-    ; /**
-    ;  * 現在アクティブなレイヤーキーの押し下げ時間をチェックする
-    ;  * 押し下げから 100ms 以内であれば、高速タイピング時の同時押しとみなしてレイヤー判定をスキップする
-    ;  */
-    ; IsLayerActive(arr, key_obj) {
-    ;     for item in arr {
-    ;         mod_key := mod_key_list[item.layer_id]
-    ;         if (mod_key != key_obj && mod_key.IsPressed()) {
-    ;             if (mod_key.pressed_time == 0 || (A_TickCount - mod_key.pressed_time) > 100) {
-    ;                 return true
-    ;             }
-    ;         }
-    ;     }
-    ;     return false
-    ; }
 
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
@@ -2817,10 +2882,10 @@ LoadLayoutFromIni(index) {
     }
     ver := ReadConfig(index, "ver", "1")
     success := false
-    if ver = 1 {
+    if ver = "1" {
         if ApplyLayoutFromIni(index)
             success := true
-    } else if ver = 2 {
+    } else if ver = "2" {
         if ApplyLayoutFromIni2(index) {
             ApplyLayerLayoutFromIni(L_NAVI_CTRL, "NAVI_CTRL")
             ApplyLayerLayoutFromIni(L_SYMBOL_NUM, "SYMBOL_NUM")
@@ -2979,7 +3044,7 @@ ReadEachLayoutFromIni(layout_map, section, prefix := "", ini_path := "") {
     ; m_から始まるキー名の読み込み
     try {
         config_path := A_ScriptDir . "\config.ini"
-        section_text := IniRead(config_path, section)
+        section_text := GetIniSection(config_path, section)
     } catch {
         section_text := ""
     }
@@ -2993,7 +3058,7 @@ ReadEachLayoutFromIni(layout_map, section, prefix := "", ini_path := "") {
  */
 ApplyCombinationsFromIni(section, prefix, is_ime) {
     try {
-        section_text := IniRead(A_ScriptDir . "\config.ini", section)
+        section_text := GetIniSection(A_ScriptDir . "\config.ini", section)
     } catch {
         return
     }
@@ -3016,8 +3081,8 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
                 ; "修飾キー + 対象キー" を分割
                 keys := StrSplit(key_pair, "+")
                 if keys.Length == 2 {
-                    layer_obj := GetKeyObjByName(Trim(keys[1]))
-                    target_obj := GetKeyObjByName(Trim(keys[2]))
+                    layer_obj := GetKeyObjByLogicalName(Trim(keys[1]), is_ime)
+                    target_obj := GetKeyObjByLogicalName(Trim(keys[2]), is_ime)
 
                     if (layer_obj && target_obj) {
                         if is_ime
@@ -3262,6 +3327,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,.
  * @param {String} num_layout - 保存する数字列レイアウト
  */
 StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "") {
+    ResetCombinations()
     KeyLogger.SetLayoutName(name)
     if name != "" {
         try {
@@ -3330,6 +3396,7 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\
  * @param {Map} ime_shift_map - IME Shiftキーマッピング
  */
 StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
+    ResetCombinations()
     if name != "" {
         try {
             WriteConfig(name, "Settings", "StartupLayout")
@@ -3806,9 +3873,6 @@ InitModLayer() {
     b.SetLayerKey(L_SYMBOL2, "\")
 
     ; L_SHIFT
-    ; for i, keyObj in LAYOUT_KEYS {
-    ;     keyObj.SetLayerKey(L_SHIFT, keyObj.shift_key_text)
-    ; }
     k1.SetLayerKey(L_SHIFT, B_F1)
     k2.SetLayerKey(L_SHIFT, B_F2)
     k3.SetLayerKey(L_SHIFT, B_F3)

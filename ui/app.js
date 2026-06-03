@@ -157,7 +157,6 @@ class IniDocument {
                 });
             }
         }
-        this.markModified();
     }
 
     renameSection(oldName, newName) {

@@ -450,6 +450,11 @@ select.form-control {
     padding-right: 40px;
 }
 
+select option {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+}
+
 .input-with-unit {
     display: flex;
     align-items: center;
