@@ -892,7 +892,7 @@ class KeyLogger {
             WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
             WriteConfig(String(this.max_log), "Settings", "MaxLog")
             WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
-            WriteConfig(String(LKey.b_time), "Settings", "b_time")
+            WriteConfig(String(Layers.b_time), "Settings", "b_time")
         } catch {
         }
     }
@@ -1689,8 +1689,6 @@ class RKey {
      * @param {String} [reg_key=""] - 登録キー (短押し時に送信されるキー)。省略時は物理キーと同じ。
      */
     __New(key, reg_key := "") {
-        this.layers := Layers()
-
         this.org_key := AddBraces(key)
         this.org_key_raw := RemoveBraces(key)
         if reg_key = "" {
@@ -1700,55 +1698,6 @@ class RKey {
             this.SetKey(reg_key)   ; IME OFF 時のキーを設定
             this.SetImeKey(reg_key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
         }
-    }
-
-    /**
-     * レイヤーキーを設定する
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
-     */
-    SetLayerKey(layer_id, action, action2 := "", ime := True) {
-        action1 := action
-        if action2 == "" && InStr(action, "|") && action != "|" {
-            parts := StrSplit(action, "|")
-            if parts.Length >= 2 {
-                action1 := parts[1]
-                action2 := parts[2]
-            }
-        }
-        this.layers.SetAction(layer_id, action1, action2)
-        if ime {
-            this.layers.SetImeAction(layer_id, action1, action2)
-        }
-    }
-
-    /**
-     * IME ON 時の特定レイヤーのアクションを設定します。
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
-     * @param {String} action2 - 2回目以降の連続押下時に送信するアクション
-     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
-     */
-    SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
-        action1 := action
-        if action2 == "" && InStr(action, "|") && action != "|" {
-            parts := StrSplit(action, "|")
-            if parts.Length >= 2 {
-                action1 := parts[1]
-                action2 := parts[2]
-            }
-        }
-        this.layers.SetImeAction(layer_id, action1, action2)
-    }
-
-    /**
-     * 現在アクティブなレイヤーに基づいてキーを送信します。
-     * @param {Boolean} ime_state - 現在の IME 状態
-     * @returns {Boolean} レイヤーキーが送信された場合は true
-     */
-    SendLayerKey(ime_state) {
-        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        return this.layers.SendLayerKey(this, ime_state)
     }
 
     /**
@@ -1898,27 +1847,27 @@ IME状態に依存しない。
   (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
   【パラメーター定義】
   - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
-  - Layers.HoldTh  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
   - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
   【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
 
  条件1: 修飾キーDown後、十分な時間が経過してからメインキーがDownされた場合
- [判定基準] t >= Layers.HoldTh
+ [判定基準] t >= Layers.hold_th
  [アクション] 修飾キーのコンビネーション（修飾キー + メインキー）を送信する。
 
  条件2: 修飾キーDown後、ごく短時間（バッファ未満）で修飾キーがUpされた場合
- [判定基準] t < (Layers.HoldTh - b_time)
+ [判定基準] t < (Layers.hold_th - b_time)
  [アクション] 修飾キーを送信（up時確定）。
 
  条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
- [判定基準] (Layers.HoldTh - b_time) <= t < Layers.HoldTh
+ [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
  [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
    ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
    │   [アクション] 修飾キー、メインキーの通常キーを送信する。
    ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
    │   [アクション] 修飾キー、メインキーの通常キーを送信する。
-   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.HoldTh を超えた場合
-       [アクション] 閾値（Layers.HoldTh）に達した瞬間に、
+   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
+       [アクション] 閾値（Layers.hold_th）に達した瞬間に、
             修飾キーのコンビネーション（修飾キー + メインキー）の送信する。
 
 
@@ -1926,27 +1875,27 @@ IME状態に依存しない。
   (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
   【パラメーター定義】
   - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
-  - Layers.HoldTh  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
   - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
   【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
 
  条件1: 修飾キーDown後、十分な時間が経過してからメインキーがDownされた場合
- [判定基準] t >= Layers.HoldTh
+ [判定基準] t >= Layers.hold_th
  [アクション] 修飾キーのコンビネーション（修飾キー + メインキー）を送信する。
 
  条件2: 修飾キーDown後、ごく短時間（バッファ未満）でメインキーがDownされた場合
- [判定基準] t < (Layers.HoldTh - b_time)
+ [判定基準] t < (Layers.hold_th - b_time)
  [アクション] メインキーの通常キーを即座に送信する（Down時確定）。
 
  条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
- [判定基準] (Layers.HoldTh - b_time) <= t < Layers.HoldTh
+ [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
  [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
    ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
    │   [アクション] メインキーの通常キーを送信する。
    ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
    │   [アクション] メインキーの通常キーを送信する。
-   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.HoldTh を超えた場合
-       [アクション] 閾値（Layers.HoldTh）に達した瞬間に、修飾キーのコンビネーション
+   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
+       [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
                     （修飾キー + メインキー）の送信へと切り替える。
 
 ・（実験・予約）モード 6：
@@ -1968,7 +1917,6 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 */
 class LKey extends RKey {
     static hold_th := 300 ; 長押しと判定する閾値 (ms)
-    static b_time := 50 ; 長押しと判定する閾値 (ms)
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -1999,6 +1947,7 @@ class LKey extends RKey {
      */
     __New(key, mode := 0, reg_key := "") {
         super.__New(key, reg_key)
+        this.layers := Layers()
         this.hold_mode_org := mode
         this.hold_mode_ime_org := mode
 
@@ -2026,6 +1975,55 @@ class LKey extends RKey {
         super.SetImeKey(ime_key, shift_ime_key)
         if (mode != -1)
             this.hold_mode_ime_org := mode
+    }
+
+    /**
+     * レイヤーキーを設定する
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     */
+    SetLayerKey(layer_id, action, action2 := "", ime := True) {
+        action1 := action
+        if action2 == "" && InStr(action, "|") && action != "|" {
+            parts := StrSplit(action, "|")
+            if parts.Length >= 2 {
+                action1 := parts[1]
+                action2 := parts[2]
+            }
+        }
+        this.layers.SetAction(layer_id, action1, action2)
+        if ime {
+            this.layers.SetImeAction(layer_id, action1, action2)
+        }
+    }
+
+    /**
+     * IME ON 時の特定レイヤーのアクションを設定します。
+     * @param {Integer} layer_id - レイヤーID
+     * @param {String} action - 設定するアクション
+     * @param {String} action2 - 2回目以降の連続押下時に送信するアクション
+     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
+     */
+    SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
+        action1 := action
+        if action2 == "" && InStr(action, "|") && action != "|" {
+            parts := StrSplit(action, "|")
+            if parts.Length >= 2 {
+                action1 := parts[1]
+                action2 := parts[2]
+            }
+        }
+        this.layers.SetImeAction(layer_id, action1, action2)
+    }
+
+    /**
+     * 現在アクティブなレイヤーに基づいてキーを送信します。
+     * @param {Boolean} ime_state - 現在の IME 状態
+     * @returns {Boolean} レイヤーキーが送信された場合は true
+     */
+    SendLayerKey(ime_state) {
+        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        return this.layers.SendLayerKey(this, ime_state)
     }
 
     /**
@@ -2062,7 +2060,7 @@ class LKey extends RKey {
         }
 
         ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        if super.SendLayerKey(ime_state) {
+        if this.SendLayerKey(ime_state) {
             if (hold_mode != 0) {
                 LKey.InterruptOthers(this)
                 this.state := LKey.st_processed
@@ -2282,10 +2280,10 @@ InitGlobalKeys() {
     enter := LKey(C_ENTER)
 
     ; (矢印キー - リマップ用)
-    up := RKey(C_UP)
-    down := RKey(C_DOWN)
-    left := RKey(C_LEFT)
-    right := RKey(C_RIGHT)
+    up := LKey(C_UP)
+    down := LKey(C_DOWN)
+    left := LKey(C_LEFT)
+    right := LKey(C_RIGHT)
 
     ; --- レイアウト用キー登録（ループ用） ---
     LAYOUT_SPECIAL_KEYS := [space, tab, noconv, conv, f14, enter, up, down, left, right]
@@ -2389,11 +2387,11 @@ LoadLayoutConfig() {
         } catch {
         }
         try {
-            LKey.b_time := Integer(ReadConfig("Settings", "b_time", String(LKey.b_time)))
+            Layers.b_time := Integer(ReadConfig("Settings", "b_time", String(Layers.b_time)))
         } catch {
         }
         try {
-            Layers.HoldTh := Integer(ReadConfig("Settings", "LayerHoldTh", String(Layers.HoldTh)))
+            Layers.hold_th := Integer(ReadConfig("Settings", "LayerHoldTh", String(Layers.hold_th)))
         } catch {
         }
         layout_name := ReadConfig("Settings", "StartupLayout", "")
@@ -2431,7 +2429,9 @@ LoadLayoutConfig() {
  */
 class Layers {
 
-    static HoldTh := 150
+    static hold_th := 150
+    static b_time := 50 ; 長押しと判定する閾値 (ms)
+
     static last_active_item := ""
 
     /**
@@ -2645,15 +2645,15 @@ class Layers {
 
                     is_held := false
                     t := A_TickCount - mod_key.pressed_time
-                    x := Layers.HoldTh
+                    x := Layers.hold_th
 
                     if (mod_hold_mode == 7) {
                         if (t >= x) {
                             is_held := true
-                        } else if (t < x - LKey.b_time) {
+                        } else if (t < x - Layers.b_time) {
                             is_held := false
                         } else {
-                            ; Grey zone: (x - LKey.b_time) <= t < x
+                            ; Grey zone: (x - Layers.b_time) <= t < x
                             ; Pend decision and monitor key states
                             loop {
                                 if !mod_key.IsPressed() {
@@ -2667,7 +2667,42 @@ class Layers {
                                     break
                                 }
                                 if (A_TickCount - mod_key.pressed_time >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.HoldTh -> Send combination
+                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    is_held := true
+                                    break
+                                }
+                                Sleep(1)
+                            }
+                        }
+                    } else if (mod_hold_mode == 5) {
+                        if (t >= x) {
+                            mod_key.state := LKey.st_processed
+                            is_held := true
+                        } else if (t < x - Layers.b_time) {
+                            mod_key.SendShiftedKey(false)
+                            mod_key.state := LKey.st_processed
+                            is_held := false
+                        } else {
+                            ; Grey zone: (x - Layers.b_time) <= t < x
+                            ; Pend decision and monitor key states
+                            loop {
+                                if !mod_key.IsPressed() {
+                                    ; Case 3-B: Mod key released first -> Send modifier key, then let main key flow through
+                                    mod_key.SendShiftedKey(false)
+                                    mod_key.state := LKey.st_processed
+                                    is_held := false
+                                    break
+                                }
+                                if !key_obj.IsPressed() {
+                                    ; Case 3-A: Main key released first -> Send modifier key, then let main key flow through
+                                    mod_key.SendShiftedKey(false)
+                                    mod_key.state := LKey.st_processed
+                                    is_held := false
+                                    break
+                                }
+                                if (A_TickCount - mod_key.pressed_time >= x) {
+                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    mod_key.state := LKey.st_processed
                                     is_held := true
                                     break
                                 }
@@ -2739,8 +2774,9 @@ RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
  * @param {String} text - 1回目の押下時に送信するキーアクション定義
  * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
  */
-RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "") {
+RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", mode := 7) {
     key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2)
+    layer_key_obj.SetMode(-1, mode)
 }
 
 /**
@@ -3474,16 +3510,17 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination2(a, j, "{BS}0", "0") ;
-    RegistIMECombination2(a, k, "{BS}1", "1") ;
-    RegistIMECombination2(a, l, "{BS}2", "2") ;
-    RegistIMECombination2(a, m, "{BS}3", "3") ;
-    RegistIMECombination2(a, comma, "{BS}4", "4") ;
-    RegistIMECombination2(a, period, "{BS}5", "5") ;
-    RegistIMECombination2(a, slash, "{BS}6", "6") ;
-    RegistIMECombination2(a, u, "{BS}7", "7") ;
-    RegistIMECombination2(a, i, "{BS}8", "8") ;
-    RegistIMECombination2(a, o, "{BS}9", "9") ;
+    ;     RegistIMECombination2(a, j, "0", "0", 5) ;
+    ;     RegistIMECombination2(a, k, "1", "1", 5) ;
+    ;     RegistIMECombination2(a, l, "2", "2", 5) ;
+    ;     RegistIMECombination2(a, m, "3", "3", 5) ;
+    ;     RegistIMECombination2(a, comma, "4", "4", 5) ;
+    ;     RegistIMECombination2(a, period, "5", "5", 5) ;
+    ;     RegistIMECombination2(a, slash, "6", "6") ;
+    ;     RegistIMECombination2(a, u, "7", "7") ;
+    ;     RegistIMECombination2(a, i, "8", "8") ;
+    ;     RegistIMECombination2(a, o, "9", "9") ;
+    ;
 }
 
 /**
