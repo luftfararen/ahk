@@ -329,11 +329,28 @@ IsPhysicalShiftPressed(key_obj) {
 /*
 * 高分解能タイマー(単位:millisecond)
 */
-Timer() {
-    freq := 0, tick := 0
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq)
-    DllCall("QueryPerformanceCounter", "Int64*", &tick)
-    return tick / freq * 1000.0
+QPC() {
+    static freq := 0
+    if (!freq)
+        DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+    counter := 0
+    DllCall("QueryPerformanceCounter", "Int64*", &counter)
+    return (counter / freq) * 1000 ; ミリ秒単位に変換して返す
+
+}
+
+SleepX(t) {
+    start := QPC()
+
+    ; 残り時間が15ms以上あるうちは、標準のSleepでCPUを完全に休ませる
+    while ((rem := t - (QPC() - start)) > 15) {
+        Sleep(1) ; 実際には10〜15ms待機される
+    }
+
+    ; 最後の仕上げ（15ms未満の細かい隙間）だけ、Sleep(0)の超高精度ループで埋める
+    while (QPC() - start < t) {
+        Sleep(0)
+    }
 }
 
 /**
@@ -1896,60 +1913,71 @@ IME状態に依存しない。
 キーリピートは無効化される 。
 キー送信後、キーが押され続けている間、修飾キーとして機能する 。
 
-・モード 5：短押し -> 通常キー送信(up時) / 長押し -> 未送信(修飾キーとして利用)
-  (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
-  【パラメーター定義】
+・モード5：
+ 【説明】
+ Aキー: 先に押されるキー、通常キー送信、または、修飾キーとなる
+ Bキー: 遅れて押されるキー、通常キー、または、修飾キーとのコンビネーションが送信される
+
+【パラメーター定義】
   - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
   - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
   - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
-  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
 
- 条件1: 修飾キーDown後、十分な時間が経過してからメインキーがDownされた場合
+ 【論理条件とアクション】
+ 条件0: AキーDown,Up
+ [アクション] Aの通常キーを送信する。
+
+ 条件1: AキーDown後、十分な時間が経過してから、BキーがDownされた場合
  [判定基準] t >= Layers.hold_th
- [アクション] 修飾キーのコンビネーション（修飾キー + メインキー）を送信する。
+ [アクション] 修飾キーのコンビネーションを送信する。
 
- 条件2: 修飾キーDown後、ごく短時間（バッファ未満）で修飾キーがUpされた場合
+ 条件2: AキーDown後、ごく短時間（バッファ未満）でBキーがDownされた場合
  [判定基準] t < (Layers.hold_th - b_time)
- [アクション] 修飾キーを送信（up時確定）。
+ [アクション] Aの通常キー、Bの通常キーを送信する。
 
- 条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
+ 条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
  [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
- [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
-   ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
-   │   [アクション] 修飾キー、メインキーの通常キーを送信する。
-   ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
-   │   [アクション] 修飾キー、メインキーの通常キーを送信する。
+ [アクション] AキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 3-A: Aキーが先にUp（短押し）された場合
+   │   [アクション] Aキー通常キー、Bキーの通常キーを送信する。
+   ├─ ケース 3-B: AキーはHoldのまま、先にBキーがUpされた場合
+   │   [アクション] Aキー通常キー、Bキーの通常キーを送信する。
    └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
-       [アクション] 閾値（Layers.hold_th）に達した瞬間に、
-            修飾キーのコンビネーション（修飾キー + メインキー）の送信する。
+       [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーションの送信する。
 
+・モード7：
+ 【説明】
+ モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐバッファ付きTap-Hold)
+ Aキー: 先に押されるキー、通常キー送信後、修飾キーとなる
+ Bキー: 遅れて押されるキー、通常キー、または、修飾キーとのコンビネーションが送信される
+ モード7は、必ず、AキーのDown時に通常キー送信が行われる
+修飾キーとのコンビネーションではBackspace付きのキー送信が行われることもある。
+キーリピートは無効化される 。
 
-・モード 7：短押し -> 通常キー送信(down時) / 長押し -> 未送信(修飾キーとして利用)
-  (モード4のタイミング拡張：高速タイピング時の誤判定を防ぐバッファ付きTap-Hold)
-  【パラメーター定義】
+【パラメーター定義】
   - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
   - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
   - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
-  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
 
- 条件1: 修飾キーDown後、十分な時間が経過してからメインキーがDownされた場合
+ 【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
+ 条件1: AキーDown後、十分な時間が経過してからBキーがDownされた場合
  [判定基準] t >= Layers.hold_th
- [アクション] 修飾キーのコンビネーション（修飾キー + メインキー）を送信する。
+ [アクション] 修飾キーのコンビネーションを送信する。
 
- 条件2: 修飾キーDown後、ごく短時間（バッファ未満）でメインキーがDownされた場合
+ 条件2: AキーDown後、ごく短時間（バッファ未満）でBキーがDownされた場合
  [判定基準] t < (Layers.hold_th - b_time)
- [アクション] メインキーの通常キーを即座に送信する（Down時確定）。
+ [アクション] Bの通常キー送信する（Down時確定）。
 
- 条件3: 修飾キーDown後、グレーゾーン（バッファ期間内）でメインキーがDownされた場合
+ 条件3: AキーDown後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
  [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
- [アクション] メインキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
-   ├─ ケース 3-A: メインキーが先にUp（短押し）された場合
-   │   [アクション] メインキーの通常キーを送信する。
-   ├─ ケース 3-B: メインキーはHoldのまま、先に修飾キーがUpされた場合
-   │   [アクション] メインキーの通常キーを送信する。
+ [アクション] AキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 3-A: Aキーが先にUp（短押し）された場合
+   │   [アクション] Bの通常キーを送信する。
+   ├─ ケース 3-B: AキーはHoldのまま、先にBキーがUpされた場合
+   │   [アクション] Bの通常キーを送信する。
    └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
        [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
-                    （修飾キー + メインキー）の送信へと切り替える。
+                    が送信される。
 
 ・（実験・予約）モード 6：
 押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
@@ -2736,7 +2764,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                Sleep(1)
+                                SleepX(1)
                             }
                         }
                     } else if (mod_hold_mode == 5) {
@@ -2744,7 +2772,9 @@ class Layers {
                             mod_key.state := LKey.st_processed
                             is_held := true
                         } else if (t < x - Layers.b_time) {
-                            mod_key.SendShiftedKey(false)
+                            if (mod_key.state == LKey.st_pressing) {
+                                mod_key.SendShiftedKey(false)
+                            }
                             mod_key.state := LKey.st_processed
                             is_held := false
                         } else {
@@ -2753,14 +2783,18 @@ class Layers {
                             loop {
                                 if !mod_key.IsPressed() {
                                     ; Case 3-B: Mod key released first -> Send modifier key, then let main key flow through
-                                    mod_key.SendShiftedKey(false)
+                                    if (mod_key.state == LKey.st_pressing) {
+                                        mod_key.SendShiftedKey(false)
+                                    }
                                     mod_key.state := LKey.st_processed
                                     is_held := false
                                     break
                                 }
                                 if !key_obj.IsPressed() {
                                     ; Case 3-A: Main key released first -> Send modifier key, then let main key flow through
-                                    mod_key.SendShiftedKey(false)
+                                    if (mod_key.state == LKey.st_pressing) {
+                                        mod_key.SendShiftedKey(false)
+                                    }
                                     mod_key.state := LKey.st_processed
                                     is_held := false
                                     break
@@ -2771,7 +2805,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                Sleep(1)
+                                SleepX(1)
                             }
                         }
                     } else {
@@ -3655,7 +3689,7 @@ SetLKeyMode(mode, ime_mode := -1) {
  * 各レイヤー（ナビゲーション、記号、テンキー、選択、Shiftなど）に対する、物理キーから送信キーへの具体的なマッピングを初期設定します。
  */
 InitModLayer() {
-    start := Timer()
+    start := QPC()
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
     global q, w, e, r, t, y, u, i, o, p, at, openbracket
@@ -3900,7 +3934,7 @@ OpenConfigEditor(*) {
  * スクリプト起動時の初期化処理（長押し動作の基本有効化、各レイヤーバインドの設定、設定ファイルやログの読み込み）を行います。
  */
 Init() {
-    start := Timer()
+    start := QPC()
 
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()
@@ -3934,7 +3968,7 @@ Init() {
     ; 8. タイマーの開始 (初期化完了後に実行)
     SetTimer(TimerEvent, 100)
 
-    end := Timer()
+    end := QPC()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
 }
 
