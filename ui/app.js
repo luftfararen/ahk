@@ -850,6 +850,29 @@ const App = {
        LOAD & PARSE FUNCTIONS
        ============================================================================ */
     async tryAutoload() {
+        // 0. Try loading from URL hash (passed from AutoHotkey launch to bypass file:// CORS restriction)
+        const hash = window.location.hash;
+        if (hash.startsWith('#ini=')) {
+            try {
+                const hexData = hash.substring(5);
+                const bytes = new Uint8Array(hexData.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                const text = new TextDecoder().decode(bytes);
+                this.doc.parse(text);
+                this.isModified = false;
+                document.getElementById('file-status').textContent = 'Loaded: config.ini (Auto via AHK)';
+                document.getElementById('file-status').className = 'status-indicator success';
+                this.loadDocumentData();
+                
+                // Clear the hash to keep the URL clean
+                try {
+                    history.replaceState(null, document.title, window.location.pathname + window.location.search);
+                } catch (e) {}
+                return;
+            } catch (e) {
+                console.error("Failed to parse URL hash config:", e);
+            }
+        }
+
         // 1. IndexedDBからファイルハンドルを復元してみる
         try {
             const handle = await getStoredHandle();
@@ -894,7 +917,22 @@ const App = {
             console.log("Auto-load fetched ../config.ini failed (expected in local browsers): ", e);
         }
 
-        // 3. デモデータを読み込み
+        // 3. ローカルストレージのキャッシュから復元を試みる
+        try {
+            const cachedText = localStorage.getItem('config_ini_cache');
+            if (cachedText) {
+                this.doc.parse(cachedText);
+                this.isModified = false;
+                document.getElementById('file-status').textContent = 'Loaded: config.ini (Local Cache)';
+                document.getElementById('file-status').className = 'status-indicator success';
+                this.loadDocumentData();
+                return;
+            }
+        } catch (e) {
+            console.error("Failed to read from localStorage cache:", e);
+        }
+
+        // 4. デモデータを読み込み
         this.doc.parse(DEFAULT_CONFIG_CONTENT);
         document.getElementById('file-status').textContent = 'デモ設定ファイル表示中（保存にはファイルを開いてください）';
         document.getElementById('file-status').className = 'status-indicator warning';
@@ -1247,10 +1285,59 @@ const App = {
 
         document.getElementById('raw-textarea').value = this.doc.toString();
 
+        // Cache document to localStorage
+        try {
+            localStorage.setItem('config_ini_cache', this.doc.toString());
+        } catch (e) {
+            console.warn("Failed to write to localStorage:", e);
+        }
+
         this.renderSidebarLists();
         this.renderDynamicLayersTable();
         this.populateStartupLayoutDropdown();
         this.closeKeyEditor();
+
+        // Validate and refresh active slot
+        const slots = this.getLayoutSlots();
+        if (this.activeLayoutSlot) {
+            if (slots.includes(this.activeLayoutSlot)) {
+                this.loadLayoutSlot(this.activeLayoutSlot);
+            } else {
+                this.activeLayoutSlot = null;
+                if (this.currentPanel === 'panel-slot') {
+                    this.switchPanel('panel-settings');
+                }
+            }
+        }
+
+        // Validate and refresh active layout section
+        const keyLayouts = this.getKeyLayoutSections();
+        if (this.activeLayoutSec) {
+            if (keyLayouts.includes(this.activeLayoutSec)) {
+                this.loadLayoutSection(this.activeLayoutSec);
+            } else {
+                this.activeLayoutSec = null;
+                if (this.currentPanel === 'panel-layout') {
+                    this.switchPanel('panel-settings');
+                }
+            }
+        }
+
+        // Validate and refresh active modifier layer
+        const layers = this.getModifierLayers();
+        if (this.activeLayerName) {
+            if (layers.includes(this.activeLayerName)) {
+                this.loadLayerMap(this.activeLayerName);
+            } else {
+                this.activeLayerName = null;
+                if (this.currentPanel === 'panel-layer') {
+                    this.switchPanel('panel-settings');
+                }
+            }
+        }
+
+        // Highlight matching sidebar item for the current panel
+        this.switchPanel(this.currentPanel);
     },
 
     populateStartupLayoutDropdown() {
@@ -1943,6 +2030,29 @@ const App = {
         const activePanel = document.getElementById(panelId);
         if (activePanel) activePanel.classList.add('active');
         this.currentPanel = panelId;
+
+        // Highlight matching sidebar item
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        
+        if (panelId === 'panel-settings') {
+            const el = document.querySelector('.nav-item[data-panel="panel-settings"]');
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-dynamic-layers') {
+            const el = document.querySelector('.nav-item[data-panel="panel-dynamic-layers"]');
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-raw') {
+            const el = document.querySelector('.nav-item[data-panel="panel-raw"]');
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-slot' && this.activeLayoutSlot) {
+            const el = document.querySelector(`.nav-item[data-slot="${this.activeLayoutSlot}"]`);
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-layout' && this.activeLayoutSec) {
+            const el = document.querySelector(`.nav-item[data-layout="${this.activeLayoutSec}"]`);
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-layer' && this.activeLayerName) {
+            const el = document.querySelector(`.nav-item[data-layer="${this.activeLayerName}"]`);
+            if (el) el.classList.add('active');
+        }
     }
 };
 

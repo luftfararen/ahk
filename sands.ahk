@@ -788,6 +788,33 @@ GetKeyObjByLogicalName(name, is_ime := false) {
 }
 
 /**
+ * LAYOUT_KEYS を走査し、登録された文字（IME-ON / IME-OFF の両方）から
+ * LKey オブジェクトへのマッピング（Map）を生成して返します。
+ * Mapのキーには、:o,.などの記号もそのまま使用できます。
+ */
+CreateKeyMap() {
+    global LAYOUT_KEYS
+    key_map := Map()
+    for keyObj in LAYOUT_KEYS {
+        ; IME-ON 時のキー登録名をマップに追加
+        ; if keyObj.ime_key_text != "" && keyObj.ime_key_text != "{none}" {
+        ;     clean_name := DispStr(keyObj.ime_key_text)
+        ;     if clean_name != "" {
+        ;         key_map[clean_name] := keyObj
+        ;     }
+        ; }
+        ; IME-OFF 時のキー登録名もマップに追加（存在しない場合のみ）
+        if keyObj.key_text != "" && keyObj.key_text != "{none}" {
+            clean_name := DispStr(keyObj.key_text)
+            if clean_name != "" && !key_map.Has(clean_name) {
+                key_map[clean_name] := keyObj
+            }
+        }
+    }
+    return key_map
+}
+
+/**
  * INIや定義から読み込んだ値を、AHKのSendで安全に動作する形式にパースします。
  * 1文字の危険な記号のみを波括弧で安全に隔離し、2文字以上のマクロ等はそのまま通します。
  * @param {String} raw_str - 変換対象の文字列 (例: "*", "+", "ctrl")
@@ -1945,13 +1972,15 @@ IME状態に依存しない。
    └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
        [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーションの送信する。
 
-・モード7：
+ ・モード６：
  【説明】
- モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐバッファ付きTap-Hold)
+ モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐ
  Aキー: 先に押されるキー、通常キー送信後、修飾キーとなる
  Bキー: 遅れて押されるキー、通常キー、または、修飾キーとのコンビネーションが送信される
- モード7は、必ず、AキーのDown時に通常キー送信が行われる
-修飾キーとのコンビネーションではBackspace付きのキー送信が行われることもある。
+ モード6は、必ず、AキーのDown時に通常キー送信が行われる
+修飾キーとのコンビネーションでは、設定によってBackspace付きのキー送信を行っても良い。
+これにより、すでに送信されたAの通常キーをキャンセルする。
+モードの動作としては、自動でBackspace送信は行わない。
 キーリピートは無効化される 。
 
 【パラメーター定義】
@@ -1960,17 +1989,49 @@ IME状態に依存しない。
   - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
 
  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
- 条件1: AキーDown後、十分な時間が経過してからBキーがDownされた場合
+ 条件1: AキーDown(通常キー送信)後、十分な時間が経過してからBキーがDownされた場合
  [判定基準] t >= Layers.hold_th
  [アクション] 修飾キーのコンビネーションを送信する。
 
- 条件2: AキーDown後、ごく短時間（バッファ未満）でBキーがDownされた場合
+  条件2: AキーDown(通常キー送信)後、特定時間内にBキーがDownされた場合
+ [判定基準] t < Layers.hold_th
+ [アクション] BキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 2-A: Aキーが先にUp（短押し）された場合
+   │   [アクション] Bの通常キーを送信する。
+   ├─ ケース 2-B: AキーはHoldのまま、先にBキーがUpされた場合
+   │   [アクション] Bの通常キーを送信する。
+   └─ ケース 2-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
+       [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
+                    が送信される。
+
+・モード7：
+ 【説明】
+ モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐバッファ付きTap-Hold)
+ Aキー: 先に押されるキー、通常キー送信後、修飾キーとなる
+ Bキー: 遅れて押されるキー、通常キー、または、修飾キーとのコンビネーションが送信される
+ モード7は、必ず、AキーのDown時に通常キー送信が行われる
+修飾キーとのコンビネーションでは、設定によってBackspace付きのキー送信を行っても良い。
+これにより、すでに送信されたAの通常キーをキャンセルする。
+モードの動作としては、自動でBackspace送信は行わない。
+キーリピートは無効化される 。
+
+【パラメーター定義】
+  - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
+  - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
+
+ 【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
+ 条件1: AキーDown(通常キー送信)後、十分な時間が経過してからBキーがDownされた場合
+ [判定基準] t >= Layers.hold_th
+ [アクション] 修飾キーのコンビネーションを送信する。
+
+ 条件2: AキーDown(通常キー送信)後、ごく短時間（バッファ未満）でBキーがDownされた場合
  [判定基準] t < (Layers.hold_th - b_time)
  [アクション] Bの通常キー送信する（Down時確定）。
 
- 条件3: AキーDown後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
+ 条件3: AキーDown(通常キー送信)後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
  [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
- [アクション] AキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+ [アクション] BキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
    ├─ ケース 3-A: Aキーが先にUp（短押し）された場合
    │   [アクション] Bの通常キーを送信する。
    ├─ ケース 3-B: AキーはHoldのまま、先にBキーがUpされた場合
@@ -1979,8 +2040,6 @@ IME状態に依存しない。
        [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
                     が送信される。
 
-・（実験・予約）モード 6：
-押し下げ時に即座に送信し、長押し確定時に任意のカスタムキーへ置換する。キーリピートは無効化される 。
 ---
 ■ 共通仕様および制約
 
@@ -2063,18 +2122,22 @@ class LKey extends RKey {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetLayerKey(layer_id, action, action2 := "", ime := True) {
+    SetLayerKey(layer_id, action, action2 := "", action3 := "", ime := True) {
         action1 := action
-        if action2 == "" && InStr(action, "|") && action != "|" {
+        if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
             parts := StrSplit(action, "|")
-            if parts.Length >= 2 {
+            if parts.Length >= 3 {
+                action1 := parts[1]
+                action2 := parts[2]
+                action3 := parts[3]
+            } else if parts.Length >= 2 {
                 action1 := parts[1]
                 action2 := parts[2]
             }
         }
-        this.layers.SetAction(layer_id, action1, action2)
+        this.layers.SetAction(layer_id, action1, action2, action3)
         if ime {
-            this.layers.SetImeAction(layer_id, action1, action2)
+            this.layers.SetImeAction(layer_id, action1, action2, action3)
         }
     }
 
@@ -2085,16 +2148,20 @@ class LKey extends RKey {
      * @param {String} action2 - 2回目以降の連続押下時に送信するアクション
      * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
-    SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
+    SetLayerImeKey(layer_id, action, action2 := "", action3 := "", reset_if_blank := false) {
         action1 := action
-        if action2 == "" && InStr(action, "|") && action != "|" {
+        if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
             parts := StrSplit(action, "|")
-            if parts.Length >= 2 {
+            if parts.Length >= 3 {
+                action1 := parts[1]
+                action2 := parts[2]
+                action3 := parts[3]
+            } else if parts.Length >= 2 {
                 action1 := parts[1]
                 action2 := parts[2]
             }
         }
-        this.layers.SetImeAction(layer_id, action1, action2)
+        this.layers.SetImeAction(layer_id, action1, action2, action3)
     }
 
     /**
@@ -2135,7 +2202,7 @@ class LKey extends RKey {
         ime_state := ImeState.IsOn()
         hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
 
-        ; --- リピートガード (モード 1〜6 用) ---
+        ; --- リピートガード (モード 0 以外用) ---
         if (hold_mode != 0 && (this.state == LKey.st_pressing || this.state == LKey.st_processed)) {
             return
         }
@@ -2191,12 +2258,8 @@ class LKey extends RKey {
                 ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
                 this.saved_scaw := MakeModStr()
 
-            case 4, 7: ; 短押し->即時送信、長押し->修飾キー
+            case 4, 6, 7: ; 短押し->即時送信、長押し->修飾キー
                 this.SendKeyWithShift()
-
-            case 6: ; カスタム即時置換 (予約)
-                this.SendKeyWithShift()
-                SetTimer(this.timer_name, -LKey.hold_th)
         }
     }
 
@@ -2245,7 +2308,7 @@ class LKey extends RKey {
     }
 
     /**
-     * モード1 / モード6 の長押し確定用タイマーコールバック
+     * モード1 の長押し確定用タイマーコールバック
      */
     OnHoldTimeout() {
         Critical
@@ -2260,11 +2323,6 @@ class LKey extends RKey {
                 ; 未確定文字列のみを消してしまうため、IME OFF（英語入力）時のみの使用を推奨します。
                 SendEvent("{Backspace}")
                 this.SendShiftedKey(true)
-            }
-            else if (hold_mode == 6) {
-                ; モード6用のカスタム置換（必要に応じて拡張可能）
-                SendEvent("{Backspace}")
-                ; 例: 特定のカスタムキーを送信するなど
             }
 
             ; 長押し処理が確定したため、processed 状態へ移行（Upまでロック）
@@ -2569,11 +2627,13 @@ class Layers {
          * @param {Integer} layer_id - レイヤーID
          * @param {String} action - 送信されるアクション定義
          * @param {String} [action2=""] - 2回目以降の送信されるアクション定義
+         * @param {String} [action3=""] - 3回目以降の送信されるアクション定義
          */
-        __New(layer_id, action, action2 := "") {
+        __New(layer_id, action, action2 := "", action3 := "") {
             this.layer_id := layer_id
             this.action := action
             this.action2 := action2
+            this.action3 := action3
             this.tap_count := 0
             this.last_mod_key := ""
             this.last_mod_press_start := 0
@@ -2684,6 +2744,7 @@ class Layers {
             if (v.layer_id == item.layer_id) {
                 v.action := item.action
                 v.action2 := item.action2
+                v.action3 := item.action3
                 return
             }
         }
@@ -2697,8 +2758,8 @@ class Layers {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetIMEAction(layer_id, action, action2 := "") {
-        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2))
+    SetIMEAction(layer_id, action, action2 := "", action3 := "") {
+        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2, action3))
     }
 
     /**
@@ -2706,8 +2767,8 @@ class Layers {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetAction(layer_id, action, action2 := "") {
-        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2))
+    SetAction(layer_id, action, action2 := "", action3 := "") {
+        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2, action3))
     }
 
     /**
@@ -2740,7 +2801,31 @@ class Layers {
                     t := A_TickCount - mod_key.pressed_time
                     x := Layers.hold_th
 
-                    if (mod_hold_mode == 7) {
+                    if (mod_hold_mode == 6) {
+                        if (t >= x) {
+                            is_held := true
+                        } else {
+                            ; t < x: Pend decision and monitor key states
+                            loop {
+                                if !mod_key.IsPressed() {
+                                    ; Case 2-A: Mod key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if !key_obj.IsPressed() {
+                                    ; Case 2-B: Main key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if (A_TickCount - mod_key.pressed_time >= x) {
+                                    ; Case 2-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    is_held := true
+                                    break
+                                }
+                                Sleep(-1)
+                            }
+                        }
+                    } else if (mod_hold_mode == 7) {
                         if (t >= x) {
                             is_held := true
                         } else if (t < x - Layers.b_time) {
@@ -2750,12 +2835,12 @@ class Layers {
                             ; Pend decision and monitor key states
                             loop {
                                 if !mod_key.IsPressed() {
-                                    ; Case 3-B: Mod key released first -> Send normal key
+                                    ; Case 3-A: Mod key released first -> Send normal key
                                     is_held := false
                                     break
                                 }
                                 if !key_obj.IsPressed() {
-                                    ; Case 3-A: Main key released first -> Send normal key
+                                    ; Case 3-B: Main key released first -> Send normal key
                                     is_held := false
                                     break
                                 }
@@ -2764,7 +2849,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                SleepX(1)
+                                Sleep(-1)
                             }
                         }
                     } else if (mod_hold_mode == 5) {
@@ -2805,7 +2890,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                SleepX(1)
+                                Sleep(-1)
                             }
                         }
                     } else {
@@ -2814,7 +2899,8 @@ class Layers {
 
                     if is_held {
                         action_to_send := item.action
-                        if (item.action2 != "") {
+                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                            false) {
                             ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
                             if (item.last_mod_key == mod_key && item.last_mod_press_start == mod_key.pressed_time &&
                                 Layers.last_active_item == item) {
@@ -2824,7 +2910,9 @@ class Layers {
                                 item.last_mod_key := mod_key
                                 item.last_mod_press_start := mod_key.pressed_time
                             }
-                            if (item.tap_count >= 2) {
+                            if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
+                                action_to_send := item.action3
+                            } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
                                 action_to_send := item.action2
                             }
                         }
@@ -2873,8 +2961,8 @@ RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
  * @param {String} text - 1回目の押下時に送信するキーアクション定義
  * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
  */
-RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", mode := 7) {
-    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2)
+RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", text3 := "", mode := 7) {
+    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2, text3)
     layer_key_obj.SetMode(-1, mode)
 }
 
@@ -3586,32 +3674,49 @@ ChangeMinatoLayoutImpl() {
     m.SetImeKey("ya", "ltu") ; :=ltu
     ;slash.SetImeKey("f")
 
-    static rm := Map(
-        "n", a, "s", s, "k", d, "t", f, "d", r, "m", c, "r", e, "w", w,
-        "a", j, "i", k, "u", i, "e", l, "o", semicolon, "u", i
-    )
-    SetLKeyMode(-1, 7)
+    rm := CreateKeyMap()
+    SetLKeyMode(-1, 6)
 
     static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
-        ;RegistIMECombination(layer_key, e, "nn", mode) ; ん
         RegistIMECombination2(layer_key, d, "nn") ; ん
         RegistIMECombination2(layer_key, f, "-") ;ー
-        RegistIMECombination2(layer_key, v, "ltu") ;
-        RegistIMECombination2(layer_key, c, "ltute", "{BS}ta") ;
+        RegistIMECombination2(layer_key, v, "ltu", "ta", "{BS}te") ;
         RegistIMECombination2(layer_key, e, "ru", "{BS}rareru") ;
     }
-    RegistIMECombination2(rm["o"], j, "u") ;
-    RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
-    RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
+
+    RegistIMECombination2(rm["s"], e, "e", "{BS}suru", "{BS}{BS}sareru") ;する
+    RegistIMECombination2(rm["s"], rm["t"], "i", "te", "{BS}ta") ;して
     RegistIMECombination2(rm["s"], r, "areru") ;される
     RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
-    RegistIMECombination2(z, v, "youhou") ;
+    RegistIMECombination2(rm["k"], rm["t"], "o", "to") ;こと
+    RegistIMECombination2(z, v, "i", "{BS}zyouhou") ;
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
-    ;     RegistIMECombination2(a, j, "0", "0", 5) ;
+
+    ; RegistIMECombination2(rm["o"], j, "u") ;
+    ; RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    ; RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    ; RegistIMECombination2(rm["s"], r, "areru") ;される
+    ; RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    ; RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
+    ; RegistIMECombination2(z, v, "youhou") ;
+    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    ; RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
+
+    ; RegistIMECombination2(rm["o"], j, "u") ;
+    ; RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    ; RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    ; RegistIMECombination2(rm["s"], r, "areru") ;される
+    ; RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    ; RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
+    ; RegistIMECombination2(z, v, "youhou") ;
+    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    ; RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
+    ; ;     RegistIMECombination2(a, j, "0", "0", 5) ;
     ;     RegistIMECombination2(a, k, "1", "1", 5) ;
     ;     RegistIMECombination2(a, l, "2", "2", 5) ;
     ;     RegistIMECombination2(a, m, "3", "3", 5) ;
@@ -3923,11 +4028,35 @@ InitModLayer() {
     closebracket.SetLayerKey(L_SHIFT, "+]")
 }
 
-/**
- * キー配列設定エディタ UI を既定のブラウザで開きます。
- */
+StringToHex(str) {
+    reqSize := StrPut(str, "UTF-8")
+    buf := Buffer(reqSize)
+    StrPut(str, buf, "UTF-8")
+    hex := ""
+    loop reqSize - 1 {
+        hex .= Format("{:02x}", NumGet(buf, A_Index - 1, "UChar"))
+    }
+    return hex
+}
+
 OpenConfigEditor(*) {
-    Run('"' . A_ScriptDir . '\ui\index.html"')
+    ini_path := A_ScriptDir . "\config.ini"
+    ini_content := ""
+    if FileExist(ini_path) {
+        try {
+            ini_content := FileRead(ini_path, "UTF-8")
+        } catch {
+            ; fallback
+        }
+    }
+
+    if ini_content != "" {
+        hex_data := StringToHex(ini_content)
+        url := "file:///" . StrReplace(A_ScriptDir, "\", "/") . "/ui/index.html#ini=" . hex_data
+        Run(url)
+    } else {
+        Run('"' . A_ScriptDir . '\ui\index.html"')
+    }
 }
 
 /**
