@@ -47,8 +47,8 @@ jn	じゃ
 kt	こ
 ks	き
 kr	け
-sk	し
-st	そ
+sk	す
+st	し
 sr	せ
 nt	の
 nk	に

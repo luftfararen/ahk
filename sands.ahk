@@ -326,33 +326,6 @@ IsPhysicalShiftPressed(key_obj) {
     return false
 }
 
-/*
-* 高分解能タイマー(単位:millisecond)
-*/
-QPC() {
-    static freq := 0
-    if (!freq)
-        DllCall("QueryPerformanceFrequency", "Int64*", &freq)
-    counter := 0
-    DllCall("QueryPerformanceCounter", "Int64*", &counter)
-    return (counter / freq) * 1000 ; ミリ秒単位に変換して返す
-
-}
-
-SleepX(t) {
-    start := QPC()
-
-    ; 残り時間が15ms以上あるうちは、標準のSleepでCPUを完全に休ませる
-    while ((rem := t - (QPC() - start)) > 15) {
-        Sleep(1) ; 実際には10〜15ms待機される
-    }
-
-    ; 最後の仕上げ（15ms未満の細かい隙間）だけ、Sleep(0)の超高精度ループで埋める
-    while (QPC() - start < t) {
-        Sleep(0)
-    }
-}
-
 /**
  * 高精度タイマーの周波数を取得します。
  * @returns {Int64} 周波数
@@ -373,6 +346,38 @@ QueryCounter() {
     DllCall("QueryPerformanceCounter", "Int64*", &tick)
     return tick
     ;return A_TickCount
+}
+
+g_freq := QueryFrequency()
+
+/*
+* 高分解能タイマー(単位:millisecond)
+*/
+QPC() {
+    ; static freq := 0
+    ; if (!freq)
+    ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+    ; counter := 0
+    ; DllCall("QueryPerformanceCounter", "Int64*", &counter)
+    ; return (counter / freq) * 1000 ; ミリ秒単位に変換して返す
+    global g_freq
+    counter := 0
+    DllCall("QueryPerformanceCounter", "Int64*", &counter)
+    return (counter / g_freq) * 1000 ; ミリ秒単位に変換して返す
+}
+
+SleepX(t) {
+    start_qpc := QPC()
+
+    ; 残り時間が15ms以上あるうちは、標準のSleepでCPUを完全に休ませる
+    while ((rem := t - (QPC() - start_qpc)) > 15) {
+        Sleep(1) ; 実際には10〜15ms待機される
+    }
+
+    ; 最後の仕上げ（15ms未満の細かい隙間）だけ、Sleep(0)の超高精度ループで埋める
+    while (QPC() - start_qpc < t) {
+        Sleep(0)
+    }
 }
 
 /**
@@ -1310,7 +1315,7 @@ class KeyLogger {
             return
         if !ImeState.IsOn()
             return
-        start := QueryCounter()
+        start_qpc := QueryCounter()
         if this.stats_short_idx < this.stats_short_max {
             this.stats_short_idx += 1
             entry := this.stats_short[this.stats_short_idx]
@@ -1319,9 +1324,9 @@ class KeyLogger {
         } else {
             return
         }
-        end := QueryCounter()
-        time := end - start
-        this.total_log_time := Max(time, this.total_log_time)
+        end_qpc := QueryCounter()
+        time_qpc := end_qpc - start_qpc
+        this.total_log_time := Max(time_qpc, this.total_log_time)
 
     }
 }
@@ -2066,7 +2071,7 @@ class LKey extends RKey {
     static ResetAll() {
         for inst in LKey.instances {
             inst.state := LKey.st_init
-            inst.pressed_time := 0
+            inst.pressed_time_qpc := 0
             inst.interrupted := false
             inst.saved_scaw := ""
             if (inst.timer_name != "") {
@@ -2076,7 +2081,7 @@ class LKey extends RKey {
     }
 
     state := 0
-    pressed_time := 0     ; 物理的に押し下げを開始した時刻
+    pressed_time_qpc := 0     ; 物理的に押し下げを開始した時刻
     interrupted := false  ; 他のキーが割り込んできたら true にするフラグ
     down_ime_state := 0   ; Down時のIME状態を記録
     saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
@@ -2223,7 +2228,7 @@ class LKey extends RKey {
         if super._SendCAWKey(this.org_key) {
             if (hold_mode != 0) {
                 LKey.InterruptOthers(this)
-                this.pressed_time := 0
+                this.pressed_time_qpc := 0
                 this.state := LKey.st_processed
             }
             return
@@ -2234,7 +2239,7 @@ class LKey extends RKey {
             this.SendKeyWithShift()
         } else {
             this.interrupted := false
-            this.pressed_time := A_TickCount
+            this.pressed_time_qpc := QPC()
             this.down_ime_state := ime_state
             LKey.InterruptOthers(this)
             this.state := LKey.st_pressing
@@ -2258,7 +2263,7 @@ class LKey extends RKey {
                 ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
                 this.saved_scaw := MakeModStr()
 
-            case 4, 6, 7: ; 短押し->即時送信、長押し->修飾キー
+            case 4, 6, 7, 8: ; 短押し->即時送信、長押し->修飾キー
                 this.SendKeyWithShift()
         }
     }
@@ -2270,7 +2275,7 @@ class LKey extends RKey {
         Critical
         ; モード0の場合はタイマー等がないため単純に初期化して終了
         ime_state := ImeState.IsOn()
-        hold_mode := (this.pressed_time == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
+        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
         ) : ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
 
         if (hold_mode == 0) {
@@ -2282,12 +2287,12 @@ class LKey extends RKey {
         ; 動作中のタイマーを確実にキャンセル
         SetTimer(this.timer_name, 0)
 
-        duration := A_TickCount - this.pressed_time
+        duration_qpc := QPC() - this.pressed_time_qpc
 
         ; まだ長押し確定（st_processed）しておらず、押し込み中（st_pressing）だった場合のみUp処理を実行
         if (this.state == LKey.st_pressing) {
             ; 短押し判定（閾値未満、かつ他キーの割り込みなし）
-            if (duration < LKey.hold_th && !this.interrupted) {
+            if (duration_qpc < LKey.hold_th && !this.interrupted) {
 
                 ; モード 3: 短押し時のみ入力（down時に保持したscawを適用）
                 if (hold_mode == 3) {
@@ -2301,7 +2306,7 @@ class LKey extends RKey {
         }
 
         ; キーが離されたら状態を完全にクリーンアップ
-        this.pressed_time := 0
+        this.pressed_time_qpc := 0
         this.state := LKey.st_init
         this.interrupted := false
         this.saved_scaw := ""
@@ -2613,7 +2618,7 @@ LoadLayoutConfig() {
  */
 class Layers {
 
-    static hold_th := 150
+    static hold_th := 200
     static b_time := 50 ; 長押しと判定する閾値 (ms)
 
     static last_active_item := ""
@@ -2636,7 +2641,7 @@ class Layers {
             this.action3 := action3
             this.tap_count := 0
             this.last_mod_key := ""
-            this.last_mod_press_start := 0
+            this.last_mod_press_start_qpc := 0
         }
     }
 
@@ -2798,11 +2803,11 @@ class Layers {
                     mod_hold_mode := (ime_state == 1) ? mod_key.hold_mode_ime_org : mod_key.hold_mode_org
 
                     is_held := false
-                    t := A_TickCount - mod_key.pressed_time
+                    t_qpc := QPC() - mod_key.pressed_time_qpc
                     x := Layers.hold_th
 
                     if (mod_hold_mode == 6) {
-                        if (t >= x) {
+                        if (t_qpc >= x) {
                             is_held := true
                         } else {
                             ; t < x: Pend decision and monitor key states
@@ -2817,7 +2822,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (A_TickCount - mod_key.pressed_time >= x) {
+                                if (QPC() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 2-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     is_held := true
                                     break
@@ -2826,9 +2831,9 @@ class Layers {
                             }
                         }
                     } else if (mod_hold_mode == 7) {
-                        if (t >= x) {
+                        if (t_qpc >= x) {
                             is_held := true
-                        } else if (t < x - Layers.b_time) {
+                        } else if (t_qpc < x - Layers.b_time) {
                             is_held := false
                         } else {
                             ; Grey zone: (x - Layers.b_time) <= t < x
@@ -2844,7 +2849,34 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (A_TickCount - mod_key.pressed_time >= x) {
+                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    is_held := true
+                                    break
+                                }
+                                Sleep(-1)
+                            }
+                        }
+                    } else if (mod_hold_mode == 8) {
+                        if (t_qpc >= x) {
+                            is_held := true
+                        } else if (t_qpc < x - Layers.b_time) {
+                            is_held := false
+                        } else {
+                            ; Grey zone: (x - Layers.b_time) <= t < x
+                            ; Pend decision and monitor key states
+                            loop {
+                                if !mod_key.IsPressed() {
+                                    ; Case 3-A: Mod key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if !key_obj.IsPressed() {
+                                    ; Case 3-B: Main key released first -> Send combination
+                                    is_held := true
+                                    break
+                                }
+                                if (QPC() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     is_held := true
                                     break
@@ -2853,10 +2885,10 @@ class Layers {
                             }
                         }
                     } else if (mod_hold_mode == 5) {
-                        if (t >= x) {
+                        if (t_qpc >= x) {
                             mod_key.state := LKey.st_processed
                             is_held := true
-                        } else if (t < x - Layers.b_time) {
+                        } else if (t_qpc < x - Layers.b_time) {
                             if (mod_key.state == LKey.st_pressing) {
                                 mod_key.SendShiftedKey(false)
                             }
@@ -2884,7 +2916,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (A_TickCount - mod_key.pressed_time >= x) {
+                                if (QPC() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -2894,7 +2926,7 @@ class Layers {
                             }
                         }
                     } else {
-                        is_held := (t > x)
+                        is_held := (t_qpc > x)
                     }
 
                     if is_held {
@@ -2902,13 +2934,13 @@ class Layers {
                         if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
                             false) {
                             ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
-                            if (item.last_mod_key == mod_key && item.last_mod_press_start == mod_key.pressed_time &&
+                            if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
                                 Layers.last_active_item == item) {
                                 item.tap_count += 1
                             } else {
                                 item.tap_count := 1
                                 item.last_mod_key := mod_key
-                                item.last_mod_press_start := mod_key.pressed_time
+                                item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
                             }
                             if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
                                 action_to_send := item.action3
@@ -3675,36 +3707,36 @@ ChangeMinatoLayoutImpl() {
     ;slash.SetImeKey("f")
 
     rm := CreateKeyMap()
-    SetLKeyMode(-1, 6)
+    SetLKeyMode(-1, 7)
 
     static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
         RegistIMECombination2(layer_key, d, "nn") ; ん
         RegistIMECombination2(layer_key, f, "-") ;ー
-        RegistIMECombination2(layer_key, v, "ltu", "ta", "{BS}te") ;
+        RegistIMECombination2(layer_key, v, "ltu", "te", "{BS}ta") ;
         RegistIMECombination2(layer_key, e, "ru", "{BS}rareru") ;
     }
 
-    RegistIMECombination2(rm["s"], e, "e", "{BS}suru", "{BS}{BS}sareru") ;する
-    RegistIMECombination2(rm["s"], rm["t"], "i", "te", "{BS}ta") ;して
-    RegistIMECombination2(rm["s"], r, "areru") ;される
-    RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination2(rm["k"], rm["t"], "o", "to") ;こと
-    RegistIMECombination2(z, v, "i", "{BS}zyouhou") ;
-    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
-
-    ; RegistIMECombination2(rm["o"], j, "u") ;
-    ; RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
-    ; RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    ; RegistIMECombination2(rm["s"], e, "e", "{BS}suru", "{BS}{BS}sareru") ;する
+    ; RegistIMECombination2(rm["s"], rm["t"], "i", "te", "{BS}ta") ;して
     ; RegistIMECombination2(rm["s"], r, "areru") ;される
     ; RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    ; RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
-    ; RegistIMECombination2(z, v, "youhou") ;
+    ; RegistIMECombination2(rm["k"], rm["t"], "o", "to") ;こと
+    ; RegistIMECombination2(z, v, "i", "{BS}zyouhou") ;
     ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     ; RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
+
+    RegistIMECombination2(rm["o"], j, "u") ;
+    RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    RegistIMECombination2(rm["s"], r, "areru") ;される
+    RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination2(z, v, "youhou") ;
+    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
 
     ; RegistIMECombination2(rm["o"], j, "u") ;
     ; RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
@@ -3794,7 +3826,7 @@ SetLKeyMode(mode, ime_mode := -1) {
  * 各レイヤー（ナビゲーション、記号、テンキー、選択、Shiftなど）に対する、物理キーから送信キーへの具体的なマッピングを初期設定します。
  */
 InitModLayer() {
-    start := QPC()
+    start_qpc := QPC()
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
     global q, w, e, r, t, y, u, i, o, p, at, openbracket
@@ -4063,7 +4095,8 @@ OpenConfigEditor(*) {
  * スクリプト起動時の初期化処理（長押し動作の基本有効化、各レイヤーバインドの設定、設定ファイルやログの読み込み）を行います。
  */
 Init() {
-    start := QPC()
+    g_freq := QueryFrequency()
+    start_qpc := QPC()
 
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()
@@ -4097,8 +4130,8 @@ Init() {
     ; 8. タイマーの開始 (初期化完了後に実行)
     SetTimer(TimerEvent, 100)
 
-    end := QPC()
-    ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end - start), 5000)
+    end_qpc := QPC()
+    ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end_qpc - start_qpc), 5000)
 }
 
 Init()
