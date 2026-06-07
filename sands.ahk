@@ -2883,9 +2883,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                ;SleepX(t > 5 ? 5 : t)
-                                Sleep(-1)
-                                DllCall("SwitchToThread")
+                                Sleep(1)
 
                             }
                         }
@@ -2915,9 +2913,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                ;SleepX(t > 5 ? 5 : t)
-                                Sleep(-1)
-                                DllCall("SwitchToThread")
+                                Sleep(1)
                             }
                         }
                     } else if (mod_hold_mode == 8) {
@@ -2947,8 +2943,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                Sleep(-1)
-                                DllCall("SwitchToThread")
+                                Sleep(1)
                             }
                         }
                     } else if (mod_hold_mode == 5) {
@@ -2989,8 +2984,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                Sleep(-1)
-                                DllCall("SwitchToThread")
+                                Sleep(1)
                             }
                         }
                     } else {
@@ -3821,7 +3815,7 @@ ChangeMinatoLayoutImpl() {
     for layer_key in target_layers {
         RegistIMECombination3(8, layer_key, d, "nn") ; ん
         RegistIMECombination3(8, layer_key, f, "-") ;ー
-        RegistIMECombination3(8, layer_key, v, "ltu", "te", "{BS}ta") ;
+        RegistIMECombination3(8, layer_key, v, "ltu", "ta", "{BS}te") ;
         RegistIMECombination3(8, layer_key, e, "ru", "{BS}rareru") ;
     }
 
@@ -3836,27 +3830,6 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination3(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination3(7, k, j, "{BS}{BS}", "{BS}") ;
 
-    ; RegistIMECombination2(rm["o"], j, "u") ;
-    ; RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
-    ; RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    ; RegistIMECombination2(rm["s"], r, "areru") ;される
-    ; RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    ; RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
-    ; RegistIMECombination2(z, v, "youhou") ;
-    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    ; RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
-    ; ;     RegistIMECombination2(a, j, "0", "0", 5) ;
-    ;     RegistIMECombination2(a, k, "1", "1", 5) ;
-    ;     RegistIMECombination2(a, l, "2", "2", 5) ;
-    ;     RegistIMECombination2(a, m, "3", "3", 5) ;
-    ;     RegistIMECombination2(a, comma, "4", "4", 5) ;
-    ;     RegistIMECombination2(a, period, "5", "5", 5) ;
-    ;     RegistIMECombination2(a, slash, "6", "6") ;
-    ;     RegistIMECombination2(a, u, "7", "7") ;
-    ;     RegistIMECombination2(a, i, "8", "8") ;
-    ;     RegistIMECombination2(a, o, "9", "9") ;
-    ;
 }
 
 /**
