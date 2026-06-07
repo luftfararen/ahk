@@ -2176,7 +2176,7 @@ class LKey extends RKey {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetLayerKey(layer_id, action, action2 := "", action3 := "", ime := True) {
+    SetLayerKey(mode, layer_id, action, action2 := "", action3 := "", ime := True) {
         action1 := action
         if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
             parts := StrSplit(action, "|")
@@ -2189,9 +2189,10 @@ class LKey extends RKey {
                 action2 := parts[2]
             }
         }
-        this.layers.SetAction(layer_id, action1, action2, action3)
+        mode := mode < 0 ? this.hold_mode_org : mode
+        this.layers.SetAction(layer_id, action1, action2, action3, mode)
         if ime {
-            this.layers.SetImeAction(layer_id, action1, action2, action3)
+            this.layers.SetImeAction(layer_id, action1, action2, action3, mode)
         }
     }
 
@@ -2202,7 +2203,7 @@ class LKey extends RKey {
      * @param {String} action2 - 2回目以降の連続押下時に送信するアクション
      * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
-    SetLayerImeKey(layer_id, action, action2 := "", action3 := "", reset_if_blank := false) {
+    SetLayerImeKey(mode, layer_id, action, action2 := "", action3 := "", reset_if_blank := false) {
         action1 := action
         if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
             parts := StrSplit(action, "|")
@@ -2215,7 +2216,8 @@ class LKey extends RKey {
                 action2 := parts[2]
             }
         }
-        this.layers.SetImeAction(layer_id, action1, action2, action3)
+        mode := mode < 0 ? this.hold_mode_ime_org : mode
+        this.layers.SetImeAction(layer_id, action1, action2, action3, mode)
     }
 
     /**
@@ -2683,7 +2685,7 @@ class Layers {
          * @param {String} [action2=""] - 2回目以降の送信されるアクション定義
          * @param {String} [action3=""] - 3回目以降の送信されるアクション定義
          */
-        __New(layer_id, action, action2 := "", action3 := "") {
+        __New(layer_id, action, action2, action3, mode) {
             this.layer_id := layer_id
             this.action := action
             this.action2 := action2
@@ -2691,6 +2693,7 @@ class Layers {
             this.tap_count := 0
             this.last_mod_key := ""
             this.last_mod_press_start_qpc := 0
+            this.mode := mode
         }
     }
 
@@ -2812,8 +2815,8 @@ class Layers {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetIMEAction(layer_id, action, action2 := "", action3 := "") {
-        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2, action3))
+    SetIMEAction(layer_id, action, action2 := "", action3 := "", mode := -1) {
+        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2, action3, mode))
     }
 
     /**
@@ -2821,8 +2824,8 @@ class Layers {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
-    SetAction(layer_id, action, action2 := "", action3 := "") {
-        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2, action3))
+    SetAction(layer_id, action, action2 := "", action3 := "", mode := -1) {
+        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2, action3, mode))
     }
 
     /**
@@ -2849,7 +2852,8 @@ class Layers {
             mod_key := mod_key_list[item.layer_id]
             if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
                 if Layers.State2(item.layer_id, key_obj) {
-                    mod_hold_mode := (ime_state == 1) ? mod_key.hold_mode_ime_org : mod_key.hold_mode_org
+                    mod_hold_mode := (item.mode != -1) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
+                        mod_key.hold_mode_org)
 
                     is_held := false
                     t_qpc := QPC() - mod_key.pressed_time_qpc
@@ -3033,14 +3037,12 @@ class Layers {
  * @param {String} text - 1回目の押下時に送信するキーアクション定義
  * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
  */
-RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", text3 := "", mode := 7) {
-    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2, text3)
-    layer_key_obj.SetMode(-1, mode)
-}
+; RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", text3 := "", mode := 7) {
+;     key_obj.SetLayerImeKey(mode,Layers.Index(layer_key_obj), text, text2, text3, false, mode)
+; }
 
 RegistIMECombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
-    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2, text3)
-    layer_key_obj.SetMode(-1, mode)
+    key_obj.SetLayerImeKey(mode, Layers.Index(layer_key_obj), text, text2, text3, false)
 }
 
 /**
@@ -3050,13 +3052,12 @@ RegistIMECombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := 
  * @param {String} text - 1回目の押下時に送信するキーアクション定義
  * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
  */
-RegistCombination2(layer_key_obj, key_obj, text, text2 := "") {
-    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, text2)
-}
+; RegistCombination2(layer_key_obj, key_obj, text, text2 := "") {
+;     key_obj.SetLayerKey(mode,Layers.Index(layer_key_obj), text, text2)
+; }
 
 RegistCombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
-    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, text2, text3)
-    layer_key_obj.SetMode(mode, -1)
+    key_obj.SetLayerKey(mode, Layers.Index(layer_key_obj), text, text2, text3, True)
 }
 
 /**
@@ -3260,6 +3261,34 @@ ReadEachLayoutFromIni(layout_map, section, prefix := "", ini_path := "") {
 /**
  * config.iniから指定されたプレフィックスのコンビネーション（同時押し）定義を読み込み、適用します。
  */
+ParseIniCombinationValue(val) {
+    parts := []
+    in_quotes := false
+    current := ""
+    loop parse, val {
+        char := A_LoopField
+        if (char == '"') {
+            in_quotes := !in_quotes
+            current .= char
+        } else if (char == "," && !in_quotes) {
+            parts.Push(Trim(current))
+            current := ""
+        } else {
+            current .= char
+        }
+    }
+    parts.Push(Trim(current))
+
+    processed_parts := []
+    for part in parts {
+        if (SubStr(part, 1, 1) == '"' && SubStr(part, -1) == '"' && StrLen(part) >= 2) {
+            part := SubStr(part, 2, StrLen(part) - 2)
+        }
+        processed_parts.Push(part)
+    }
+    return processed_parts
+}
+
 ApplyCombinationsFromIni(section, prefix, is_ime) {
     try {
         section_text := GetIniSection(A_ScriptDir . "\config.ini", section)
@@ -3278,9 +3307,38 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
             if SubStr(key_name, 1, prefix_len) == prefix {
                 key_pair := SubStr(key_name, prefix_len + 1) ; 例: "f+d"
                 val := Trim(SubStr(line, pos + 1))
-                val := ResolveKeyText(val)
                 if val == ""
                     continue
+
+                parsed_parts := ParseIniCombinationValue(val)
+                if parsed_parts.Length == 0
+                    continue
+
+                mode := -1
+                actions := []
+
+                first_val := parsed_parts[1]
+                if IsInteger(first_val) {
+                    mode := Integer(first_val)
+                    start_idx := 2
+                } else {
+                    mode := 7
+                    start_idx := 1
+                }
+
+                loop parsed_parts.Length - start_idx + 1 {
+                    idx := A_Index + start_idx - 1
+                    act := parsed_parts[idx]
+                    resolved_act := ResolveKeyText(act)
+                    actions.Push(resolved_act)
+                }
+
+                if actions.Length == 0
+                    continue
+
+                action1 := actions[1]
+                action2 := actions.Length >= 2 ? actions[2] : ""
+                action3 := actions.Length >= 3 ? actions[3] : ""
 
                 ; "修飾キー + 対象キー" を分割
                 keys := StrSplit(key_pair, "+")
@@ -3290,9 +3348,9 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
 
                     if (layer_obj && target_obj) {
                         if is_ime
-                            RegistIMECombination3(7, layer_obj, target_obj, val)
+                            RegistIMECombination3(mode, layer_obj, target_obj, action1, action2, action3)
                         else
-                            RegistCombination3(7, layer_obj, target_obj, val)
+                            RegistCombination3(mode, layer_obj, target_obj, action1, action2, action3)
                     }
                 }
             }
@@ -3442,7 +3500,7 @@ ApplyDynamicLayer(mod_key_name, section) {
                     key_entry := EntryName(key_name)
                     key_obj := GetKeyObjByName(key_entry)
                     if key_obj {
-                        key_obj.SetLayerKey(layer_id, val)
+                        key_obj.SetLayerKey(-1, layer_id, val)
                     }
                 }
             }
@@ -3467,12 +3525,12 @@ ApplyLayerLayoutFromIni(layer_id, section) {
         name := EntryName(QWERTY_CHARS[i])
 
         ;layout_map[name]が"
-        keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
+        keyObj.SetLayerKey(-1, layer_id, layout_map.Get(name, ""))
     }
 
     for i, keyObj in LAYOUT_SPECIAL_KEYS {
         name := EntryName(LAYOUT_SPECIAL_NAMES[i])
-        keyObj.SetLayerKey(layer_id, layout_map.Get(name, ""))
+        keyObj.SetLayerKey(-1, layer_id, layout_map.Get(name, ""))
     }
 
 }
@@ -3759,34 +3817,24 @@ ChangeMinatoLayoutImpl() {
     rm := CreateKeyMap()
     SetLKeyMode(-1, 6)
 
-    static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
+    target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
-        RegistIMECombination2(layer_key, d, "nn") ; ん
-        RegistIMECombination2(layer_key, f, "-") ;ー
-        RegistIMECombination2(layer_key, v, "ltu", "te", "{BS}ta") ;
-        RegistIMECombination2(layer_key, e, "ru", "{BS}rareru") ;
+        RegistIMECombination3(8, layer_key, d, "nn") ; ん
+        RegistIMECombination3(8, layer_key, f, "-") ;ー
+        RegistIMECombination3(8, layer_key, v, "ltu", "te", "{BS}ta") ;
+        RegistIMECombination3(8, layer_key, e, "ru", "{BS}rareru") ;
     }
 
-    ; RegistIMECombination2(rm["s"], e, "e", "{BS}suru", "{BS}{BS}sareru") ;する
-    ; RegistIMECombination2(rm["s"], rm["t"], "i", "te", "{BS}ta") ;して
-    ; RegistIMECombination2(rm["s"], r, "areru") ;される
-    ; RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    ; RegistIMECombination2(rm["k"], rm["t"], "o", "to") ;こと
-    ; RegistIMECombination2(z, v, "i", "{BS}zyouhou") ;
-    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    ; RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
-
-    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
-    RegistIMECombination2(rm["o"], j, "u") ;
-    RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
-    RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    RegistIMECombination2(rm["s"], r, "areru") ;される
-    RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination2(z, v, "youhou") ;
-    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination3(7, rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination3(7, rm["o"], j, "u") ;
+    RegistIMECombination3(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    RegistIMECombination3(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    RegistIMECombination3(7, rm["s"], r, "areru") ;される
+    RegistIMECombination3(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    RegistIMECombination3(7, z, v, "youhou") ;
+    RegistIMECombination3(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination3(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination3(7, k, j, "{BS}{BS}", "{BS}") ;
 
     ; RegistIMECombination2(rm["o"], j, "u") ;
     ; RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
@@ -3885,229 +3933,231 @@ InitModLayer() {
 
     global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT
 
+    ;SetLKeyMode(3)
+    mode := 3
     ; L_SELECT
-    k1.SetLayerKey(L_SELECT, "^z")
-    k2.SetLayerKey(L_SELECT, "^x")
-    k3.SetLayerKey(L_SELECT, "^c")
-    k4.SetLayerKey(L_SELECT, "^v")
-    z.SetLayerKey(L_SELECT, "^z")
-    x.SetLayerKey(L_SELECT, "^x")
-    c.SetLayerKey(L_SELECT, "^c")
-    v.SetLayerKey(L_SELECT, "^v")
-    b.SetLayerKey(L_SELECT, "^z")
-    y.SetLayerKey(L_SELECT, R_REDO)
-    u.SetLayerKey(L_SELECT, C_BS)
-    i.SetLayerKey(L_SELECT, "+{Up}")
-    o.SetLayerKey(L_SELECT, "+{PgUp}")
-    p.SetLayerKey(L_SELECT, "+{PgDn}")
-    at.SetLayerKey(L_SELECT, C_CSHOME)
-    openbracket.SetLayerKey(L_SELECT, C_CSEND)
-    h.SetLayerKey(L_SELECT, "+{Home}")
-    j.SetLayerKey(L_SELECT, "+{Left}")
-    k.SetLayerKey(L_SELECT, "+{Down}")
-    l.SetLayerKey(L_SELECT, "+{Right}")
-    semicolon.SetLayerKey(L_SELECT, "+{Enter}")
-    enter.SetLayerKey(L_SELECT, B_ENTER)
-    n.SetLayerKey(L_SELECT, "+{End}")
-    m.SetLayerKey(L_SELECT, C_DEL)
-    comma.SetLayerKey(L_SELECT, "^+{Left}")
-    period.SetLayerKey(L_SELECT, "^+{Right}")
-    space.SetLayerKey(L_SELECT, C_BS)
-    up.SetLayerKey(L_SELECT, "+{Up}")
-    left.SetLayerKey(L_SELECT, "+{Left}")
-    down.SetLayerKey(L_SELECT, "+{Down}")
-    right.SetLayerKey(L_SELECT, "+{Right}")
+    k1.SetLayerKey(mode, L_SELECT, "^z")
+    k2.SetLayerKey(mode, L_SELECT, "^x")
+    k3.SetLayerKey(mode, L_SELECT, "^c")
+    k4.SetLayerKey(mode, L_SELECT, "^v")
+    z.SetLayerKey(mode, L_SELECT, "^z")
+    x.SetLayerKey(mode, L_SELECT, "^x")
+    c.SetLayerKey(mode, L_SELECT, "^c")
+    v.SetLayerKey(mode, L_SELECT, "^v")
+    b.SetLayerKey(mode, L_SELECT, "^z")
+    y.SetLayerKey(mode, L_SELECT, R_REDO)
+    u.SetLayerKey(mode, L_SELECT, C_BS)
+    i.SetLayerKey(mode, L_SELECT, "+{Up}")
+    o.SetLayerKey(mode, L_SELECT, "+{PgUp}")
+    p.SetLayerKey(mode, L_SELECT, "+{PgDn}")
+    at.SetLayerKey(mode, L_SELECT, C_CSHOME)
+    openbracket.SetLayerKey(mode, L_SELECT, C_CSEND)
+    h.SetLayerKey(mode, L_SELECT, "+{Home}")
+    j.SetLayerKey(mode, L_SELECT, "+{Left}")
+    k.SetLayerKey(mode, L_SELECT, "+{Down}")
+    l.SetLayerKey(mode, L_SELECT, "+{Right}")
+    semicolon.SetLayerKey(mode, L_SELECT, "+{Enter}")
+    enter.SetLayerKey(mode, L_SELECT, B_ENTER)
+    n.SetLayerKey(mode, L_SELECT, "+{End}")
+    m.SetLayerKey(mode, L_SELECT, C_DEL)
+    comma.SetLayerKey(mode, L_SELECT, "^+{Left}")
+    period.SetLayerKey(mode, L_SELECT, "^+{Right}")
+    space.SetLayerKey(mode, L_SELECT, C_BS)
+    up.SetLayerKey(mode, L_SELECT, "+{Up}")
+    left.SetLayerKey(mode, L_SELECT, "+{Left}")
+    down.SetLayerKey(mode, L_SELECT, "+{Down}")
+    right.SetLayerKey(mode, L_SELECT, "+{Right}")
 
     ; L_NAVI_CTRL
-    k1.SetLayerKey(L_NAVI_CTRL, B_F1)
-    k2.SetLayerKey(L_NAVI_CTRL, B_F2)
-    k3.SetLayerKey(L_NAVI_CTRL, B_F3)
-    k4.SetLayerKey(L_NAVI_CTRL, B_F4)
-    k5.SetLayerKey(L_NAVI_CTRL, B_F5)
-    k6.SetLayerKey(L_NAVI_CTRL, B_F6)
-    k7.SetLayerKey(L_NAVI_CTRL, B_F7)
-    k8.SetLayerKey(L_NAVI_CTRL, B_F8)
-    k9.SetLayerKey(L_NAVI_CTRL, B_F9)
-    k0.SetLayerKey(L_NAVI_CTRL, B_F10)
-    minus.SetLayerKey(L_NAVI_CTRL, B_F11)
-    hat.SetLayerKey(L_NAVI_CTRL, B_F12)
-    yen.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
-    z.SetLayerKey(L_NAVI_CTRL, B_UNDO)
-    x.SetLayerKey(L_NAVI_CTRL, B_CUT)
-    c.SetLayerKey(L_NAVI_CTRL, B_COPY)
-    v.SetLayerKey(L_NAVI_CTRL, B_PASTE)
-    b.SetLayerKey(L_NAVI_CTRL, B_UNDO)
-    y.SetLayerKey(L_NAVI_CTRL, B_UNDO)
-    u.SetLayerKey(L_NAVI_CTRL, B_BS)
-    i.SetLayerKey(L_NAVI_CTRL, B_UP)
-    o.SetLayerKey(L_NAVI_CTRL, B_PGUP)
-    p.SetLayerKey(L_NAVI_CTRL, B_PGDN)
-    at.SetLayerKey(L_NAVI_CTRL, B_CHOME)
-    openbracket.SetLayerKey(L_NAVI_CTRL, B_CEND)
-    h.SetLayerKey(L_NAVI_CTRL, B_HOME)
-    j.SetLayerKey(L_NAVI_CTRL, B_LEFT)
-    k.SetLayerKey(L_NAVI_CTRL, B_DOWN)
-    l.SetLayerKey(L_NAVI_CTRL, B_RIGHT)
-    semicolon.SetLayerKey(L_NAVI_CTRL, B_ENTER)
-    closebracket.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
-    n.SetLayerKey(L_NAVI_CTRL, B_END)
-    m.SetLayerKey(L_NAVI_CTRL, B_DEL)
-    comma.SetLayerKey(L_NAVI_CTRL, B_CLEFT)
-    period.SetLayerKey(L_NAVI_CTRL, B_CRIGHT)
-    slash.SetLayerKey(L_NAVI_CTRL, "^+{sc07D}")
-    enter.SetLayerKey(L_NAVI_CTRL, "{Blind}^{Enter}")
-    a.SetLayerKey(L_NAVI_CTRL, "{Blind}^a")
+    k1.SetLayerKey(mode, L_NAVI_CTRL, B_F1)
+    k2.SetLayerKey(mode, L_NAVI_CTRL, B_F2)
+    k3.SetLayerKey(mode, L_NAVI_CTRL, B_F3)
+    k4.SetLayerKey(mode, L_NAVI_CTRL, B_F4)
+    k5.SetLayerKey(mode, L_NAVI_CTRL, B_F5)
+    k6.SetLayerKey(mode, L_NAVI_CTRL, B_F6)
+    k7.SetLayerKey(mode, L_NAVI_CTRL, B_F7)
+    k8.SetLayerKey(mode, L_NAVI_CTRL, B_F8)
+    k9.SetLayerKey(mode, L_NAVI_CTRL, B_F9)
+    k0.SetLayerKey(mode, L_NAVI_CTRL, B_F10)
+    minus.SetLayerKey(mode, L_NAVI_CTRL, B_F11)
+    hat.SetLayerKey(mode, L_NAVI_CTRL, B_F12)
+    yen.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
+    z.SetLayerKey(mode, L_NAVI_CTRL, B_UNDO)
+    x.SetLayerKey(mode, L_NAVI_CTRL, B_CUT)
+    c.SetLayerKey(mode, L_NAVI_CTRL, B_COPY)
+    v.SetLayerKey(mode, L_NAVI_CTRL, B_PASTE)
+    b.SetLayerKey(mode, L_NAVI_CTRL, B_UNDO)
+    y.SetLayerKey(mode, L_NAVI_CTRL, B_UNDO)
+    u.SetLayerKey(mode, L_NAVI_CTRL, B_BS)
+    i.SetLayerKey(mode, L_NAVI_CTRL, B_UP)
+    o.SetLayerKey(mode, L_NAVI_CTRL, B_PGUP)
+    p.SetLayerKey(mode, L_NAVI_CTRL, B_PGDN)
+    at.SetLayerKey(mode, L_NAVI_CTRL, B_CHOME)
+    openbracket.SetLayerKey(mode, L_NAVI_CTRL, B_CEND)
+    h.SetLayerKey(mode, L_NAVI_CTRL, B_HOME)
+    j.SetLayerKey(mode, L_NAVI_CTRL, B_LEFT)
+    k.SetLayerKey(mode, L_NAVI_CTRL, B_DOWN)
+    l.SetLayerKey(mode, L_NAVI_CTRL, B_RIGHT)
+    semicolon.SetLayerKey(mode, L_NAVI_CTRL, B_ENTER)
+    closebracket.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
+    n.SetLayerKey(mode, L_NAVI_CTRL, B_END)
+    m.SetLayerKey(mode, L_NAVI_CTRL, B_DEL)
+    comma.SetLayerKey(mode, L_NAVI_CTRL, B_CLEFT)
+    period.SetLayerKey(mode, L_NAVI_CTRL, B_CRIGHT)
+    slash.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
+    enter.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}^{Enter}")
+    a.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}^a")
 
     ; L_SYMBOL_NUM
-    k1.SetLayerKey(L_SYMBOL_NUM, B_F1)
-    k2.SetLayerKey(L_SYMBOL_NUM, B_F2)
-    k3.SetLayerKey(L_SYMBOL_NUM, B_F3)
-    k4.SetLayerKey(L_SYMBOL_NUM, B_F4)
-    k5.SetLayerKey(L_SYMBOL_NUM, B_F5)
-    k6.SetLayerKey(L_SYMBOL_NUM, B_F6)
-    k7.SetLayerKey(L_SYMBOL_NUM, B_F7)
-    k8.SetLayerKey(L_SYMBOL_NUM, B_F8)
-    k9.SetLayerKey(L_SYMBOL_NUM, B_F9)
-    k0.SetLayerKey(L_SYMBOL_NUM, B_F10)
-    minus.SetLayerKey(L_SYMBOL_NUM, B_F11)
-    hat.SetLayerKey(L_SYMBOL_NUM, B_F12)
-    q.SetLayerKey(L_SYMBOL_NUM, "?")
-    w.SetLayerKey(L_SYMBOL_NUM, "{Blind}/")
-    e.SetLayerKey(L_SYMBOL_NUM, B_NMUL)
-    r.SetLayerKey(L_SYMBOL_NUM, B_NADD)
-    t.SetLayerKey(L_SYMBOL_NUM, "+F3")
-    a.SetLayerKey(L_SYMBOL_NUM, "(")
-    s.SetLayerKey(L_SYMBOL_NUM, ")")
-    d.SetLayerKey(L_SYMBOL_NUM, "_")
-    f.SetLayerKey(L_SYMBOL_NUM, "{Blind}-")
-    g.SetLayerKey(L_SYMBOL_NUM, "=")
-    y.SetLayerKey(L_SYMBOL_NUM, B_BS)
-    u.SetLayerKey(L_SYMBOL_NUM, C_N7)
-    i.SetLayerKey(L_SYMBOL_NUM, C_N8)
-    o.SetLayerKey(L_SYMBOL_NUM, C_N9)
-    p.SetLayerKey(L_SYMBOL_NUM, "+^p")
-    h.SetLayerKey(L_SYMBOL_NUM, "=")
-    j.SetLayerKey(L_SYMBOL_NUM, C_N0)
-    k.SetLayerKey(L_SYMBOL_NUM, C_N1)
-    l.SetLayerKey(L_SYMBOL_NUM, C_N2)
-    semicolon.SetLayerKey(L_SYMBOL_NUM, B_ENTER)
-    n.SetLayerKey(L_SYMBOL_NUM, "+3")
-    m.SetLayerKey(L_SYMBOL_NUM, C_N3)
-    comma.SetLayerKey(L_SYMBOL_NUM, C_N4)
-    period.SetLayerKey(L_SYMBOL_NUM, C_N5)
-    slash.SetLayerKey(L_SYMBOL_NUM, C_N6)
-    z.SetLayerKey(L_SYMBOL_NUM, "[")
-    x.SetLayerKey(L_SYMBOL_NUM, "]")
-    c.SetLayerKey(L_SYMBOL_NUM, "+[")
-    v.SetLayerKey(L_SYMBOL_NUM, "+]")
-    b.SetLayerKey(L_SYMBOL_NUM, C_BACKSLASH)
-    space.SetLayerKey(L_SYMBOL_NUM, B_BS)
+    k1.SetLayerKey(mode, L_SYMBOL_NUM, B_F1)
+    k2.SetLayerKey(mode, L_SYMBOL_NUM, B_F2)
+    k3.SetLayerKey(mode, L_SYMBOL_NUM, B_F3)
+    k4.SetLayerKey(mode, L_SYMBOL_NUM, B_F4)
+    k5.SetLayerKey(mode, L_SYMBOL_NUM, B_F5)
+    k6.SetLayerKey(mode, L_SYMBOL_NUM, B_F6)
+    k7.SetLayerKey(mode, L_SYMBOL_NUM, B_F7)
+    k8.SetLayerKey(mode, L_SYMBOL_NUM, B_F8)
+    k9.SetLayerKey(mode, L_SYMBOL_NUM, B_F9)
+    k0.SetLayerKey(mode, L_SYMBOL_NUM, B_F10)
+    minus.SetLayerKey(mode, L_SYMBOL_NUM, B_F11)
+    hat.SetLayerKey(mode, L_SYMBOL_NUM, B_F12)
+    q.SetLayerKey(mode, L_SYMBOL_NUM, "?")
+    w.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}/")
+    e.SetLayerKey(mode, L_SYMBOL_NUM, B_NMUL)
+    r.SetLayerKey(mode, L_SYMBOL_NUM, B_NADD)
+    t.SetLayerKey(mode, L_SYMBOL_NUM, "+F3")
+    a.SetLayerKey(mode, L_SYMBOL_NUM, "(")
+    s.SetLayerKey(mode, L_SYMBOL_NUM, ")")
+    d.SetLayerKey(mode, L_SYMBOL_NUM, "_")
+    f.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}-")
+    g.SetLayerKey(mode, L_SYMBOL_NUM, "=")
+    y.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
+    u.SetLayerKey(mode, L_SYMBOL_NUM, C_N7)
+    i.SetLayerKey(mode, L_SYMBOL_NUM, C_N8)
+    o.SetLayerKey(mode, L_SYMBOL_NUM, C_N9)
+    p.SetLayerKey(mode, L_SYMBOL_NUM, "+^p")
+    h.SetLayerKey(mode, L_SYMBOL_NUM, "=")
+    j.SetLayerKey(mode, L_SYMBOL_NUM, C_N0)
+    k.SetLayerKey(mode, L_SYMBOL_NUM, C_N1)
+    l.SetLayerKey(mode, L_SYMBOL_NUM, C_N2)
+    semicolon.SetLayerKey(mode, L_SYMBOL_NUM, B_ENTER)
+    n.SetLayerKey(mode, L_SYMBOL_NUM, "+3")
+    m.SetLayerKey(mode, L_SYMBOL_NUM, C_N3)
+    comma.SetLayerKey(mode, L_SYMBOL_NUM, C_N4)
+    period.SetLayerKey(mode, L_SYMBOL_NUM, C_N5)
+    slash.SetLayerKey(mode, L_SYMBOL_NUM, C_N6)
+    z.SetLayerKey(mode, L_SYMBOL_NUM, "[")
+    x.SetLayerKey(mode, L_SYMBOL_NUM, "]")
+    c.SetLayerKey(mode, L_SYMBOL_NUM, "+[")
+    v.SetLayerKey(mode, L_SYMBOL_NUM, "+]")
+    b.SetLayerKey(mode, L_SYMBOL_NUM, C_BACKSLASH)
+    space.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
 
     ; L_SYMBOL1
-    k1.SetLayerKey(L_SYMBOL1, B_F1)
-    k2.SetLayerKey(L_SYMBOL1, B_F2)
-    k3.SetLayerKey(L_SYMBOL1, B_F3)
-    k4.SetLayerKey(L_SYMBOL1, B_F4)
-    k5.SetLayerKey(L_SYMBOL1, B_F5)
-    k6.SetLayerKey(L_SYMBOL1, B_F6)
-    k7.SetLayerKey(L_SYMBOL1, B_F7)
-    k8.SetLayerKey(L_SYMBOL1, B_F8)
-    k9.SetLayerKey(L_SYMBOL1, B_F9)
-    k0.SetLayerKey(L_SYMBOL1, B_F10)
-    minus.SetLayerKey(L_SYMBOL1, B_F11)
-    hat.SetLayerKey(L_SYMBOL1, B_F12)
-    q.SetLayerKey(L_SYMBOL1, "?")
-    w.SetLayerKey(L_SYMBOL1, "{Blind}/")
-    e.SetLayerKey(L_SYMBOL1, B_NMUL)
-    r.SetLayerKey(L_SYMBOL1, B_NADD)
-    t.SetLayerKey(L_SYMBOL1, "+F3")
-    a.SetLayerKey(L_SYMBOL1, "(")
-    s.SetLayerKey(L_SYMBOL1, ")")
-    d.SetLayerKey(L_SYMBOL1, "_")
-    f.SetLayerKey(L_SYMBOL1, "{Blind}-")
-    g.SetLayerKey(L_SYMBOL1, "=")
-    y.SetLayerKey(L_SYMBOL1, B_BS)
-    u.SetLayerKey(L_SYMBOL1, C_N7)
-    i.SetLayerKey(L_SYMBOL1, C_N8)
-    o.SetLayerKey(L_SYMBOL1, C_N9)
-    p.SetLayerKey(L_SYMBOL1, "+^p")
-    h.SetLayerKey(L_SYMBOL1, "=")
-    j.SetLayerKey(L_SYMBOL1, C_N0)
-    k.SetLayerKey(L_SYMBOL1, C_N1)
-    l.SetLayerKey(L_SYMBOL1, C_N2)
-    semicolon.SetLayerKey(L_SYMBOL1, B_ENTER)
-    n.SetLayerKey(L_SYMBOL1, "+3")
-    m.SetLayerKey(L_SYMBOL1, C_N3)
-    comma.SetLayerKey(L_SYMBOL1, C_N4)
-    period.SetLayerKey(L_SYMBOL1, C_N5)
-    slash.SetLayerKey(L_SYMBOL1, C_N6)
-    z.SetLayerKey(L_SYMBOL1, "+[")
-    x.SetLayerKey(L_SYMBOL1, "+]")
-    c.SetLayerKey(L_SYMBOL1, "[")
-    v.SetLayerKey(L_SYMBOL1, "]")
-    b.SetLayerKey(L_SYMBOL1, C_BACKSLASH)
-    space.SetLayerKey(L_SYMBOL1, C_BS)
+    k1.SetLayerKey(mode, L_SYMBOL1, B_F1)
+    k2.SetLayerKey(mode, L_SYMBOL1, B_F2)
+    k3.SetLayerKey(mode, L_SYMBOL1, B_F3)
+    k4.SetLayerKey(mode, L_SYMBOL1, B_F4)
+    k5.SetLayerKey(mode, L_SYMBOL1, B_F5)
+    k6.SetLayerKey(mode, L_SYMBOL1, B_F6)
+    k7.SetLayerKey(mode, L_SYMBOL1, B_F7)
+    k8.SetLayerKey(mode, L_SYMBOL1, B_F8)
+    k9.SetLayerKey(mode, L_SYMBOL1, B_F9)
+    k0.SetLayerKey(mode, L_SYMBOL1, B_F10)
+    minus.SetLayerKey(mode, L_SYMBOL1, B_F11)
+    hat.SetLayerKey(mode, L_SYMBOL1, B_F12)
+    q.SetLayerKey(mode, L_SYMBOL1, "?")
+    w.SetLayerKey(mode, L_SYMBOL1, "{Blind}/")
+    e.SetLayerKey(mode, L_SYMBOL1, B_NMUL)
+    r.SetLayerKey(mode, L_SYMBOL1, B_NADD)
+    t.SetLayerKey(mode, L_SYMBOL1, "+F3")
+    a.SetLayerKey(mode, L_SYMBOL1, "(")
+    s.SetLayerKey(mode, L_SYMBOL1, ")")
+    d.SetLayerKey(mode, L_SYMBOL1, "_")
+    f.SetLayerKey(mode, L_SYMBOL1, "{Blind}-")
+    g.SetLayerKey(mode, L_SYMBOL1, "=")
+    y.SetLayerKey(mode, L_SYMBOL1, B_BS)
+    u.SetLayerKey(mode, L_SYMBOL1, C_N7)
+    i.SetLayerKey(mode, L_SYMBOL1, C_N8)
+    o.SetLayerKey(mode, L_SYMBOL1, C_N9)
+    p.SetLayerKey(mode, L_SYMBOL1, "+^p")
+    h.SetLayerKey(mode, L_SYMBOL1, "=")
+    j.SetLayerKey(mode, L_SYMBOL1, C_N0)
+    k.SetLayerKey(mode, L_SYMBOL1, C_N1)
+    l.SetLayerKey(mode, L_SYMBOL1, C_N2)
+    semicolon.SetLayerKey(mode, L_SYMBOL1, B_ENTER)
+    n.SetLayerKey(mode, L_SYMBOL1, "+3")
+    m.SetLayerKey(mode, L_SYMBOL1, C_N3)
+    comma.SetLayerKey(mode, L_SYMBOL1, C_N4)
+    period.SetLayerKey(mode, L_SYMBOL1, C_N5)
+    slash.SetLayerKey(mode, L_SYMBOL1, C_N6)
+    z.SetLayerKey(mode, L_SYMBOL1, "+[")
+    x.SetLayerKey(mode, L_SYMBOL1, "+]")
+    c.SetLayerKey(mode, L_SYMBOL1, "[")
+    v.SetLayerKey(mode, L_SYMBOL1, "]")
+    b.SetLayerKey(mode, L_SYMBOL1, C_BACKSLASH)
+    space.SetLayerKey(mode, L_SYMBOL1, C_BS)
 
     ; L_NUMPAD
-    k6.SetLayerKey(L_NUMPAD, "{Escape}")
-    t.SetLayerKey(L_NUMPAD, B_NADD)
-    a.SetLayerKey(L_NUMPAD, "(")
-    s.SetLayerKey(L_NUMPAD, ")")
-    f.SetLayerKey(L_NUMPAD, "-")
-    g.SetLayerKey(L_NUMPAD, "=")
-    k7.SetLayerKey(L_NUMPAD, C_N7)
-    k8.SetLayerKey(L_NUMPAD, C_N8)
-    k9.SetLayerKey(L_NUMPAD, C_N9)
-    k0.SetLayerKey(L_NUMPAD, B_NMUL)
-    minus.SetLayerKey(L_NUMPAD, B_NSUB)
-    hat.SetLayerKey(L_NUMPAD, C_HAT)
-    yen.SetLayerKey(L_NUMPAD, "\")
-    y.SetLayerKey(L_NUMPAD, C_BS)
-    u.SetLayerKey(L_NUMPAD, C_N4)
-    i.SetLayerKey(L_NUMPAD, C_N5)
-    o.SetLayerKey(L_NUMPAD, C_N6)
-    p.SetLayerKey(L_NUMPAD, B_NADD)
-    at.SetLayerKey(L_NUMPAD, B_UP)
-    h.SetLayerKey(L_NUMPAD, "=")
-    j.SetLayerKey(L_NUMPAD, C_N1)
-    k.SetLayerKey(L_NUMPAD, C_N2)
-    l.SetLayerKey(L_NUMPAD, C_N3)
-    semicolon.SetLayerKey(L_NUMPAD, B_LEFT)
-    colon.SetLayerKey(L_NUMPAD, B_DOWN)
-    closebracket.SetLayerKey(L_NUMPAD, B_RIGHT)
-    n.SetLayerKey(L_NUMPAD, C_DEL)
+    k6.SetLayerKey(mode, L_NUMPAD, "{Escape}")
+    t.SetLayerKey(mode, L_NUMPAD, B_NADD)
+    a.SetLayerKey(mode, L_NUMPAD, "(")
+    s.SetLayerKey(mode, L_NUMPAD, ")")
+    f.SetLayerKey(mode, L_NUMPAD, "-")
+    g.SetLayerKey(mode, L_NUMPAD, "=")
+    k7.SetLayerKey(mode, L_NUMPAD, C_N7)
+    k8.SetLayerKey(mode, L_NUMPAD, C_N8)
+    k9.SetLayerKey(mode, L_NUMPAD, C_N9)
+    k0.SetLayerKey(mode, L_NUMPAD, B_NMUL)
+    minus.SetLayerKey(mode, L_NUMPAD, B_NSUB)
+    hat.SetLayerKey(mode, L_NUMPAD, C_HAT)
+    yen.SetLayerKey(mode, L_NUMPAD, "\")
+    y.SetLayerKey(mode, L_NUMPAD, C_BS)
+    u.SetLayerKey(mode, L_NUMPAD, C_N4)
+    i.SetLayerKey(mode, L_NUMPAD, C_N5)
+    o.SetLayerKey(mode, L_NUMPAD, C_N6)
+    p.SetLayerKey(mode, L_NUMPAD, B_NADD)
+    at.SetLayerKey(mode, L_NUMPAD, B_UP)
+    h.SetLayerKey(mode, L_NUMPAD, "=")
+    j.SetLayerKey(mode, L_NUMPAD, C_N1)
+    k.SetLayerKey(mode, L_NUMPAD, C_N2)
+    l.SetLayerKey(mode, L_NUMPAD, C_N3)
+    semicolon.SetLayerKey(mode, L_NUMPAD, B_LEFT)
+    colon.SetLayerKey(mode, L_NUMPAD, B_DOWN)
+    closebracket.SetLayerKey(mode, L_NUMPAD, B_RIGHT)
+    n.SetLayerKey(mode, L_NUMPAD, C_DEL)
 
     ; L_SYMBOL2
-    q.SetLayerKey(L_SYMBOL2, "+1")
-    w.SetLayerKey(L_SYMBOL2, "+2")
-    e.SetLayerKey(L_SYMBOL2, "+3")
-    r.SetLayerKey(L_SYMBOL2, "+4")
-    t.SetLayerKey(L_SYMBOL2, "+5")
-    a.SetLayerKey(L_SYMBOL2, "+6")
-    s.SetLayerKey(L_SYMBOL2, "+7")
-    d.SetLayerKey(L_SYMBOL2, C_HAT)
-    g.SetLayerKey(L_SYMBOL2, "+@")
-    z.SetLayerKey(L_SYMBOL2, "~")
-    x.SetLayerKey(L_SYMBOL2, "@")
-    c.SetLayerKey(L_SYMBOL2, ":")
-    v.SetLayerKey(L_SYMBOL2, "|")
-    b.SetLayerKey(L_SYMBOL2, "\")
+    q.SetLayerKey(mode, L_SYMBOL2, "+1")
+    w.SetLayerKey(mode, L_SYMBOL2, "+2")
+    e.SetLayerKey(mode, L_SYMBOL2, "+3")
+    r.SetLayerKey(mode, L_SYMBOL2, "+4")
+    t.SetLayerKey(mode, L_SYMBOL2, "+5")
+    a.SetLayerKey(mode, L_SYMBOL2, "+6")
+    s.SetLayerKey(mode, L_SYMBOL2, "+7")
+    d.SetLayerKey(mode, L_SYMBOL2, C_HAT)
+    g.SetLayerKey(mode, L_SYMBOL2, "+@")
+    z.SetLayerKey(mode, L_SYMBOL2, "~")
+    x.SetLayerKey(mode, L_SYMBOL2, "@")
+    c.SetLayerKey(mode, L_SYMBOL2, ":")
+    v.SetLayerKey(mode, L_SYMBOL2, "|")
+    b.SetLayerKey(mode, L_SYMBOL2, "\")
 
     ; L_SHIFT
-    k1.SetLayerKey(L_SHIFT, B_F1)
-    k2.SetLayerKey(L_SHIFT, B_F2)
-    k3.SetLayerKey(L_SHIFT, B_F3)
-    k4.SetLayerKey(L_SHIFT, B_F4)
-    k5.SetLayerKey(L_SHIFT, B_F5)
-    k6.SetLayerKey(L_SHIFT, B_F6)
-    k7.SetLayerKey(L_SHIFT, B_F7)
-    k8.SetLayerKey(L_SHIFT, B_F8)
-    k9.SetLayerKey(L_SHIFT, B_F9)
-    k0.SetLayerKey(L_SHIFT, B_F10)
-    minus.SetLayerKey(L_SHIFT, B_F11)
-    hat.SetLayerKey(L_SHIFT, B_F12)
-    colon.SetLayerKey(L_SHIFT, "+sc028")
-    closebracket.SetLayerKey(L_SHIFT, "+]")
+    k1.SetLayerKey(mode, L_SHIFT, B_F1)
+    k2.SetLayerKey(mode, L_SHIFT, B_F2)
+    k3.SetLayerKey(mode, L_SHIFT, B_F3)
+    k4.SetLayerKey(mode, L_SHIFT, B_F4)
+    k5.SetLayerKey(mode, L_SHIFT, B_F5)
+    k6.SetLayerKey(mode, L_SHIFT, B_F6)
+    k7.SetLayerKey(mode, L_SHIFT, B_F7)
+    k8.SetLayerKey(mode, L_SHIFT, B_F8)
+    k9.SetLayerKey(mode, L_SHIFT, B_F9)
+    k0.SetLayerKey(mode, L_SHIFT, B_F10)
+    minus.SetLayerKey(mode, L_SHIFT, B_F11)
+    hat.SetLayerKey(mode, L_SHIFT, B_F12)
+    colon.SetLayerKey(mode, L_SHIFT, "+sc028")
+    closebracket.SetLayerKey(mode, L_SHIFT, "+]")
 }
 
 StringToHex(str) {
