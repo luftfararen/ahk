@@ -366,17 +366,31 @@ QPC() {
     return (counter / g_freq) * 1000 ; ミリ秒単位に変換して返す
 }
 
+Wait(t) {
+    ; timeBeginPeriod(1) のおかげで、引数 t 通り（1ms単位）の精度で待てる
+    DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", t, "UInt", 0x04FF)
+}
+
 SleepX(t) {
     start_qpc := QPC()
 
-    ; 残り時間が15ms以上あるうちは、標準のSleepでCPUを完全に休ませる
-    while ((rem := t - (QPC() - start_qpc)) > 15) {
-        Sleep(1) ; 実際には10〜15ms待機される
+    ; 【フェーズ1：大きく休む（2ms以上の隙間があるとき）】
+    ; ターゲットの2ms手前までは、正確になった Wait() でCPUを完全に寝かせる
+    while ((rem := t - (QPC() - start_qpc)) > 2) {
+        ; 残り時間に応じた可変ウェイト（最大でも5msに抑えてキー入力を逃さない）
+        wait_time := (rem > 5) ? 5 : 1
+        Wait(wait_time)
+        Sleep(-1)
     }
 
-    ; 最後の仕上げ（15ms未満の細かい隙間）だけ、Sleep(0)の超高精度ループで埋める
+    ; 【フェーズ2：ミリ秒未満の極小の隙間を埋める】
+    ; 残り2ms未満になったら、Waitを使うと行き過ぎる可能性があるので、
+    ; Sleep(0) または SwitchToThread で他のプロセスに優しく譲りつつ、QPCで超高精度に時間を合わせる
     while (QPC() - start_qpc < t) {
-        Sleep(0)
+        ; Sleep(0) または DllCall("SwitchToThread") は、
+        ; タイマー解像度に関係なく、1タイムスライス（数マイクロ秒）だけタスクを譲る
+        DllCall("SwitchToThread")
+        Sleep(-1)
     }
 }
 
@@ -801,14 +815,14 @@ CreateKeyMap() {
     global LAYOUT_KEYS
     key_map := Map()
     for keyObj in LAYOUT_KEYS {
-        ; IME-ON 時のキー登録名をマップに追加
-        ; if keyObj.ime_key_text != "" && keyObj.ime_key_text != "{none}" {
-        ;     clean_name := DispStr(keyObj.ime_key_text)
-        ;     if clean_name != "" {
-        ;         key_map[clean_name] := keyObj
-        ;     }
-        ; }
-        ; IME-OFF 時のキー登録名もマップに追加（存在しない場合のみ）
+        ;IME - ON 時のキー登録名をマップに追加
+        if keyObj.ime_key_text != "" && keyObj.ime_key_text != "{none}" {
+            clean_name := DispStr(keyObj.ime_key_text)
+            if clean_name != "" {
+                key_map[clean_name] := keyObj
+            }
+        }
+        ;IME - OFF 時のキー登録名もマップに追加（存在しない場合のみ）
         if keyObj.key_text != "" && keyObj.key_text != "{none}" {
             clean_name := DispStr(keyObj.key_text)
             if clean_name != "" && !key_map.Has(clean_name) {
@@ -1916,30 +1930,30 @@ class RKey {
 モードは修飾キーの動作を規定。ここでは被修飾キーをメインキーと呼ぶ。
 
  [モード説明]
-・モード 0：リマップキー送信
+・モード0：リマップキー送信
 長押し判定を行わない標準的なリマップ。IME状態に応じて送信されるキーが変わる。
 キーリピートは有効 。
 
-・モード 1：短押し->リマップキー送信(down時)　長押し->シフト文字置換
+・モード1：短押し->リマップキー送信(down時)　長押し->シフト文字置換
 押し下げ時に即座にリマップキーを送信する。IME状態に応じて送信されるキーが変わる。
 一定時間以上の長押しされていた場合、送信済みの文字を Backspace で消去し、
 Shift 版（または指定キー）を再送信して置換する。
 キーリピートは無効化される 。
 
-・モード 2：短押し、長押し->未送信(修飾キー利用)
+・モード2：短押し、長押し->未送信(修飾キー利用)
 押し下げ・離し時の出力を完全に抑制し、純粋なレイヤー切り替え等の修飾キーとして利用される。
 モードの違いを明確化するために、説明では、短押し、長押しという表現を使っているが、
 このモードにおいてはその区別はない。
 キーリピートは無効化される 。
 
-・モード 3：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
+・モード3：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用)
 down時に、scawの状態を保持。
 up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
 長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
 IME状態に依存しない。
 キーリピートは無効化される 。
 
-・モード 4：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用)
+・モード4：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用)
 押し下げ時に即座にリマップキーを送信する。
 キーリピートは無効化される以外は、モード 0 と同様の挙動。
 キーリピートは無効化される 。
@@ -1977,7 +1991,7 @@ IME状態に依存しない。
    └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
        [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーションの送信する。
 
- ・モード６：
+ ・モード6：
  【説明】
  モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐ
  Aキー: 先に押されるキー、通常キー送信後、修飾キーとなる
@@ -1991,7 +2005,6 @@ IME状態に依存しない。
 【パラメーター定義】
   - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
   - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
-  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
 
  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
  条件1: AキーDown(通常キー送信)後、十分な時間が経過してからBキーがDownされた場合
@@ -2044,6 +2057,42 @@ IME状態に依存しない。
    └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
        [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
                     が送信される。
+
+ ・モード8：
+ 【説明】
+ モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐバッファ付きTap-Hold)
+ Aキー: 先に押されるキー、通常キー送信後、修飾キーとなる
+ Bキー: 遅れて押されるキー、通常キー、または、修飾キーとのコンビネーションが送信される
+ モード7は、必ず、AキーのDown時に通常キー送信が行われる
+修飾キーとのコンビネーションでは、設定によってBackspace付きのキー送信を行っても良い。
+これにより、すでに送信されたAの通常キーをキャンセルする。
+モードの動作としては、自動でBackspace送信は行わない。
+キーリピートは無効化される 。
+
+【パラメーター定義】
+  - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
+  - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
+
+ 【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
+ 条件1: AキーDown(通常キー送信)後、十分な時間が経過してからBキーがDownされた場合
+ [判定基準] t >= Layers.hold_th
+ [アクション] 修飾キーのコンビネーションを送信する。
+
+ 条件2: AキーDown(通常キー送信)後、ごく短時間（バッファ未満）でBキーがDownされた場合
+ [判定基準] t < (Layers.hold_th - b_time)
+ [アクション] Bの通常キー送信する（Down時確定）。
+
+ 条件3: AキーDown(通常キー送信)後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
+ [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
+ [アクション] BキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 3-A: Aキーが先にUp（短押し）された場合
+   │   [アクション] Bの通常キーを送信する。
+   ├─ ケース 3-B: AキーはHoldのまま、先にBキーがUpされた場合
+   │   [アクション] 修飾キーのコンビネーションが送信される。
+   └─ ケース 3-C: 両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
+       [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
+                    が送信される。
 
 ---
 ■ 共通仕様および制約
@@ -2808,6 +2857,7 @@ class Layers {
 
                     if (mod_hold_mode == 6) {
                         if (t_qpc >= x) {
+                            mod_key.state := LKey.st_processed
                             is_held := true
                         } else {
                             ; t < x: Pend decision and monitor key states
@@ -2822,16 +2872,22 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                t := QPC() - mod_key.pressed_time_qpc
+                                if (t >= x) {
                                     ; Case 2-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    mod_key.state := LKey.st_processed
                                     is_held := true
                                     break
                                 }
+                                ;SleepX(t > 5 ? 5 : t)
                                 Sleep(-1)
+                                DllCall("SwitchToThread")
+
                             }
                         }
                     } else if (mod_hold_mode == 7) {
                         if (t_qpc >= x) {
+                            mod_key.state := LKey.st_processed
                             is_held := true
                         } else if (t_qpc < x - Layers.b_time) {
                             is_held := false
@@ -2851,14 +2907,18 @@ class Layers {
                                 }
                                 if (QPC() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    mod_key.state := LKey.st_processed
                                     is_held := true
                                     break
                                 }
+                                ;SleepX(t > 5 ? 5 : t)
                                 Sleep(-1)
+                                DllCall("SwitchToThread")
                             }
                         }
                     } else if (mod_hold_mode == 8) {
                         if (t_qpc >= x) {
+                            mod_key.state := LKey.st_processed
                             is_held := true
                         } else if (t_qpc < x - Layers.b_time) {
                             is_held := false
@@ -2873,15 +2933,18 @@ class Layers {
                                 }
                                 if !key_obj.IsPressed() {
                                     ; Case 3-B: Main key released first -> Send combination
+                                    mod_key.state := LKey.st_processed
                                     is_held := true
                                     break
                                 }
                                 if (QPC() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    mod_key.state := LKey.st_processed
                                     is_held := true
                                     break
                                 }
                                 Sleep(-1)
+                                DllCall("SwitchToThread")
                             }
                         }
                     } else if (mod_hold_mode == 5) {
@@ -2923,6 +2986,7 @@ class Layers {
                                     break
                                 }
                                 Sleep(-1)
+                                DllCall("SwitchToThread")
                             }
                         }
                     } else {
@@ -2963,30 +3027,6 @@ class Layers {
 }
 
 /**
- * IME ON 時の特定キーの同時押し（コンビネーション）とその動作モードを登録します。
- * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
- * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
- * @param {String} text - 送信するキーアクション定義
- * @param {Integer} [mode=4] - 設定する長押し動作モード
- */
-RegistIMECombination(layer_key_obj, key_obj, text, mode := 4) {
-    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text)
-    layer_key_obj.SetMode(-1, mode)
-}
-
-/**
- * IME OFF 時の特定キーの同時押し（コンビネーション）とその動作モードを登録します。
- * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
- * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
- * @param {String} text - 送信するキーアクション定義
- * @param {Integer} [mode=4] - 設定する長押し動作モード
- */
-RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
-    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, false)
-    layer_key_obj.SetMode(mode, -1)
-}
-
-/**
  * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
  * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
  * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
@@ -2994,6 +3034,11 @@ RegistCombination(layer_key_obj, key_obj, text, mode := 4) {
  * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
  */
 RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", text3 := "", mode := 7) {
+    key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2, text3)
+    layer_key_obj.SetMode(-1, mode)
+}
+
+RegistIMECombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     key_obj.SetLayerImeKey(Layers.Index(layer_key_obj), text, text2, text3)
     layer_key_obj.SetMode(-1, mode)
 }
@@ -3007,6 +3052,11 @@ RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", text3 := "", mo
  */
 RegistCombination2(layer_key_obj, key_obj, text, text2 := "") {
     key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, text2)
+}
+
+RegistCombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
+    key_obj.SetLayerKey(Layers.Index(layer_key_obj), text, text2, text3)
+    layer_key_obj.SetMode(mode, -1)
 }
 
 /**
@@ -3240,9 +3290,9 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
 
                     if (layer_obj && target_obj) {
                         if is_ime
-                            RegistIMECombination(layer_obj, target_obj, val, 7)
+                            RegistIMECombination3(7, layer_obj, target_obj, val)
                         else
-                            RegistCombination(layer_obj, target_obj, val, 7)
+                            RegistCombination3(7, layer_obj, target_obj, val)
                     }
                 }
             }
@@ -3707,7 +3757,7 @@ ChangeMinatoLayoutImpl() {
     ;slash.SetImeKey("f")
 
     rm := CreateKeyMap()
-    SetLKeyMode(-1, 7)
+    SetLKeyMode(-1, 6)
 
     static target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
@@ -3727,12 +3777,12 @@ ChangeMinatoLayoutImpl() {
     ; RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     ; RegistIMECombination2(k, j, "{BS}{BS}", "{BS}") ;
 
+    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
     RegistIMECombination2(rm["o"], j, "u") ;
     RegistIMECombination2(rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
     RegistIMECombination2(rm["s"], rm["t"], "ite", "{BS}ta") ;して
     RegistIMECombination2(rm["s"], r, "areru") ;される
     RegistIMECombination2(rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination2(rm["k"], rm["t"], "oto") ;こと
     RegistIMECombination2(z, v, "youhou") ;
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination2(rm["u"], u, "{BS}{BS}", "{BS}") ;
@@ -3790,11 +3840,11 @@ ChangeFMIX13f2_minato_Layout() {
         keyObj.SetMode(0, -1)
     }
 
-    RegistCombination(f, d, "h", 4) ;th
-    RegistCombination(f, e, "e", 4) ;te
-    RegistCombination(e, r, "{Backspace}er", 4) ;er
-    RegistCombination(r, e, "{Backspace}re", 4) ;re
-    RegistCombination(s, e, "e", 4) ;se
+    RegistCombination3(4, f, d, "h") ;th
+    RegistCombination3(4, f, e, "e") ;te
+    RegistCombination3(4, e, r, "{Backspace}er") ;er
+    RegistCombination3(4, r, e, "{Backspace}re") ;re
+    RegistCombination3(4, s, e, "e") ;se
 
     ChangeMinatoLayoutImpl()
     InitModLayer()
@@ -4097,6 +4147,8 @@ OpenConfigEditor(*) {
 Init() {
     g_freq := QueryFrequency()
     start_qpc := QPC()
+
+    DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()
