@@ -58,7 +58,7 @@
 ProcessSetPriority "High" ; 最高の応答性を確保するため優先度を高に設定
 SetKeyDelay(15, 5)
 ListLines 0
-SendMode "Input" ; 速度と信頼性のため "Input" モードを使用
+SendMode "Event" ; キー取りこぼし（レイヤーロック）を防ぐため "Event" モードを使用
 
 InstallKeybdHook true ; キーボードフックを常にインストール
 InstallMouseHook true ; マウスフックを常にインストール（MouseSpeedクラス用）
@@ -1009,6 +1009,7 @@ class KeyLogger {
             WriteConfig(String(this.max_log), "Settings", "MaxLog")
             WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
             WriteConfig(String(Layers.b_time), "Settings", "b_time")
+            WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
         } catch {
         }
     }
@@ -1618,6 +1619,17 @@ TimerEvent() {
 
     UpdateImeIndicator()
 
+    ; 5秒以上操作がない場合、修飾キーのスタック（レイヤーロック）を防止するために状態をリセット
+    ; static last_idle_reset := false
+    ; if (A_TimeIdlePhysical > 5000) {
+    ;     if (!last_idle_reset) {
+    ;         LKey.ResetAll()
+    ;         last_idle_reset := true
+    ;     }
+    ; } else {
+    ;     last_idle_reset := false
+    ; }
+
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
         KeyLogger.SaveIfIdle(A_TimeIdlePhysical)
@@ -2072,7 +2084,7 @@ IME状態に依存しない。
 【パラメーター定義】
   - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
   - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
-  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
+  - b_time2        : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
 
  【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
  条件1: AキーDown(通常キー送信)後、十分な時間が経過してからBキーがDownされた場合
@@ -2080,11 +2092,11 @@ IME状態に依存しない。
  [アクション] 修飾キーのコンビネーションを送信する。
 
  条件2: AキーDown(通常キー送信)後、ごく短時間（バッファ未満）でBキーがDownされた場合
- [判定基準] t < (Layers.hold_th - b_time)
+ [判定基準] t < (Layers.hold_th - b_time2)
  [アクション] Bの通常キー送信する（Down時確定）。
 
  条件3: AキーDown(通常キー送信)後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
- [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
+ [判定基準] (Layers.hold_th - b_time2) <= t < Layers.hold_th
  [アクション] BキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
    ├─ ケース 3-A: Aキーが先にUp（短押し）された場合
    │   [アクション] Bの通常キーを送信する。
@@ -2618,6 +2630,10 @@ LoadLayoutConfig() {
         } catch {
         }
         try {
+            Layers.b_time2 := Integer(ReadConfig("Settings", "b_time2", String(Layers.b_time2)))
+        } catch {
+        }
+        try {
             Layers.hold_th := Integer(ReadConfig("Settings", "LayerHoldTh", String(Layers.hold_th)))
         } catch {
         }
@@ -2671,6 +2687,7 @@ class Layers {
 
     static hold_th := 200
     static b_time := 50 ; 長押しと判定する閾値 (ms)
+    static b_time2 := 50 ; 長押しと判定する閾値 (ms)
 
     static last_active_item := ""
 
@@ -2920,10 +2937,10 @@ class Layers {
                         if (t_qpc >= x) {
                             mod_key.state := LKey.st_processed
                             is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
+                        } else if (t_qpc < x - Layers.b_time2) {
                             is_held := false
                         } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
+                            ; Grey zone: (x - Layers.b_time2) <= t < x
                             ; Pend decision and monitor key states
                             loop {
                                 if !mod_key.IsPressed() {
