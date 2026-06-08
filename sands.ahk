@@ -3041,31 +3041,9 @@ class Layers {
 
 }
 
-/**
- * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
- * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
- * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
- * @param {String} text - 1回目の押下時に送信するキーアクション定義
- * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
- */
-; RegistIMECombination2(layer_key_obj, key_obj, text, text2 := "", text3 := "", mode := 7) {
-;     key_obj.SetLayerImeKey(mode,Layers.Index(layer_key_obj), text, text2, text3, false, mode)
-; }
-
 RegistIMECombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     key_obj.SetLayerImeKey(mode, Layers.Index(layer_key_obj), text, text2, text3, false)
 }
-
-/**
- * IME ON 時の特定キーの同時押し（コンビネーション）で、1回目と2回目以降の連続打鍵アクションを登録します。
- * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
- * @param {Object} key_obj - 同時押しされるメインキーの LKey オブジェクト
- * @param {String} text - 1回目の押下時に送信するキーアクション定義
- * @param {String} [text2=""] - 2回目以降の連続押下時に送信するキーアクション定義
- */
-; RegistCombination2(layer_key_obj, key_obj, text, text2 := "") {
-;     key_obj.SetLayerKey(mode,Layers.Index(layer_key_obj), text, text2)
-; }
 
 RegistCombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     key_obj.SetLayerKey(mode, Layers.Index(layer_key_obj), text, text2, text3, True)
@@ -3846,6 +3824,7 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination3(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
     RegistIMECombination3(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination3(7, k, j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination3(7, rm["m"], v, "ono") ;
 
 }
 
