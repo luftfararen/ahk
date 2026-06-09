@@ -614,7 +614,7 @@ FlipMap(originalMap) {
  * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
  */
 IsSingleBraceText(text) {
-    return RegExMatch(text, "^\\{[^\\{\}]+\\}$")
+    return RegExMatch(text, "^\{[^{}]+\}$")
 }
 
 /**
