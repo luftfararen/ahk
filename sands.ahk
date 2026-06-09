@@ -18,7 +18,7 @@
 ;    を動的に変更する関数。
 ; 6. IME制御: IMEの状態を取得、設定、切り替える関数。
 ; 7. マウス速度制御: ホットキーを使用してシステムのマウス速度を調整するクラス。
-; 8. KeyLogger: タイピングの統計（3キーシーケンス（トリグラム）の出現頻度と
+; 8. TypeAnalyzer: タイピングの統計（3キーシーケンス（トリグラム）の出現頻度と
 ;    打鍵間隔）を記録します。各配列の効率分析や、自身のタイピング傾向の把握に
 ;    活用できます。
 ; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
@@ -58,7 +58,8 @@
 ProcessSetPriority "High" ; 最高の応答性を確保するため優先度を高に設定
 SetKeyDelay(15, 5)
 ListLines 0
-SendMode "Event" ; キー取りこぼし（レイヤーロック）を防ぐため "Event" モードを使用
+SendMode "Input" ; AHK v2 推奨のデフォルト送信モード
+;SendMode "Event" ; キー取りこぼし（レイヤーロック）を防ぐため "Event" モードを使用
 
 InstallKeybdHook true ; キーボードフックを常にインストール
 InstallMouseHook true ; マウスフックを常にインストール（MouseSpeedクラス用）
@@ -347,7 +348,7 @@ IsKeyPressedRaw(vk) {
  */
 QueryFrequency() {
     freq := 0
-    DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq, "Int")
     return freq
     ;return 1000
 }
@@ -358,7 +359,7 @@ QueryFrequency() {
  */
 QueryCounter() {
     tick := 0
-    DllCall("QueryPerformanceCounter", "Int64*", &tick)
+    DllCall("QueryPerformanceCounter", "Int64*", &tick, "Int")
     return tick
     ;return A_TickCount
 }
@@ -371,7 +372,7 @@ g_freq := QueryFrequency()
 QPC() {
     ; static freq := 0
     ; if (!freq)
-    ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+    ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq, "Int")
     ; counter := 0
     ; DllCall("QueryPerformanceCounter", "Int64*", &counter)
     ; return (counter / freq) * 1000 ; ミリ秒単位に変換して返す
@@ -387,7 +388,7 @@ QPC() {
  */
 Wait(t) {
     ; timeBeginPeriod(1) のおかげで、引数 t 通り（1ms単位）の精度で待てる
-    DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", t, "UInt", 0x04FF)
+    DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", t, "UInt", 0x04FF, "UInt")
 }
 
 /**
@@ -425,12 +426,12 @@ SleepX(t) {
 GetFocusedControlHandle() {
     static ptr_size := A_PtrSize
     static cb_size := 4 + 4 + (ptr_size * 6) + 16
-    static st_gti := Buffer(cb_size, 0)
+    st_gti := Buffer(cb_size, 0)
 
     hwnd := WinExist("A")
     if hwnd {
         NumPut("UInt", cb_size, st_gti, 0)
-        if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti) {
+        if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti, "Int") {
             hwnd := NumGet(st_gti, 8 + ptr_size, "Ptr")
         }
     }
@@ -453,7 +454,8 @@ SetImeStatus(hwnd, state) {
         , "Ptr", state
         , "UInt", 0x0002  ; SMTO_ABORTIFHUNG
         , "UInt", 50      ; 50ms timeout
-        , "Ptr*", &result)
+        , "Ptr*", &result
+        , "Ptr")
 }
 
 /**
@@ -558,8 +560,7 @@ class ImeState {
         default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
         ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
         DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
-            "UInt",
-            0x0002, "UInt", 50, "Ptr*", &state)
+            "UInt", 0x0002, "UInt", 50, "Ptr*", &state, "Ptr")
 
         ImeState.cached_state := (state != 0)
         ImeState.RecordCheck()
@@ -613,10 +614,7 @@ FlipMap(originalMap) {
  * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
  */
 IsSingleBraceText(text) {
-    return (StrLen(text) >= 3
-    && SubStr(text, 1, 1) = "{"
-    && SubStr(text, -1) = "}"
-    && !InStr(text, "{", false, 2))
+    return RegExMatch(text, "^\\{[^\\{\}]+\\}$")
 }
 
 /**
@@ -938,12 +936,12 @@ class LayoutString {
 /**
  * タイピングログ（トリグラム頻度、打鍵間隔など）を記録・集計・保存するクラスです。
  */
-class KeyLogger {
+class TypeAnalyzer {
 
     /**
      * 各キー配列ログアイテムの統計情報を保持する構造体クラス。
      */
-    class KeyLogItem {
+    class TAItem {
         count := 0
         count_d := 0
         duration12 := 0
@@ -991,7 +989,7 @@ class KeyLogger {
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
         this.SaveConfig()
-        ShowOSD("KeyLogger: " . (this.is_logging_enabled ? "ON" : "OFF"))
+        ShowOSD("TypeAnalyzer: " . (this.is_logging_enabled ? "ON" : "OFF"))
     }
 
     /**
@@ -1085,7 +1083,7 @@ class KeyLogger {
                         valStr := SubStr(line, pos + 3)
                         vals := StrSplit(valStr, " ")
 
-                        item := KeyLogger.KeyLogItem()
+                        item := TypeAnalyzer.TAItem()
                         item.count := Integer(vals[1])
                         if vals.Length >= 4 {
                             item.count_d := Integer(vals[2])
@@ -1200,7 +1198,7 @@ class KeyLogger {
 
             seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
             if !stats_map.Has(seq)
-                stats_map[seq] := KeyLogger.KeyLogItem()
+                stats_map[seq] := TypeAnalyzer.TAItem()
 
             item := stats_map[seq]
             item.count += 1
@@ -1232,7 +1230,7 @@ class KeyLogger {
 
             for seq, mid_item in mid_map {
                 if !full_map.Has(seq)
-                    full_map[seq] := KeyLogger.KeyLogItem()
+                    full_map[seq] := TypeAnalyzer.TAItem()
                 full_item := full_map[seq]
 
                 full_item.count += mid_item.count
@@ -1418,7 +1416,7 @@ SendAndLog(c) {
         return
     }
     Send(c)
-    KeyLogger.Log(c)
+    TypeAnalyzer.Log(c)
     ImeState.RecordActivity()
 }
 
@@ -1511,13 +1509,13 @@ class FontManager {
 
         ; 2. Windowsが実際に割り当てたフォント名を取得
         nameBuf := Buffer(512)
-        DllCall("GetTextFace", "Ptr", hdc, "Int", 256, "Ptr", nameBuf)
+        DllCall("GetTextFace", "Ptr", hdc, "Int", 256, "Ptr", nameBuf, "Int")
         actualName := StrGet(nameBuf)
 
         ; 3. 後処理
         DllCall("SelectObject", "Ptr", hdc, "Ptr", oldObj, "Ptr")
-        DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
-        DllCall("DeleteObject", "Ptr", hFont)
+        DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc, "Int")
+        DllCall("DeleteObject", "Ptr", hFont, "Int")
 
         ; 指定した名前と実際に当たった名前が一致するか（代替フォントでないか）
         return actualName = name
@@ -1596,7 +1594,7 @@ InitGUI() {
 UpdateImeIndicator(precise := False) {
     static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
 
-    if !KeyLogger.is_showing_ime_indicator {
+    if !TypeAnalyzer.is_showing_ime_indicator {
         if last_status != 0 {
             m_gui.Hide()
             last_status := 0
@@ -1666,14 +1664,14 @@ TimerEvent() {
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
-        KeyLogger.SaveIfIdle(A_TimeIdlePhysical)
+        TypeAnalyzer.SaveIfIdle(A_TimeIdlePhysical)
     }
 
     ; 10秒ごとにキーロガーの最大処理時間をリセットして一時的な遅延スパイクから復帰可能にする
     if (Mod(counter, 100) == 0) {
-        if KeyLogger.total_log_time > 0 {
-            KeyLogger.total_log_time2 := Max(KeyLogger.total_log_time2, KeyLogger.total_log_time)
-            KeyLogger.total_log_time := 0
+        if TypeAnalyzer.total_log_time > 0 {
+            TypeAnalyzer.total_log_time2 := Max(TypeAnalyzer.total_log_time2, TypeAnalyzer.total_log_time)
+            TypeAnalyzer.total_log_time := 0
         }
     }
 
@@ -1695,7 +1693,8 @@ class MouseSpeed {
      */
     static GetSpeed() {
         val := 0
-        DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0)
+        DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0, "Int"
+        )
         return val
     }
 
@@ -1711,7 +1710,7 @@ class MouseSpeed {
         } else if val > 20 {
             val := 20
         }
-        DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", val, "UInt", 0)
+        DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", val, "UInt", 0, "Int")
         ToolTip("MouseSpeed: " . val)
         SetTimer(ToolTip, -3000) ; ツールチップを3秒間表示する
         return val
@@ -3625,7 +3624,7 @@ ApplyLayerLayoutFromIni(layer_id, section) {
  */
 StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-", shift_layout := "",
     shift_num := "") {
-    KeyLogger.ChangeLayout(name)
+    TypeAnalyzer.ChangeLayout(name)
     if name != "" {
         try {
             WriteConfig(name, "Settings", "StartupLayout")
@@ -3650,7 +3649,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
  * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
  */
 StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
-    KeyLogger.ChangeLayout(name)
+    TypeAnalyzer.ChangeLayout(name)
     if name != "" {
         try {
             WriteConfig(name, "Settings", "StartupLayout")
@@ -3672,7 +3671,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,.
  */
 StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "") {
     ResetCombinations()
-    KeyLogger.SetLayoutName(name)
+    TypeAnalyzer.SetLayoutName(name)
     if name != "" {
         try {
             WriteConfig(name, "Settings", "StartupLayout")
@@ -3716,7 +3715,7 @@ MakeLayoutMap(layout_str := "") {
  * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
  */
 StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\", shift_layout := "") {
-    ;KeyLogger.ChangeLayout(name)
+    ;TypeAnalyzer.ChangeLayout(name)
     if name != "" {
         try {
             WriteConfig(name, "Settings", "StartupLayout")
@@ -3778,7 +3777,7 @@ StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
 ChangeQwertyLayout() {
     StoreLayout("Qwerty[Built-in]", "qwertyuiopasdfghjkl;zxcvbnm,./")
     ResetIME()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3787,7 +3786,7 @@ ChangeQwertyLayout() {
 ChangeOonishiLayout() {
     StoreLayout("Oonishi[Built-in]", "qlu,.fwrypeiao-ktnshzxcv;gdmjb", "1234567890/")
     ResetIME()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3796,7 +3795,7 @@ ChangeOonishiLayout() {
 ChangeColemakLayout() {
     StoreLayout("Colemak[Built-in]", "qwfpgjluy;arstdhneiozxcvbkm,./")
     ResetIME()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3805,7 +3804,7 @@ ChangeColemakLayout() {
 ChangeFMIX12f_Layout() {
     StoreLayout("FMIX12f[Built-in]", "qwfrkylup;asdtghneiozxcvbjm,./")
     ResetIME()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3822,7 +3821,7 @@ ChangeFMIX12f_FMIX13fR_Layout() {
     t.SetImeKey("f")
     d.SetImeKey("k")
 
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 /**
  * Changes layout to "FMIX14-FMIX14R".
@@ -3838,7 +3837,7 @@ ChangeFMIX14_FMIX14R_Layout() {
     t.SetImeKey("l")
     d.SetImeKey("k")
 
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3855,7 +3854,7 @@ ChangeFMIX13f_FMIX14fR_Layout() {
     t.SetImeKey("f")
     d.SetImeKey("k")
 
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3927,7 +3926,7 @@ ChangeMinatoLayoutImpl() {
 ChangeFMIX13_minato_Layout() {
     StoreLayout("FMIX13-Minato[Built-in]", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3937,7 +3936,7 @@ ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3958,7 +3957,7 @@ ChangeFMIX13f2_minato_Layout() {
 
     ChangeMinatoLayoutImpl()
     InitModLayer()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
@@ -3968,11 +3967,11 @@ ChangeFMIX13fie_minato_Layout() {
     StoreLayout("FMIX13fie-Minato[Built-in]", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
-    ShowOSD(KeyLogger.current_layout . " layout")
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 ; 終了・リロード時に保存
-OnExit((*) => (KeyLogger.Save(true), KeyLogger.SaveConfig()))
+OnExit((*) => (TypeAnalyzer.Save(true), TypeAnalyzer.SaveConfig()))
 
 /**
  * レイアウトに登録されているすべての長押し対応キーに対して動作モードを一括設定します。
@@ -4273,7 +4272,7 @@ Init() {
     g_freq := QueryFrequency()
     start_qpc := QPC()
 
-    DllCall("winmm\timeBeginPeriod", "UInt", 1)
+    DllCall("winmm\timeBeginPeriod", "UInt", 1, "UInt")
 
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()
@@ -4293,7 +4292,7 @@ Init() {
 
     ; 6. レイアウト設定・ログの読み込み
     LoadLayoutConfig()
-    KeyLogger.Load()
+    TypeAnalyzer.Load()
 
     ; 7. トレイメニューやUIの設定
     A_TrayMenu.Add() ; セパレータ
@@ -4308,7 +4307,7 @@ Init() {
     SetTimer(TimerEvent, 100)
 
     end_qpc := QPC()
-    ShowOSD(Format("{} layout(init:{:.1f}ms)", KeyLogger.current_layout, end_qpc - start_qpc), 5000)
+    ShowOSD(Format("{} layout(init:{:.1f}ms)", TypeAnalyzer.current_layout, end_qpc - start_qpc), 5000)
 }
 
 Init()
@@ -4323,8 +4322,8 @@ sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 *Enter:: enter.SendLayerKey(L_NAVI_CTRL) ; Enter -> Ctrl+Enter
 
 Esc:: {
-    KeyLogger.Save(true)
-    KeyLogger.SaveConfig()
+    TypeAnalyzer.Save(true)
+    TypeAnalyzer.SaveConfig()
     Reload()
 }
 
@@ -4361,8 +4360,8 @@ space:: ToggleImeState() ;Send(C_BS)
 #8:: LoadLayoutFromIni(8)
 #9:: LoadLayoutFromIni(9)
 #0:: LoadLayoutFromIni(0)
-#sc033:: KeyLogger.ToggleImeIndicator()
-#.:: KeyLogger.ToggleLogging()
+#sc033:: TypeAnalyzer.ToggleImeIndicator()
+#.:: TypeAnalyzer.ToggleLogging()
 #h:: ShowOSD("Help`n"
     . "Shift+全角/半角: 英数`n"
     . "Win+Alt+Enter: スクリプトの一時停止を切り替え`n"
