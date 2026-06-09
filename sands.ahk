@@ -327,6 +327,21 @@ IsPhysicalShiftPressed(key_obj) {
 }
 
 /**
+ * 指定された仮想キーコード（VK）のリアルタイムな物理押下状態を取得します（GetAsyncKeyStateの呼び出し）。
+ * @param {Integer} vk - 仮想キーコード
+ * @returns {Boolean} キーが物理的に押されている場合は true
+ */
+IsKeyPressedRaw(vk) {
+    ; user32.dll の GetAsyncKeyState を呼び出す
+    ; 戻り値の最上位ビット（16ビット目）が1なら「押されている」
+    shortState := DllCall("user32\GetAsyncKeyState", "Int", vk, "Short")
+
+    ; ビット演算で最上位ビットをチェック
+    ret := (shortState & 0x8000) != 0
+    return ret
+}
+
+/**
  * 高精度タイマーの周波数を取得します。
  * @returns {Int64} 周波数
  */
@@ -366,11 +381,19 @@ QPC() {
     return (counter / g_freq) * 1000 ; ミリ秒単位に変換して返す
 }
 
+/**
+ * 高精度な一時待機処理を行います（MsgWaitForMultipleObjectsの呼び出し）。
+ * @param {Integer} t - 待機時間 (ms)
+ */
 Wait(t) {
     ; timeBeginPeriod(1) のおかげで、引数 t 通り（1ms単位）の精度で待てる
     DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", t, "UInt", 0x04FF)
 }
 
+/**
+ * QPC高精度タイマーを利用した、ミリ秒未満の精度を持つビジーループと待機を組み合わせた高精度Sleep関数。
+ * @param {Integer} t - 待機時間 (ms)
+ */
 SleepX(t) {
     start_qpc := QPC()
 
@@ -764,6 +787,11 @@ ResolveKeyText(str) {
     return ResolveKeyText_Single(str)
 }
 
+/**
+ * 単一のキー記述文字列（例: "semicolon" や "a"）をスキャンコード形式に変換します。
+ * @param {String} str - キー記述文字列
+ * @returns {String} 解決されたスキャンコード、または元の文字列
+ */
 ResolveKeyText_Single(str) {
     ; 名前（semicolon等）から文字（;等）を取得
     c := CharFromStr(str)
@@ -1261,6 +1289,9 @@ class KeyLogger {
         }
     }
 
+    /**
+     * 統計情報を非同期的にファイルに書き込みます。
+     */
     static _SaveAsync() {
         this._Compaction()
 
@@ -1522,6 +1553,9 @@ ShowOSD(text, duration := 3000, key_close := False) {
             try my_gui.Destroy()
         }
 
+        /**
+         * すべての物理キーが離されている状態であるかチェックし、すべて離されていればOSDを閉じます。
+         */
         CheckNoKeys() {
             loop 255 {
                 if GetKeyState(Format("vk{:02X}", A_Index), "P")
@@ -2129,6 +2163,9 @@ class LKey extends RKey {
 
     static instances := []
 
+    /**
+     * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
+     */
     static ResetAll() {
         for inst in LKey.instances {
             inst.state := LKey.st_init
@@ -2153,6 +2190,7 @@ class LKey extends RKey {
      */
     __New(key, mode := 0, reg_key := "") {
         super.__New(key, reg_key)
+        this.vk := GetKeyVK(this.org_key_raw)
         this.layers := Layers()
         this.hold_mode_org := mode
         this.hold_mode_ime_org := mode
@@ -2173,10 +2211,21 @@ class LKey extends RKey {
             this.hold_mode_ime_org := ime_mode
     }
 
+    /**
+     * IME OFF 時の標準送信キーと、Shift押下時の送信キーを設定します。
+     * @param {String} key - 通常時の送信キー記述
+     * @param {String} [shift_key=""] - Shift押下時の送信キー記述
+     */
     SetKey(key, shift_key := "") {
         super.SetKey(key, shift_key)
     }
 
+    /**
+     * IME ON 時の送信キーと、Shift押下時の送信キー、および動作モードを設定します。
+     * @param {String} [ime_key=""] - IME ON 通常時の送信キー記述
+     * @param {String} [shift_ime_key=""] - IME ON Shift押下時の送信キー記述
+     * @param {Integer} [mode=-1] - 設定するホールド動作モード
+     */
     SetImeKey(ime_key := "", shift_ime_key := "", mode := -1) {
         super.SetImeKey(ime_key, shift_ime_key)
         if (mode != -1)
@@ -2261,12 +2310,24 @@ class LKey extends RKey {
     }
 
     IsPressed() => GetKeyState(this.org_key_raw, "P")
+    ;IsPressed() => IsKeyPressedRaw(this.vk)
+
+    /**
+     * ループ内などで使用する、OS状態を直接チェックする軽量な判定関数。
+     * AHKのフック更新がブロックされている状況でも、物理的なキーリリースを正確に検出できます。
+     */
+    IsPressedDirect() {
+        ;if (this.vk == 0)
+        return GetKeyState(this.org_key_raw, "P")
+        ;return IsKeyPressedRaw(this.vk)
+    }
 
     /**
      * キー押し下げ時の処理
      */
     Down() {
         Critical
+        ;OutputDebug(this.vk)
         ime_state := ImeState.IsOn()
         hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
 
@@ -2343,7 +2404,7 @@ class LKey extends RKey {
 
         if (hold_mode == 0) {
             this.state := LKey.st_init
-            this.pressed_time := 0
+            this.pressed_time_qpc := 0
             return
         }
 
@@ -2863,6 +2924,12 @@ class Layers {
         }
     }
 
+    /**
+     * 現在押下されている修飾レイヤーキーに基づいて、同時押し入力の判定および処理を行います。
+     * @param {Object} key_obj - トリガーされたメインキーのオブジェクト
+     * @param {Integer} ime_state - 現在のIME状態（0: OFF, 1: ON）
+     * @returns {Boolean} 同時押しレイヤーアクションが発生して処理された場合は true、それ以外は false
+     */
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for item in arr {
@@ -2883,12 +2950,12 @@ class Layers {
                         } else {
                             ; t < x: Pend decision and monitor key states
                             loop {
-                                if !mod_key.IsPressed() {
+                                if !mod_key.IsPressedDirect() {
                                     ; Case 2-A: Mod key released first -> Send normal key
                                     is_held := false
                                     break
                                 }
-                                if !key_obj.IsPressed() {
+                                if !key_obj.IsPressedDirect() {
                                     ; Case 2-B: Main key released first -> Send normal key
                                     is_held := false
                                     break
@@ -2905,6 +2972,7 @@ class Layers {
                             }
                         }
                     } else if (mod_hold_mode == 7) {
+
                         if (t_qpc >= x) {
                             mod_key.state := LKey.st_processed
                             is_held := true
@@ -2914,12 +2982,13 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time) <= t < x
                             ; Pend decision and monitor key states
                             loop {
-                                if !mod_key.IsPressed() {
+
+                                if !mod_key.IsPressedDirect() {
                                     ; Case 3-A: Mod key released first -> Send normal key
                                     is_held := false
                                     break
                                 }
-                                if !key_obj.IsPressed() {
+                                if !key_obj.IsPressedDirect() {
                                     ; Case 3-B: Main key released first -> Send normal key
                                     is_held := false
                                     break
@@ -2943,12 +3012,12 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time2) <= t < x
                             ; Pend decision and monitor key states
                             loop {
-                                if !mod_key.IsPressed() {
+                                if !mod_key.IsPressedDirect() {
                                     ; Case 3-A: Mod key released first -> Send normal key
                                     is_held := false
                                     break
                                 }
-                                if !key_obj.IsPressed() {
+                                if !key_obj.IsPressedDirect() {
                                     ; Case 3-B: Main key released first -> Send combination
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -2977,7 +3046,7 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time) <= t < x
                             ; Pend decision and monitor key states
                             loop {
-                                if !mod_key.IsPressed() {
+                                if !mod_key.IsPressedDirect() {
                                     ; Case 3-B: Mod key released first -> Send modifier key, then let main key flow through
                                     if (mod_key.state == LKey.st_pressing) {
                                         mod_key.SendShiftedKey(false)
@@ -2986,7 +3055,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if !key_obj.IsPressed() {
+                                if !key_obj.IsPressedDirect() {
                                     ; Case 3-A: Main key released first -> Send modifier key, then let main key flow through
                                     if (mod_key.state == LKey.st_pressing) {
                                         mod_key.SendShiftedKey(false)
@@ -3041,11 +3110,29 @@ class Layers {
 
 }
 
-RegistIMECombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
+/**
+ * IME ON 時の特定キーの同時押し（コンビネーション）に対し、連続打鍵数に応じたアクション（最大3段階）を登録します。
+ * @param {Integer} mode - 長押し動作モード
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキー of LKey オブジェクト
+ * @param {String} text - 1回目の押下時に送信するアクション
+ * @param {String} [text2=""] - 2回目の連続押下時に送信するアクション
+ * @param {String} [text3=""] - 3回目以降の連続押下時に送信するアクション
+ */
+RegistIMECombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     key_obj.SetLayerImeKey(mode, Layers.Index(layer_key_obj), text, text2, text3, false)
 }
 
-RegistCombination3(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
+/**
+ * IME OFF 時の特定キーの同時押し（コンビネーション）に対し、連続打鍵数に応じたアクション（最大3段階）を登録します。
+ * @param {Integer} mode - 長押し動作モード
+ * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
+ * @param {Object} key_obj - 同時押しされるメインキー of LKey オブジェクト
+ * @param {String} text - 1回目の押下時に送信するアクション
+ * @param {String} [text2=""] - 2回目の連続押下時に送信するアクション
+ * @param {String} [text3=""] - 3回目以降の連続押下時に送信するアクション
+ */
+RegistCombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     key_obj.SetLayerKey(mode, Layers.Index(layer_key_obj), text, text2, text3, True)
 }
 
@@ -3278,6 +3365,12 @@ ParseIniCombinationValue(val) {
     return processed_parts
 }
 
+/**
+ * INIファイルから特定のセクションに記述されたキーコンビネーション設定を読み込み、適用します。
+ * @param {String} section - 対象 of INIセクション名
+ * @param {String} prefix - キー判定の接頭辞（例: "m_"）
+ * @param {Boolean} is_ime - IME ON 時の設定として読み込む場合は true
+ */
 ApplyCombinationsFromIni(section, prefix, is_ime) {
     try {
         section_text := GetIniSection(A_ScriptDir . "\config.ini", section)
@@ -3337,9 +3430,9 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
 
                     if (layer_obj && target_obj) {
                         if is_ime
-                            RegistIMECombination3(mode, layer_obj, target_obj, action1, action2, action3)
+                            RegistIMECombination(mode, layer_obj, target_obj, action1, action2, action3)
                         else
-                            RegistCombination3(mode, layer_obj, target_obj, action1, action2, action3)
+                            RegistCombination(mode, layer_obj, target_obj, action1, action2, action3)
                     }
                 }
             }
@@ -3808,23 +3901,23 @@ ChangeMinatoLayoutImpl() {
 
     target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
-        RegistIMECombination3(8, layer_key, d, "nn") ; ん
-        RegistIMECombination3(8, layer_key, f, "-") ;ー
-        RegistIMECombination3(8, layer_key, v, "ltu", "ta", "{BS}te") ;
-        RegistIMECombination3(8, layer_key, e, "ru", "{BS}rareru") ;
+        RegistIMECombination(8, layer_key, d, "nn") ; ん
+        RegistIMECombination(8, layer_key, f, "-") ;ー
+        RegistIMECombination(8, layer_key, v, "ltu", "ta", "{BS}te") ;
+        RegistIMECombination(8, layer_key, e, "ru", "{BS}rareru") ;
     }
 
-    RegistIMECombination3(7, rm["k"], rm["t"], "oto") ;こと
-    RegistIMECombination3(7, rm["o"], j, "u") ;
-    RegistIMECombination3(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
-    RegistIMECombination3(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    RegistIMECombination3(7, rm["s"], r, "areru") ;される
-    RegistIMECombination3(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination3(7, z, v, "youhou") ;
-    RegistIMECombination3(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination3(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination3(7, k, j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination3(7, rm["m"], v, "ono") ;
+    RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination(7, rm["o"], j, "u") ;
+    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
+    RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    RegistIMECombination(7, rm["s"], r, "areru") ;される
+    RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    RegistIMECombination(7, z, v, "youhou") ;
+    RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, rm["m"], v, "ono") ;
 
 }
 
@@ -3857,11 +3950,11 @@ ChangeFMIX13f2_minato_Layout() {
         keyObj.SetMode(0, -1)
     }
 
-    RegistCombination3(4, f, d, "h") ;th
-    RegistCombination3(4, f, e, "e") ;te
-    RegistCombination3(4, e, r, "{Backspace}er") ;er
-    RegistCombination3(4, r, e, "{Backspace}re") ;re
-    RegistCombination3(4, s, e, "e") ;se
+    RegistCombination(4, f, d, "h") ;th
+    RegistCombination(4, f, e, "e") ;te
+    RegistCombination(4, e, r, "{Backspace}er") ;er
+    RegistCombination(4, r, e, "{Backspace}re") ;re
+    RegistCombination(4, s, e, "e") ;se
 
     ChangeMinatoLayoutImpl()
     InitModLayer()
@@ -3881,6 +3974,11 @@ ChangeFMIX13fie_minato_Layout() {
 ; 終了・リロード時に保存
 OnExit((*) => (KeyLogger.Save(true), KeyLogger.SaveConfig()))
 
+/**
+ * レイアウトに登録されているすべての長押し対応キーに対して動作モードを一括設定します。
+ * @param {Integer} mode - 設定する長押し動作モード
+ * @param {Integer} [ime_mode=-1] - 設定するIME ON時の動作モード（省略時は通常モードと同値）
+ */
 SetLKeyMode(mode, ime_mode := -1) {
     for i, keyObj in LAYOUT_KEYS {
         keyObj.SetMode(mode, ime_mode)
@@ -4129,6 +4227,11 @@ InitModLayer() {
     closebracket.SetLayerKey(mode, L_SHIFT, "+]")
 }
 
+/**
+ * 文字列をUTF-8エンコーディングに基づく16進数（HEX）文字列に変換します。
+ * @param {String} str - 変換対象の文字列
+ * @returns {String} 16進数の文字列
+ */
 StringToHex(str) {
     reqSize := StrPut(str, "UTF-8")
     buf := Buffer(reqSize)
@@ -4140,6 +4243,9 @@ StringToHex(str) {
     return hex
 }
 
+/**
+ * 構成設定ファイル (config.ini) を専用のエディタまたは規定のアプリで開きます。
+ */
 OpenConfigEditor(*) {
     ini_path := A_ScriptDir . "\config.ini"
     ini_content := ""
