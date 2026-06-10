@@ -2155,7 +2155,7 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 モード３以外は、IME状態やシフト状態に応じてキーが送信される。
 */
 class LKey extends RKey {
-    static hold_th := 300 ; 長押しと判定する閾値 (ms)
+    static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -2237,22 +2237,18 @@ class LKey extends RKey {
      * @param {String} action - 設定するアクション
      */
     SetLayerKey(mode, layer_id, action, action2 := "", action3 := "", ime := True) {
-        action1 := action
-        if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
-            parts := StrSplit(action, "|")
-            if parts.Length >= 3 {
-                action1 := parts[1]
-                action2 := parts[2]
-                action3 := parts[3]
-            } else if parts.Length >= 2 {
-                action1 := parts[1]
-                action2 := parts[2]
-            }
+        layer_item := Layers.LayerItem(layer_id, action, action2, action3, mode)
+        this.SetLayerKey2(layer_item, ime)
+    }
+
+    SetLayerKey2(layer_item, ime := True) {
+        if (layer_item.mode < 0) {
+            layer_item.mode := this.hold_mode_org
+            layer_item.b_time := (layer_item.mode = 8) ? Layers.b_time2 : Layers.b_time
         }
-        mode := mode < 0 ? this.hold_mode_org : mode
-        this.layers.SetAction(layer_id, action1, action2, action3, mode)
+        this.layers.SetAction2(layer_item)
         if ime {
-            this.layers.SetImeAction(layer_id, action1, action2, action3, mode)
+            this.layers.SetIMEAction2(layer_item.Clone())
         }
     }
 
@@ -2264,20 +2260,16 @@ class LKey extends RKey {
      * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
     SetLayerImeKey(mode, layer_id, action, action2 := "", action3 := "", reset_if_blank := false) {
-        action1 := action
-        if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
-            parts := StrSplit(action, "|")
-            if parts.Length >= 3 {
-                action1 := parts[1]
-                action2 := parts[2]
-                action3 := parts[3]
-            } else if parts.Length >= 2 {
-                action1 := parts[1]
-                action2 := parts[2]
-            }
+        layer_item := Layers.LayerItem(layer_id, action, action2, action3, mode)
+        this.SetLayerImeKey2(layer_item, reset_if_blank)
+    }
+
+    SetLayerImeKey2(layer_item, reset_if_blank := false) {
+        if (layer_item.mode < 0) {
+            layer_item.mode := this.hold_mode_ime_org
+            layer_item.b_time := (layer_item.mode = 8) ? Layers.b_time2 : Layers.b_time
         }
-        mode := mode < 0 ? this.hold_mode_ime_org : mode
-        this.layers.SetImeAction(layer_id, action1, action2, action3, mode)
+        this.layers.SetIMEAction2(layer_item)
     }
 
     /**
@@ -2761,16 +2753,39 @@ class Layers {
          * @param {String} action - 送信されるアクション定義
          * @param {String} [action2=""] - 2回目以降の送信されるアクション定義
          * @param {String} [action3=""] - 3回目以降の送信されるアクション定義
+         * @param {int or HoldMode}] - 長押し動作モード
          */
         __New(layer_id, action, action2, action3, mode) {
+            action1 := action
+            if action2 == "" && action3 == "" && InStr(action, "|") && action != "|" {
+                parts := StrSplit(action, "|")
+                if parts.Length >= 3 {
+                    action1 := parts[1]
+                    action2 := parts[2]
+                    action3 := parts[3]
+                } else if parts.Length >= 2 {
+                    action1 := parts[1]
+                    action2 := parts[2]
+                }
+            }
+
             this.layer_id := layer_id
-            this.action := action
+            this.action := action1
             this.action2 := action2
             this.action3 := action3
             this.tap_count := 0
             this.last_mod_key := ""
             this.last_mod_press_start_qpc := 0
-            this.mode := mode
+            if (mode is HoldMode) {
+                this.mode := mode.mode
+                this.hold_th := mode.hold_th
+                this.b_time := mode.b_time
+            } else {
+                this.mode := mode
+                this.hold_th := Layers.hold_th
+                this.b_time := (mode = 8) ? Layers.b_time2 : Layers.b_time
+            }
+
         }
     }
 
@@ -2889,20 +2904,18 @@ class Layers {
 
     /**
      * IME ON 時のレイヤーアクションを設定します。
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
+     * @param {Object} layer_item - 設定する LayerItem オブジェクト
      */
-    SetIMEAction(layer_id, action, action2 := "", action3 := "", mode := -1) {
-        Layers._Add(this.ime_arr, Layers.LayerItem(layer_id, action, action2, action3, mode))
+    SetIMEAction2(layer_item) {
+        Layers._Add(this.ime_arr, layer_item)
     }
 
     /**
      * IME OFF 時のレイヤーアクションを設定します。
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
+     * @param {Object} layer_item - 設定する LayerItem オブジェクト
      */
-    SetAction(layer_id, action, action2 := "", action3 := "", mode := -1) {
-        Layers._Add(this.arr, Layers.LayerItem(layer_id, action, action2, action3, mode))
+    SetAction2(layer_item) {
+        Layers._Add(this.arr, layer_item)
     }
 
     /**
@@ -3108,10 +3121,17 @@ class Layers {
     }
 
 }
+class HoldMode {
+    __New(mode, hold_th := 300, b_time := 100) {
+        this.mode := mode
+        this.hold_th := hold_th
+        this.b_time := b_time
+    }
+}
 
 /**
  * IME ON 時の特定キーの同時押し（コンビネーション）に対し、連続打鍵数に応じたアクション（最大3段階）を登録します。
- * @param {Integer} mode - 長押し動作モード
+ * @param {Integer or HoldMode} mode - 長押し動作モード
  * @param {Object} layer_key_obj - 同時押しのトリガー（修飾側）となる LKey オブジェクト
  * @param {Object} key_obj - 同時押しされるメインキー of LKey オブジェクト
  * @param {String} text - 1回目の押下時に送信するアクション
@@ -3119,7 +3139,8 @@ class Layers {
  * @param {String} [text3=""] - 3回目以降の連続押下時に送信するアクション
  */
 RegistIMECombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
-    key_obj.SetLayerImeKey(mode, Layers.Index(layer_key_obj), text, text2, text3, false)
+    layer_item := Layers.LayerItem(Layers.Index(layer_key_obj), text, text2, text3, mode)
+    key_obj.SetLayerImeKey2(layer_item)
 }
 
 /**
@@ -3132,7 +3153,8 @@ RegistIMECombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "
  * @param {String} [text3=""] - 3回目以降の連続押下時に送信するアクション
  */
 RegistCombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
-    key_obj.SetLayerKey(mode, Layers.Index(layer_key_obj), text, text2, text3, True)
+    layer_item := Layers.LayerItem(Layers.Index(layer_key_obj), text, text2, text3, mode)
+    key_obj.SetLayerKey2(layer_item, True)
 }
 
 /**
