@@ -1,7 +1,7 @@
 #Requires AutoHotkey v2.0
 
 ; ============================================================================
-; スクリプト概要
+; キーカスタマイズスクリプト 律(仮称) 概要
 ; ============================================================================
 ; このスクリプトは、AutoHotkey v2 用の高度なキーカスタマイズを提供します。
 ; 主な機能:
@@ -3421,8 +3421,25 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
                 actions := []
 
                 first_val := parsed_parts[1]
-                if IsInteger(first_val) {
-                    mode := Integer(first_val)
+                mode_parts := StrSplit(first_val, ",")
+                for idx, part in mode_parts {
+                    mode_parts[idx] := Trim(part)
+                }
+
+                if (mode_parts.Length > 0 && IsInteger(mode_parts[1])) {
+                    mode_val := Integer(mode_parts[1])
+                    if (mode_parts.Length >= 3) {
+                        hold_th := IsInteger(mode_parts[2]) ? Integer(mode_parts[2]) : Layers.hold_th
+                        b_time := IsInteger(mode_parts[3]) ? Integer(mode_parts[3]) : ((mode_val = 8) ? Layers.b_time2 :
+                            Layers.b_time)
+                        mode := HoldMode(mode_val, hold_th, b_time)
+                    } else if (mode_parts.Length == 2) {
+                        hold_th := IsInteger(mode_parts[2]) ? Integer(mode_parts[2]) : Layers.hold_th
+                        b_time := (mode_val = 8) ? Layers.b_time2 : Layers.b_time
+                        mode := HoldMode(mode_val, hold_th, b_time)
+                    } else {
+                        mode := mode_val
+                    }
                     start_idx := 2
                 } else {
                     mode := 7

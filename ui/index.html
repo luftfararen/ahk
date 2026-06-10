@@ -136,6 +136,14 @@
                                 </div>
                                 <span class="help-text">同時押し（Mode=7）における誤爆防止のための判定遊び時間（LKey.b_timeに設定されます）。</span>
                             </div>
+                            <div class="form-group">
+                                <label for="setting-b-time2">同時押し待機遊び時間 (b_time2)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="setting-b-time2" class="form-control" min="0" max="500" step="5">
+                                    <span class="unit">ms</span>
+                                </div>
+                                <span class="help-text">同時押し（Mode=8）における誤爆防止のための判定遊び時間（LKey.b_time2に設定されます）。</span>
+                            </div>
                             <div class="form-group toggle-group">
                                 <div class="toggle-control">
                                     <label class="switch">
@@ -306,7 +314,10 @@
                                     <thead>
                                         <tr>
                                             <th>キーの組み合わせ (物理)</th>
-                                            <th>出力文字列</th>
+                                            <th>モード設定 (mode, hold_th, b_time)</th>
+                                            <th>アクション 1</th>
+                                            <th>アクション 2</th>
+                                            <th>アクション 3</th>
                                             <th>操作</th>
                                         </tr>
                                     </thead>
@@ -532,10 +543,49 @@
                         </select>
                     </div>
                 </div>
+                
+                <div class="form-row mt-3">
+                    <div class="form-group flex-1">
+                        <label for="add-comb-mode">動作モード (Mode)</label>
+                        <select id="add-comb-mode" class="form-control">
+                            <option value="8">Mode 8 (タイミング制御・B先行離鍵)</option>
+                            <option value="7">Mode 7 (誤爆防止・タイミング制御・バッファ)</option>
+                            <option value="4">Mode 4 (コンビネーション優先)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row mt-3">
+                    <div class="form-group flex-1">
+                        <label for="add-comb-hold-th">判定しきい値 (HoldTh) (任意)</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="add-comb-hold-th" class="form-control" placeholder="例: 250" min="50" max="1000" step="10">
+                            <span class="unit">ms</span>
+                        </div>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label for="add-comb-b-time">同時押し遊び時間 (b_time) (任意)</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="add-comb-b-time" class="form-control" placeholder="例: 50" min="0" max="500" step="5">
+                            <span class="unit">ms</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="form-group mt-3">
-                    <label for="add-comb-value">出力文字列</label>
-                    <input type="text" id="add-comb-value" class="form-control font-mono" placeholder="例: areru">
-                    <span class="help-text">同時押しされた際に送信する単語やマクロです。</span>
+                    <label for="add-comb-action1">アクション 1 (必須)</label>
+                    <input type="text" id="add-comb-action1" class="form-control font-mono" placeholder="例: areru">
+                </div>
+
+                <div class="form-row mt-3">
+                    <div class="form-group flex-1">
+                        <label for="add-comb-action2">アクション 2 (2回打鍵時) (任意)</label>
+                        <input type="text" id="add-comb-action2" class="form-control font-mono" placeholder="例: areru2">
+                    </div>
+                    <div class="form-group flex-1">
+                        <label for="add-comb-action3">アクション 3 (3回打鍵時) (任意)</label>
+                        <input type="text" id="add-comb-action3" class="form-control font-mono" placeholder="例: areru3">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
