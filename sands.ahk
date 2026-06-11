@@ -258,7 +258,20 @@ ReadConfig(section, key, defaultValue) {
     if pos > 0 {
         val := SubStr(val, 1, pos - 1)
     }
-    return Trim(val)
+    val := Trim(val)
+    return StripQuotes(val)
+}
+
+/**
+ * 文字列の先頭と末尾がダブルクォーテーションで囲まれている場合、それらを除去した文字列を返します。
+ * @param {String} val - 対象文字列
+ * @returns {String} クォーテーション除去後の文字列
+ */
+StripQuotes(val) {
+    if (SubStr(val, 1, 1) == '"' && SubStr(val, -1) == '"' && StrLen(val) >= 2) {
+        return SubStr(val, 2, StrLen(val) - 2)
+    }
+    return val
 }
 
 /**
@@ -770,6 +783,7 @@ DispStr(str, remove_braces := true) {
  * 例: "semicolon" -> "{sc027}", "one" -> "1", "{Enter}" -> "{Enter}"
  */
 ResolveKeyText(str) {
+    str := StripQuotes(Trim(str))
     if (InStr(str, "|") && str != "|") {
         parts := StrSplit(str, "|")
         resolved_parts := []
@@ -3378,10 +3392,7 @@ ParseIniCombinationValue(val) {
 
     processed_parts := []
     for part in parts {
-        if (SubStr(part, 1, 1) == '"' && SubStr(part, -1) == '"' && StrLen(part) >= 2) {
-            part := SubStr(part, 2, StrLen(part) - 2)
-        }
-        processed_parts.Push(part)
+        processed_parts.Push(StripQuotes(part))
     }
     return processed_parts
 }

@@ -54,6 +54,11 @@ class IniDocument {
                     inlineComment = rawVal.substring(commentIndex).trim();
                 }
 
+                value = value.trim();
+                if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+                    value = value.substring(1, value.length - 1);
+                }
+
                 this.lines.push({
                     type: 'keyvalue',
                     section: currentSection,
