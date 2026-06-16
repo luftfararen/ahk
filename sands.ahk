@@ -3488,12 +3488,6 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
                     target_obj := ResolveKeyFn(keys[2], is_ime)
 
                     if (layer_obj && target_obj) {
-                        try {
-                            FileAppend("Registering combo: " . key_pair . "`nLayer: " . layer_obj.org_key_raw .
-                                "`nTarget: " . target_obj.org_key_raw . "`nMode: " . mode . "`nAction1: " . action1 .
-                                "`nis_ime: " . is_ime . "`n`n", A_ScriptDir . "\debug_log.txt", "UTF-8")
-                        } catch {
-                        }
                         if is_ime
                             RegistIMECombination(mode, layer_obj, target_obj, action1, action2, action3)
                         else
@@ -3574,12 +3568,13 @@ ApplyLayoutFromIni2(section) {
 
     ; --- 追加: Mode 4 コンビネーションの動的読み込み ---
     ApplyCombinationsFromIni(layout_sec, "m_", false)  ; IME OFF 用
-    if (layout_sec != "") {
-        ApplyCombinationsFromIni(layout_sec, "m_", true)  ; IME ON 用 (ベースレイアウトから)
-    }
-    if (layout_ime_sec != "" && layout_ime_sec != layout_sec) {
-        ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用 (IMEレイアウトで上書き/追加)
-    }
+    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用
+    ;if (layout_sec != "") {
+    ;    ApplyCombinationsFromIni(layout_sec, "m_", true)  ; IME ON 用 (ベースレイアウトから)
+    ;}
+    ;if (layout_ime_sec != "" && layout_ime_sec != layout_sec) {
+    ;    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用 (IMEレイアウトで上書き/追加)
+    ;}
 
     ShowOSD("Loaded layout: " . name)
     return true
