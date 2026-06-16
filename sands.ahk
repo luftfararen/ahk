@@ -251,15 +251,31 @@ B_F12 := "{Blind}{F12}"
 ReadConfig(section, key, defaultValue) {
     static ConfigPath := A_ScriptDir . "\config.ini"
     val := IniRead(ConfigPath, section, key, defaultValue)
-    pos := InStr(val, Chr(32) . Chr(59))
+    pos := InStr(val, Chr(32) . Chr(59)) ;space+semicolon
     if pos == 0 {
-        pos := InStr(val, "`t" . Chr(59))
+        pos := InStr(val, "`t" . Chr(59)) ;tab+semicolon
     }
     if pos > 0 {
         val := SubStr(val, 1, pos - 1)
     }
     val := Trim(val)
     return StripQuotes(val)
+}
+
+/**
+ * 指定されたセクションとキーから設定を整数値として読み込みます。
+ * 読み込みに失敗した場合や数値に変換できない場合は defaultValue を返します。
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
+ * @param {Integer} defaultValue - デフォルト値
+ * @returns {Integer} 読み込んだ整数設定値
+ */
+ReadConfigInt(section, key, defaultValue) {
+    try {
+        return Integer(ReadConfig(section, key, String(defaultValue)))
+    } catch {
+        return defaultValue
+    }
 }
 
 /**
@@ -2687,22 +2703,10 @@ ResetCombinations() {
  */
 LoadLayoutConfig() {
     try {
-        try {
-            LKey.hold_th := Integer(ReadConfig("Settings", "HoldTh", String(LKey.hold_th)))
-        } catch {
-        }
-        try {
-            Layers.b_time := Integer(ReadConfig("Settings", "b_time", String(Layers.b_time)))
-        } catch {
-        }
-        try {
-            Layers.b_time2 := Integer(ReadConfig("Settings", "b_time2", String(Layers.b_time2)))
-        } catch {
-        }
-        try {
-            Layers.hold_th := Integer(ReadConfig("Settings", "LayerHoldTh", String(Layers.hold_th)))
-        } catch {
-        }
+        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
+        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
+        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
+        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
         layout_name := ReadConfig("Settings", "StartupLayout", "")
         if layout_name = ""
             return
@@ -2724,20 +2728,8 @@ LoadLayoutConfig() {
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
         }
-
-        ; ビルトインレイアウトに対しても、INIファイルからキーコンビネーションの読み込みを試行
-        if InStr(layout_name, "[Built-in]") {
-            clean_name := StrReplace(layout_name, "[Built-in]", "")
-            parts := StrSplit(clean_name, "-")
-            if (parts.Length >= 1) {
-                layout_sec := parts[1]
-                ApplyCombinationsFromIni(layout_sec, "m_", false)
-
-                layout_ime_sec := parts.Length >= 2 ? parts[2] : layout_sec
-                ApplyCombinationsFromIni(layout_ime_sec, "m_", true)
-            }
-        }
-    } catch {
+    } catch as err {
+        MsgBox("Error in LoadLayoutConfig:`n" . err.Message . "`n" . err.Stack)
     }
 }
 
@@ -3155,6 +3147,12 @@ class HoldMode {
 RegistIMECombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     layer_item := Layers.LayerItem(Layers.Index(layer_key_obj), text, text2, text3, mode)
     key_obj.SetLayerImeKey2(layer_item)
+    new_mode := IsObject(mode) ? mode.mode : mode
+    if (new_mode != -1) {
+        layer_key_obj.hold_mode_ime_org := new_mode
+    } else if (layer_key_obj.hold_mode_ime_org == 0) {
+        layer_key_obj.hold_mode_ime_org := 1
+    }
 }
 
 /**
@@ -3169,6 +3167,12 @@ RegistIMECombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "
 RegistCombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") {
     layer_item := Layers.LayerItem(Layers.Index(layer_key_obj), text, text2, text3, mode)
     key_obj.SetLayerKey2(layer_item, True)
+    new_mode := IsObject(mode) ? mode.mode : mode
+    if (new_mode != -1) {
+        layer_key_obj.hold_mode_org := new_mode
+    } else if (layer_key_obj.hold_mode_org == 0) {
+        layer_key_obj.hold_mode_org := 1
+    }
 }
 
 /**
@@ -3471,13 +3475,25 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
                 action2 := actions.Length >= 2 ? actions[2] : ""
                 action3 := actions.Length >= 3 ? actions[3] : ""
 
-                ; "修飾キー + 対象キー" を分割
-                keys := StrSplit(key_pair, "+")
+                ; "修飾キー_対象キー" を分割
+                keys := StrSplit(key_pair, "_")
                 if keys.Length == 2 {
-                    layer_obj := GetKeyObjByLogicalName(Trim(keys[1]), is_ime)
-                    target_obj := GetKeyObjByLogicalName(Trim(keys[2]), is_ime)
+                    ResolveKeyFn := (k_str, is_ime) => (
+                        (SubStr(Trim(k_str), 1, 1) == "P")
+                            ? GetKeyObjByName(SubStr(Trim(k_str), 2))
+                            : GetKeyObjByLogicalName(Trim(k_str), is_ime)
+                    )
+
+                    layer_obj := ResolveKeyFn(keys[1], is_ime)
+                    target_obj := ResolveKeyFn(keys[2], is_ime)
 
                     if (layer_obj && target_obj) {
+                        try {
+                            FileAppend("Registering combo: " . key_pair . "`nLayer: " . layer_obj.org_key_raw .
+                                "`nTarget: " . target_obj.org_key_raw . "`nMode: " . mode . "`nAction1: " . action1 .
+                                "`nis_ime: " . is_ime . "`n`n", A_ScriptDir . "\debug_log.txt", "UTF-8")
+                        } catch {
+                        }
                         if is_ime
                             RegistIMECombination(mode, layer_obj, target_obj, action1, action2, action3)
                         else
@@ -3558,7 +3574,12 @@ ApplyLayoutFromIni2(section) {
 
     ; --- 追加: Mode 4 コンビネーションの動的読み込み ---
     ApplyCombinationsFromIni(layout_sec, "m_", false)  ; IME OFF 用
-    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用
+    if (layout_sec != "") {
+        ApplyCombinationsFromIni(layout_sec, "m_", true)  ; IME ON 用 (ベースレイアウトから)
+    }
+    if (layout_ime_sec != "" && layout_ime_sec != layout_sec) {
+        ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用 (IMEレイアウトで上書き/追加)
+    }
 
     ShowOSD("Loaded layout: " . name)
     return true
@@ -3764,8 +3785,8 @@ MakeLayoutMap(layout_str := "") {
  * @param {String} [layout="..."] - 基本の全キー配置文字列
  * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
  */
-StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\", shift_layout := "") {
-    ;TypeAnalyzer.ChangeLayout(name)
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
+    TypeAnalyzer.ChangeLayout(name)
     if name != "" {
         try {
             WriteConfig(name, "Settings", "StartupLayout")
@@ -3789,6 +3810,7 @@ StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:];zxcvbnm,./\
  * @param {Map} ime_shift_map - IME Shiftキーマッピング
  */
 StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
+    TypeAnalyzer.ChangeLayout(name)
     ResetCombinations()
     if name != "" {
         try {

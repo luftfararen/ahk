@@ -312,7 +312,7 @@ S00= 1 2 3 4 5 6 7   8  9  0 - ^ \\
 S01= q w r p l f yu  u  yo - @ [
 S02= k s t n h {sc027} ya  xi xe o : ]
 S03= [ ] d m b j ltu ,  .  / \\
-m_r+p = areru
+m_r_p = areru
 
 [NAVI_CTRL]
 h={Left}
@@ -604,15 +604,19 @@ const App = {
             key2Select.innerHTML = "";
             
             QWERTY_CHARS.forEach(c => {
-                const opt1 = document.createElement('option');
-                opt1.value = c;
-                opt1.textContent = c;
-                key1Select.appendChild(opt1);
+                const addOption = (val, label) => {
+                    const opt1 = document.createElement('option');
+                    opt1.value = val;
+                    opt1.textContent = label;
+                    key1Select.appendChild(opt1);
 
-                const opt2 = document.createElement('option');
-                opt2.value = c;
-                opt2.textContent = c;
-                key2Select.appendChild(opt2);
+                    const opt2 = document.createElement('option');
+                    opt2.value = val;
+                    opt2.textContent = label;
+                    key2Select.appendChild(opt2);
+                };
+                addOption(c, c);
+                addOption("P" + c, "P" + c + " (物理)");
             });
 
             // Reset inputs for new modal specification
@@ -655,7 +659,7 @@ const App = {
             });
 
             if (this.activeLayoutSec) {
-                const combKey = `m_${k1}+${k2}`;
+                const combKey = `m_${k1}_${k2}`;
                 this.doc.setValue(this.activeLayoutSec, combKey, val);
                 this.renderCombinationsTable();
                 closeModal('modal-add-combination');
