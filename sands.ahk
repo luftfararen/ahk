@@ -3977,15 +3977,16 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
     RegistIMECombination(7, rm["k"], r, "ara") ;から
     RegistIMECombination(7, rm["o"], j, "u") ;
-    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
     RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    RegistIMECombination(7, rm["s"], r, "areru") ;される
+    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する、される
+    RegistIMECombination(7, rm["s"], r, "uru", "{BS}{BS}sareru") ;する、される
     RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
     RegistIMECombination(7, z, v, "youhou") ;
     RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
     RegistIMECombination(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
     RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
     RegistIMECombination(7, rm["m"], v, "ono") ;
+    RegistIMECombination(7, rm["n"], r, "ode") ;
 
 }
 
