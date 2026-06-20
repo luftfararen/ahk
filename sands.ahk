@@ -2721,6 +2721,7 @@ LoadLayoutConfig() {
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-14fR[Built-in]": ChangeFMIX13f_FMIX14fR_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
+            case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_minato_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
             case "FMIX13f2-Minato[Built-in]": ChangeFMIX13f2_minato_Layout()
             case "FMIX13fie-Minato[Built-in]": ChangeFMIX13fie_minato_Layout()
@@ -3974,6 +3975,7 @@ ChangeMinatoLayoutImpl() {
     }
 
     RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination(7, rm["k"], r, "ara") ;から
     RegistIMECombination(7, rm["o"], j, "u") ;
     RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する
     RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
@@ -4001,6 +4003,16 @@ ChangeFMIX13_minato_Layout() {
  */
 ChangeFMIX13f_minato_Layout() {
     StoreLayout("FMIX13f-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
+    ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+
+/**
+ * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
+ChangeFMIX12x_Minato_Layout() {
+    StoreLayout("FMIX12x-Minato[Built-in]", "qwerfylupjasdtghnieozxcvbkm,.;")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
@@ -4411,6 +4423,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()
 #s:: ChangeFMIX13f_FMIX14fR_Layout()
+#j:: ChangeFMIX12x_minato_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
 #x:: ChangeFMIX13f2_minato_Layout()
 #n:: ChangeFMIX13fie_minato_Layout()
