@@ -27,10 +27,10 @@ c = {}
 # Typed by Right finger (y, u, i, o, p, h, j, k, l, ;, n, m, ,',' ., /m,bs,enter,rshift )
 
 c['q'] = [40,20,25,15,20,30,
-          50,40,40,25,15,30,
-          70,70,50,50,30,40] 
+          50,50,40,25,15,30,
+          90,70,50,50,30,40] 
 c['p'] = [25,30,15,25,20,40,
-          35,15,25,40,40,45,
+          35,15,25,40,50,45,
           40,50,50,50,70,90]
 c['w'] = [30,50,15,15,10,25,
           40,50,40,25,10,25,
@@ -51,43 +51,42 @@ c['u'] = [35,20,10,30,40,40,
           30,20,30,40,30,40,
           40,50,50,60,60,80]
 c['t'] = [30,35,25,25,25,30,
-          30,30,40,30,40,35,
+          40,35,40,30,40,35,
           50,50,60,60,50,50]
 c['y'] = [30,20,25,25,25,25,
-          50,45,40,40,35,40,
+          50,45,40,40,35,45,
           70,60,60,60,60,90] 
-c['a'] = [50,50,50,15,20,35,
+c['a'] = [50,50,50,15,20,40,
           30,10,20,10,10,30,
           50,40,30,30,20,40]
-c[';'] = [45,30,15,50,50,60,
+c[';'] = [50,30,15,50,50,60,
           20,10,10,20,10,30,
           25,25,30,40,40,70]
-c['s'] = [50,55,35,30,20,30,
-          35,25,10,10,10,20,
-          35,50,35,35,20,40]
-c['l'] = [50,40,30,35,55,50,
-          20,10,10,15,25,40,
-          15,20,30,35,50,70]
-c['d'] = [60,55,35,20,30,35,
-          40,15,15,10,10,15,
-          35,40,30,20,20,30]
-c['k'] = [40,30,20,35,55,60,
-          15,10,10,15,15,40,
-          20,25,25,40,40,70]
-c['f'] = [50,50,30,10,35,40,
-          40,10,15,12,10,30,
+c['s'] = [50,55,40,30,20,40,
+          35,20,15,10,10,20,
+          35,50,40,35,20,40]
+c['l'] = [50,40,30,40,55,50,
+          20,10,10,15,20,40,
+          15,20,30,40,60,70]
+c['d'] = [60,55,35,20,30,45,
+          40,25,20,10,10,15,
+          35,45,30,20,20,30]
+c['k'] = [50,30,20,35,55,60,
+          15,10,10,20,25,40,
+          20,25,25,40,45,70]
+c['f'] = [50,50,30,10,35,45,
+          40,20,20,12,10,30,
           35,40,40,25,25,30]
-c['j'] = [40,30,10,30,50,50,
-          30,10,12,15,10,40,
+c['j'] = [50,30,10,30,50,50,
+          30,10,12,20,20,40,
           25,25,30,40,50,60]
 c['g'] = [50,50,40,20,35,30,
-          50,15,30,20,30,10,
+          50,25,30,20,30,10,
           60,50,45,40,30,25]
-c['h'] = [30,20,15,30,50,50,
-          10,30,20,30,15,45,
-          25,30,30,40,50,70]
+c['h'] = [30,20,15,30,55,50,
+          10,30,18,30,25,45,
+          25,30,30,40,60,70]
 c['z'] = [70,80,50,25,35,50,
-          45,40,40,15,15,25,
           30,20,20,20,10,20]
 c['/'] = [60,50,25,60,80,70,
           40,15,15,50,40,50,
@@ -105,16 +104,16 @@ c[','] = [60,50,45,50,80,60,
           40,25,30,35,45,60,
           20,15,15,20,30,70]
 c['v'] = [60,55,40,30,45,50,
-          40,20,25,15,20,25,
+          40,25,25,15,20,25,
           40,25,20,15,10,30]
 c['m'] = [50,40,40,50,70,60,
           30,20,20,25,30,35,
           30,10,10,30,25,50]
 c['b'] = [70,65,50,35,70,60,
-          60,25,30,15,35,30,
+          60,30,30,15,35,30,
           50,25,30,25,30,10]
 c['n'] = [55,45,20,40,70,70,
-          30,30,10,30,25,60,
+          30,30,10,30,30,60,
           10,30,25,30,25,60]
 
 
@@ -354,11 +353,11 @@ class TypingCostCalculator:
         if cost_addition_count > 0:
             normalized_cost = total_cost / cost_addition_count
             
-        return total_cost, normalized_cost-30, cost_addition_count
+        return total_cost, normalized_cost-20, cost_addition_count
 
 
     
-def calcn(name,layout,text_to_check,verbose=False):
+def calcn(name,layout,text_to_check,verbose=False, norm = 1.0):
     calculator = TypingCostCalculator(layout, base, qwerty, left, c)
     
 #    print("Keyboard Layout Cost Calculator (Supports Shift, Enter, Tab)")
@@ -368,14 +367,17 @@ def calcn(name,layout,text_to_check,verbose=False):
     calculator.verbose = verbose # Disable detailed output
     
     # Execute calculation (cost_offset=10)
-    total_cost, normalized_cost, count = calculator.calculate(text_to_check, 10)
-    
+    total_cost, normalized_cost, count = calculator.calculate(text_to_check, 0)
+    if norm != 1.0:
+        normalized_cost = normalized_cost / norm * 100
+
     # Display final result
     #print(f"Total Cost: {total_cost}")
     print(f"Layout: {layout} : {normalized_cost:.4f} : {name}")
     #print(f"Type Count (Including Shift, Enter, Tab): {count}")
     #print("-" * 30)
-        
+    return normalized_cost
+
 def calc(layout,text_to_check,verbose=False):
     calcn("",layout,text_to_check,verbose)
              
@@ -390,9 +392,13 @@ if __name__ == "__main__":
         print("-" * 30)
         print(f"file: '{file_path}'")
 
+        #layout = 'qwubkjfly;aretgmnoiszcxdvph,./' #QWERTY
+        layout = 'qwertyuiopasdfghjkl;zxcvbnm,./' #QWERTY
+        qwerty_norm = calcn("QWERTY",layout,text_to_check,False,1)
+
         #layout = 'qwldkjfuy;asrtgmneiozxcvbph,./' #FMIX X
         layout = 'ql,p/;fudkarenbgsitozw.hjvcymx' #arensito
-        calcn("Arensito",layout,text_to_check,False)
+        calcn("Arensito",layout,text_to_check,False, qwerty_norm)
     #layout = 'qwlbkjfuy;asrtghneiozxcdvpm,./' 
     #layout = 'qwertyuiopasdfghjkl;zxcvbnm,./' #QWERTY
  
@@ -400,56 +406,54 @@ if __name__ == "__main__":
     # test_text = "..;;p" 
     # print(f"test_text: '{test_text}'")
         layout = 'qwldkjfuy;asrtghneiozxcvbpm,./' #FMIX15
-        calcn("FMIX15",layout,text_to_check,False)
+        calcn("FMIX15",layout,text_to_check,False, qwerty_norm)
 
         layout = 'ypoujkdlcwinea,mhtsrqz/.:bfgvx'
-        calcn("MTGAP",layout,text_to_check,False)
+        calcn("MTGAP",layout,text_to_check,False, qwerty_norm)
 
         layout = 'qwfrkylup;asdtghneiozxcvbjm,./' #FMIX12f
-        calcn("FMIX12f",layout,text_to_check,False)
+        calcn("FMIX12f",layout,text_to_check,False, qwerty_norm)
 
         layout = 'qwlrkyfup;asdtghneiozxcvbjm,./' #FMIX12
-        calcn("FMIX12",layout,text_to_check,False)
+        calcn("FMIX12",layout,text_to_check,False, qwerty_norm)
     
         layout = 'qwrlkyfup;asdtghneiozxcvbjm,./' #FMIX13
-        calcn("FMIX13",layout,text_to_check,False)
+        calcn("FMIX13",layout,text_to_check,False, qwerty_norm)
         #layout = 'qwfrkylup;asdtghneiozxcvbjm,./' #FMIX12f
         layout = 'qwfpgjluy;arstdhneiozxcvbkm,./' #colemak
-        calcn("Colemak",layout,text_to_check,False)
+        calcn("Colemak",layout,text_to_check,False, qwerty_norm)
  
         layout = 'qwldkyfup;asrtghneiozxcvbjm,./' #FMIX14
-        calcn("FMIX14",layout,text_to_check,False)
+        calcn("FMIX14",layout,text_to_check,False, qwerty_norm)
 
         layout = 'qwldkyfuj;asrtghneiozxcvbpm,./' #FMIX14
-        calcn("FMIX14 fuj",layout,text_to_check,False)
+        calcn("FMIX14 fuj",layout,text_to_check,False, qwerty_norm)
 
         layout = 'qwldjyfup;asrtghneiozxcvbkm,./' 
-        calcn("FMIX14 vbk",layout,text_to_check,False)
+        calcn("FMIX14 vbk",layout,text_to_check,False, qwerty_norm)
 
         layout = '/,.pyfgcrlaoeuidhtns;qjkxbmwvz' #Dvorak
-        calcn("Dvorak",layout,text_to_check,False)
+        calcn("Dvorak",layout,text_to_check,False, qwerty_norm)
 
         layout = 'qcufkzlpy;aretdmnoisjwxgbvh,./' #
-        calcn("aret",layout,text_to_check,False)
+        calcn("aret",layout,text_to_check,False, qwerty_norm)
 
-        #layout = 'qwubkjfly;aretgmnoiszcxdvph,./' #QWERTY
-        layout = 'qwertyuiopasdfghjkl;zxcvbnm,./' #QWERTY
-        calcn("QWERTY",layout,text_to_check,False)
+    
 
         layout = 'qprdcbkuyxatnswmheio/,lgjfv;z.' #Wakasagi
-        calcn("Wakasagi",layout,text_to_check,False)
+        calcn("Wakasagi",layout,text_to_check,False, qwerty_norm)
 
         layout = 'ypoujkdlcwinea,mhtsrqz/.:bfgvx' #MTGAP
-        calcn("MTGAP",layout,text_to_check,False)
+        calcn("MTGAP",layout,text_to_check,False, qwerty_norm)
 
         layout = ",.ucvqfdlyaoesgbntri;x/wzphmkj" #Boo
-        calcn("Boo",layout,text_to_check,False)
+        calcn("Boo",layout,text_to_check,False, qwerty_norm)
     
         layout = "fdlbvjgou,strnkymaeizqxhpwc/;." #Stronk
-        calcn("Stronk",layout,text_to_check,False)
+        calcn("Stronk",layout,text_to_check,False, qwerty_norm)
 
         layout = "wgdfbqluoyrsthkjneaixcmpvz,.;/"
-        calcn("aptv3",layout,text_to_check,False)
+        calcn("aptv3",layout,text_to_check,False, qwerty_norm)
 
     except FileNotFoundError:
         print(f"\nError: File '{file_path}' not found. Please check the path.", file=sys.stderr)

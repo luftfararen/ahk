@@ -1374,16 +1374,23 @@ class TypeAnalyzer {
      * @param {String} char - 記録対象の文字
      */
     static Log(char) {
+        static is_warning_shown := false
+
         if !this.is_logging_enabled
             return
         if WinActive("ahk_group RemoteDesktops")
             return
 
         if (this.total_log_time > 50) {
-            Tooltip("Too fast")
+            if (!is_warning_shown) {
+                ToolTip("TypeAnalyzer: 処理遅延のため記録を一時停止")
+                SetTimer(() => ToolTip(), -3000)
+                is_warning_shown := true
+            }
             ; 50msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
             return
         }
+        is_warning_shown := false
 
         if char = ""
             return
