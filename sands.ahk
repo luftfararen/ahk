@@ -2726,12 +2726,9 @@ LoadLayoutConfig() {
             case "FMIX12f[Built-in]": ChangeFMIX12f_Layout()
             case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
-            case "FMIX13f-14fR[Built-in]": ChangeFMIX13f_FMIX14fR_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
             case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_minato_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
-            case "FMIX13f2-Minato[Built-in]": ChangeFMIX13f2_minato_Layout()
-            case "FMIX13fie-Minato[Built-in]": ChangeFMIX13fie_minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
@@ -3916,23 +3913,6 @@ ChangeFMIX14_FMIX14R_Layout() {
 }
 
 /**
- * Changes layout to "FMIX13f-FMIX14fR".
- */
-ChangeFMIX13f_FMIX14fR_Layout() {
-    StoreLayout("FMIX13f-14fR[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
-    ResetIME()
-
-    global e, r, t, u, d
-
-    ; IME ON 時の差分設定
-    r.SetImeKey("d")
-    t.SetImeKey("f")
-    d.SetImeKey("k")
-
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
-
-/**
  * 湊（みなと）配列に特有な IME ON 時の差分マッピング（複合母音キーの割り当てなど）を設定する共通ヘルパーです。
  */
 ChangeMinatoLayoutImpl() {
@@ -4021,37 +4001,6 @@ ChangeFMIX13f_minato_Layout() {
  */
 ChangeFMIX12x_Minato_Layout() {
     StoreLayout("FMIX12x-Minato[Built-in]", "qwerfylupjasdtghnieozxcvbkm,.;")
-    ChangeMinatoLayoutImpl()
-    InitModLayer()
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
-
-/**
- * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
- */
-ChangeFMIX13f2_minato_Layout() {
-    StoreLayout("FMIX13f2-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
-
-    for i, keyObj in LAYOUT_KEYS {
-        keyObj.SetMode(0, -1)
-    }
-
-    RegistCombination(4, f, d, "h") ;th
-    RegistCombination(4, f, e, "e") ;te
-    RegistCombination(4, e, r, "{Backspace}er") ;er
-    RegistCombination(4, r, e, "{Backspace}re") ;re
-    RegistCombination(4, s, e, "e") ;se
-
-    ChangeMinatoLayoutImpl()
-    InitModLayer()
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
-
-/**
- * キーレイアウトを「FMIX13fie-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
- */
-ChangeFMIX13fie_minato_Layout() {
-    StoreLayout("FMIX13fie-Minato[Built-in]", "qwrfkylup;asdtghnieozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
@@ -4193,12 +4142,12 @@ InitModLayer() {
     j.SetLayerKey(mode, L_SYMBOL_NUM, C_N0)
     k.SetLayerKey(mode, L_SYMBOL_NUM, C_N1)
     l.SetLayerKey(mode, L_SYMBOL_NUM, C_N2)
-    semicolon.SetLayerKey(mode, L_SYMBOL_NUM, B_ENTER)
+    semicolon.SetLayerKey(mode, L_SYMBOL_NUM, C_N3)
     n.SetLayerKey(mode, L_SYMBOL_NUM, "+3")
-    m.SetLayerKey(mode, L_SYMBOL_NUM, C_N3)
-    comma.SetLayerKey(mode, L_SYMBOL_NUM, C_N4)
-    period.SetLayerKey(mode, L_SYMBOL_NUM, C_N5)
-    slash.SetLayerKey(mode, L_SYMBOL_NUM, C_N6)
+    m.SetLayerKey(mode, L_SYMBOL_NUM, C_N4)
+    comma.SetLayerKey(mode, L_SYMBOL_NUM, C_N5)
+    period.SetLayerKey(mode, L_SYMBOL_NUM, C_N6)
+    ;slash.SetLayerKey(mode, L_SYMBOL_NUM, C_N7)
     z.SetLayerKey(mode, L_SYMBOL_NUM, "[")
     x.SetLayerKey(mode, L_SYMBOL_NUM, "]")
     c.SetLayerKey(mode, L_SYMBOL_NUM, "+[")
@@ -4238,12 +4187,12 @@ InitModLayer() {
     j.SetLayerKey(mode, L_SYMBOL1, C_N0)
     k.SetLayerKey(mode, L_SYMBOL1, C_N1)
     l.SetLayerKey(mode, L_SYMBOL1, C_N2)
-    semicolon.SetLayerKey(mode, L_SYMBOL1, B_ENTER)
+    semicolon.SetLayerKey(mode, L_SYMBOL1, C_N3)
     n.SetLayerKey(mode, L_SYMBOL1, "+3")
-    m.SetLayerKey(mode, L_SYMBOL1, C_N3)
-    comma.SetLayerKey(mode, L_SYMBOL1, C_N4)
-    period.SetLayerKey(mode, L_SYMBOL1, C_N5)
-    slash.SetLayerKey(mode, L_SYMBOL1, C_N6)
+    m.SetLayerKey(mode, L_SYMBOL1, C_N4)
+    comma.SetLayerKey(mode, L_SYMBOL1, C_N5)
+    period.SetLayerKey(mode, L_SYMBOL1, C_N6)
+    ;slash.SetLayerKey(mode, L_SYMBOL1, C_N7)
     z.SetLayerKey(mode, L_SYMBOL1, "+[")
     x.SetLayerKey(mode, L_SYMBOL1, "+]")
     c.SetLayerKey(mode, L_SYMBOL1, "[")
@@ -4289,6 +4238,7 @@ InitModLayer() {
     a.SetLayerKey(mode, L_SYMBOL2, "+6")
     s.SetLayerKey(mode, L_SYMBOL2, "+7")
     d.SetLayerKey(mode, L_SYMBOL2, C_HAT)
+    f.SetLayerKey(mode, L_SYMBOL2, ";")
     g.SetLayerKey(mode, L_SYMBOL2, "+@")
     z.SetLayerKey(mode, L_SYMBOL2, "~")
     x.SetLayerKey(mode, L_SYMBOL2, "@")
@@ -4430,11 +4380,8 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()
-#s:: ChangeFMIX13f_FMIX14fR_Layout()
 #j:: ChangeFMIX12x_minato_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
-#x:: ChangeFMIX13f2_minato_Layout()
-#n:: ChangeFMIX13fie_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
