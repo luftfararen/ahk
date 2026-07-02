@@ -59,6 +59,7 @@ ProcessSetPriority "High" ; 最高の応答性を確保するため優先度を�
 SetKeyDelay(15, 5)
 ListLines 0
 SendMode "Input" ; AHK v2 推奨のデフォルト送信モード
+SetStoreCapsLockMode(false) ; CapsLockがONのときにキー送信でShiftがシミュレートされるのを防ぐ
 ;SendMode "Event" ; キー取りこぼし（レイヤーロック）を防ぐため "Event" モードを使用
 
 InstallKeybdHook true ; キーボードフックを常にインストール
@@ -2930,6 +2931,32 @@ class Layers {
     }
 
     /**
+     * 指定されたレイヤー（src）のマッピングを別のレイヤー（dst）にコピーします。
+     * @param {Integer} src - コピー元のレイヤーID
+     * @param {Integer} dst - コピー先のレイヤーID
+     */
+    Copy(src, dst) {
+        ; IME OFF
+        for item in this.arr {
+            if (item.layer_id == src) {
+                new_item := item.Clone()
+                new_item.layer_id := dst
+                this.SetAction2(new_item)
+                break
+            }
+        }
+        ; IME ON
+        for item in this.ime_arr {
+            if (item.layer_id == src) {
+                new_item := item.Clone()
+                new_item.layer_id := dst
+                this.SetIMEAction2(new_item)
+                break
+            }
+        }
+    }
+
+    /**
      * 具体的なレイヤーアクションの送信を処理します（内部ヘルパー）。
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 送信するキーアクション定義
@@ -3997,11 +4024,23 @@ ChangeFMIX13f_minato_Layout() {
 }
 
 /**
- * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ * キーレイアウトを「FMIX13x-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX12x_Minato_Layout() {
     StoreLayout("FMIX12x-Minato[Built-in]", "qwerfylupjasdtghnieozxcvbkm,.;")
     ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+/**
+ * キーレイアウトを「FMIX13xx-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
+
+ChangeFMIX12xx_Minato_Layout() {
+    StoreLayout("FMIX12xx-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,.;")
+    ChangeMinatoLayoutImpl()
+    k.SetImeKey("e", "xe")
+    l.SetImeKey("i", "xi")
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -4019,6 +4058,14 @@ SetLKeyMode(mode, ime_mode := -1) {
         keyObj.SetMode(mode, ime_mode)
     }
 }
+
+copyLayer(src, dst) {
+    global LAYOUT_KEYS
+    for keyObj in LAYOUT_KEYS {
+        keyObj.layers.Copy(src, dst)
+    }
+}
+
 ; ============================================================================
 ; 設定の読み込み
 ; ============================================================================
@@ -4127,13 +4174,13 @@ InitModLayer() {
     w.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}/")
     e.SetLayerKey(mode, L_SYMBOL_NUM, B_NMUL)
     r.SetLayerKey(mode, L_SYMBOL_NUM, B_NADD)
-    t.SetLayerKey(mode, L_SYMBOL_NUM, "+F3")
+    t.SetLayerKey(mode, L_SYMBOL_NUM, "+^")
     a.SetLayerKey(mode, L_SYMBOL_NUM, "(")
     s.SetLayerKey(mode, L_SYMBOL_NUM, ")")
     d.SetLayerKey(mode, L_SYMBOL_NUM, "_")
     f.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}-")
     g.SetLayerKey(mode, L_SYMBOL_NUM, "=")
-    y.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
+    y.SetLayerKey(mode, L_SYMBOL_NUM, C_YEN)
     u.SetLayerKey(mode, L_SYMBOL_NUM, C_N7)
     i.SetLayerKey(mode, L_SYMBOL_NUM, C_N8)
     o.SetLayerKey(mode, L_SYMBOL_NUM, C_N9)
@@ -4155,54 +4202,8 @@ InitModLayer() {
     b.SetLayerKey(mode, L_SYMBOL_NUM, C_BACKSLASH)
     space.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
 
-    ; L_SYMBOL1
-    k1.SetLayerKey(mode, L_SYMBOL1, B_F1)
-    k2.SetLayerKey(mode, L_SYMBOL1, B_F2)
-    k3.SetLayerKey(mode, L_SYMBOL1, B_F3)
-    k4.SetLayerKey(mode, L_SYMBOL1, B_F4)
-    k5.SetLayerKey(mode, L_SYMBOL1, B_F5)
-    k6.SetLayerKey(mode, L_SYMBOL1, B_F6)
-    k7.SetLayerKey(mode, L_SYMBOL1, B_F7)
-    k8.SetLayerKey(mode, L_SYMBOL1, B_F8)
-    k9.SetLayerKey(mode, L_SYMBOL1, B_F9)
-    k0.SetLayerKey(mode, L_SYMBOL1, B_F10)
-    minus.SetLayerKey(mode, L_SYMBOL1, B_F11)
-    hat.SetLayerKey(mode, L_SYMBOL1, B_F12)
-    q.SetLayerKey(mode, L_SYMBOL1, "?")
-    w.SetLayerKey(mode, L_SYMBOL1, "{Blind}/")
-    e.SetLayerKey(mode, L_SYMBOL1, B_NMUL)
-    r.SetLayerKey(mode, L_SYMBOL1, B_NADD)
-    t.SetLayerKey(mode, L_SYMBOL1, "+F3")
-    a.SetLayerKey(mode, L_SYMBOL1, "(")
-    s.SetLayerKey(mode, L_SYMBOL1, ")")
-    d.SetLayerKey(mode, L_SYMBOL1, "_")
-    f.SetLayerKey(mode, L_SYMBOL1, "{Blind}-")
-    g.SetLayerKey(mode, L_SYMBOL1, "=")
-    y.SetLayerKey(mode, L_SYMBOL1, B_BS)
-    u.SetLayerKey(mode, L_SYMBOL1, C_N7)
-    i.SetLayerKey(mode, L_SYMBOL1, C_N8)
-    o.SetLayerKey(mode, L_SYMBOL1, C_N9)
-    p.SetLayerKey(mode, L_SYMBOL1, "+^p")
-    h.SetLayerKey(mode, L_SYMBOL1, "=")
-    j.SetLayerKey(mode, L_SYMBOL1, C_N0)
-    k.SetLayerKey(mode, L_SYMBOL1, C_N1)
-    l.SetLayerKey(mode, L_SYMBOL1, C_N2)
-    semicolon.SetLayerKey(mode, L_SYMBOL1, C_N3)
-    n.SetLayerKey(mode, L_SYMBOL1, "+3")
-    m.SetLayerKey(mode, L_SYMBOL1, C_N4)
-    comma.SetLayerKey(mode, L_SYMBOL1, C_N5)
-    period.SetLayerKey(mode, L_SYMBOL1, C_N6)
-    ;slash.SetLayerKey(mode, L_SYMBOL1, C_N7)
-    z.SetLayerKey(mode, L_SYMBOL1, "+[")
-    x.SetLayerKey(mode, L_SYMBOL1, "+]")
-    c.SetLayerKey(mode, L_SYMBOL1, "[")
-    v.SetLayerKey(mode, L_SYMBOL1, "]")
-    b.SetLayerKey(mode, L_SYMBOL1, C_BACKSLASH)
-    space.SetLayerKey(mode, L_SYMBOL1, C_BS)
+    copyLayer(L_SYMBOL_NUM, L_SYMBOL1)
 
-    ; L_NUMPAD
-    k6.SetLayerKey(mode, L_NUMPAD, "{Escape}")
-    t.SetLayerKey(mode, L_NUMPAD, B_NADD)
     a.SetLayerKey(mode, L_NUMPAD, "(")
     s.SetLayerKey(mode, L_NUMPAD, ")")
     f.SetLayerKey(mode, L_NUMPAD, "-")
@@ -4237,9 +4238,9 @@ InitModLayer() {
     t.SetLayerKey(mode, L_SYMBOL2, "+5")
     a.SetLayerKey(mode, L_SYMBOL2, "+6")
     s.SetLayerKey(mode, L_SYMBOL2, "+7")
-    d.SetLayerKey(mode, L_SYMBOL2, C_HAT)
+    d.SetLayerKey(mode, L_SYMBOL2, "+2")
     f.SetLayerKey(mode, L_SYMBOL2, ";")
-    g.SetLayerKey(mode, L_SYMBOL2, "+@")
+    g.SetLayerKey(mode, L_SYMBOL2, "+@") ;Grace Accent
     z.SetLayerKey(mode, L_SYMBOL2, "~")
     x.SetLayerKey(mode, L_SYMBOL2, "@")
     c.SetLayerKey(mode, L_SYMBOL2, ":")
@@ -4319,6 +4320,7 @@ Init() {
 
     ; 3. モディファイアキーリストの初期化
     global mod_key_list
+    ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT
     mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
 
     ; 4. レイヤーとレイアウトの適用
@@ -4381,6 +4383,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()
 #j:: ChangeFMIX12x_minato_Layout()
+#k:: ChangeFMIX12xx_Minato_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
@@ -4413,7 +4416,6 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
 #down:: MouseSpeed.DecSpeed() ; Win+Down
-
 #HotIf
 ; ============================================================================
 ; グローバルホットキー (RKey / LKey バインド)

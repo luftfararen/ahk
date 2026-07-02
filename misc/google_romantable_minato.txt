@@ -80,6 +80,16 @@ zv	ぞう
 dv	どう
 bv	ぼう
 pv	ぽう
+kh	こう
+sh	そう
+nh	のう
+mh	もう
+rh	ろう
+wh	をう
+gh	ごう
+zh	ぞう
+bh	ぼう
+ph	ぽう
 k:	かっ
 s:	さっ
 t:	たっ
