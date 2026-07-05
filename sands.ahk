@@ -2511,8 +2511,10 @@ InitGlobalKeys() {
     tab := LKey(R_TAB, 3, C_TAB)
     noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
     ;conv := LKey(R_CONV, 3, C_ENTER)
-    conv := LKey(R_CONV, 3, C_BS)
-    f14 := LKey("f14", 3, C_ZENKAKU)
+    ;conv := LKey(R_CONV, 3, C_BS)
+    conv := LKey(R_CONV, 3, C_ZENKAKU)
+    ;f14 := LKey("f14", 3, C_ZENKAKU)
+    f14 := LKey("f14", 3, C_ENTER)
 
     ; --- リマップキー (RKey) ---
     ; (数字列)
@@ -2729,6 +2731,8 @@ LoadLayoutConfig() {
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
             case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_minato_Layout()
+            case "Kotone[Built-in]": ChangeKotone_Layout()
+            case "Suzune[Built-in]": ChangeSuzune_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
@@ -3267,7 +3271,7 @@ ApplyLayoutFromIni(index) {
     if name = ""
         return false
     layout := ReadConfig(index, "Layout", "")
-    num := ReadConfig(index, "Num", "1234567890-")
+    num := ReadConfig(index, "Num", "1234567890-") L
     shift_layout := ReadConfig(index, "ShiftLayout", "")
     shift_num := ReadConfig(index, "ShiftNum", "")
 
@@ -4001,7 +4005,72 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
     RegistIMECombination(7, rm["m"], v, "ono") ;
     RegistIMECombination(7, rm["n"], r, "ode") ;
+}
 
+/**
+ * ことね配列に特有な IME ON 時の差分マッピング（複合母音キーの割り当てなど）を設定する共通ヘルパーです。
+ */
+ChangeKotoneLayoutImpl() {
+    global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
+    ResetIME()
+
+    ; IME ON 時の差分設定
+    q.SetImeKey("l", "?")
+    w.SetImeKey("w")
+    e.SetImeKey("r")
+    r.SetImeKey("d")
+    t.SetImeKey("f")
+    ;y.SetImeKey("f")
+    a.SetImeKey("n", "(")
+    s.SetImeKey("s", ")")
+    d.SetImeKey("t")
+    f.SetImeKey("k", "-")
+    ;g.SetImeKey("h")
+    z.SetImeKey("z", "[")
+    x.SetImeKey("p", "]")
+    c.SetImeKey("m")
+    v.SetImeKey("h", "v")
+    b.SetImeKey("b", "v")
+    ;y.SetImeKey("ya")
+    u.SetImeKey("yu", "{BS}")
+    i.SetImeKey("u", "ou")
+    o.SetImeKey("yo")
+    p.SetImeKey("ou")
+    h.SetImeKey(";", "ann") ; ;=nn
+    j.SetImeKey("a", "ou")
+    k.SetImeKey("i", "xi")
+    l.SetImeKey("e", "xe")
+    semicolon.SetImeKey("o", "ou")
+    ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
+    n.SetImeKey("-", "a-")
+    m.SetImeKey("ya", "ltu") ; :=ltu
+    ;slash.SetImeKey("f")
+
+    rm := CreateKeyMap()
+    SetLKeyMode(-1, 6)
+
+    target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
+    for layer_key in target_layers {
+        RegistIMECombination(8, layer_key, d, "nn") ; ん
+        RegistIMECombination(8, layer_key, f, "-") ;ー
+        RegistIMECombination(8, layer_key, v, "ltu", "ta", "{BS}te") ;
+        RegistIMECombination(8, layer_key, e, "ru", "{BS}rareru") ;
+    }
+
+    RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
+    ;RegistIMECombination(7, rm["k"], r, "ara") ;から
+    RegistIMECombination(7, rm["o"], j, "u") ;
+    RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    RegistIMECombination(7, rm["s"], f, "ite", "{BS}ta") ;して
+    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する、される
+    RegistIMECombination(7, rm["s"], r, "kyu", "tou", "{BS}sha") ;する、される
+    RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    RegistIMECombination(7, z, v, "youhou") ;
+    RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, rm["m"], v, "ono") ;
+    RegistIMECombination(7, rm["n"], r, "ode") ;
 }
 
 /**
@@ -4041,6 +4110,20 @@ ChangeFMIX12xx_Minato_Layout() {
     ChangeMinatoLayoutImpl()
     k.SetImeKey("e", "xe")
     l.SetImeKey("i", "xi")
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+
+ChangeKotone_Layout() {
+    StoreLayout("Kotone[Built-in]", "qwrdfjluyxnstagcaieozpmhbkv,.;")
+    ChangeKotoneLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+
+ChangeSuzune_Layout() {
+    StoreLayout("Suzune[Built-in]", "qwrdfjluyxnstegceaiozpmhbkv,.;")
+    ChangeKotoneLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -4383,7 +4466,9 @@ space:: ToggleImeState() ;Send(C_BS)
 #r:: ChangeFMIX14_FMIX14R_Layout()
 ;#d:: ChangeFMIX12f_Layout()
 #j:: ChangeFMIX12x_minato_Layout()
-#k:: ChangeFMIX12xx_Minato_Layout()
+;#k:: ChangeFMIX12xx_Minato_Layout()
+#k:: ChangeKotone_Layout()
+#s:: ChangeSuzune_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
