@@ -2177,6 +2177,44 @@ IME状態に依存しない。
        [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
                     が送信される。
 
+・モード9：
+ 【説明】
+ モード4のタイミング拡張：高速タイピング時のロールオーバーによる誤判定を防ぐバッファ付きTap-Hold)
+ Aキー: 先に押されるキー、通常キー送信後、修飾キーとなる
+ Bキー: 遅れて押されるキー、通常キー、または、修飾キーとのコンビネーションが送信される
+ モード7は、必ず、AキーのDown時に通常キー送信が行われる
+修飾キーとのコンビネーションでは、設定によってBackspace付きのキー送信を行っても良い。
+これにより、すでに送信されたAの通常キーをキャンセルする。
+キーリピートは無効化される 。
+
+【パラメーター定義】
+  - t              : 修飾キーがDown（ホールド開始）してからの経過時間 [ms]
+  - Layers.hold_th  : 修飾キー（ホールド）として成立させるための基準閾値 [ms]
+  - b_time         : ロールオーバー（高速打鍵）時の誤判定を防ぐバッファ時間 [ms]
+
+ 【論理条件とアクション（修飾キーDownホールド中のメインキー操作）】
+ 条件1: AキーDown(通常キー送信)後、十分な時間が経過してからBキーがDownされた場合
+ [判定基準] t >= Layers.hold_th
+ [アクション] 修飾キーのコンビネーションを送信する。
+
+ 条件2: AキーDown(通常キー送信)後、ごく短時間（バッファ未満）でBキーがDownされた場合
+ [判定基準] t < (Layers.hold_th - b_time)
+ [アクション] Bの通常キー送信する（Down時確定）。
+            ただし、A,B両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
+            Backspace送信後に、修飾キーのコンビネーションが送信される。
+
+ 条件3: AキーDown(通常キー送信)後、グレーゾーン（バッファ期間内）でBキーがDownされた場合
+ [判定基準] (Layers.hold_th - b_time) <= t < Layers.hold_th
+ [アクション] BキーDown時点では判定を保留し、その後のイベントによって挙動を決定する。
+   ├─ ケース 3-A: Aキーが先にUp（短押し）された場合
+   │   [アクション] Bの通常キーを送信する。
+   ├─ ケース 3-B: AキーはHoldのまま、先にBキーがUpされた場合
+   │   [アクション] Bの通常キーを送信する。
+   └─ ケース 3-C: A,B両キーともHoldのまま、経過時間(t)が Layers.hold_th を超えた場合
+       [アクション] 閾値（Layers.hold_th）に達した瞬間に、修飾キーのコンビネーション
+                    が送信される。
+
+
 ---
 ■ 共通仕様および制約
 
@@ -2416,7 +2454,7 @@ class LKey extends RKey {
                 ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
                 this.saved_scaw := MakeModStr()
 
-            case 4, 6, 7, 8: ; 短押し->即時送信、長押し->修飾キー
+            case 4, 6, 7, 8, 9: ; 短押し->即時送信、長押し->修飾キー
                 this.SendKeyWithShift()
         }
     }
@@ -3056,7 +3094,53 @@ class Layers {
                                 Sleep(1)
                             }
                         }
-                    } else if (mod_hold_mode == 8) {
+                    } else if (mod_hold_mode == 9) {
+                        if (t_qpc >= x) {
+                            mod_key.state := LKey.st_processed
+                            is_held := true
+                        } else if (t_qpc < x - Layers.b_time) {
+                            key_obj.SendKeyWithShift()
+                            loop {
+                                if !mod_key.IsPressedDirect() {
+                                    return true
+                                }
+                                if !key_obj.IsPressedDirect() {
+                                    return true
+                                }
+                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                    SendEvent("{Backspace}")
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
+                                Sleep(1)
+                            }
+                        } else {
+                            ; Grey zone: (x - Layers.b_time) <= t < x
+                            ; Pend decision and monitor key states
+                            loop {
+
+                                if !mod_key.IsPressedDirect() {
+                                    ; Case 3-A: Mod key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if !key_obj.IsPressedDirect() {
+                                    ; Case 3-B: Main key released first -> Send normal key
+                                    is_held := false
+                                    break
+                                }
+                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
+                                Sleep(1)
+                            }
+                        }
+                    }
+                    else if (mod_hold_mode == 8) {
                         if (t_qpc >= x) {
                             mod_key.state := LKey.st_processed
                             is_held := true
@@ -3130,7 +3214,6 @@ class Layers {
                     } else {
                         is_held := (t_qpc > x)
                     }
-
                     if is_held {
                         action_to_send := item.action
                         if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
@@ -3724,7 +3807,8 @@ ApplyLayerLayoutFromIni(layer_id, section) {
  * @param {String} layout - 新しい IME-ON 時のキー配列
  * @param {String} num_layout - 新しい IME-ON 時の数字列配列
  */
-StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-", shift_layout := "",
+StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-", shift_layout :=
+    "",
     shift_num := "") {
     TypeAnalyzer.ChangeLayout(name)
     if name != "" {

@@ -337,24 +337,24 @@ class TypingCostCalculator:
         # 0: 上段(Top), 1: 中段(Home), 2: 下段(Bottom)
         row_penalties_by_finger = {
             3: {
-                0: 1.2,
+                0: 1.4,
                 1: 1.0,
-                2: 1.1,
+                2: 1.2,
             },  # 人差し指 (Index)
             2: {
-                0: 1.05,
+                0: 1.1,
                 1: 1.0,
-                2: 1.3,
+                2: 1.2,
             },  # 中指 (Middle)
             1: {
-                0: 1.2,
+                0: 1.4,
                 1: 1.0,
-                2: 1.4,
+                2: 1.8,
             },  # 薬指 (Ring)
             0: {
-                0: 1.5,
+                0: 2.0,
                 1: 1.0,
-                2: 1.3,
+                2: 2.5,
             },  # 小指 (Pinky)
             4: {0: 1.2, 1: 1.0, 2: 1.5},  # 親指 (Thumb)
         }
@@ -407,7 +407,7 @@ class TypingCostCalculator:
                     10.0,
                 ]
                 if is_outer_pinky:
-                    base_effort *= 1.2
+                    base_effort *= 1.8
 
                 static_cost = base_effort * base_cost_multiplier
 
@@ -430,7 +430,7 @@ class TypingCostCalculator:
 
                     dynamic_cost = (
                         (travel_distance**1.2)
-                        * 4.0
+                        * 1.0
                         * finger_weights.get(target_finger, 1.0)
                         * base_cost_multiplier
                     )
@@ -709,7 +709,11 @@ def evaluate_layout(
     cost_mode: str = "default",
     norm: float = 1.0,
     silent: bool = False,
+    use_c_for_k: bool = False,
 ) -> float:
+    if use_c_for_k:
+        text_to_check = text_to_check.replace("k", "c").replace("K", "C")
+
     # "default" か "calculated" を指定して初期化
     calculator = TypingCostCalculator(layout, verbose=False, cost_mode=cost_mode)
     _, normalized_cost, _ = calculator.calculate(text_to_check)
@@ -722,7 +726,7 @@ def evaluate_layout(
 if __name__ == "__main__":
     # ⚠️ This path needs to be changed depending on the execution environment.
     japanese = False
-    japanese = True
+    # japanese = True
     cost_mode = "default"
     # cost_mode = "calculated"
 
@@ -777,20 +781,20 @@ if __name__ == "__main__":
         layouts_to_test = [
             ("QWERTY", "qwertyuiopasdfghjkl;zxcvbnm,./"),
             # ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
-            ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./"),
-            ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./"),
+            ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
+            ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./", {"use_c_for_k": True}),
             # ("FMIX16_2", "qwldjkfuy;arstghneiozxcvbpm,./"),
-            ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx"),
-            ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./"),
+            ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx", {"use_c_for_k": True}),
+            ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
             # ("FMIX12", "qwlrkyfup;asdtghneiozxcvbjm,./"),
-            #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./'),
-            ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./"),
+            #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./', {"use_c_for_k": True}),
+            ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
             #            ("FMIX14", 'qwldkyfup;asrtghneiozxcvbjm,./'),
             #            ("FMIX14 fuj", 'qwldkyfuj;asrtghneiozxcvbpm,./'),
             #            ("FMIX14 vbk", 'qwldjyfup;asrtghneiozxcvbkm,./'),
-            ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz"),
+            ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
             # ("aret", "qcufkzlpy;aretdmnoisjwxgbvh,./"),
-            ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z."),
+            ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z.", {"use_c_for_k": False}),
             # ("Boo", ",.ucvqfdlyaoesgbntri;x/wzphmkj"),
             #            ("Stronk", 'fdlbvjgou,strnkymaeizqxhpwc/;.'),
             #            ("aptv3", 'wgdfbqluoyrsthkjneaixcmpvz,.;/'),
@@ -815,22 +819,42 @@ if __name__ == "__main__":
             )
 
         # 4. ループで一括スコアリング
-        for name, layout in layouts_to_test:
+        for item in layouts_to_test:
+            name = item[0]
+            layout = item[1]
+            opts = item[2] if len(item) > 2 else {}
+            use_c = opts.get("use_c_for_k", False) if japanese else False
+
             score_orig = evaluate_layout(
-                name, layout, text_to_check, cost_mode, norm=qwerty_norm, silent=True
+                name,
+                layout,
+                text_to_check,
+                cost_mode,
+                norm=qwerty_norm,
+                silent=True,
+                use_c_for_k=use_c,
             )
             if text_alt:
                 score_alt = evaluate_layout(
-                    name, layout, text_alt, cost_mode, norm=qwerty_norm, silent=True
+                    name,
+                    layout,
+                    text_alt,
+                    cost_mode,
+                    norm=qwerty_norm,
+                    silent=True,
+                    use_c_for_k=use_c,
                 )
                 best_score = min(score_orig, score_alt)
                 label = "Orig" if score_orig <= score_alt else "Alt(zya)"
+                if use_c:
+                    label += ", k->c"
                 print(
                     f"[{cost_mode.upper():<10}] Layout: {name:<12} : Score: {best_score:.4f} ({label})"
                 )
             else:
+                label = "Orig, k->c" if use_c else "Orig"
                 print(
-                    f"[{cost_mode.upper():<10}] Layout: {name:<12} : Score: {score_orig:.4f}"
+                    f"[{cost_mode.upper():<10}] Layout: {name:<12} : Score: {score_orig:.4f} ({label})"
                 )
 
         print("-" * 50)
