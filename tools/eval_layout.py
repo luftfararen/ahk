@@ -241,37 +241,85 @@ DEFAULT_COST_MATRIX = {
     "enter": [60, 50, 50, 60, 60, 60, 40, 30, 30, 50, 40, 60, 30, 20, 20, 10, 0, 30],
 }
 
+COL_MAP = {
+    "q": 0,
+    "w": 1,
+    "e": 2,
+    "r": 3,
+    "t": 4,
+    "y": 5,
+    "u": 6,
+    "i": 7,
+    "o": 8,
+    "p": 9,
+    "a": 0,
+    "s": 1,
+    "d": 2,
+    "f": 3,
+    "g": 4,
+    "h": 5,
+    "j": 6,
+    "k": 7,
+    "l": 8,
+    ";": 9,
+    "z": 0,
+    "x": 1,
+    "c": 2,
+    "v": 3,
+    "b": 4,
+    "n": 5,
+    "m": 6,
+    ",": 7,
+    ".": 8,
+    "/": 9,
+}
+
 
 class DpState(NamedTuple):
-    left_base: str
-    right_base: str
+    finger_pos: Tuple[Optional[str], ...]
     last_hand: Optional[int]
     last_finger: Optional[int]
+    last_last_finger: Optional[int]
     last_base_key: Optional[str]
-    left_char: str
-    right_char: str
+    same_hand_count: int
 
 
 class PathNode:
-    __slots__ = ["cost", "count", "logs", "prev"]
+    __slots__ = ["cost", "count", "comps", "logs", "prev"]
 
     def __init__(
-        self, cost: float, count: int, logs: List[str], prev: Optional["PathNode"]
+        self,
+        cost: float,
+        count: int,
+        comps: Tuple[float, ...],
+        logs: List[str],
+        prev: Optional["PathNode"],
     ):
         self.cost = cost
         self.count = count
+        self.comps = comps
         self.logs = logs
         self.prev = prev
 
 
 class TypingCostCalculator:
-    def __init__(self, layout: str, verbose: bool = False, cost_mode: str = "default"):
+    def __init__(
+        self,
+        layout: str,
+        verbose: bool = False,
+        cost_mode: str = "default",
+        board_mode: str = "row_staggered",
+    ):
         self.verbose = verbose
         self.cost_mode = cost_mode
+        self.board_mode = board_mode
         self.layout_map = collections.defaultdict(list)
         self.base_keys_left, self.base_keys_right = [], []
 
-        # 1. レイアウトパース
+        # 1. 物理座標の生成
+        self.key_coords = self._generate_physical_coords(self.board_mode)
+
+        # 2. レイアウトパース
         tokens = re.findall(r"\[([^\]]+)\]|(.)", layout)
         parsed_layout = [t[0] if t[0] else t[1] for t in tokens]
         base_to_layout_map = {
@@ -316,47 +364,111 @@ class TypingCostCalculator:
         self.initial_right_char = base_to_layout_map.get("j", "j")
         self.left_shift_base, self.right_shift_base = "lshift", "rshift"
 
+        self.neutral_distances = {1: {}, 0: {}}
+        left_homes = {0: "a", 1: "s", 2: "d", 3: "f"}
+        right_homes = {0: ";", 1: "l", 2: "k", 3: "j"}
+        for h, homes in [(1, left_homes), (0, right_homes)]:
+            for f1 in [0, 1, 2, 3]:
+                self.neutral_distances[h][f1] = {}
+                for f2 in [0, 1, 2, 3]:
+                    c1 = self.key_coords[homes[f1]]
+                    c2 = self.key_coords[homes[f2]]
+                    dx = (c1[0] - c2[0]) * 1.5
+                    dy = c1[1] - c2[1]
+                    dist = (dx * dx + dy * dy) ** 0.5
+                    self.neutral_distances[h][f1][f2] = dist
+
+    def _generate_physical_coords(self, board_mode: str) -> dict:
+        coords = {}
+        grid = {
+            "q": (0, 0),
+            "w": (1, 0),
+            "e": (2, 0),
+            "r": (3, 0),
+            "t": (4, 0),
+            "y": (5, 0),
+            "u": (6, 0),
+            "i": (7, 0),
+            "o": (8, 0),
+            "p": (9, 0),
+            "a": (0, 1),
+            "s": (1, 1),
+            "d": (2, 1),
+            "f": (3, 1),
+            "g": (4, 1),
+            "h": (5, 1),
+            "j": (6, 1),
+            "k": (7, 1),
+            "l": (8, 1),
+            ";": (9, 1),
+            "z": (0, 2),
+            "x": (1, 2),
+            "c": (2, 2),
+            "v": (3, 2),
+            "b": (4, 2),
+            "n": (5, 2),
+            "m": (6, 2),
+            ",": (7, 2),
+            ".": (8, 2),
+            "/": (9, 2),
+        }
+        for key, (x_g, y_g) in grid.items():
+            if board_mode == "row_staggered":
+                offset = -0.25 if y_g == 0 else (0.00 if y_g == 1 else 0.50)
+                coords[key] = (x_g + offset, y_g)
+            elif board_mode == "ortholinear":
+                coords[key] = (x_g, y_g)
+            elif board_mode == "column_staggered":
+                offset_col = [
+                    +0.25,
+                    +0.10,
+                    -0.15,
+                    0.00,
+                    0.00,
+                    0.00,
+                    0.00,
+                    -0.15,
+                    +0.10,
+                    +0.25,
+                ]
+                coords[key] = (x_g, y_g + offset_col[x_g])
+            else:
+                offset = -0.25 if y_g == 0 else (0.00 if y_g == 1 else 0.50)
+                coords[key] = (x_g + offset, y_g)
+        coords.update(
+            {
+                "tab": (-1, 0),
+                "caps": (-1, 1),
+                "lshift": (-1, 2),
+                "bs": (10, 0),
+                "enter": (10, 1),
+                "rshift": (10, 2),
+                "lthumb": (3.5, 3),
+                "rthumb": (6.5, 3),
+            }
+        )
+        return coords
+
     def _generate_calculated_matrix(self) -> dict:
         """
         座標(距離)と生体力学ペナルティに基づく動的マトリクス生成
         """
         calculated_matrix = {}
 
-        # 1. 指ごとの基本重み (小さいほど打ちやすい)
-        # 薬指は他の指との独立性が低く、小指は筋力が弱いためペナルティを重く設定
+        # 1. 左右独立の指筋力ウェイト (W_strength[Hand][f])
+        # Hand (0: 右手, 1: 左手)
         finger_weights = {
-            0: 1.3,  # 小指 (Pinky)
-            1: 1.4,  # 薬指 (Ring)
-            2: 1.1,  # 中指 (Middle)
-            3: 1.0,  # 人差し指 (Index)
-            4: 1.0,  # 親指 (Thumb)
+            1: {0: 1.20, 1: 1.40, 2: 1.10, 3: 1.00, 4: 1.00},  # 左手
+            0: {0: 1.50, 1: 1.40, 2: 1.10, 3: 1.00, 4: 1.00},  # 右手
         }
 
         # 2. 指×段(Row)ごとのペナルティマトリクス (y=1がホーム段)
-        # 指の長さや構造によって、上段(伸ばす)と下段(曲げる)の得意・不得意が異なる
-        # 0: 上段(Top), 1: 中段(Home), 2: 下段(Bottom)
         row_penalties_by_finger = {
-            3: {
-                0: 1.4,
-                1: 1.0,
-                2: 1.2,
-            },  # 人差し指 (Index)
-            2: {
-                0: 1.1,
-                1: 1.0,
-                2: 1.2,
-            },  # 中指 (Middle)
-            1: {
-                0: 1.4,
-                1: 1.0,
-                2: 1.8,
-            },  # 薬指 (Ring)
-            0: {
-                0: 2.0,
-                1: 1.0,
-                2: 2.5,
-            },  # 小指 (Pinky)
-            4: {0: 1.2, 1: 1.0, 2: 1.5},  # 親指 (Thumb)
+            3: {0: 1.20, 1: 1.00, 2: 1.10},  # 人差し指
+            2: {0: 1.05, 1: 1.00, 2: 1.20},  # 中指
+            1: {0: 1.20, 1: 1.00, 2: 1.40},  # 薬指
+            0: {0: 1.50, 1: 1.00, 2: 1.50},  # 小指
+            4: {0: 1.20, 1: 1.00, 2: 1.50},  # 親指
         }
 
         base_cost_multiplier = 10.0  # スケール合わせのための係数
@@ -366,76 +478,59 @@ class TypingCostCalculator:
 
             for to_key in self.base_keys_left + self.base_keys_right:
                 # 座標が不明な特殊キーなどは固定値
-                if from_key not in KEY_COORDS or to_key not in KEY_COORDS:
+                if from_key not in self.key_coords or to_key not in self.key_coords:
                     cost_list.append(50)
                     continue
 
+                target_hand = self.base_to_hand_map[to_key]
                 target_finger = self.base_to_finger_map[to_key]
-                from_finger = self.base_to_finger_map.get(from_key, target_finger)
 
-                x1, y1 = KEY_COORDS[from_key]
-                x2, y2 = KEY_COORDS[to_key]
+                x1, y1 = self.key_coords[from_key]
+                x2, y2 = self.key_coords[to_key]
+
+                # grid座標の取得
+                x_grid = COL_MAP.get(to_key, x2)
+                y_grid = ROW_MAP.get(to_key, y2)
 
                 # ==========================================
                 # A. 静的コスト (Static Cost)
-                # そのキー自体を押すための基本的な負荷
                 # ==========================================
-                target_row = int(y2) if int(y2) in [0, 1, 2] else 1
+                target_row = int(y_grid) if int(y_grid) in [0, 1, 2] else 1
                 row_penalty = row_penalties_by_finger.get(
                     target_finger, row_penalties_by_finger[3]
-                )[target_row]
-                base_effort = finger_weights.get(target_finger, 1.0) * row_penalty
+                ).get(target_row, 1.0)
 
-                # 人差し指の中心列への横方向ストレッチ(Lateral Stretch)に対するペナルティを行別に加算
-                is_center_column = target_finger == 3 and (
-                    x2 in [4.0, 4.25, 4.75, 5.0, 5.25, 5.75]
-                )
-                if is_center_column:
+                # ラテラルストレッチ・ペナルティ
+                lat_penalty = 1.0
+                if target_finger == 3 and x_grid in [4, 5]:  # 人差し指内側拡張列
                     if target_row == 0:
-                        base_effort *= 1.4  # T, Y
+                        lat_penalty = 1.50
                     elif target_row == 1:
-                        base_effort *= 1.2  # G, H
+                        lat_penalty = 1.20
                     else:
-                        base_effort *= 1.1  # B, N
+                        lat_penalty = 1.40
+                elif target_finger == 0 and (
+                    x_grid < 0 or x_grid > 9
+                ):  # 小指外側拡張列
+                    lat_penalty = 1.40
 
-                # 小指の外側ストレッチ(Outer Pinky Stretch)に対するペナルティを加算
-                is_outer_pinky = target_finger == 0 and x2 in [
-                    0.0,
-                    0.75,
-                    9.0,
-                    9.75,
-                    10.0,
-                ]
-                if is_outer_pinky:
-                    base_effort *= 1.8
-
-                static_cost = base_effort * base_cost_multiplier
+                strength_w = finger_weights[target_hand][target_finger]
+                static_cost = (
+                    strength_w * row_penalty * lat_penalty * base_cost_multiplier
+                )
 
                 # ==========================================
-                # B. 動的コスト (Dynamic Cost / Travel Cost)
-                # 直前のキーからの移動に伴う負荷
+                # B. 物理移動コスト (C_move)
                 # ==========================================
-                dynamic_cost = 0.0
-
                 if from_key == to_key:
-                    # 全く同じキーの連続打鍵
-                    # total cost = static_cost * 0.2
-                    # dynamic_cost as diff: static_cost * 0.2 - static_cost
-                    dynamic_cost = -static_cost * 0.8
-                elif from_finger == target_finger:
-                    # 同じ指が連続して違うキーに移動する場合 (SFBの物理的移動成分)
-                    dx = abs(x2 - x1)
-                    dy = abs(y2 - y1)
-                    travel_distance = math.sqrt((dx * 1.5) ** 2 + dy**2)
-
-                    dynamic_cost = (
-                        (travel_distance**1.2)
-                        * 1.0
-                        * finger_weights.get(target_finger, 1.0)
-                        * base_cost_multiplier
-                    )
-                else:
+                    # 同一キー連続打鍵は calculate 内で特別に処理するため、ここでは 0
                     dynamic_cost = 0.0
+                else:
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    d = math.sqrt((dx * 1.5) ** 2 + dy**2)
+
+                    dynamic_cost = (d**1.2) * strength_w * base_cost_multiplier
 
                 # 最終コストは 静的コスト + 動的コスト (tupleで返す)
                 cost_list.append((int(static_cost), int(dynamic_cost)))
@@ -454,7 +549,6 @@ class TypingCostCalculator:
                 target_index = self.cost_index_left[to_base]
             else:
                 target_index = self.cost_index_right[to_base]
-                # calculatedモードでは左右の全キーが連結されたリストが生成されるためオフセットが必要
                 if self.cost_mode == "calculated":
                     target_index += len(self.base_keys_left)
 
@@ -469,24 +563,25 @@ class TypingCostCalculator:
         self,
         text: str,
         sfb_base_penalty: int = 80,
-        scissor_penalty: int = 50,
-        row_jump_penalty: int = 30,
+        scissor_penalty: int = 25,
+        row_jump_penalty: int = 15,
         inward_roll_bonus: int = 5,
         outward_roll_bonus: int = 2,
-        alternation_bonus: int = 3,
+        alternation_bonus: int = 0,
     ) -> Tuple[float, float, int]:
 
+        initial_finger_pos = ("a", "s", "d", "f", None, ";", "l", "k", "j", None)
         initial_state = DpState(
-            self.initial_left_base,
-            self.initial_right_base,
+            initial_finger_pos,
             None,
             None,
             None,
-            self.initial_left_char,
-            self.initial_right_char,
+            None,
+            0,
         )
+        initial_comps = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         dp = collections.defaultdict(dict)
-        dp[0] = {initial_state: PathNode(0, 0, [], None)}
+        dp[0] = {initial_state: PathNode(0, 0, initial_comps, [], None)}
         processed_text = text.replace("\r\n", "\n").replace("\r", "\n")
         total_len = len(processed_text)
         layout_keys_str = [
@@ -500,9 +595,11 @@ class TypingCostCalculator:
             matches = []
             char = processed_text[i]
             if char == "\n" and "enter" in self.layout_map:
-                matches.append(("enter", 1, False, "enter"))
+                matches.append(("enter", 1, False, False, "enter"))
             elif char == "\t" and "tab" in self.layout_map:
-                matches.append(("tab", 1, False, "tab"))
+                matches.append(("tab", 1, False, False, "tab"))
+            elif char == "-" and "-" not in self.layout_map:
+                matches.append(("-", 1, False, True, "-"))
             else:
                 for key_str in layout_keys_str:
                     match_len = len(key_str)
@@ -515,6 +612,7 @@ class TypingCostCalculator:
                                 key_str,
                                 match_len,
                                 processed_text[i : i + match_len][0].isupper(),
+                                False,
                                 processed_text[i : i + match_len],
                             )
                         )
@@ -526,14 +624,19 @@ class TypingCostCalculator:
                         or dp[i + 1][state_key].cost > node.cost
                     ):
                         dp[i + 1][state_key] = PathNode(
-                            node.cost, node.count, node.logs, node.prev
+                            node.cost, node.count, node.comps, node.logs, node.prev
                         )
                 del dp[i]
                 continue
 
             for state, node in dp[i].items():
-                for key_str, match_len, is_upper, display_char in matches:
-                    for cand in self.layout_map[key_str]:
+                for key_str, match_len, is_upper, is_thumb_mod, display_char in matches:
+                    cands = (
+                        self.layout_map[key_str]
+                        if not is_thumb_mod
+                        else [{"base": "f", "hand": 1, "finger": 3}]
+                    )
+                    for cand in cands:
                         cand_base_key, cand_hand, cand_finger = (
                             cand["base"],
                             cand["hand"],
@@ -542,13 +645,37 @@ class TypingCostCalculator:
                         step_logs = [] if self.verbose else None
                         step_cost, step_count = 0, 0
 
-                        c_l_base, c_r_base = state.left_base, state.right_base
-                        c_l_char, c_r_char = state.left_char, state.right_char
+                        c_finger_pos = list(state.finger_pos)
                         c_hand, c_finger, c_base = (
                             state.last_hand,
                             state.last_finger,
                             state.last_base_key,
                         )
+                        c_last_last_finger = state.last_last_finger
+
+                        c_static = c_move = c_sfb = c_scissor = c_row_jump = c_roll = (
+                            c_redirect
+                        ) = c_shift = c_doubletap = c_hand_split = c_fatigue = 0.0
+
+                        if is_thumb_mod:
+                            t_hand = 0 if cand_hand == 1 else 1
+                            t_base = "rthumb" if t_hand == 0 else "lthumb"
+                            t_idx = 4 if t_hand == 1 else 9
+                            last_t_base = c_finger_pos[t_idx]
+                            t_static, t_dynamic = (
+                                self._get_cost(last_t_base, t_base, t_hand)
+                                if last_t_base
+                                else (0.0, 0.0)
+                            )
+                            t_cost = t_static
+                            if c_hand == t_hand:
+                                t_cost += t_dynamic
+                            step_cost += max(0, t_cost)
+                            c_shift += max(0, t_cost)
+
+                            c_last_last_finger = c_finger if t_hand == c_hand else None
+                            c_hand, c_finger, c_base = t_hand, 4, t_base
+                            c_finger_pos[t_idx] = t_base
 
                         if is_upper:
                             s_hand = 0 if cand_hand == 1 else 1
@@ -557,123 +684,256 @@ class TypingCostCalculator:
                                 if s_hand == 0
                                 else self.left_shift_base
                             )
-                            last_s_base = c_l_base if s_hand == 1 else c_r_base
-                            s_static, s_dynamic = self._get_cost(
-                                last_s_base, s_base, s_hand
+                            s_idx = 0 if s_hand == 1 else 5
+                            last_s_base = c_finger_pos[s_idx]
+                            s_static, s_dynamic = (
+                                self._get_cost(last_s_base, s_base, s_hand)
+                                if last_s_base
+                                else (0.0, 0.0)
                             )
                             s_cost = s_static
                             if c_hand == s_hand:
                                 s_cost += s_dynamic
                             step_cost += max(0, s_cost)
+                            c_shift += max(0, s_cost)
 
+                            c_last_last_finger = c_finger if s_hand == c_hand else None
                             c_hand, c_finger, c_base = s_hand, 0, s_base
-                            if s_hand == 1:
-                                c_l_base = c_l_char = s_base
-                            else:
-                                c_r_base = c_r_char = s_base
+                            c_finger_pos[s_idx] = s_base
 
-                        last_m_base = c_l_base if cand_hand == 1 else c_r_base
-                        main_static, main_dynamic = self._get_cost(
-                            last_m_base, cand_base_key, cand_hand
+                        cand_idx = cand_finger if cand_hand == 1 else cand_finger + 5
+
+                        main_static, _ = self._get_cost(
+                            cand_base_key, cand_base_key, cand_hand
                         )
-                        main_cost = main_static
 
-                        if c_hand == cand_hand:
-                            main_cost += main_dynamic
-                            if self.verbose and main_dynamic != 0:
-                                if main_dynamic < 0:
-                                    step_logs.append(
-                                        f"  -> Double Tap Discount ({main_dynamic})"
-                                    )
-                                else:
-                                    step_logs.append(
-                                        f"  -> Dynamic Cost (+{main_dynamic})"
-                                    )
-
-                            # 1. SFB (Same Finger Bigram)
-                            if c_finger == cand_finger and c_base != cand_base_key:
-                                cand_row = ROW_MAP.get(cand_base_key, 1)
-                                cur_row = ROW_MAP.get(c_base, 1)
-
-                                # 薬指と小指は独立性ペナルティを重くする
-                                weakness_multiplier = (
-                                    1.5 if cand_finger in [0, 1] else 1.0
+                        if c_base == cand_base_key:
+                            main_cost = main_static * 0.2
+                            c_doubletap += main_cost
+                            if self.verbose:
+                                step_logs.append(
+                                    f"  -> Double Tap Discount (stroke cost: {main_cost:.2f})"
                                 )
-                                distance_penalty = abs(cur_row - cand_row) * 10
-
-                                sfb_total = (
-                                    sfb_base_penalty + distance_penalty
-                                ) * weakness_multiplier
-                                main_cost += sfb_total
-                                if self.verbose:
-                                    step_logs.append(f"  -> SFB Penalty (+{sfb_total})")
-
-                            elif c_finger != cand_finger:
-                                cand_row = ROW_MAP.get(cand_base_key, 1)
-                                cur_row = ROW_MAP.get(c_base, 1)
-
-                                # 2. Row Jump
-                                if abs(cur_row - cand_row) == 2:
-                                    main_cost += row_jump_penalty
-                                    if self.verbose:
-                                        step_logs.append(
-                                            f"  -> Row Jump Penalty (+{row_jump_penalty})"
-                                        )
-
-                                # 3. Scissors
-                                if (
-                                    c_finger is not None
-                                    and abs(c_finger - cand_finger) == 1
-                                    and cur_row != cand_row
-                                ):
-                                    main_cost += scissor_penalty
-                                    if self.verbose:
-                                        step_logs.append(
-                                            f"  -> Scissors Penalty (+{scissor_penalty})"
-                                        )
-
-                                # 4. Rolls (隣り合う指のみ)
-                                if (
-                                    c_finger is not None
-                                    and abs(c_finger - cand_finger) == 1
-                                ):
-                                    if c_finger < cand_finger:
-                                        main_cost -= inward_roll_bonus
-                                        if self.verbose:
-                                            step_logs.append(
-                                                f"  -> Inward Roll (-{inward_roll_bonus})"
-                                            )
-                                    else:
-                                        main_cost -= outward_roll_bonus
-                                        if self.verbose:
-                                            step_logs.append(
-                                                f"  -> Outward Roll (-{outward_roll_bonus})"
-                                            )
                         else:
-                            if c_hand is not None:
-                                main_cost -= alternation_bonus
-                                if self.verbose:
-                                    step_logs.append(
-                                        f"  -> Alternation Bonus (-{alternation_bonus})"
-                                    )
+                            c_static += main_static
+                            last_same_finger_base = c_finger_pos[cand_idx]
+                            _, move_cost = (
+                                self._get_cost(
+                                    last_same_finger_base, cand_base_key, cand_hand
+                                )
+                                if last_same_finger_base
+                                else (0.0, 0.0)
+                            )
+                            c_move += move_cost
 
-                        main_cost = max(0, main_cost)
+                            p_sfb = p_scissor = p_row_jump = p_redirect = p_roll = (
+                                p_hand_split
+                            ) = 0.0
+
+                            if (
+                                cand_finger in [0, 1, 2, 3]
+                                and cand_base_key in self.key_coords
+                            ):
+                                cand_coord = self.key_coords[cand_base_key]
+                                for other_f in [0, 1, 2, 3]:
+                                    if other_f != cand_finger:
+                                        other_idx = (
+                                            other_f if cand_hand == 1 else other_f + 5
+                                        )
+                                        other_key = c_finger_pos[other_idx]
+                                        if other_key and other_key in self.key_coords:
+                                            other_coord = self.key_coords[other_key]
+                                            dx = (cand_coord[0] - other_coord[0]) * 1.5
+                                            dy = cand_coord[1] - other_coord[1]
+                                            dist = (dx * dx + dy * dy) ** 0.5
+                                            neutral_dist = self.neutral_distances[
+                                                cand_hand
+                                            ][cand_finger][other_f]
+                                            if dist > neutral_dist + 1.2:
+                                                p_hand_split += (
+                                                    dist - neutral_dist - 1.2
+                                                ) * 15.0
+
+                            if c_hand is not None:
+                                if c_hand == cand_hand and c_finger == cand_finger:
+                                    w_ind = 1.5 if cand_finger in [0, 1] else 1.0
+                                    dist_sfb = 0.0
+                                    if (
+                                        c_base
+                                        and c_base in self.key_coords
+                                        and cand_base_key in self.key_coords
+                                    ):
+                                        c1 = self.key_coords[c_base]
+                                        c2 = self.key_coords[cand_base_key]
+                                        dx = (c1[0] - c2[0]) * 1.5
+                                        dy = c1[1] - c2[1]
+                                        dist_sfb = (dx * dx + dy * dy) ** 0.5
+                                    p_sfb = (30.0 + 50.0 * (dist_sfb**1.5)) * w_ind
+                                    if self.verbose:
+                                        step_logs.append(f"  -> SFB Penalty (+{p_sfb})")
+
+                                if (
+                                    c_finger is not None
+                                    and cand_finger is not None
+                                    and c_finger != cand_finger
+                                ):
+                                    cand_row = ROW_MAP.get(cand_base_key, 1)
+                                    cur_row = ROW_MAP.get(c_base, 1)
+
+                                    if (cur_row == 0 and cand_row == 2) or (
+                                        cur_row == 2 and cand_row == 0
+                                    ):
+                                        p_row_jump = float(row_jump_penalty)
+                                        if self.verbose:
+                                            step_logs.append(
+                                                f"  -> Row Jump Penalty (+{row_jump_penalty})"
+                                            )
+
+                                    if (
+                                        abs(c_finger - cand_finger) == 1
+                                        and c_finger != 4
+                                        and cand_finger != 4
+                                        and (
+                                            (cur_row == 0 and cand_row == 2)
+                                            or (cur_row == 2 and cand_row == 0)
+                                        )
+                                    ):
+                                        p_scissor = float(scissor_penalty)
+                                        c_idx = (
+                                            c_finger if c_hand == 1 else c_finger + 5
+                                        )
+                                        c_finger_pos[c_idx] = initial_finger_pos[c_idx]
+                                        if self.verbose:
+                                            step_logs.append(
+                                                f"  -> Scissors Penalty (+{scissor_penalty})"
+                                            )
+
+                                    if c_finger != 4 and cand_finger != 4:
+                                        f_norm_from = c_finger
+                                        f_norm_to = cand_finger
+
+                                        if f_norm_to - f_norm_from == 1:
+                                            p_roll = float(inward_roll_bonus)
+                                            if self.verbose:
+                                                step_logs.append(
+                                                    f"  -> Inward Roll Bonus (+{inward_roll_bonus})"
+                                                )
+                                        elif f_norm_from - f_norm_to == 1:
+                                            p_roll = float(outward_roll_bonus)
+                                            if self.verbose:
+                                                step_logs.append(
+                                                    f"  -> Outward Roll Bonus (+{outward_roll_bonus})"
+                                                )
+
+                                if (
+                                    c_hand == cand_hand
+                                    and c_last_last_finger is not None
+                                    and c_finger is not None
+                                    and cand_finger is not None
+                                    and c_base not in ["lshift", "rshift"]
+                                    and cand_base_key not in ["lshift", "rshift"]
+                                    and c_finger != 4
+                                    and cand_finger != 4
+                                    and c_last_last_finger != 4
+                                    and c_finger != 3
+                                    and cand_finger != 3
+                                    and c_last_last_finger != 3
+                                    and c_finger != c_last_last_finger
+                                    and cand_finger != c_finger
+                                ):
+                                    if (c_finger - c_last_last_finger) * (
+                                        cand_finger - c_finger
+                                    ) < 0:
+                                        p_redirect = 10.0
+                                        if self.verbose:
+                                            step_logs.append(
+                                                "  -> Redirects Penalty (+10.0)"
+                                            )
+
+                                if c_hand != cand_hand:
+                                    p_sfb *= 0.5
+                                    p_scissor *= 0.5
+                                    p_row_jump *= 0.5
+                                    p_redirect *= 0.5
+                                    p_roll *= 0.5
+                                    if self.verbose:
+                                        step_logs.append(
+                                            "  -> Cross-Hand Modifier Applied (Penalty/Bonus halved)"
+                                        )
+
+                            c_sfb += p_sfb
+                            c_scissor += p_scissor
+                            c_row_jump += p_row_jump
+                            c_redirect += p_redirect
+                            c_roll += p_roll
+                            c_hand_split += p_hand_split
+
+                            main_dynamic_final = (
+                                move_cost
+                                + p_sfb
+                                + p_scissor
+                                + p_row_jump
+                                + p_redirect
+                                + p_hand_split
+                                - p_roll
+                            )
+                            main_cost = main_static + main_dynamic_final
+
+                        main_cost = max(0.0, main_cost)
                         step_cost += main_cost
+
+                        c_same_hand_count = state.same_hand_count
+                        if c_hand == cand_hand:
+                            c_same_hand_count = min(5, c_same_hand_count + 1)
+                        else:
+                            c_same_hand_count = 1
+
+                        fatigue_multiplier = 1.0 + (c_same_hand_count - 1) * 0.05
+                        c_fatigue += step_cost * (fatigue_multiplier - 1.0)
+                        step_cost *= fatigue_multiplier
+
                         step_count += match_len
 
-                        if cand_hand == 1:
-                            c_l_base, c_l_char = cand_base_key, key_str
-                        else:
-                            c_r_base, c_r_char = cand_base_key, key_str
+                        (
+                            n_c0,
+                            n_c1,
+                            n_c2,
+                            n_c3,
+                            n_c4,
+                            n_c5,
+                            n_c6,
+                            n_c7,
+                            n_c8,
+                            n_c9,
+                            n_c10,
+                        ) = node.comps
+                        new_comps = (
+                            n_c0 + c_static,
+                            n_c1 + c_move,
+                            n_c2 + c_sfb,
+                            n_c3 + c_scissor,
+                            n_c4 + c_row_jump,
+                            n_c5 + c_roll,
+                            n_c6 + c_redirect,
+                            n_c7 + c_shift,
+                            n_c8 + c_doubletap,
+                            n_c9 + c_fatigue,
+                            n_c10 + c_hand_split,
+                        )
+
+                        c_finger_pos[cand_idx] = cand_base_key
+
+                        next_last_last_finger = (
+                            c_finger if cand_hand == c_hand else None
+                        )
 
                         new_state = DpState(
-                            c_l_base,
-                            c_r_base,
+                            tuple(c_finger_pos),
                             cand_hand,
                             cand_finger,
+                            next_last_last_finger,
                             cand_base_key,
-                            c_l_char,
-                            c_r_char,
+                            c_same_hand_count,
                         )
                         target_i = i + match_len
                         new_cost = node.cost + step_cost
@@ -685,6 +945,7 @@ class TypingCostCalculator:
                             dp[target_i][new_state] = PathNode(
                                 new_cost,
                                 node.count + step_count,
+                                new_comps,
                                 step_logs if self.verbose else [],
                                 node,
                             )
@@ -692,13 +953,14 @@ class TypingCostCalculator:
 
         states = dp[len(processed_text)]
         if not states:
-            return 0, -20, 0
+            return 0, -20, 0, ()
 
         best_node = min(states.values(), key=lambda n: n.cost)
         return (
             best_node.cost,
             (best_node.cost / best_node.count if best_node.count > 0 else 0),
             best_node.count,
+            best_node.comps,
         )
 
 
@@ -707,6 +969,7 @@ def evaluate_layout(
     layout: str,
     text_to_check: str,
     cost_mode: str = "default",
+    board_mode: str = "row_staggered",
     norm: float = 1.0,
     silent: bool = False,
     use_c_for_k: bool = False,
@@ -715,20 +978,24 @@ def evaluate_layout(
         text_to_check = text_to_check.replace("k", "c").replace("K", "C")
 
     # "default" か "calculated" を指定して初期化
-    calculator = TypingCostCalculator(layout, verbose=False, cost_mode=cost_mode)
-    _, normalized_cost, _ = calculator.calculate(text_to_check)
+    calculator = TypingCostCalculator(
+        layout, verbose=False, cost_mode=cost_mode, board_mode=board_mode
+    )
+    _, normalized_cost, count, comps = calculator.calculate(text_to_check)
     result = (normalized_cost / norm) * 100 if norm != 1.0 else normalized_cost
+
     if not silent:
         print(f"[{cost_mode.upper():<10}] Layout: {name:<12} : Score: {result:.4f}")
-    return result
+
+    return result, comps
 
 
 if __name__ == "__main__":
     # ⚠️ This path needs to be changed depending on the execution environment.
     japanese = False
-    # japanese = True
-    cost_mode = "default"
-    # cost_mode = "calculated"
+    japanese = True
+    # cost_mode = "default"
+    cost_mode = "calculated"
 
     max_chars = 100000  # 測定するテキストの文字数の最大値
 
@@ -764,98 +1031,155 @@ if __name__ == "__main__":
         print(f"Max Chars: {max_chars}")
         print("-" * 50)
 
-        # 1. 基準となるQWERTYのスコアを計算
-        qwerty_layout = "qwertyuiopasdfghjkl;zxcvbnm,./"
-        qwerty_score_orig = evaluate_layout(
-            "QWERTY", qwerty_layout, text_to_check, cost_mode, norm=1.0, silent=True
-        )
-        if text_alt:
-            qwerty_score_alt = evaluate_layout(
-                "QWERTY", qwerty_layout, text_alt, cost_mode, norm=1.0, silent=True
-            )
-            qwerty_norm = min(qwerty_score_orig, qwerty_score_alt)
+        # 評価する形状モードのリスト
+        if cost_mode == "calculated":
+            # board_modes = ["row_staggered", "ortholinear", "column_staggered"]
+            board_modes = ["row_staggered"]
         else:
-            qwerty_norm = qwerty_score_orig
+            board_modes = [
+                "row_staggered"
+            ]  # default モードでは形状モードは無関係（固定マトリクス）
 
-        # 2. 評価する共通レイアウトのリスト
-        layouts_to_test = [
-            ("QWERTY", "qwertyuiopasdfghjkl;zxcvbnm,./"),
-            # ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
-            ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
-            ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./", {"use_c_for_k": True}),
-            # ("FMIX16_2", "qwldjkfuy;arstghneiozxcvbpm,./"),
-            ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx", {"use_c_for_k": True}),
-            ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
-            # ("FMIX12", "qwlrkyfup;asdtghneiozxcvbjm,./"),
-            #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./', {"use_c_for_k": True}),
-            ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
-            #            ("FMIX14", 'qwldkyfup;asrtghneiozxcvbjm,./'),
-            #            ("FMIX14 fuj", 'qwldkyfuj;asrtghneiozxcvbpm,./'),
-            #            ("FMIX14 vbk", 'qwldjyfup;asrtghneiozxcvbkm,./'),
-            ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
-            # ("aret", "qcufkzlpy;aretdmnoisjwxgbvh,./"),
-            ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z.", {"use_c_for_k": False}),
-            # ("Boo", ",.ucvqfdlyaoesgbntri;x/wzphmkj"),
-            #            ("Stronk", 'fdlbvjgou,strnkymaeizqxhpwc/;.'),
-            #            ("aptv3", 'wgdfbqluoyrsthkjneaixcmpvz,.;/'),
-            ("kotone", "qwdrfjluyxnstegceaiozpmhbkv,./"),
-            ("kotone2", "qwrdfjluyxnstegceaiozpmhbkv,./"),
-            #            ("kotone3", 'qwrdfjluyxsntegceaiozpmhbkv,./'),
-            #            ("kotone4", 'qwrdfjluyxstnegceaiozpmhbkv,./'),
-            ("kotone5", "qwrdfjluyxnstagcaieozpmhbkv,./"),
-            ("kotone6", "qwrdfjluyxnstagcaeiozpmhbkv,./"),
-        ]
+        for b_mode in board_modes:
+            print(f"\n=== Board Mode: {b_mode.upper()} ===")
 
-        # 3. 日本語モードの場合は、日本語特化配列を追加
-        if japanese:
-            layouts_to_test.extend(
-                [
-                    ("kotone2j", "qwrdfj[yu]u[yo]xnstkgceaiozpmhb-[ya],./"),
-                    ("FMIX13R", "qwdrfylup-asktghneiozxcvbjm,./"),
-                    ("kotone5j", "qwrdfj[yu]u[yo]xnstkgcaieozpmhb-[ya],./"),
-                    ("minato", "qwrdfj[yu]u[yo]xnsktgcaieozpmhb-[ya],./"),
-                    ("kotone6j", "qwrdfj[yu]u[yo]xnstkgcaeiozpmhb-[ya],./"),
-                ]
-            )
-
-        # 4. ループで一括スコアリング
-        for item in layouts_to_test:
-            name = item[0]
-            layout = item[1]
-            opts = item[2] if len(item) > 2 else {}
-            use_c = opts.get("use_c_for_k", False) if japanese else False
-
-            score_orig = evaluate_layout(
-                name,
-                layout,
+            # 1. 基準となるQWERTYのスコアを計算
+            qwerty_layout = "qwertyuiopasdfghjkl;zxcvbnm,./"
+            qwerty_score_orig, _ = evaluate_layout(
+                "QWERTY",
+                qwerty_layout,
                 text_to_check,
                 cost_mode,
-                norm=qwerty_norm,
+                board_mode=b_mode,
+                norm=1.0,
                 silent=True,
-                use_c_for_k=use_c,
             )
             if text_alt:
-                score_alt = evaluate_layout(
-                    name,
-                    layout,
+                qwerty_score_alt, _ = evaluate_layout(
+                    "QWERTY",
+                    qwerty_layout,
                     text_alt,
                     cost_mode,
+                    board_mode=b_mode,
+                    norm=1.0,
+                    silent=True,
+                )
+                qwerty_norm = min(qwerty_score_orig, qwerty_score_alt)
+            else:
+                qwerty_norm = qwerty_score_orig
+
+            # 2. 評価する共通レイアウトのリスト
+            layouts_to_test = [
+                ("QWERTY", "qwertyuiopasdfghjkl;zxcvbnm,./"),
+                # ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
+                ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
+                ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./", {"use_c_for_k": True}),
+                # ("FMIX16_2", "qwldjkfuy;arstghneiozxcvbpm,./"),
+                ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx", {"use_c_for_k": True}),
+                ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
+                # ("FMIX12", "qwlrkyfup;asdtghneiozxcvbjm,./"),
+                #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./', {"use_c_for_k": True}),
+                ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
+                #            ("FMIX14", 'qwldkyfup;asrtghneiozxcvbjm,./'),
+                #            ("FMIX14 fuj", 'qwldkyfuj;asrtghneiozxcvbpm,./'),
+                #            ("FMIX14 vbk", 'qwldjyfup;asrtghneiozxcvbkm,./'),
+                ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
+                # ("aret", "qcufkzlpy;aretdmnoisjwxgbvh,./"),
+                ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z.", {"use_c_for_k": False}),
+                # ("Boo", ",.ucvqfdlyaoesgbntri;x/wzphmkj"),
+                #            ("Stronk", 'fdlbvjgou,strnkymaeizqxhpwc/;.'),
+                #            ("aptv3", 'wgdfbqluoyrsthkjneaixcmpvz,.;/'),
+                ("kotone", "qwdrfjluyxnstegceaiozpmhbkv,./"),
+                ("kotone2", "qwrdfjluyxnstegceaiozpmhbkv,./"),
+                #            ("kotone3", 'qwrdfjluyxsntegceaiozpmhbkv,./'),
+                #            ("kotone4", 'qwrdfjluyxstnegceaiozpmhbkv,./'),
+                ("kotone5", "qwrdfjluyxnstagcaieozpmhbkv,./"),
+                ("kotone6", "qwrdfjluyxnstagcaeiozpmhbkv,./"),
+            ]
+
+            # 3. 日本語モードの場合は、日本語特化配列を追加
+            if japanese:
+                layouts_to_test.extend(
+                    [
+                        ("FMIX13R", "qwdrfylup-asktghneiozxcvbjm,./"),
+                        ("minato", "qwrdfj[yu]u[yo]xnsktgcaieozpmhb-[ya],./"),
+                        ("kotone2j", "qwrdfj[yu]u[yo]xnstkgceaiozpmhb-[ya],./"),
+                        ("kotone5j", "qwrdfj[yu]u[yo]xnstkgcaieozpmhb-[ya],./"),
+                        ("kotone6j", "qwrdfj[yu]u[yo]xnstkgcaeiozpmhb-[ya],./"),
+                    ]
+                )
+
+            # 4. ループで一括スコアリング
+            for item in layouts_to_test:
+                name = item[0]
+                layout = item[1]
+                opts = item[2] if len(item) > 2 else {}
+                use_c = opts.get("use_c_for_k", False) if japanese else False
+
+                score_orig, comps_orig = evaluate_layout(
+                    name,
+                    layout,
+                    text_to_check,
+                    cost_mode,
+                    board_mode=b_mode,
                     norm=qwerty_norm,
                     silent=True,
                     use_c_for_k=use_c,
                 )
-                best_score = min(score_orig, score_alt)
-                label = "Orig" if score_orig <= score_alt else "Alt(zya)"
-                if use_c:
-                    label += ", k->c"
+                if text_alt:
+                    score_alt, comps_alt = evaluate_layout(
+                        name,
+                        layout,
+                        text_alt,
+                        cost_mode,
+                        board_mode=b_mode,
+                        norm=qwerty_norm,
+                        silent=True,
+                        use_c_for_k=use_c,
+                    )
+                    best_score = min(score_orig, score_alt)
+                    best_comps = comps_orig if score_orig <= score_alt else comps_alt
+                    label = "Orig" if score_orig <= score_alt else "Alt(zya)"
+                    if use_c:
+                        label += ", k->c"
+                else:
+                    best_score = score_orig
+                    best_comps = comps_orig
+                    label = "Orig, k->c" if use_c else "Orig"
+
                 print(
                     f"[{cost_mode.upper():<10}] Layout: {name:<12} : Score: {best_score:.4f} ({label})"
                 )
-            else:
-                label = "Orig, k->c" if use_c else "Orig"
-                print(
-                    f"[{cost_mode.upper():<10}] Layout: {name:<12} : Score: {score_orig:.4f} ({label})"
-                )
+
+                # Format the components breakdown
+                if best_comps:
+                    comp_names = [
+                        "Static",
+                        "Move",
+                        "SFB",
+                        "Scissor",
+                        "RowJump",
+                        "Roll(Bonus)",
+                        "Redirect",
+                        "Shift",
+                        "DoubleTap",
+                        "Fatigue",
+                        "HandSplit",
+                    ]
+                    # We negate roll bonus for display to show it as a negative cost (bonus)
+                    display_comps = list(best_comps)
+                    display_comps[5] = -display_comps[
+                        5
+                    ]  # Roll bonus is subtracted from total cost
+
+                    total = sum(display_comps)
+                    if total > 0:
+                        comp_strs = []
+                        for c_name, c_val in zip(comp_names, display_comps):
+                            if c_val != 0.0:
+                                pct = abs(c_val) / total * 100
+                                comp_strs.append(f"{c_name}:{c_val:.1f}({pct:.1f}%)")
+                        print("    Breakdown -> " + " | ".join(comp_strs))
 
         print("-" * 50)
 
