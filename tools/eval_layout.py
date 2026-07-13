@@ -530,7 +530,11 @@ class TypingCostCalculator:
                     dy = y2 - y1
                     d = math.sqrt((dx * 1.5) ** 2 + dy**2)
 
-                    dynamic_cost = (d**1.2) * strength_w * base_cost_multiplier
+                    # 距離依存の有効ターゲット縮小モデル (Fitts変形型)
+                    # W_eff = 1 / (1 + k * D)
+                    k = 0.5
+                    fitts_id = math.log2(1.0 + d * (1.0 + k * d))
+                    dynamic_cost = fitts_id * strength_w * base_cost_multiplier
 
                 # 最終コストは 静的コスト + 動的コスト (tupleで返す)
                 cost_list.append((int(static_cost), int(dynamic_cost)))
@@ -563,10 +567,10 @@ class TypingCostCalculator:
         self,
         text: str,
         sfb_base_penalty: int = 80,
-        scissor_penalty: int = 25,
+        scissor_penalty: int = 10,
         row_jump_penalty: int = 15,
-        inward_roll_bonus: int = 5,
-        outward_roll_bonus: int = 2,
+        inward_roll_bonus: int = 10,
+        outward_roll_bonus: int = 5,
         alternation_bonus: int = 0,
     ) -> Tuple[float, float, int]:
 
@@ -851,14 +855,14 @@ class TypingCostCalculator:
                                             )
 
                                 if c_hand != cand_hand:
-                                    p_sfb *= 0.5
-                                    p_scissor *= 0.5
-                                    p_row_jump *= 0.5
-                                    p_redirect *= 0.5
-                                    p_roll *= 0.5
+                                    p_sfb *= 0.75
+                                    p_scissor *= 0.75
+                                    p_row_jump *= 0.75
+                                    p_redirect *= 0.75
+                                    p_roll *= 0.75
                                     if self.verbose:
                                         step_logs.append(
-                                            "  -> Cross-Hand Modifier Applied (Penalty/Bonus halved)"
+                                            "  -> Cross-Hand Modifier Applied (Penalty/Bonus * 0.75)"
                                         )
 
                             c_sfb += p_sfb
@@ -888,7 +892,27 @@ class TypingCostCalculator:
                         else:
                             c_same_hand_count = 1
 
-                        fatigue_multiplier = 1.0 + (c_same_hand_count - 1) * 0.05
+                        # 反対側の手が2回打鍵された場合のホーム戻り処理
+                        c_return = 0.0
+                        if c_hand == cand_hand and c_same_hand_count == 2:
+                            opp_hand = 1 - cand_hand
+                            for f in range(5):
+                                opp_idx = f if opp_hand == 1 else f + 5
+                                current_key = c_finger_pos[opp_idx]
+                                home_key = initial_finger_pos[opp_idx]
+                                if current_key and home_key and current_key != home_key:
+                                    _, return_move_cost = self._get_cost(
+                                        current_key, home_key, opp_hand
+                                    )
+                                    c_return += return_move_cost
+                                c_finger_pos[opp_idx] = home_key
+
+                        c_move += c_return
+                        step_cost += c_return
+
+                        fatigue_multiplier = (
+                            1.0 + (c_same_hand_count - 1) * 0.03
+                        )  # 0.03
                         c_fatigue += step_cost * (fatigue_multiplier - 1.0)
                         step_cost *= fatigue_multiplier
 
@@ -990,10 +1014,8 @@ def evaluate_layout(
     return result, comps
 
 
-if __name__ == "__main__":
+def calc(japanese):
     # ⚠️ This path needs to be changed depending on the execution environment.
-    japanese = False
-    japanese = True
     # cost_mode = "default"
     cost_mode = "calculated"
 
@@ -1071,41 +1093,78 @@ if __name__ == "__main__":
             # 2. 評価する共通レイアウトのリスト
             layouts_to_test = [
                 ("QWERTY", "qwertyuiopasdfghjkl;zxcvbnm,./"),
-                # ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
-                ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
-                ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./", {"use_c_for_k": True}),
+                ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
+                # ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
+                # ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./", {"use_c_for_k": True}),
                 # ("FMIX16_2", "qwldjkfuy;arstghneiozxcvbpm,./"),
                 ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx", {"use_c_for_k": True}),
                 ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
                 # ("FMIX12", "qwlrkyfup;asdtghneiozxcvbjm,./"),
                 #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./', {"use_c_for_k": True}),
-                ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
+                # ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
                 #            ("FMIX14", 'qwldkyfup;asrtghneiozxcvbjm,./'),
                 #            ("FMIX14 fuj", 'qwldkyfuj;asrtghneiozxcvbpm,./'),
                 #            ("FMIX14 vbk", 'qwldjyfup;asrtghneiozxcvbkm,./'),
-                ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
+                # ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
                 # ("aret", "qcufkzlpy;aretdmnoisjwxgbvh,./"),
-                ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z.", {"use_c_for_k": False}),
+                ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z."),
+                ("Stream1", "qwrd;bkuyxatnsgmheiozplcjfv,./"),
+                ("Stream-m", "qwrdj;luyxasntgvheiozpmcbkf,./"),
+                ("Stream-m;j", "qwrd;jluyxasntgvheiozpmcbkf,./"),
+                ("Stream-m;jpr", "qprd;jluyxasntgvheiozwmcbkf,./"),
+                ("Stream2", "qwrd;jluyxasntgvheiozpfcbkm,./", {"use_c_for_k": False}),
+                ("StreamXX", "qdrw;jluyxasntgvheiozcbpfkm,./", {"use_c_for_k": False}),
+                ("Stream2x", "qwrd;jluyxasntgvheiozpmcbkf,./", {"use_c_for_k": False}),
+                # ("Stream3", "qwrd;jluyxasntgvhieozpfcbkm,./", {"use_c_for_k": False}),
+                # ("Stream4", "qwrd;bluyxasntgmheiozpfcjkv,./", {"use_c_for_k": False}),
+                # ("Stream5", "qwrd;bluyxasntgvheiozpfcjkm,./", {"use_c_for_k": False}),
+                ("Wakasagi5", "qwrd;bluyxatnsgvheiozpfcjkm,./"),
                 # ("Boo", ",.ucvqfdlyaoesgbntri;x/wzphmkj"),
                 #            ("Stronk", 'fdlbvjgou,strnkymaeizqxhpwc/;.'),
                 #            ("aptv3", 'wgdfbqluoyrsthkjneaixcmpvz,.;/'),
-                ("kotone", "qwdrfjluyxnstegceaiozpmhbkv,./"),
-                ("kotone2", "qwrdfjluyxnstegceaiozpmhbkv,./"),
+                # ("kotone", "qwdrfjluyxnstegceaiozpmhbkv,./"),
+                # ("kotone2", "qwrdfjluyxnstegceaiozpmhbkv,./"),
                 #            ("kotone3", 'qwrdfjluyxsntegceaiozpmhbkv,./'),
                 #            ("kotone4", 'qwrdfjluyxstnegceaiozpmhbkv,./'),
                 ("kotone5", "qwrdfjluyxnstagcaieozpmhbkv,./"),
                 ("kotone6", "qwrdfjluyxnstagcaeiozpmhbkv,./"),
+                ("kotone7", "qwrdbjluyxnstagcaeiozpmhfkv,./"),
             ]
 
             # 3. 日本語モードの場合は、日本語特化配列を追加
             if japanese:
                 layouts_to_test.extend(
                     [
+                        (
+                            "streamj",
+                            "qwrd;jluyxasntg[nn]heiozpfcbkm,./",
+                            {"use_c_for_k": False},
+                        ),
+                        (
+                            "streamj-c",
+                            "qwrd;jluyxasntg[nn]heiozpfcbkm,./",
+                            {"use_c_for_k": True},
+                        ),
+                        (
+                            "stream-mj",
+                            "qwrd;j[yu]u[yo]xnsktg[nn]aeiozpmhb-[ya],./",
+                            {"use_c_for_k": False},
+                        ),
+                        (
+                            "stream-mjfns",
+                            "qwrdf;[yu]u[yo]xnsktg[nn]aeiozpmhb-[ya],./",
+                            {"use_c_for_k": False},
+                        ),
+                        (
+                            "stream-mjfks",
+                            "qwrdf;[yu]u[yo]xksntg[nn]aeiozpmhb-[ya],./",
+                            {"use_c_for_k": False},
+                        ),
                         ("FMIX13R", "qwdrfylup-asktghneiozxcvbjm,./"),
-                        ("minato", "qwrdfj[yu]u[yo]xnsktgcaieozpmhb-[ya],./"),
-                        ("kotone2j", "qwrdfj[yu]u[yo]xnstkgceaiozpmhb-[ya],./"),
-                        ("kotone5j", "qwrdfj[yu]u[yo]xnstkgcaieozpmhb-[ya],./"),
-                        ("kotone6j", "qwrdfj[yu]u[yo]xnstkgcaeiozpmhb-[ya],./"),
+                        ("minato", "qwrdfj[yu]u[yo]xnsktg[nn]aieozpmhb-[ya],./"),
+                        # ("kotone2j", "qwrdfj[yu]u[yo]xnstkg[nn]eaiozpmhb-[ya],./"),
+                        ("kotone5jie", "qwrdfj[yu]u[yo]xnstkg[nn]aieozpmhb-[ya],./"),
+                        ("kotone6jei", "qwrdfj[yu]u[yo]xnstkg[nn]aeiozpmhb-[ya],./"),
                     ]
                 )
 
@@ -1190,3 +1249,8 @@ if __name__ == "__main__":
         )
     except Exception as e:
         print(f"\nAn error occurred: {e}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    calc(False)
+    calc(True)

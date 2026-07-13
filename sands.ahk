@@ -2291,8 +2291,10 @@ class LKey extends RKey {
      * @param {String} key - 通常時の送信キー記述
      * @param {String} [shift_key=""] - Shift押下時の送信キー記述
      */
-    SetKey(key, shift_key := "") {
+    SetKey(key, shift_key := "", ime := false) {
         super.SetKey(key, shift_key)
+        if ime
+            this.SetImeKey(key, shift_key)
     }
 
     /**
@@ -2769,8 +2771,8 @@ LoadLayoutConfig() {
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
             case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_minato_Layout()
-            case "Kotone[Built-in]": ChangeKotone_Layout()
-            case "Suzune[Built-in]": ChangeSuzune_Layout()
+            case "FMIX12xei-Minato[Built-in]": ChangeFMIX12xei_minato_Layout()
+            case "STREAM2-Minato[Built-in]": ChangeSTREAM2_Minato_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
@@ -3855,7 +3857,7 @@ StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,.
  * @param {String} layout - 保存するキーレイアウト
  * @param {String} num_layout - 保存する数字列レイアウト
  */
-StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "") {
+StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "", ime := false) {
     ResetCombinations()
     TypeAnalyzer.SetLayoutName(name)
     if name != "" {
@@ -3867,12 +3869,12 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
 
     l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
     for i, keyObj in LAYOUT_NUM_KEYS {
-        keyObj.SetKey(l_num.GetElement(i), l_snum.GetElement(i))
+        keyObj.SetKey(l_num.GetElement(i), l_snum.GetElement(i), ime)
         keyObj.SetMode(1, 0)
     }
     l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
     for i, keyObj in LAYOUT_CHAR_KEYS {
-        keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i))
+        keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i), ime)
     }
     SetLKeyMode(1, 0)
 }
@@ -4030,7 +4032,7 @@ ChangeFMIX14_FMIX14R_Layout() {
 /**
  * 湊（みなと）配列に特有な IME ON 時の差分マッピング（複合母音キーの割り当てなど）を設定する共通ヘルパーです。
  */
-ChangeMinatoLayoutImpl() {
+ChangeMinatoLayoutImpl(ei := True) {
     global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
     ResetIME()
 
@@ -4057,8 +4059,13 @@ ChangeMinatoLayoutImpl() {
     p.SetImeKey("ou")
     h.SetImeKey(";", "ann") ; ;=nn
     j.SetImeKey("a", "ou")
-    k.SetImeKey("i", "xi")
-    l.SetImeKey("e", "xe")
+    if ei {
+        k.SetImeKey("e", "xe")
+        l.SetImeKey("i", "xi")
+    } else {
+        k.SetImeKey("i", "xi")
+        l.SetImeKey("e", "xe")
+    }
     semicolon.SetImeKey("o", "ou")
     ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
     n.SetImeKey("-", "a-")
@@ -4082,72 +4089,6 @@ ChangeMinatoLayoutImpl() {
     RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
     RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する、される
     RegistIMECombination(7, rm["s"], r, "uru", "{BS}{BS}sareru") ;する、される
-    RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination(7, z, v, "youhou") ;
-    RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination(7, rm["m"], v, "ono") ;
-    RegistIMECombination(7, rm["n"], r, "ode") ;
-}
-
-/**
- * ことね配列に特有な IME ON 時の差分マッピング（複合母音キーの割り当てなど）を設定する共通ヘルパーです。
- */
-ChangeKotoneLayoutImpl() {
-    global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
-    ResetIME()
-
-    ; IME ON 時の差分設定
-    q.SetImeKey("l", "?")
-    w.SetImeKey("w")
-    e.SetImeKey("r")
-    r.SetImeKey("d")
-    t.SetImeKey("f")
-    ;y.SetImeKey("f")
-    a.SetImeKey("n", "(")
-    s.SetImeKey("s", ")")
-    d.SetImeKey("t")
-    f.SetImeKey("k", "-")
-    ;g.SetImeKey("h")
-    z.SetImeKey("z", "[")
-    x.SetImeKey("p", "]")
-    c.SetImeKey("m")
-    v.SetImeKey("h", "v")
-    b.SetImeKey("b", "v")
-    ;y.SetImeKey("ya")
-    u.SetImeKey("yu", "{BS}")
-    i.SetImeKey("u", "ou")
-    o.SetImeKey("yo")
-    p.SetImeKey("ou")
-    h.SetImeKey(";", "ann") ; ;=nn
-    j.SetImeKey("a", "ou")
-    k.SetImeKey("i", "xi")
-    l.SetImeKey("e", "xe")
-    semicolon.SetImeKey("o", "ou")
-    ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
-    n.SetImeKey("-", "a-")
-    m.SetImeKey("ya", "ltu") ; :=ltu
-    ;slash.SetImeKey("f")
-
-    rm := CreateKeyMap()
-    SetLKeyMode(-1, 6)
-
-    target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
-    for layer_key in target_layers {
-        RegistIMECombination(8, layer_key, d, "nn") ; ん
-        RegistIMECombination(8, layer_key, f, "-") ;ー
-        RegistIMECombination(8, layer_key, v, "ltu", "ta", "{BS}te") ;
-        RegistIMECombination(8, layer_key, e, "ru", "{BS}rareru") ;
-    }
-
-    RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
-    ;RegistIMECombination(7, rm["k"], r, "ara") ;から
-    RegistIMECombination(7, rm["o"], j, "u") ;
-    RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    RegistIMECombination(7, rm["s"], f, "ite", "{BS}ta") ;して
-    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する、される
-    RegistIMECombination(7, rm["s"], r, "kyu", "tou", "{BS}sha") ;する、される
     RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
     RegistIMECombination(7, z, v, "youhou") ;
     RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
@@ -4188,9 +4129,8 @@ ChangeFMIX12x_Minato_Layout() {
 /**
  * キーレイアウトを「FMIX13xx-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
-
-ChangeFMIX12xx_Minato_Layout() {
-    StoreLayout("FMIX12xx-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,.;")
+ChangeFMIX12xei_Minato_Layout() {
+    StoreLayout("FMIX12xei-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,.;")
     ChangeMinatoLayoutImpl()
     k.SetImeKey("e", "xe")
     l.SetImeKey("i", "xi")
@@ -4198,16 +4138,38 @@ ChangeFMIX12xx_Minato_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
-ChangeKotone_Layout() {
-    StoreLayout("Kotone[Built-in]", "qwrdfjluyxnstagcaieozpmhbkv,.;")
-    ChangeKotoneLayoutImpl()
-    InitModLayer()
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
+ChangeSTREAM2_Minato_Layout() {
+    StoreLayout("STREAM2-Minato[Built-in]", "qwrd;jluyxasntgvheiozpmcbkf,./", "1234567890-", "", "", true)
 
-ChangeSuzune_Layout() {
-    StoreLayout("Suzune[Built-in]", "qwrdfjluyxnstegceaiozpmhbkv,.;")
-    ChangeKotoneLayoutImpl()
+    ChangeMinatoLayoutImpl()
+    k.SetImeKey("e", "xe")
+    l.SetImeKey("i", "xi")
+
+    rm := CreateKeyMap()
+    SetLKeyMode(-1, 6)
+
+    target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
+    for layer_key in target_layers {
+        RegistIMECombination(8, layer_key, d, "nn") ; ん
+        RegistIMECombination(8, layer_key, f, "-") ;ー
+        RegistIMECombination(8, layer_key, v, "ltu", "ta", "{BS}te") ;
+        RegistIMECombination(8, layer_key, e, "ru", "{BS}rareru") ;
+    }
+
+    RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
+    RegistIMECombination(7, rm["k"], r, "ara") ;から
+    RegistIMECombination(7, rm["o"], j, "u") ;
+    RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
+    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する、される
+    RegistIMECombination(7, rm["s"], r, "uru", "{BS}{BS}sareru") ;する、される
+    RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
+    RegistIMECombination(7, z, v, "youhou") ;
+    RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
+    RegistIMECombination(7, rm["m"], v, "ono") ;
+    RegistIMECombination(7, rm["n"], r, "ode") ;
+
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -4548,11 +4510,9 @@ space:: ToggleImeState() ;Send(C_BS)
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-;#d:: ChangeFMIX12f_Layout()
 #j:: ChangeFMIX12x_minato_Layout()
-;#k:: ChangeFMIX12xx_Minato_Layout()
-#k:: ChangeKotone_Layout()
-#s:: ChangeSuzune_Layout()
+#e:: ChangeFMIX12xei_Minato_Layout()
+#s:: ChangeSTREAM2_Minato_Layout()
 #m:: ChangeFMIX13f_minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
