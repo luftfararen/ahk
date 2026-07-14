@@ -2769,11 +2769,11 @@ LoadLayoutConfig() {
             case "FMIX12f[Built-in]": ChangeFMIX12f_Layout()
             case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
-            case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_minato_Layout()
-            case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_minato_Layout()
-            case "FMIX12xei-Minato[Built-in]": ChangeFMIX12xei_minato_Layout()
+            case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
+            case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_Minato_Layout()
+            case "FMIX12xei-Minato[Built-in]": ChangeFMIX12xei_Minato_Layout()
             case "STREAM2-Minato[Built-in]": ChangeSTREAM2_Minato_Layout()
-            case "FMIX13-Minato[Built-in]": ChangeFMIX13_minato_Layout()
+            case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
@@ -4101,7 +4101,7 @@ ChangeMinatoLayoutImpl(ei := True) {
 /**
  * キーレイアウトを「FMIX13-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
-ChangeFMIX13_minato_Layout() {
+ChangeFMIX13_Minato_Layout() {
     StoreLayout("FMIX13-Minato[Built-in]", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
@@ -4110,7 +4110,7 @@ ChangeFMIX13_minato_Layout() {
 /**
  * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
-ChangeFMIX13f_minato_Layout() {
+ChangeFMIX13f_Minato_Layout() {
     StoreLayout("FMIX13f-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
@@ -4139,7 +4139,7 @@ ChangeFMIX12xei_Minato_Layout() {
 }
 
 ChangeSTREAM2_Minato_Layout() {
-    StoreLayout("STREAM2-Minato[Built-in]", "qwrd;jluyxasntgvheiozpmcbkf,./", "1234567890-", "", "", true)
+    StoreLayout("STREAM2-Minato[Built-in]", "qwrdfjluyxasntgnheiozpmcbkv,.;", "1234567890-", "", "", true)
 
     ChangeMinatoLayoutImpl()
     k.SetImeKey("e", "xe")
@@ -4324,10 +4324,10 @@ InitModLayer() {
     comma.SetLayerKey(mode, L_SYMBOL_NUM, C_N5)
     period.SetLayerKey(mode, L_SYMBOL_NUM, C_N6)
     ;slash.SetLayerKey(mode, L_SYMBOL_NUM, C_N7)
-    z.SetLayerKey(mode, L_SYMBOL_NUM, "[")
-    x.SetLayerKey(mode, L_SYMBOL_NUM, "]")
-    c.SetLayerKey(mode, L_SYMBOL_NUM, "+[")
-    v.SetLayerKey(mode, L_SYMBOL_NUM, "+]")
+    z.SetLayerKey(mode, L_SYMBOL_NUM, "+[")
+    x.SetLayerKey(mode, L_SYMBOL_NUM, "+]")
+    c.SetLayerKey(mode, L_SYMBOL_NUM, "[")
+    v.SetLayerKey(mode, L_SYMBOL_NUM, "]")
     b.SetLayerKey(mode, L_SYMBOL_NUM, C_BACKSLASH)
     space.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
 
@@ -4510,10 +4510,10 @@ space:: ToggleImeState() ;Send(C_BS)
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#x:: ChangeFMIX12x_minato_Layout()
+#x:: ChangeFMIX12x_Minato_Layout()
 #e:: ChangeFMIX12xei_Minato_Layout()
 #s:: ChangeSTREAM2_Minato_Layout()
-#m:: ChangeFMIX13f_minato_Layout()
+#m:: ChangeFMIX13f_Minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
 #c:: ChangeColemakLayout()
