@@ -4121,7 +4121,7 @@ ChangeFMIX13f_minato_Layout() {
  * キーレイアウトを「FMIX13x-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeFMIX12x_Minato_Layout() {
-    StoreLayout("FMIX12x-Minato[Built-in]", "qwerfylupjasdtghnieozxcvbkm,.;")
+    StoreLayout("FMIX12x-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,.;")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
@@ -4510,7 +4510,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#j:: ChangeFMIX12x_minato_Layout()
+#x:: ChangeFMIX12x_minato_Layout()
 #e:: ChangeFMIX12xei_Minato_Layout()
 #s:: ChangeSTREAM2_Minato_Layout()
 #m:: ChangeFMIX13f_minato_Layout()

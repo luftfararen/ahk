@@ -1,4 +1,5 @@
 import sys
+import os
 import re
 import collections
 import math
@@ -1021,10 +1022,11 @@ def calc(japanese):
 
     max_chars = 100000  # 測定するテキストの文字数の最大値
 
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     if japanese:
-        file_path = "../data/jap-n.txt"
+        file_path = os.path.join(current_dir, "..", "data", "jap-n.txt")
     else:
-        file_path = "../data/English_sample.txt"
+        file_path = os.path.join(current_dir, "..", "data", "English_sample.txt")
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
