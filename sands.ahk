@@ -2548,7 +2548,7 @@ InitGlobalKeys() {
     global
     f13 := LKey("f13", 3, C_TAB)
     space := LKey(R_SPACE, 3, C_SPACE)
-    tab := LKey(R_TAB, 3, C_TAB)
+    tab := LKey(R_TAB, 3, C_ESC)
     noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
     ;conv := LKey(R_CONV, 3, C_ENTER)
     ;conv := LKey(R_CONV, 3, C_BS)

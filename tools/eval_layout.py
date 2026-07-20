@@ -286,7 +286,16 @@ class DpState(NamedTuple):
 
 
 class PathNode:
-    __slots__ = ["cost", "count", "comps", "logs", "prev", "history", "coms", "hand_history"]
+    __slots__ = [
+        "cost",
+        "count",
+        "comps",
+        "logs",
+        "prev",
+        "history",
+        "coms",
+        "hand_history",
+    ]
 
     def __init__(
         self,
@@ -352,7 +361,17 @@ class TypingCostCalculator:
 
         # 1. レイアウトパース
         tokens = re.findall(r"\[([^\]]+)\]|(.)", layout)
-        parsed_layout = [t[0] if t[0] else t[1] for t in tokens]
+        parsed_layout = []
+        self.shifted_map = {}
+        for t in tokens:
+            content = t[0] if t[0] else t[1]
+            if "," in content:
+                base, shifted = content.split(",", 1)
+                parsed_layout.append(base)
+                self.shifted_map[shifted] = base
+            else:
+                parsed_layout.append(content)
+
         base_to_layout_map = {
             BASE_CHARS[i]: parsed_layout[i]
             for i in range(min(len(BASE_CHARS), len(parsed_layout)))
@@ -606,7 +625,7 @@ class TypingCostCalculator:
                         z2 = self.z_offset.get(y_grid, 0.0)
                         dz = z2 - z1
                         w_z = 2.5 if dz > 0 else 1.0
-                        d = math.sqrt((dx * 1.5) ** 2 + dy**2 + (dz * w_z)**2)
+                        d = math.sqrt((dx * 1.5) ** 2 + dy**2 + (dz * w_z) ** 2)
 
                         # 距離依存の有効ターゲット縮小モデル (Fitts変形型)
                         # W_eff = 1 / (1 + k * D)
@@ -661,7 +680,7 @@ class TypingCostCalculator:
             None,
             0,
         )
-        initial_comps = (0.0,) * 16
+        initial_comps = (0.0,) * 17
         dp = collections.defaultdict(dict)
         dp[0] = {initial_state: PathNode(0, 0, initial_comps, [], None, ())}
         processed_text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -677,14 +696,16 @@ class TypingCostCalculator:
             matches = []
             char = processed_text[i]
             if char == "\n" and "enter" in self.layout_map:
-                matches.append(("enter", 1, False, False, "enter"))
+                matches.append(("enter", 1, False, False, False, "enter"))
             elif char == "\t" and "tab" in self.layout_map:
-                matches.append(("tab", 1, False, False, "tab"))
+                matches.append(("tab", 1, False, False, False, "tab"))
             elif char == "-" and "-" not in self.layout_map:
-                matches.append(("-", 1, False, True, "-"))
+                matches.append(("-", 1, False, True, False, "-"))
             else:
                 for key_str in layout_keys_str:
                     match_len = len(key_str)
+                    if match_len == 0:
+                        continue
                     if (
                         i + match_len <= total_len
                         and processed_text[i : i + match_len].lower() == key_str
@@ -695,9 +716,30 @@ class TypingCostCalculator:
                                 match_len,
                                 processed_text[i : i + match_len][0].isupper(),
                                 False,
+                                False,
                                 processed_text[i : i + match_len],
                             )
                         )
+                if hasattr(self, "shifted_map"):
+                    for shifted_str, base_str in self.shifted_map.items():
+                        match_len = len(shifted_str)
+                        if match_len == 0:
+                            continue
+                        if (
+                            i + match_len <= total_len
+                            and processed_text[i : i + match_len] == shifted_str
+                        ):
+                            if base_str in self.layout_map:
+                                matches.append(
+                                    (
+                                        base_str,
+                                        match_len,
+                                        False,
+                                        False,
+                                        True,
+                                        processed_text[i : i + match_len],
+                                    )
+                                )
 
             if not matches:
                 for state_key, node in dp[i].items():
@@ -719,7 +761,14 @@ class TypingCostCalculator:
                 continue
 
             for state, node in dp[i].items():
-                for key_str, match_len, is_upper, is_thumb_mod, display_char in matches:
+                for (
+                    key_str,
+                    match_len,
+                    is_upper,
+                    is_thumb_mod,
+                    is_sands,
+                    display_char,
+                ) in matches:
                     cands = (
                         self.layout_map[key_str]
                         if not is_thumb_mod
@@ -745,9 +794,10 @@ class TypingCostCalculator:
                         c_static = c_move = c_sfb = c_scissor = c_row_jump = c_roll = (
                             c_redirect
                         ) = c_shift = c_doubletap = c_fatigue = c_hand_split = 0.0
-                        c_sfs = c_lss = c_fss = c_tenodesis = 0.0
+                        c_sfs = c_lss = c_fss = c_tenodesis = c_base_stroke = 0.0
 
                         if is_thumb_mod:
+                            c_base_stroke += 10.0
                             t_hand = 0 if cand_hand == 1 else 1
                             t_base = "rthumb" if t_hand == 0 else "lthumb"
                             t_idx = 4 if t_hand == 1 else 9
@@ -766,15 +816,11 @@ class TypingCostCalculator:
                             c_last_last_finger = c_finger if t_hand == c_hand else None
                             c_hand, c_finger, c_base = t_hand, 4, t_base
                             c_finger_pos[t_idx] = t_base
-
                         if is_upper:
+                            c_base_stroke += 10.0
                             s_hand = 0 if cand_hand == 1 else 1
-                            s_base = (
-                                self.right_shift_base
-                                if s_hand == 0
-                                else self.left_shift_base
-                            )
-                            s_idx = 0 if s_hand == 1 else 5
+                            s_base = "rthumb" if s_hand == 0 else "lthumb"
+                            s_idx = 4 if s_hand == 1 else 9
                             last_s_base = c_finger_pos[s_idx]
                             s_static, s_dynamic = (
                                 self._get_cost(last_s_base, s_base, s_hand)
@@ -788,10 +834,26 @@ class TypingCostCalculator:
                             c_shift += max(0, s_cost)
 
                             c_last_last_finger = c_finger if s_hand == c_hand else None
-                            c_hand, c_finger, c_base = s_hand, 0, s_base
+                            c_hand, c_finger, c_base = s_hand, 4, s_base
+                            c_finger_pos[s_idx] = s_base
+
+                        if is_sands:
+                            c_base_stroke += 10.0
+                            s_hand = 0 if cand_hand == 1 else 1
+                            s_base = "rthumb" if s_hand == 0 else "lthumb"
+                            s_idx = 4 if s_hand == 1 else 9
+
+                            s_cost = 10.0
+                            step_cost += s_cost
+                            c_shift += s_cost
+
+                            c_last_last_finger = c_finger if s_hand == c_hand else None
+                            c_hand, c_finger, c_base = s_hand, 4, s_base
                             c_finger_pos[s_idx] = s_base
 
                         cand_idx = cand_finger if cand_hand == 1 else cand_finger + 5
+
+                        c_base_stroke += 10.0
 
                         main_static, _ = self._get_cost(
                             cand_base_key, cand_base_key, cand_hand
@@ -840,10 +902,7 @@ class TypingCostCalculator:
                             p_sfs = p_lss = p_fss = p_tenodesis = p_tendon = 0.0
 
                             # 1. hand_split (Floating Anchor Model)
-                            if (
-                                cand_finger in [0, 1, 2, 3]
-                                and cand_hand in node.coms
-                            ):
+                            if cand_finger in [0, 1, 2, 3] and cand_hand in node.coms:
                                 com_x, com_y = node.coms[cand_hand]
                                 for other_f in [0, 1, 2, 3]:
                                     if other_f != cand_finger:
@@ -856,14 +915,27 @@ class TypingCostCalculator:
                                             dx = (ox - com_x) * 1.5
                                             dy = oy - com_y
                                             dist_from_com = (dx * dx + dy * dy) ** 0.5
-                                            neutral_dist_from_com = 2.25 if other_f in [0, 3] else 0.75
-                                            if dist_from_com > neutral_dist_from_com + 1.2:
+                                            neutral_dist_from_com = (
+                                                2.25 if other_f in [0, 3] else 0.75
+                                            )
+                                            if (
+                                                dist_from_com
+                                                > neutral_dist_from_com + 1.2
+                                            ):
                                                 w_dyn = max(
-                                                    self.finger_dynamic_weights[cand_finger],
-                                                    self.finger_dynamic_weights[other_f],
+                                                    self.finger_dynamic_weights[
+                                                        cand_finger
+                                                    ],
+                                                    self.finger_dynamic_weights[
+                                                        other_f
+                                                    ],
                                                 )
                                                 p_hand_split += (
-                                                    (dist_from_com - neutral_dist_from_com - 1.2)
+                                                    (
+                                                        dist_from_com
+                                                        - neutral_dist_from_com
+                                                        - 1.2
+                                                    )
                                                     * 15.0
                                                     * w_dyn
                                                 )
@@ -1010,11 +1082,17 @@ class TypingCostCalculator:
                                         c2 = self.key_coords[cand_base_key]
                                         dx = (c1[0] - c2[0]) * 1.5
                                         dy = c1[1] - c2[1]
-                                        z1 = self.z_offset.get(ROW_MAP.get(c_base, 1), 0.0)
-                                        z2 = self.z_offset.get(ROW_MAP.get(cand_base_key, 1), 0.0)
+                                        z1 = self.z_offset.get(
+                                            ROW_MAP.get(c_base, 1), 0.0
+                                        )
+                                        z2 = self.z_offset.get(
+                                            ROW_MAP.get(cand_base_key, 1), 0.0
+                                        )
                                         dz = z2 - z1
                                         w_z = 2.5 if dz > 0 else 1.0
-                                        dist_sfb = (dx * dx + dy * dy + (dz * w_z)**2) ** 0.5
+                                        dist_sfb = (
+                                            dx * dx + dy * dy + (dz * w_z) ** 2
+                                        ) ** 0.5
 
                                     w_dyn = self.finger_dynamic_weights[cand_finger]
                                     p_sfb = (30.0 + 50.0 * (dist_sfb**1.5)) * w_dyn
@@ -1105,20 +1183,29 @@ class TypingCostCalculator:
                                                 )
 
                                 # Inertia Penalty (Redirect Replacement)
-                                if c_hand == cand_hand and cand_base_key in self.key_coords:
+                                if (
+                                    c_hand == cand_hand
+                                    and cand_base_key in self.key_coords
+                                ):
                                     cx, cy = self.key_coords[cand_base_key]
                                     if len(node.hand_history[cand_hand]) == 2:
                                         p0x, p0y = node.hand_history[cand_hand][0]
                                         p1x, p1y = node.hand_history[cand_hand][1]
                                         v1x, v1y = (p1x - p0x) * 1.5, p1y - p0y
                                         v2x, v2y = (cx - p1x) * 1.5, cy - p1y
-                                        
+
                                         mag1 = math.sqrt(v1x**2 + v1y**2)
                                         mag2 = math.sqrt(v2x**2 + v2y**2)
                                         if mag1 > 0.0 and mag2 > 0.0:
-                                            cos_theta = (v1x * v2x + v1y * v2y) / (mag1 * mag2)
+                                            cos_theta = (v1x * v2x + v1y * v2y) / (
+                                                mag1 * mag2
+                                            )
                                             if cos_theta < 0.0:
-                                                p_redirect = 5.0 * (mag1 * mag2) * ((-cos_theta) ** 2.0)
+                                                p_redirect = (
+                                                    5.0
+                                                    * (mag1 * mag2)
+                                                    * ((-cos_theta) ** 2.0)
+                                                )
                                                 if self.verbose:
                                                     step_logs.append(
                                                         f"  -> Inertia Penalty (+{p_redirect:.2f})"
@@ -1194,6 +1281,8 @@ class TypingCostCalculator:
                         c_move += c_return
                         step_cost += c_return
 
+                        step_cost += c_base_stroke
+
                         fatigue_multiplier = 1.0 + (c_same_hand_count - 1) * 0.03
                         c_fatigue += step_cost * (fatigue_multiplier - 1.0)
                         step_cost *= fatigue_multiplier
@@ -1217,7 +1306,9 @@ class TypingCostCalculator:
                             n_c13,
                             n_c14,
                             n_c15,
+                            n_c16,
                         ) = node.comps
+
                         new_comps = (
                             n_c0 + c_static,
                             n_c1 + c_move,
@@ -1235,6 +1326,7 @@ class TypingCostCalculator:
                             n_c13 + c_fss,
                             n_c14 + c_tenodesis,
                             n_c15 + c_tendon,
+                            n_c16 + c_base_stroke,
                         )
 
                         c_finger_pos[cand_idx] = cand_base_key
@@ -1270,8 +1362,11 @@ class TypingCostCalculator:
                                 alpha_com * cx + (1 - alpha_com) * old_com_x,
                                 alpha_com * cy + (1 - alpha_com) * old_com_y,
                             )
-                        
-                        new_hand_history = {0: list(node.hand_history[0]), 1: list(node.hand_history[1])}
+
+                        new_hand_history = {
+                            0: list(node.hand_history[0]),
+                            1: list(node.hand_history[1]),
+                        }
                         if cand_base_key in self.key_coords:
                             cx, cy = self.key_coords[cand_base_key]
                             new_hand_history[cand_hand].append((cx, cy))
@@ -1280,7 +1375,9 @@ class TypingCostCalculator:
 
                         if c_same_hand_count == 2 and c_hand == cand_hand:
                             inactive_hand = 1 if cand_hand == 0 else 0
-                            new_coms[inactive_hand] = (1.5, 1.0) if inactive_hand == 1 else (7.5, 1.0)
+                            new_coms[inactive_hand] = (
+                                (1.5, 1.0) if inactive_hand == 1 else (7.5, 1.0)
+                            )
                             new_hand_history[inactive_hand] = []
 
                         if (
@@ -1421,6 +1518,7 @@ def calc(japanese):
                 # ("FMIX16_2", "qwldjkfuy;arstghneiozxcvbpm,./"),
                 ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx", {"use_c_for_k": True}),
                 ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
+                ("FMIX12x", "qwerfylupjasdtghneiozxcvbkm,.;", {"use_c_for_k": True}),
                 # ("FMIX12", "qwlrkyfup;asdtghneiozxcvbjm,./"),
                 #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./', {"use_c_for_k": True}),
                 # ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
@@ -1432,8 +1530,8 @@ def calc(japanese):
                 ("Wakasagi", "qprdcbkuyxatnswmheio/,lgjfv;z."),
                 ("Wakasagi2", "qprdcbkuyxatnswmheioz;lgjfv,./"),
                 ("Stream1", "qwrd;bkuyxatnsgmheiozplcjfv,./"),
-                ("Stream-m", "qwrd;jluyxasntgvheiozpmcbkf,./"),
-                ("Stream-mx", "qwrdfjluyxasntgnheiozpmcbkv,.;"),
+                ("Stream-m ", "qwrd;jluyxasntgvheiozpmcbkf,./"),
+                ("Stream-mf", "qwrdfjluyxasn[t,-]gnheiozpmcbkv,.;"),
                 # ("Stream-m;j", "qwrd;jluyxasntgvheiozpmcbkf,./"),
                 # ("Stream-m;jpr", "qprd;jluyxasntgvheiozwmcbkf,./"),
                 # ("Stream2", "qwrd;jluyxasntgvheiozpfcbkm,./", {"use_c_for_k": False}),
@@ -1473,17 +1571,29 @@ def calc(japanese):
                             "qwrd;j[yu]u[yo]xnsktg[nn]aeiozpmhb-[ya],./",
                             {"use_c_for_k": False},
                         ),
-                        ("minato-ei", "qwrdf;[yu]u[yo]xnsktg[nn]aeiozpmhb-[ya],./"),
-                        ("minato", "qwrdf;[yu]u[yo]xnsktg[nn]aieozpmhb-[ya],./"),
+                        (
+                            "minato-ei",
+                            "qwrdf;[yu]u[yo]xnsktg[nn,ann]aeiozpmhb[-,a-][ya],./",
+                        ),
+                        (
+                            "minato",
+                            "qwrdf;[yu]u[yo]xnsktg[nn,ann]aieozpmhb[-,a-][ya],./",
+                        ),
                         (
                             "stream-mjfks",
                             "qwrdf;[yu]u[yo]xksntg[nn]aeiozpmhb-[ya],./",
                             {"use_c_for_k": False},
                         ),
-                        ("FMIX13R", "qwdrfylup-asktghneiozxcvbjm,./"),
+                        ("FMIX13R", "qwdrfylup;ask[t,-]ghneiozxcvbjm,./"),
                         # ("kotone2j", "qwrdfj[yu]u[yo]xnstkg[nn]eaiozpmhb-[ya],./"),
-                        ("kotone5jie", "qwrdfj[yu]u[yo]xnstkg[nn]aieozpmhb-[ya],./"),
-                        ("kotone6jei", "qwrdfj[yu]u[yo]xnstkg[nn]aeiozpmhb-[ya],./"),
+                        (
+                            "kotone5jie",
+                            "qwrdfj[yu]u[yo]xnstkg[nn,ann]aieozpmhb[-,a-][ya],./",
+                        ),
+                        (
+                            "kotone6jei",
+                            "qwrdfj[yu]u[yo]xnstkg[nn,ann]aeiozpmhb[-,a-][ya],./",
+                        ),
                     ]
                 )
 
@@ -1538,7 +1648,7 @@ def calc(japanese):
                         "Scissor",
                         "RowJump",
                         "Roll(Bonus)",
-                        "Inertia",
+                        "Redirect",
                         "Shift",
                         "DoubleTap",
                         "Fatigue",
@@ -1548,25 +1658,24 @@ def calc(japanese):
                         "FSS",
                         "Tenodesis(Bonus)",
                         "Tendon",
+                        "BaseStroke",
                     ]
-                    # We negate roll/tenodesis bonus for display to show it as a negative cost (bonus)
+                    # We negate roll/tenodesis/shortcut bonus for display to show it as a negative cost (bonus)
                     display_comps = list(best_comps)
-                    display_comps[5] = -display_comps[
-                        5
-                    ]  # Roll bonus is subtracted from total cost
-                    display_comps[14] = -display_comps[
-                        14
-                    ]  # Tenodesis bonus is subtracted from total cost
+                    display_comps[5] = -display_comps[5]
+                    display_comps[14] = -display_comps[14]
 
-                    total = sum(display_comps)
-                    if total > 0:
+                    if name == "QWERTY" and (not text_alt or label.startswith("Orig")):
+                        # Save qwerty_total_comp globally (a bit hacky but it works since QWERTY is first)
+                        global qwerty_total_comp
+                        qwerty_total_comp = sum(display_comps)
+
+                    if "qwerty_total_comp" in globals() and qwerty_total_comp > 0:
                         comp_strs = []
                         for c_name, c_val in zip(comp_names, display_comps):
                             if c_val != 0.0:
-                                pct = abs(c_val) / total * 100
-                                comp_strs.append(
-                                    f"{c_name}:{c_val/1000:.1f}({pct:.1f}%)"
-                                )
+                                pct = (c_val) / qwerty_total_comp * 100
+                                comp_strs.append(f"{c_name}:{pct:.1f}pt")
                         print("    Breakdown -> " + " | ".join(comp_strs))
 
         print("-" * 50)
