@@ -2,3 +2,4 @@ log.txt
 *.bak
 data
 *.pyc
+tools/__pycache__/eval_layout.cpython-314.pyc
