@@ -11,19 +11,20 @@ from typing import Dict, List, Tuple
 
 @dataclass
 class CalibrationProfile:
-    finger_dynamic_weights: Dict[int, float] = field(default_factory=lambda: {0: 1.6, 1: 2.0, 2: 1.2, 3: 1.0, 4: 1.0})
+    finger_dynamic_weights: Dict[int, float] = field(default_factory=lambda: {0: 2.2, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0})
     tendon_threshold: float = 0.5
     flexion_penalty: float = 8.0
-    hand_split_multiplier: float = 15.0
-    sfb_base_penalty: float = 30.0
-    sfb_dist_multiplier: float = 50.0
-    scissor_penalty: float = 10.0
+    hand_split_multiplier: float = 6.25
+    sfb_base_penalty: float = 15.0
+    sfb_dist_multiplier: float = 25.0
+    scissor_penalty: float = 12.0
     row_jump_penalty: float = 15.0
-    redirect_multiplier: float = 5.0
-    roll_inward_base: float = 10.0
-    roll_outward_base: float = 5.0
+    redirect_multiplier: float = 0.1
+    redirect_max_clamp: float = 15.0
+    roll_inward_base: float = 15.0
+    roll_outward_base: float = 8.0
     roll_dist_decay: float = 2.0
-    fatigue_curve: List[float] = field(default_factory=lambda: [1.0, 1.02, 1.05, 1.10, 1.18])
+    fatigue_curve: List[float] = field(default_factory=lambda: [1.0, 1.01, 1.025, 1.05, 1.09])
     ema_alpha_fast: float = 0.55
     ema_alpha_slow: float = 0.25
     ema_dist_threshold: float = 1.5

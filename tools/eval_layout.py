@@ -325,24 +325,25 @@ from typing import Dict, List, Tuple
 @dataclass
 class CalibrationProfile:
     finger_dynamic_weights: Dict[int, float] = field(
-        default_factory=lambda: {0: 1.6, 1: 2.0, 2: 1.2, 3: 1.0, 4: 1.0}
+        default_factory=lambda: {0: 2.2, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0}
     )
     base_cost_multiplier: float = 10.0
     base_overhead: float = 5.0
     ligature_penalty_factor: float = 0.0
     tendon_threshold: float = 0.5
     flexion_penalty: float = 8.0
-    hand_split_multiplier: float = 15.0
-    sfb_base_penalty: float = 30.0
-    sfb_dist_multiplier: float = 50.0
-    scissor_penalty: float = 10.0
+    hand_split_multiplier: float = 7.5
+    sfb_base_penalty: float = 15.0
+    sfb_dist_multiplier: float = 25.0
+    scissor_penalty: float = 12.0
     row_jump_penalty: float = 15.0
-    redirect_multiplier: float = 0.2
-    roll_inward_base: float = 10.0
-    roll_outward_base: float = 5.0
+    redirect_multiplier: float = 0.1
+    redirect_max_clamp: float = 15.0
+    roll_inward_base: float = 15.0
+    roll_outward_base: float = 8.0
     roll_dist_decay: float = 2.0
     fatigue_curve: List[float] = field(
-        default_factory=lambda: [1.0, 1.02, 1.05, 1.10, 1.18]
+        default_factory=lambda: [1.0, 1.01, 1.025, 1.05, 1.09]
     )
     ema_alpha_fast: float = 0.55
     ema_alpha_slow: float = 0.25
@@ -587,16 +588,16 @@ class TypingCostCalculator:
         # 1. 左右独立の指筋力ウェイト (W_strength[Hand][f])
         # Hand (0: 右手, 1: 左手)
         finger_weights = {
-            1: {0: 1.80, 1: 1.40, 2: 1.10, 3: 1.00, 4: 1.00},  # 左手
-            0: {0: 1.80, 1: 1.40, 2: 1.10, 3: 1.00, 4: 1.00},  # 右手
+            1: {0: 2.20, 1: 1.80, 2: 1.20, 3: 1.00, 4: 1.00},  # 左手
+            0: {0: 2.20, 1: 1.80, 2: 1.20, 3: 1.00, 4: 1.00},  # 右手
         }
 
         # 2. 指×段(Row)ごとのペナルティマトリクス (y=1がホーム段)
         row_penalties_by_finger = {
             3: {0: 1.20, 1: 1.00, 2: 1.10},  # 人差し指
             2: {0: 1.05, 1: 1.00, 2: 1.20},  # 中指
-            1: {0: 1.20, 1: 1.00, 2: 1.40},  # 薬指
-            0: {0: 1.50, 1: 1.00, 2: 1.50},  # 小指
+            1: {0: 1.60, 1: 1.00, 2: 1.80},  # 薬指
+            0: {0: 2.20, 1: 1.00, 2: 2.60},  # 小指
             4: {0: 1.20, 1: 1.00, 2: 1.50},  # 親指
         }
 
@@ -718,7 +719,7 @@ class TypingCostCalculator:
             None,
             0,
         )
-        initial_comps = (0.0,) * 12
+        initial_comps = (0.0,) * 14
         dp = collections.defaultdict(dict)
         dp[0] = {initial_state: PathNode(0, 0, initial_comps, [], None, ())}
         processed_text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -831,13 +832,15 @@ class TypingCostCalculator:
                         )
                         c_last_last_finger = state.last_last_finger
 
-                        c_static = c_move = c_posture = c_sfb = c_sfs = c_scissor = (
-                            c_fss
-                        ) = c_redirect = c_roll = c_rowjump = c_lss = c_fatigue = 0.0
+                        c_static = c_move = c_hand_split = c_tendon = c_flexion = (
+                            c_sfb
+                        ) = c_sfs = c_scissor = c_fss = c_redirect = c_roll = (
+                            c_rowjump
+                        ) = c_lss = c_fatigue = 0.0
                         c_base_stroke = 0.0
 
                         if is_thumb_mod:
-                            c_base_stroke += 10.0
+                            c_base_stroke += 5.0
                             t_hand = 0 if cand_hand == 1 else 1
                             t_base = "rthumb" if t_hand == 0 else "lthumb"
                             t_idx = 4 if t_hand == 1 else 9
@@ -857,7 +860,7 @@ class TypingCostCalculator:
                             c_hand, c_finger, c_base = t_hand, 4, t_base
                             c_finger_pos[t_idx] = t_base
                         if is_upper:
-                            c_base_stroke += 10.0
+                            c_base_stroke += 5.0
                             s_hand = 0 if cand_hand == 1 else 1
                             s_base = "rthumb" if s_hand == 0 else "lthumb"
                             s_idx = 4 if s_hand == 1 else 9
@@ -878,7 +881,7 @@ class TypingCostCalculator:
                             c_finger_pos[s_idx] = s_base
 
                         if is_sands:
-                            c_base_stroke += 10.0
+                            c_base_stroke += 5.0
                             s_hand = 0 if cand_hand == 1 else 1
                             s_base = "rthumb" if s_hand == 0 else "lthumb"
                             s_idx = 4 if s_hand == 1 else 9
@@ -923,7 +926,7 @@ class TypingCostCalculator:
                                     idx_finger_key
                                     and ROW_MAP.get(idx_finger_key, 1) == 0
                                 ):
-                                    c_posture += self.profile.flexion_penalty
+                                    c_flexion += self.profile.flexion_penalty
                                     if self.verbose:
                                         step_logs.append(
                                             "  -> Bottom Row Flexion Limit Penalty (+{self.profile.flexion_penalty})"
@@ -1246,6 +1249,32 @@ class TypingCostCalculator:
                                                     f"  -> Outward Roll Bonus (-{p_roll:.2f})"
                                                 )
 
+                                        # Multi-Roll Acceleration (Combo)
+                                        if p_roll > 0.0 and len(node.history) >= 2:
+                                            roll_combo = 1
+                                            current_diff = f_norm_to - f_norm_from
+                                            last_f = c_finger
+                                            for h_hand, h_finger, _ in node.history[1:]:
+                                                if (
+                                                    h_hand == cand_hand
+                                                    and h_finger != 4
+                                                ):
+                                                    if (
+                                                        last_f - h_finger
+                                                    ) == current_diff:
+                                                        roll_combo += 1
+                                                        last_f = h_finger
+                                                    else:
+                                                        break
+                                                else:
+                                                    break
+                                            if roll_combo > 1:
+                                                p_roll *= 1.2 ** (roll_combo - 1)
+                                                if self.verbose:
+                                                    step_logs.append(
+                                                        f"  -> Multi-Roll Acceleration (Combo x{roll_combo}, p_roll={p_roll:.2f})"
+                                                    )
+
                                     # Tenodesis Effect Bonus
                                     if cand_hand == c_hand:
                                         if cur_row in [0, 1] and cand_row in [0, 1]:
@@ -1288,11 +1317,12 @@ class TypingCostCalculator:
                                                 )
                                             )
                                             dist_redirect = mag1 + mag2
-                                            p_redirect = (
+                                            p_redirect = min(
                                                 (dist_redirect**2)
                                                 * (1.0 - cos_theta)
                                                 * w_dyn
-                                                * self.profile.redirect_multiplier
+                                                * self.profile.redirect_multiplier,
+                                                self.profile.redirect_max_clamp,
                                             )
                                             if self.verbose:
                                                 step_logs.append(
@@ -1309,12 +1339,14 @@ class TypingCostCalculator:
                                     p_lss *= 0.75
                                     p_fss *= 0.75
                                     p_tendon *= 0.75
+                                    c_move += 0.8
                                     if self.verbose:
                                         step_logs.append(
-                                            "  -> Cross-Hand Modifier Applied (Penalty/Bonus * 0.75)"
+                                            "  -> Cross-Hand Modifier & Alternation Strain Applied (+0.8)"
                                         )
 
-                            c_posture += p_hand_split + p_tendon
+                            c_hand_split += p_hand_split
+                            c_tendon += p_tendon
                             c_sfb += p_sfb
                             c_sfs += p_sfs
                             c_scissor += p_scissor
@@ -1372,9 +1404,12 @@ class TypingCostCalculator:
 
                         step_cost += c_base_stroke
 
-                        fatigue_arr = self.profile.fatigue_curve
-                        idx = min(4, c_same_hand_count - 1)
-                        fatigue_multiplier = fatigue_arr[idx]
+                        if c_same_hand_count > 1:
+                            fatigue_multiplier = 1.0 + 0.01 * (
+                                (c_same_hand_count - 1) ** 1.4
+                            )
+                        else:
+                            fatigue_multiplier = 1.0
                         c_fatigue += step_cost * (fatigue_multiplier - 1.0)
                         step_cost *= fatigue_multiplier
 
@@ -1383,7 +1418,9 @@ class TypingCostCalculator:
                         (
                             n_c_static,
                             n_c_move,
-                            n_c_posture,
+                            n_c_hand_split,
+                            n_c_tendon,
+                            n_c_flexion,
                             n_c_sfb,
                             n_c_sfs,
                             n_c_scissor,
@@ -1397,7 +1434,9 @@ class TypingCostCalculator:
                         new_comps = (
                             n_c_static + c_static,
                             n_c_move + c_move,
-                            n_c_posture + c_posture,
+                            n_c_hand_split + c_hand_split,
+                            n_c_tendon + c_tendon,
+                            n_c_flexion + c_flexion,
                             n_c_sfb + c_sfb,
                             n_c_sfs + c_sfs,
                             n_c_scissor + c_scissor,
@@ -1649,22 +1688,25 @@ def calc(japanese):
             # 2. 評価する共通レイアウトのリスト
             layouts_to_test = [
                 ("QWERTY", "qwertyuiopasdfghjkl;zxcvbnm,./"),
-                # ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
-                # ("FMIX15", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
+                ("Arensito", "ql,p/;fudkarenbgsitozw.hjvcymx"),
+                ("FMIX", "qwldkjfuy;asrtghneiozxcvbpm,./", {"use_c_for_k": True}),
+                ("FMIX_2", "qwldkjfuy;asrtgmneiozxcvbph,./", {"use_c_for_k": True}),
                 # ("FMIX16", "qwldkjfuy;arstghneiozxcvbpm,./", {"use_c_for_k": True}),
                 # ("FMIX16_2", "qwldjkfuy;arstghneiozxcvbpm,./"),
                 ("MTGAP", "ypoujkdlcwinea,mhtsrqz/.:bfgvx", {"use_c_for_k": True}),
                 ("FMIX12f", "qwfrkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
                 ("FMIX13f", "qwrfkylup;asdtghneiozxcvbjm,./", {"use_c_for_k": True}),
-                ("FMIX12x", "qwerfylupjasdtghneiozxcvbkm,.;", {"use_c_for_k": True}),
+                ("TwoFace r2", "qwerfylupjasdtghneiozxcvbkm,.;", {"use_c_for_k": True}),
                 # ("FMIX12", "qwlrkyfup;asdtghneiozxcvbjm,./"),
                 #            ("FMIX13", 'qwrlkyfup;asdtghneiozxcvbjm,./', {"use_c_for_k": True}),
                 ("Colemak", "qwfpgjluy;arstdhneiozxcvbkm,./", {"use_c_for_k": True}),
+                ("ColemakDH", "qwfpbjluy;arstgmneiozxcdvkh,./", {"use_c_for_k": True}),
                 #            ("FMIX14", 'qwldkyfup;asrtghneiozxcvbjm,./'),
                 #            ("FMIX14 fuj", 'qwldkyfuj;asrtghneiozxcvbpm,./'),
                 #            ("FMIX14 vbk", 'qwldjyfup;asrtghneiozxcvbkm,./'),
-                # ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
-                ("aret", "qcufkzlpy;aretdmnoisjwxgbvh,./"),
+                ("Canary", "wlypbzfou'crstgmneiaqjvdkxh/,.", {"use_c_for_k": True}),
+                ("Dvorak", "/,.pyfgcrlaoeuidhtns;qjkxbmwvz", {"use_c_for_k": True}),
+                # ("aret", "qcufkzlpy;aretdmnoisjwxgbvh,./"),
                 ("Wakasagi ", "qprdcbkuyxatnswmheio/,lgjfv;z."),
                 ("Wakasagi2", "qprdcbkuyxatnswmheioz;lgjfv,./"),
                 # ("Stream1  ", "qwrd;bkuyxatnsgmheiozplcjfv,./"),
@@ -1802,7 +1844,9 @@ def calc(japanese):
                     comp_names = [
                         "Static",
                         "Move",
-                        "Posture",
+                        "HandSplit",
+                        "Tendon",
+                        "Flexion",
                         "SFB",
                         "SFS",
                         "Scissor",

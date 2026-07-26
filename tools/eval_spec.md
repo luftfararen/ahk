@@ -33,20 +33,24 @@
 ## 2. 物理形状エミュレーションと座標変換
 
 入力となる論理配列のキー位置を、3行×10列のグリッド座標 $(X_{\text{grid}}, Y_{\text{grid}})$ と定義する。
+
 - $X_{\text{grid}}$ : 左端 0 ～ 右端 9
 - $Y_{\text{grid}}$ : 上段 0、中段（ホーム） 1、下段 2
 
 選択された形状モードに応じて物理座標 $(X_{\text{phys}}, Y_{\text{phys}})$ を算出する。
 
 ### 2-1. ロウスタッガード (Row Staggered)
+
 - $Y_{\text{phys}} = Y_{\text{grid}}$
 - $X_{\text{phys}} = X_{\text{grid}} + \text{Offset}_{\text{row}}[Y_{\text{grid}}]$ （Offset: $-0.25, 0.00, +0.50$）
 
 ### 2-2. オーソリニア (Ortholinear) / カラムスタッガード (Column Staggered)
+
 - Ortholinear: $X_{\text{phys}} = X_{\text{grid}}$, $Y_{\text{phys}} = Y_{\text{grid}}$
 - Column Staggered: 各指の長さに合わせた縦列ごとのオフセットを適用（列ごとに $+0.25$ ～ $-0.15$）。
 
 ### 2-3. 手の接近角度（Angle of Approach）の回転適用
+
 生成された物理座標に対して、角度 $\theta$（デフォルト $15.0^\circ$）の回転座標変換（ハの字姿勢）を適用する。
 
 ---
@@ -60,7 +64,7 @@ $$C_{\text{static}} = W_{\text{static}}[Hand][f] \times 10.0 + \text{BaseOverhea
 - $\text{BaseOverhead}$: 打鍵1回につき無条件で加算される基本コスト（**+5.0**）。
 - $W_{\text{static}}$: 指の単なる押し下げる筋力ウェイト。
   - 小指: 2.50(右)/2.00(左)
-  - 薬指: 1.60
+  - 薬指: 1.80
   - 中指: 1.20
   - 人差し指・親指: 1.00
 
@@ -72,11 +76,21 @@ $$C_{\text{static}} = W_{\text{static}}[Hand][f] \times 10.0 + \text{BaseOverhea
 下段打鍵やZ軸、Row penaltyなどの物理的移動・変位に起因する負荷はすべてこの階層に統合される。
 
 ### 4-1. 物理移動距離と変位ペナルティ
+
 横方向への開き（1.5倍）、およびZ軸（打鍵深度）の変位を考慮した異方性距離 $D_{3D}$ を算出する。
+
 - $\Delta Z$: 上段 $+0.15$, 中段 $0.00$, 下段 $-0.10$。上方向移動（$\Delta Z > 0$）は重力に逆らうためウェイト2.5倍。
+- **解剖学的指特性（段ペナルティマトリクス $P_{\text{row}}[Finger][Row]$）**:
+  指の解剖学的構造および運動学的負荷に基づき、**「人差し指は曲げ（下段）が得意」「中指・薬指・小指は伸ばし（上段）が得意」**という動作適性を段移動ペナルティとして反映：
+  - **人差し指**: 下段 (1.10) < 上段 (1.20) 【曲げ（屈曲）が得意】
+  - **中指**: 上段 (1.05) < 下段 (1.20) 【伸ばし（伸展）が得意】
+  - **薬指**: 上段 (1.60) < 下段 (1.80) 【伸ばし（伸展）が得意】
+  - **小指**: 上段 (2.20) < 下段 (2.60) 【伸ばし（伸展）が得意】
+  - ※巻き込み屈曲（下段）は他指との関節干渉や手の緊張が生じやすいため、中指・薬指・小指では上段リーチよりも高コストに評価される。
 - $P_{\text{row\_lat}}$: 中段以外や外側・内側拡張列へ手を伸ばすことによる移動時の追加的抵抗力（指・段ペナルティマトリクスおよびラテラルストレッチを乗数として適用）。
 
 ### 4-2. Fitts則の理論的拡張モデル
+
 有効ターゲット縮小モデル（$W_{\text{eff}} = \frac{1}{1 + k \cdot D_{3D}}$）を用いた本来のFitts則の形に基づく移動コスト式。
 
 $$C_{\text{move}} = \log_2\left(\frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\text{eff}}} + 1\right) \times W_{\text{static}}[Hand][f] \times 10.0$$
@@ -84,6 +98,7 @@ $$C_{\text{move}} = \log_2\left(\frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\tex
 ※親指については極座標系の旋回運動（$W_r \cdot \Delta r + W_\theta \cdot \Delta\theta$）を適用する。
 
 ### 4-3. Double Tap（同一キー連続打鍵）
+
 直前と全く同じ物理キーを連続打鍵する場合、移動は発生しないため $C_{\text{move}} = 0$ となる。ただし、Static（筋力と基本オーバーヘッド）は維持される。
 
 ---
@@ -93,19 +108,23 @@ $$C_{\text{move}} = \log_2\left(\frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\tex
 手全体あるいは複数指の相対的な位置関係による緊張や無理な姿勢に対するコスト。動的な器用さを示すウェイト $W_{\text{dynamic}}$（小指 1.60, 薬指 2.00, 中指 1.20, 人差し・親指 1.00）を適用する。
 
 ### 5-1. Hand Split (動的重心と手の引き裂かれ)
+
 各手の重心（$COM$）を指数移動平均（EMA）で追跡。他の指が重心から大きく離れている場合にペナルティが発生する。
+
 - **EMAの速度適応**: 直前の移動距離やインターバルに応じて追従係数 $\alpha$ を動的に変化させる。
   - 高速・短距離入力時: $\alpha = 0.55$
   - ゆっくり・長距離入力時: $\alpha = 0.25$
 
-$$P_{\text{hand\_split}} = \max(0, \text{Dist}_{\text{from\_com}} - \text{NeutralDist} - 1.2) \times 15.0 \times W_{\text{dynamic}}$$
+$$P_{\text{hand\_split}} = \max(0, \text{Dist}_{\text{from\_com}} - \text{NeutralDist} - 1.2) \times 7.5 \times W_{\text{dynamic}}$$
 
 ### 5-2. 腱の連動 (Tendon Coupling)
+
 隣接する指同士（特に小指・薬指間など）のY座標の差分 $\Delta Y$ が許容値を超える場合に非線形ペナルティを加算。
 
 $$P_{\text{tendon}} = \max(0, \Delta Y - \text{Threshold}) \times 2.0 \times W_{\text{dynamic}}$$
 
 ### 5-3. 屈曲限界 (Bottom Row Flexion Limit)
+
 中指または薬指が下段を打鍵する際、同一手の人差し指が上段に残っている場合。手全体の緊張に対する固定の追加加算値（**+8.0**）を適用する（乗算爆発の防止）。
 
 $$P_{\text{flexion}} = 8.0$$
@@ -120,8 +139,9 @@ $$C_{\text{posture}} = P_{\text{hand\_split}} + P_{\text{tendon}} + P_{\text{fle
 連続する打鍵間の文脈（流れ）に起因するペナルティおよびボーナス。
 
 ### 6-1. ペナルティ項目
+
 - **SFB (Same Finger Bigram)**: 同一指で異なるキーを連続打鍵。距離の1.5乗に比例し、$W_{\text{dynamic}}$ と曲げ伸ばし係数（伸展・屈曲）を適用。
-  $$C_{\text{sfb}} = \text{Dist}^{1.5} \times W_{\text{dynamic}} \times \text{SFB\_Base}(30.0) \times \text{FlexionMult}$$
+  $$C_{\text{sfb}} = \text{Dist}^{1.5} \times W_{\text{dynamic}} \times \text{SFB\_Base}(15.0) \times \text{FlexionMult}$$
 - **Skipgrams (SFS, LSS, FSS)**: 別キーを挟んだ同一手の履歴に対する減衰ペナルティ（係数 $0.5^{diff-1}$）。
   - **SFS**: 同一指の1文字越しの連打。
     $$C_{\text{sfs}} = C_{\text{sfb\_equivalent}} \times 0.5^{diff-1}$$
@@ -131,39 +151,38 @@ $$C_{\text{posture}} = P_{\text{hand\_split}} + P_{\text{tendon}} + P_{\text{fle
     $$C_{\text{fss}} = C_{\text{scissor\_equivalent}} \times 0.5^{diff-1}$$
 - **Scissors / RowJump**: ホーム段を経由しない行またぎ（完全引き裂かれ）。
   - **Scissor**: 隣接指による行またぎ。
-    $$C_{\text{scissor}} = \Delta Y \times W_{\text{dynamic}} \times 20.0$$
+    $$C_{\text{scissor}} = \Delta Y \times W_{\text{dynamic}} \times 12.0$$
   - **RowJump**: 同一手の直接的な行またぎ。
     $$C_{\text{rowjump}} = \Delta Row \times 15.0$$
 - **Redirect (運動量急反転)**:
-  同一手の連続3打鍵において、ベクトル間の角度 $\theta$ が鋭角なターンほど負荷が急増する連続関数。
-  $$C_{\text{redirect}} = \text{Distance}^2 \times (1 - \cos \theta) \times W_{\text{dynamic}} \times \text{Const}$$
+  同一手の連続3打鍵において、ベクトル間の角度 $\theta$ が鋭角なターンほど負荷が急増する連続関数（最大上限クランプ: 15.0）。
+  $$C_{\text{redirect}} = \min\left(15.0, \text{Distance}^2 \times (1 - \cos \theta) \times W_{\text{dynamic}} \times \text{Const}\right)$$
 
 ### 6-2. ボーナス項目
-- **Roll Bonus (内向き・外向きロール)**:
-  滑らかなアルペジオ打鍵。固定値ではなく、打鍵間の距離に応じて減衰する仕様とする。
-  - 内向き (Inward): $B_{\text{roll}} = \max(0, 10.0 - 2.0 \times \text{Distance})$
-  - 外向き (Outward): $B_{\text{roll}} = \max(0, 5.0 - 2.0 \times \text{Distance})$
+
+- **Roll Bonus (内向き・外向きロール & トリプルロール加速)**:
+  滑らかなアルペジオ打鍵。固定値ではなく、打鍵間の距離に応じて減衰し、3連以上の同手同方向連続ロールでは指数的にボーナスが加速（$1.2^{\text{Combo}-1}$）する仕様。
+  - 内向き (Inward): $B_{\text{roll}} = \max(0, 15.0 - 2.0 \times \text{Distance})$
+  - 外向き (Outward): $B_{\text{roll}} = \max(0, 8.0 - 2.0 \times \text{Distance})$
   - ※行を跨ぐロールの場合はボーナス値が $0.75$ 倍に減衰する。
 - **Shortcut Bonus**: 人為的な特別ボーナスやペナルティ加算は一切行わない（`ligature_penalty_factor = 0.0`）。合字・多文字キーによる打鍵数（ストローク数）の減少効果が、物理移動コスト（Move）や静的コスト（Static）の自然な削減としてスコアに反映される仕様。
 
 ### 6-3. Return Cost (ホーム戻り) の確率的・状態依存モデル
+
 非アクティブ手のリセット（ホーム戻り）は、EMA（動的重心）の位置や連続同手打鍵数に応じて、ホームへ戻る確率・挙動が自然にグラデーション（徐々に重心がホームに引き寄せられる）するモデルとする。
 
 ---
 
 ## 7. 第5階層: Fatigue (疲労蓄積コスト)
 
-同じ手で連続して打鍵を続けた場合、時間経過と連続稼働による疲労の蓄積を非線形（指数関数的）に評価する。
+同じ手で連続して打鍵を続けた場合、時間経過と連続稼働による疲労の蓄積を連続的なべき乗関数で評価する。
 
-- 同一手の連続打鍵回数 $N_{\text{same}}$ に対するストロークコスト乗数：
-  - 1回: 1.00
-  - 2回: 1.02
-  - 3回: 1.05
-  - 4回: 1.10
-  - 5回以上: 1.18
+- 同一手の連続打鍵回数 $N_{\text{same}}$ （$N_{\text{same}} > 1$）に対するストロークコスト乗数：
+  $$\text{Multiplier} = 1.0 + 0.01 \times (N_{\text{same}} - 1)^{1.4}$$
 - 異手へ遷移した時点で $N_{\text{same}} = 1$ にリセットされる。増加したコスト分が $C_{\text{fatigue}}$ として計上される。
-
   $$C_{\text{fatigue}} = \text{StepCost} \times (\text{Multiplier}[N_{\text{same}}] - 1.0)$$
+
+  ※ `StepCost` は、対象の1打鍵で発生した $C_{\text{static}}$ から $C_{\text{lss}}$ までの全コストの合計 ＋ 打鍵基本値。なお、シフトキーや親指モディファイアなどの**同時打鍵（ホールド）が発生した場合、1回の同時押しにつき +5.0 のペナルティ**が別途 StepCost に加算される。
 
 ---
 
@@ -193,4 +212,5 @@ $$
 $$
 
 ### 補足：打鍵数（ストローク数）とスコアの関係
+
 合字（ショートカット）等の利用により、入力テキストの文字数に対して実際の打鍵数が減少した場合、削減された打鍵数に比例して $\text{BaseOverhead} \times (\text{削減打鍵数})$ 分のコストが無条件で Total Cost から減算される。これにより、**打鍵数の少なさが自然な形でスコア上昇（ボーナス）として直結する**設計となっている。
