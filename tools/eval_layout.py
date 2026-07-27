@@ -721,7 +721,7 @@ class TypingCostCalculator:
             None,
             0,
         )
-        initial_comps = (0.0,) * 14
+        initial_comps = (0.0,) * 15
         dp = collections.defaultdict(dict)
         dp[0] = {initial_state: PathNode(0, 0, initial_comps, [], None, ())}
         processed_text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -838,7 +838,7 @@ class TypingCostCalculator:
                             c_sfb
                         ) = c_sfs = c_scissor = c_fss = c_redirect = c_roll = (
                             c_rowjump
-                        ) = c_lss = c_fatigue = 0.0
+                        ) = c_lss = c_hand_fatigue = c_finger_fatigue = 0.0
                         c_base_stroke = 0.0
 
                         if is_thumb_mod:
@@ -1435,8 +1435,21 @@ class TypingCostCalculator:
                             )
                         else:
                             fatigue_multiplier = 1.0
-                        c_fatigue += step_cost * (fatigue_multiplier - 1.0)
+                        p_hand_fatigue = step_cost * (fatigue_multiplier - 1.0)
+                        c_hand_fatigue += p_hand_fatigue
                         step_cost *= fatigue_multiplier
+
+                        # 指の集中的使用による同指累積疲労 (Finger Overuse Fatigue - 直近10ストローク)
+                        same_finger_burst = sum(
+                            1
+                            for (h, f, _) in node.history[:10]
+                            if h == cand_hand and f == cand_finger
+                        )
+                        if same_finger_burst > 0:
+                            w_dyn = self.profile.finger_dynamic_weights[cand_finger]
+                            p_finger_fatigue = (same_finger_burst**1.4) * 5.0 * w_dyn
+                            c_finger_fatigue += p_finger_fatigue
+                            step_cost += p_finger_fatigue
 
                         step_count += match_len
 
@@ -1454,7 +1467,8 @@ class TypingCostCalculator:
                             n_c_roll,
                             n_c_rowjump,
                             n_c_lss,
-                            n_c_fatigue,
+                            n_c_hand_fatigue,
+                            n_c_finger_fatigue,
                         ) = node.comps
                         new_comps = (
                             n_c_static + c_static,
@@ -1470,7 +1484,8 @@ class TypingCostCalculator:
                             n_c_roll + c_roll,
                             n_c_rowjump + c_rowjump,
                             n_c_lss + c_lss,
-                            n_c_fatigue + c_fatigue,
+                            n_c_hand_fatigue + c_hand_fatigue,
+                            n_c_finger_fatigue + c_finger_fatigue,
                         )
 
                         c_finger_pos[cand_idx] = cand_base_key
@@ -1490,11 +1505,11 @@ class TypingCostCalculator:
                         target_i = i + match_len
                         new_cost = node.cost + step_cost
 
-                        # history の更新 (直近3文字分)
+                        # history の更新 (直近10文字分)
                         new_history = (
                             (cand_hand, cand_finger, cand_base_key),
                         ) + node.history
-                        new_history = new_history[:3]
+                        new_history = new_history[:10]
 
                         # COM & hand_history 更新
                         new_coms = dict(node.coms)
@@ -1880,7 +1895,8 @@ def calc(japanese):
                         "Roll",
                         "RowJump",
                         "LSS",
-                        "Fatigue",
+                        "HandFatigue",
+                        "FingerFatigue",
                     ]
                     display_comps = list(best_comps)
 
