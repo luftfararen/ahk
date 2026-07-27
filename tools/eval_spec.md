@@ -93,7 +93,7 @@ $$C_{\text{static}} = W_{\text{static}}[Hand][f] \times 10.0 + \text{BaseOverhea
 
 有効ターゲット縮小モデル（$W_{\text{eff}} = \frac{1}{1 + k \cdot D_{3D}}$）を用いた本来のFitts則の形に基づく移動コスト式。
 
-$$C_{\text{move}} = \log_2\left(\frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\text{eff}}} + 1\right) \times W_{\text{static}}[Hand][f] \times 10.0$$
+$$C_{\text{move}} = \log_2\left(\frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\text{eff}}} + 1\right) \times W_{\text{static}}[Hand][f] \times 10.0 \times \mathbf{2.0}$$
 
 ※親指については極座標系の旋回運動（$W_r \cdot \Delta r + W_\theta \cdot \Delta\theta$）を適用する。
 
@@ -160,12 +160,25 @@ $$C_{\text{posture}} = P_{\text{hand\_split}} + P_{\text{tendon}} + P_{\text{fle
 
 ### 6-2. ボーナス項目
 
-- **Roll Bonus (内向き・外向きロール & トリプルロール加速)**:
-  滑らかなアルペジオ打鍵。固定値ではなく、打鍵間の距離に応じて減衰し、3連以上の同手同方向連続ロールでは指数的にボーナスが加速（$1.2^{\text{Combo}-1}$）する仕様。
-  - 内向き (Inward): $B_{\text{roll}} = \max(0, 15.0 - 2.0 \times \text{Distance})$
-  - 外向き (Outward): $B_{\text{roll}} = \max(0, 8.0 - 2.0 \times \text{Distance})$
-  - ※行を跨ぐロールの場合はボーナス値が $0.75$ 倍に減衰する。
-- **Shortcut Bonus**: 人為的な特別ボーナスやペナルティ加算は一切行わない（`ligature_penalty_factor = 0.0`）。合字・多文字キーによる打鍵数（ストローク数）の減少効果が、物理移動コスト（Move）や静的コスト（Static）の自然な削減としてスコアに反映される仕様。
+- **Roll Bonus (内向き・外向きロール判定およびコンボ加速)**:
+  滑らかなアルペジオ打鍵に対するボーナス（コスト減算）。連続する2打鍵の指番号差がちょうど **`1`** （親指を除く）である場合に発生する。
+  1. **方向判定（Finger Delta）**:
+     - **内向きロール (Inward Roll)**: 小指(0) $\rightarrow$ 薬指(1) $\rightarrow$ 中指(2) $\rightarrow$ 人差し指(3) （指番号増加 $\Delta f = +1$）
+       $$B_{\text{base}} = \max(0, 15.0 - 2.0 \times \text{Distance})$$
+     - **外向きロール (Outward Roll)**: 人差し指(3) $\rightarrow$ 中指(2) $\rightarrow$ 薬指(1) $\rightarrow$ 小指(0) （指番号減少 $\Delta f = -1$）
+       $$B_{\text{base}} = \max(0, 8.0 - 2.0 \times \text{Distance})$$
+  2. **減衰モディファイア（減衰・対象外条件）**:
+     - **行跨ぎ減衰**: 直前キーと異なる段（Row）に跨がる場合、ボーナス値 $\times 0.75$
+     - **手切り替え減衰**: 左右の手が切り替わる場合（Cross-Hand）、ボーナス値 $\times 0.75$
+     - **2段またぎ除外**: 上段と下段など、2段以上離れたキー間のロールはボーナス対象外（$0.0$）とする。
+     - **段違いの小指・薬指ロール除外**: 小指と薬指間のロールにおいて、互いに異なる段を打鍵する場合は無理な歪みが生じるためボーナス対象外（$0.0$）とする。
+     - **人差し指HandSplit除外**: 人差し指が関与するロール打鍵において、Hand Split（動的重心乖離）ペナルティが発生した場合、ボーナス対象外（$0.0$）とする。
+
+  3. **コンボ加速（Multi-Roll Acceleration）**:
+     - 同一手・同一方向で3打鍵以上連続して同方向ロールが発生した場合（コンボ数 $\text{Combo} \ge 2$）、ボーナスが指数的に加速する：
+       $$B_{\text{final}} = B_{\text{base}} \times 1.2^{\text{Combo} - 1} \times \mathbf{1.5}$$
+
+- **Shortcut Bonus (合字ボーナス)**: 合字・多文字キーによる打鍵数（ストローク数）の減少効果をより明確に評価し、ロール打鍵によるボーナス機会の損失を補填するため、ボーナス係数（`ligature_penalty_factor = -0.15`）を適用する。これにより、1ストロークでの文字出力数が増えるごとに該当ストロークの Static および Move コストが 15% 削減される仕様。
 
 ### 6-3. Return Cost (ホーム戻り) の確率的・状態依存モデル
 

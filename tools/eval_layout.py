@@ -329,7 +329,7 @@ class CalibrationProfile:
     )
     base_cost_multiplier: float = 10.0
     base_overhead: float = 5.0
-    ligature_penalty_factor: float = 0.0
+    ligature_penalty_factor: float = -0.15
     tendon_threshold: float = 0.5
     flexion_penalty: float = 8.0
     hand_split_multiplier: float = 7.5
@@ -676,7 +676,7 @@ class TypingCostCalculator:
                         k = 0.5
                         w_eff = 1.0 / (1.0 + k * d)
                         fitts_id = math.log2(1.0 + (d * p_row_lat) / w_eff)
-                        dynamic_cost = fitts_id * strength_w * base_cost_multiplier
+                        dynamic_cost = fitts_id * strength_w * base_cost_multiplier * 2.0
 
                 # 最終コストは 静的コスト + 動的コスト (tupleで返す)
                 cost_list.append((int(static_cost), int(dynamic_cost)))
@@ -886,9 +886,17 @@ class TypingCostCalculator:
                             s_base = "rthumb" if s_hand == 0 else "lthumb"
                             s_idx = 4 if s_hand == 1 else 9
 
-                            s_cost = 10.0
-                            step_cost += s_cost
-                            c_move += s_cost
+                            last_s_base = c_finger_pos[s_idx]
+                            s_static, s_dynamic = (
+                                self._get_cost(last_s_base, s_base, s_hand)
+                                if last_s_base
+                                else (0.0, 0.0)
+                            )
+                            s_cost = s_static
+                            if c_hand == s_hand:
+                                s_cost += s_dynamic
+                            step_cost += max(0, s_cost)
+                            c_move += max(0, s_cost)
 
                             c_last_last_finger = c_finger if s_hand == c_hand else None
                             c_hand, c_finger, c_base = s_hand, 4, s_base
@@ -1248,6 +1256,12 @@ class TypingCostCalculator:
                                                 step_logs.append(
                                                     f"  -> Outward Roll Bonus (-{p_roll:.2f})"
                                                 )
+                                        if abs(cur_row - cand_row) >= 2:
+                                            p_roll = 0.0
+                                        if set([c_finger, cand_finger]) == {0, 1} and cur_row != cand_row:
+                                            p_roll = 0.0
+                                        if p_hand_split > 0.0 and 3 in (c_finger, cand_finger):
+                                            p_roll = 0.0
 
                                         # Multi-Roll Acceleration (Combo)
                                         if p_roll > 0.0 and len(node.history) >= 2:
@@ -1274,6 +1288,7 @@ class TypingCostCalculator:
                                                     step_logs.append(
                                                         f"  -> Multi-Roll Acceleration (Combo x{roll_combo}, p_roll={p_roll:.2f})"
                                                     )
+                                        p_roll *= 1.5  # ロールボーナスを1.5倍に設定
 
                                     # Tenodesis Effect Bonus
                                     if cand_hand == c_hand:
