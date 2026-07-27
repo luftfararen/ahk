@@ -329,7 +329,7 @@ class CalibrationProfile:
     )
     base_cost_multiplier: float = 10.0
     base_overhead: float = 5.0
-    ligature_penalty_factor: float = -0.15
+    ligature_penalty_factor: float = 0
     tendon_threshold: float = 0.5
     flexion_penalty: float = 8.0
     hand_split_multiplier: float = 7.5
@@ -676,7 +676,9 @@ class TypingCostCalculator:
                         k = 0.5
                         w_eff = 1.0 / (1.0 + k * d)
                         fitts_id = math.log2(1.0 + (d * p_row_lat) / w_eff)
-                        dynamic_cost = fitts_id * strength_w * base_cost_multiplier * 2.0
+                        dynamic_cost = (
+                            fitts_id * strength_w * base_cost_multiplier * 2.0
+                        )
 
                 # 最終コストは 静的コスト + 動的コスト (tupleで返す)
                 cost_list.append((int(static_cost), int(dynamic_cost)))
@@ -1258,9 +1260,15 @@ class TypingCostCalculator:
                                                 )
                                         if abs(cur_row - cand_row) >= 2:
                                             p_roll = 0.0
-                                        if set([c_finger, cand_finger]) == {0, 1} and cur_row != cand_row:
+                                        if (
+                                            set([c_finger, cand_finger]) == {0, 1}
+                                            and cur_row != cand_row
+                                        ):
                                             p_roll = 0.0
-                                        if p_hand_split > 0.0 and 3 in (c_finger, cand_finger):
+                                        if p_hand_split > 0.0 and 3 in (
+                                            c_finger,
+                                            cand_finger,
+                                        ):
                                             p_roll = 0.0
 
                                         # Multi-Roll Acceleration (Combo)
@@ -1360,6 +1368,10 @@ class TypingCostCalculator:
                                             "  -> Cross-Hand Modifier & Alternation Strain Applied (+0.8)"
                                         )
 
+                            # ロールはボーナスではなく、Moveコストの軽減として扱う（最大でMoveコスト分まで）
+                            roll_discount = min(move_cost, p_roll + p_tenodesis)
+                            c_roll += -roll_discount
+
                             c_hand_split += p_hand_split
                             c_tendon += p_tendon
                             c_sfb += p_sfb
@@ -1367,12 +1379,12 @@ class TypingCostCalculator:
                             c_scissor += p_scissor
                             c_fss += p_fss
                             c_redirect += p_redirect
-                            c_roll += -(p_roll + p_tenodesis)
                             c_rowjump += p_row_jump
                             c_lss += p_lss
 
                             main_dynamic_final = (
                                 move_cost
+                                - roll_discount
                                 + p_hand_split
                                 + p_tendon
                                 + p_sfb
@@ -1382,8 +1394,6 @@ class TypingCostCalculator:
                                 + p_sfs
                                 + p_lss
                                 + p_fss
-                                - p_roll
-                                - p_tenodesis
                             )
                             main_cost = main_static + main_dynamic_final
 
