@@ -327,7 +327,7 @@ class CalibrationProfile:
     finger_dynamic_weights: Dict[int, Dict[int, float]] = field(
         default_factory=lambda: {
             1: {0: 1.9, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0},  # Left hand
-            0: {0: 2.2, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0}   # Right hand
+            0: {0: 2.2, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0},  # Right hand
         }
     )
     base_cost_multiplier: float = 40.0  # (20 * 2)
@@ -949,17 +949,23 @@ class TypingCostCalculator:
                                         )
 
                             c_static += main_static
-                            
+
                             # A. Hold Cost (is_upper, is_thumb_mod, is_sands)
                             if is_upper or is_thumb_mod or is_sands:
                                 c_hold += self.profile.hold_penalty
                                 if self.verbose:
-                                    step_logs.append(f"  -> Hold Penalty (+{self.profile.hold_penalty})")
-                                    
+                                    step_logs.append(
+                                        f"  -> Hold Penalty (+{self.profile.hold_penalty})"
+                                    )
+
                             # B. Thumb Interference (Coordination) Penalty
                             thumb_idx = 4 if cand_hand == 1 else 9
                             thumb_key = c_finger_pos[thumb_idx]
-                            if thumb_key and thumb_key in self.key_coords and cand_finger in [1, 2, 3]:
+                            if (
+                                thumb_key
+                                and thumb_key in self.key_coords
+                                and cand_finger in [1, 2, 3]
+                            ):
                                 tx, ty = self.key_coords[thumb_key]
                                 cx, cy = self.key_coords[cand_base_key]
                                 # Check if thumb is tucked "inside"
@@ -970,14 +976,18 @@ class TypingCostCalculator:
                                     tucked = tx > cx + 0.5
                                 else:
                                     tucked = tx < cx - 0.5
-                                
+
                                 # If thumb is tucked inside and finger is reaching out (top/home row)
                                 if tucked and cy < ty:
-                                    dist = ((tx - cx)*1.5)**2 + (ty - cy)**2
+                                    dist = ((tx - cx) * 1.5) ** 2 + (ty - cy) ** 2
                                     if dist > 1.0:
-                                        c_thumb_coord += self.profile.thumb_interference_penalty
+                                        c_thumb_coord += (
+                                            self.profile.thumb_interference_penalty
+                                        )
                                         if self.verbose:
-                                            step_logs.append(f"  -> Thumb Interference Penalty (+{self.profile.thumb_interference_penalty})")
+                                            step_logs.append(
+                                                f"  -> Thumb Interference Penalty (+{self.profile.thumb_interference_penalty})"
+                                            )
 
                             last_same_finger_base = c_finger_pos[cand_idx]
                             _, move_cost = (
@@ -1017,8 +1027,8 @@ class TypingCostCalculator:
                                                 > neutral_dist_from_com + 1.2
                                             ):
                                                 w_dyn = max(
-                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger],
-                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][other_f]
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_finger],
+                                                    self.profile.finger_dynamic_weights[cand_hand][other_f],
                                                 )
                                                 p_hand_split += (
                                                     (
@@ -1079,7 +1089,7 @@ class TypingCostCalculator:
                                             dx = (c1[0] - c2[0]) * 1.5
                                             dy = c1[1] - c2[1]
                                             dist_sfs = (dx * dx + dy * dy) ** 0.5
-                                        w_dyn = self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger]
+                                        w_dyn = self.profile.finger_dynamic_weights[cand_hand][cand_finger]
                                         p_sfs_base = (
                                             self.profile.sfb_base_penalty
                                             + self.profile.sfb_dist_multiplier
@@ -1112,8 +1122,8 @@ class TypingCostCalculator:
                                             ][cand_finger][prev_finger]
                                             if dist > neutral_dist + 1.2:
                                                 w_dyn = max(
-                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger],
-                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][prev_finger]
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_finger],
+                                                    self.profile.finger_dynamic_weights[cand_hand][prev_finger],
                                                 )
                                                 p_lss_base = (
                                                     (dist - neutral_dist - 1.2)
@@ -1140,8 +1150,8 @@ class TypingCostCalculator:
                                                 prev_row == 2 and cand_row == 0
                                             ):
                                                 w_dyn = max(
-                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger],
-                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][prev_finger]
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_finger],
+                                                    self.profile.finger_dynamic_weights[cand_hand][prev_finger],
                                                 )
                                                 p_fss += (
                                                     self.profile.scissor_penalty
@@ -1178,9 +1188,7 @@ class TypingCostCalculator:
                                             dx * dx + dy * dy + (dz * w_z) ** 2
                                         ) ** 0.5
 
-                                    w_dyn = self.profile.finger_dynamic_weights[
-                                        cand_finger
-                                    ]
+                                    w_dyn = self.profile.finger_dynamic_weights[cand_hand][cand_finger]
                                     p_sfb = (
                                         self.profile.sfb_base_penalty
                                         + self.profile.sfb_dist_multiplier
@@ -1217,8 +1225,8 @@ class TypingCostCalculator:
                                             cur_row == 2 and cand_row == 0
                                         ):
                                             w_dyn = max(
-                                                self.profile.finger_dynamic_weights[cand_hand][c_hand][c_finger],
-                                                self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger]
+                                                self.profile.finger_dynamic_weights[c_hand][c_finger],
+                                                self.profile.finger_dynamic_weights[cand_hand][cand_finger],
                                             )
                                             p_scissor = (
                                                 self.profile.scissor_penalty * w_dyn
@@ -1356,11 +1364,7 @@ class TypingCostCalculator:
                                             cos_theta = (v1x * v2x + v1y * v2y) / (
                                                 mag1 * mag2
                                             )
-                                            w_dyn = (
-                                                self.profile.finger_dynamic_weights.get(
-                                                    cand_finger, 1.0
-                                                )
-                                            )
+                                            w_dyn = self.profile.finger_dynamic_weights[cand_hand].get(cand_finger, 1.0)
                                             dist_redirect = mag1 + mag2
                                             p_redirect = min(
                                                 (dist_redirect**2)
