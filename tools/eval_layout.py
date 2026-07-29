@@ -324,23 +324,26 @@ from typing import Dict, List, Tuple
 
 @dataclass
 class CalibrationProfile:
-    finger_dynamic_weights: Dict[int, float] = field(
-        default_factory=lambda: {0: 2.2, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0}
+    finger_dynamic_weights: Dict[int, Dict[int, float]] = field(
+        default_factory=lambda: {
+            1: {0: 1.9, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0},  # Left hand
+            0: {0: 2.2, 1: 1.8, 2: 1.2, 3: 1.0, 4: 1.0}   # Right hand
+        }
     )
-    base_cost_multiplier: float = 10.0
+    base_cost_multiplier: float = 40.0  # (20 * 2)
     base_overhead: float = 5.0
     ligature_penalty_factor: float = 0
     tendon_threshold: float = 0.5
     flexion_penalty: float = 8.0
-    hand_split_multiplier: float = 7.5
-    sfb_base_penalty: float = 15.0
-    sfb_dist_multiplier: float = 25.0
-    scissor_penalty: float = 12.0
-    row_jump_penalty: float = 15.0
+    hand_split_multiplier: float = 2.0
+    sfb_base_penalty: float = 30  # 15.0
+    sfb_dist_multiplier: float = 50  # 25.0
+    scissor_penalty: float = 24.0  # 12.0 * 2
+    row_jump_penalty: float = 30.0  # 15.0 * 2
     redirect_multiplier: float = 0.1
     redirect_max_clamp: float = 15.0
     roll_inward_base: float = 15.0
-    roll_outward_base: float = 8.0
+    roll_outward_base: float = 10.0
     roll_dist_decay: float = 2.0
     fatigue_curve: List[float] = field(
         default_factory=lambda: [1.0, 1.01, 1.025, 1.05, 1.09]
@@ -348,6 +351,8 @@ class CalibrationProfile:
     ema_alpha_fast: float = 0.55
     ema_alpha_slow: float = 0.25
     ema_dist_threshold: float = 1.5
+    hold_penalty: float = 2.0
+    thumb_interference_penalty: float = 5.0
 
 
 def get_profile(name: str) -> CalibrationProfile:
@@ -588,7 +593,7 @@ class TypingCostCalculator:
         # 1. 左右独立の指筋力ウェイト (W_strength[Hand][f])
         # Hand (0: 右手, 1: 左手)
         finger_weights = {
-            1: {0: 2.20, 1: 1.80, 2: 1.20, 3: 1.00, 4: 1.00},  # 左手
+            1: {0: 1.90, 1: 1.80, 2: 1.20, 3: 1.00, 4: 1.00},  # 左手
             0: {0: 2.20, 1: 1.80, 2: 1.20, 3: 1.00, 4: 1.00},  # 右手
         }
 
@@ -721,7 +726,7 @@ class TypingCostCalculator:
             None,
             0,
         )
-        initial_comps = (0.0,) * 15
+        initial_comps = (0.0,) * 17
         dp = collections.defaultdict(dict)
         dp[0] = {initial_state: PathNode(0, 0, initial_comps, [], None, ())}
         processed_text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -840,6 +845,7 @@ class TypingCostCalculator:
                             c_rowjump
                         ) = c_lss = c_hand_fatigue = c_finger_fatigue = 0.0
                         c_base_stroke = 0.0
+                        c_hold = c_thumb_coord = 0.0
 
                         if is_thumb_mod:
                             c_base_stroke += 5.0
@@ -943,6 +949,36 @@ class TypingCostCalculator:
                                         )
 
                             c_static += main_static
+                            
+                            # A. Hold Cost (is_upper, is_thumb_mod, is_sands)
+                            if is_upper or is_thumb_mod or is_sands:
+                                c_hold += self.profile.hold_penalty
+                                if self.verbose:
+                                    step_logs.append(f"  -> Hold Penalty (+{self.profile.hold_penalty})")
+                                    
+                            # B. Thumb Interference (Coordination) Penalty
+                            thumb_idx = 4 if cand_hand == 1 else 9
+                            thumb_key = c_finger_pos[thumb_idx]
+                            if thumb_key and thumb_key in self.key_coords and cand_finger in [1, 2, 3]:
+                                tx, ty = self.key_coords[thumb_key]
+                                cx, cy = self.key_coords[cand_base_key]
+                                # Check if thumb is tucked "inside"
+                                # Left hand: thumb x is smaller than index x (e.g. index on F, thumb under C/V)
+                                # Right hand: thumb x is larger than index x
+                                tucked = False
+                                if cand_hand == 1:
+                                    tucked = tx > cx + 0.5
+                                else:
+                                    tucked = tx < cx - 0.5
+                                
+                                # If thumb is tucked inside and finger is reaching out (top/home row)
+                                if tucked and cy < ty:
+                                    dist = ((tx - cx)*1.5)**2 + (ty - cy)**2
+                                    if dist > 1.0:
+                                        c_thumb_coord += self.profile.thumb_interference_penalty
+                                        if self.verbose:
+                                            step_logs.append(f"  -> Thumb Interference Penalty (+{self.profile.thumb_interference_penalty})")
+
                             last_same_finger_base = c_finger_pos[cand_idx]
                             _, move_cost = (
                                 self._get_cost(
@@ -981,12 +1017,8 @@ class TypingCostCalculator:
                                                 > neutral_dist_from_com + 1.2
                                             ):
                                                 w_dyn = max(
-                                                    self.profile.finger_dynamic_weights[
-                                                        cand_finger
-                                                    ],
-                                                    self.profile.finger_dynamic_weights[
-                                                        other_f
-                                                    ],
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger],
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][other_f]
                                                 )
                                                 p_hand_split += (
                                                     (
@@ -1047,9 +1079,7 @@ class TypingCostCalculator:
                                             dx = (c1[0] - c2[0]) * 1.5
                                             dy = c1[1] - c2[1]
                                             dist_sfs = (dx * dx + dy * dy) ** 0.5
-                                        w_dyn = self.profile.finger_dynamic_weights[
-                                            cand_finger
-                                        ]
+                                        w_dyn = self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger]
                                         p_sfs_base = (
                                             self.profile.sfb_base_penalty
                                             + self.profile.sfb_dist_multiplier
@@ -1082,12 +1112,8 @@ class TypingCostCalculator:
                                             ][cand_finger][prev_finger]
                                             if dist > neutral_dist + 1.2:
                                                 w_dyn = max(
-                                                    self.profile.finger_dynamic_weights[
-                                                        cand_finger
-                                                    ],
-                                                    self.profile.finger_dynamic_weights[
-                                                        prev_finger
-                                                    ],
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger],
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][prev_finger]
                                                 )
                                                 p_lss_base = (
                                                     (dist - neutral_dist - 1.2)
@@ -1114,12 +1140,8 @@ class TypingCostCalculator:
                                                 prev_row == 2 and cand_row == 0
                                             ):
                                                 w_dyn = max(
-                                                    self.profile.finger_dynamic_weights[
-                                                        cand_finger
-                                                    ],
-                                                    self.profile.finger_dynamic_weights[
-                                                        prev_finger
-                                                    ],
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger],
+                                                    self.profile.finger_dynamic_weights[cand_hand][cand_hand][prev_finger]
                                                 )
                                                 p_fss += (
                                                     self.profile.scissor_penalty
@@ -1195,12 +1217,8 @@ class TypingCostCalculator:
                                             cur_row == 2 and cand_row == 0
                                         ):
                                             w_dyn = max(
-                                                self.profile.finger_dynamic_weights[
-                                                    c_finger
-                                                ],
-                                                self.profile.finger_dynamic_weights[
-                                                    cand_finger
-                                                ],
+                                                self.profile.finger_dynamic_weights[cand_hand][c_hand][c_finger],
+                                                self.profile.finger_dynamic_weights[cand_hand][cand_hand][cand_finger]
                                             )
                                             p_scissor = (
                                                 self.profile.scissor_penalty * w_dyn
@@ -1218,8 +1236,12 @@ class TypingCostCalculator:
                                                     f"  -> Scissors Penalty (+{p_scissor})"
                                                 )
 
-                                    # Rolls
-                                    if c_finger != 4 and cand_finger != 4:
+                                    # Rolls (同一手のみ対象)
+                                    if (
+                                        c_hand == cand_hand
+                                        and c_finger != 4
+                                        and cand_finger != 4
+                                    ):
                                         f_norm_from = c_finger
                                         f_norm_to = cand_finger
 
@@ -1296,7 +1318,7 @@ class TypingCostCalculator:
                                                     step_logs.append(
                                                         f"  -> Multi-Roll Acceleration (Combo x{roll_combo}, p_roll={p_roll:.2f})"
                                                     )
-                                        p_roll *= 1.5  # ロールボーナスを1.5倍に設定
+                                        p_roll *= 24.0  # ロールボーナスの寄与率をさらに4倍（24.0倍）に設定
 
                                     # Tenodesis Effect Bonus
                                     if cand_hand == c_hand:
@@ -1357,7 +1379,6 @@ class TypingCostCalculator:
                                     p_scissor *= 0.75
                                     p_row_jump *= 0.75
                                     p_redirect *= 0.75
-                                    p_roll *= 0.75
                                     p_sfs *= 0.75
                                     p_lss *= 0.75
                                     p_fss *= 0.75
@@ -1439,14 +1460,14 @@ class TypingCostCalculator:
                         c_hand_fatigue += p_hand_fatigue
                         step_cost *= fatigue_multiplier
 
-                        # 指の集中的使用による同指累積疲労 (Finger Overuse Fatigue - 直近10ストローク)
+                        # 指の集中的使用による同指累積疲労 (Finger Overuse Fatigue - 直近5ストローク)
                         same_finger_burst = sum(
                             1
-                            for (h, f, _) in node.history[:10]
+                            for (h, f, _) in node.history[:5]
                             if h == cand_hand and f == cand_finger
                         )
                         if same_finger_burst > 0:
-                            w_dyn = self.profile.finger_dynamic_weights[cand_finger]
+                            w_dyn = self.profile.finger_dynamic_weights[cand_hand][cand_finger]
                             p_finger_fatigue = (same_finger_burst**1.4) * 5.0 * w_dyn
                             c_finger_fatigue += p_finger_fatigue
                             step_cost += p_finger_fatigue
@@ -1469,6 +1490,8 @@ class TypingCostCalculator:
                             n_c_lss,
                             n_c_hand_fatigue,
                             n_c_finger_fatigue,
+                            n_c_hold,
+                            n_c_thumb_coord,
                         ) = node.comps
                         new_comps = (
                             n_c_static + c_static,
@@ -1486,6 +1509,8 @@ class TypingCostCalculator:
                             n_c_lss + c_lss,
                             n_c_hand_fatigue + c_hand_fatigue,
                             n_c_finger_fatigue + c_finger_fatigue,
+                            n_c_hold + c_hold,
+                            n_c_thumb_coord + c_thumb_coord,
                         )
 
                         c_finger_pos[cand_idx] = cand_base_key
@@ -1503,13 +1528,14 @@ class TypingCostCalculator:
                             c_same_hand_count,
                         )
                         target_i = i + match_len
+                        step_cost += c_hold + c_thumb_coord
                         new_cost = node.cost + step_cost
 
-                        # history の更新 (直近10文字分)
+                        # history の更新 (直近5文字分)
                         new_history = (
                             (cand_hand, cand_finger, cand_base_key),
                         ) + node.history
-                        new_history = new_history[:10]
+                        new_history = new_history[:5]
 
                         # COM & hand_history 更新
                         new_coms = dict(node.coms)

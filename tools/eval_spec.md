@@ -1,16 +1,16 @@
-# キー配列生体力学評価モデル仕様書 (Calculated Mode v0.88)
+# キー配列生体力学評価モデル仕様書 (Calculated Mode v0.89)
 
 ## 0. 基本方針：評価要素の完全独立分離と15モジュール化
 
 本モデルでは、二重カウントや他指標との混同を排除し、各評価要素を物理的・生理学的に独立して評価するため、タイピングコストを以下の**15の独立した詳細モジュール**に分類して出力する。
 
 なお、統合スコア算出に関し、各モジュールのコストの寄与率は、経験に基づいた配分である。
-統合スコアは参考とし、レイアウトごとにコストを比較して、レイアウトの特性を把握するために利用することを薦める。
+統合スコアは参考とし、各モジュールごとに数値を比較して、レイアウトの特性を把握するために利用することを薦める。
 
 | #   | モジュール名      | 分類             | 概要・計算対象                                                                   |
 | --- | ----------------- | ---------------- | -------------------------------------------------------------------------------- |
 | 1   | **Static**        | 静的             | 指単体の筋力（押し下げ抵抗）＋無条件打鍵基本オーバーヘッド（+5.0）               |
-| 2   | **Move**          | 移動             | Fitts則拡張モデルに基づく物理空間移動コスト（※Roll割引適用前の純移動値）         |
+| 2   | **Move**          | 移動             | Fitts則拡張モデルに基づく物おう｀理空間移動コスト（※Roll割引適用前の純移動値）   |
 | 3   | **HandSplit**     | 姿勢             | 各手の動的重心（EMA）からの指の引き裂かれ・離脱ペナルティ                        |
 | 4   | **Tendon**        | 姿勢             | 隣接指間（小薬・薬中）のY軸高低差に伴う腱の干渉・ひっぱりペナルティ              |
 | 5   | **Flexion**       | 姿勢             | 中指・薬指の下段打鍵時に人差し指が上段に残る無理な巻き込み屈曲ペナルティ（+8.0） |
@@ -23,7 +23,7 @@
 | 12  | **RowJump**       | 文脈(ペナルティ) | 同一手での上段-下段の直接ジャンプペナルティ（+15.0）                             |
 | 13  | **LSS**           | 文脈(ペナルティ) | 横方向への無理な伸ばしスキップグラムペナルティ（Skipgram LSS）                   |
 | 14  | **HandFatigue**   | 疲労             | 同一手での連続連打による非線形な手全体の連続稼働疲労                             |
-| 15  | **FingerFatigue** | 疲労             | 直近10ストローク内における同一指の集中的・過多使用（累積酷使）疲労               |
+| 15  | **FingerFatigue** | 疲労             | 直近5ストローク内における同一指の集中的・過多使用（累積酷使）疲労                |
 
 ---
 
@@ -75,7 +75,7 @@
 
 $$C_{\text{static}} = W_{\text{strength}}[Hand][f] \times \text{base\_cost\_multiplier} + \text{BaseOverhead}$$
 
-- $\text{base\_cost\_multiplier} = 10.0$
+- $\text{base\_cost\_multiplier} = 40.0$
 - $\text{BaseOverhead} = 5.0$ （打鍵1回につき無条件で加算される基本オーバーヘッド）
 - $W_{\text{strength}}[Hand][f]$: 各指の筋力抵抗ウェイト。
   - 小指 (Finger 0): **2.20**
@@ -111,7 +111,7 @@ $$D_{3D} = \sqrt{(1.5 \times \Delta X)^2 + (\Delta Y)^2 + (w_z \times \Delta Z)^
 
 有効ターゲット縮小モデル（$W_{\text{eff}} = \frac{1}{1 + 0.5 \times D_{3D}}$）を用いた本来のFitts則の形に基づく移動コスト式。
 
-$$C_{\text{move}} = \log_2\left(1 + \frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\text{eff}}}\right) \times W_{\text{strength}}[f] \times 10.0 \times 2.0$$
+$$C_{\text{move}} = \log_2\left(1 + \frac{D_{3D} \times P_{\text{row\_lat}}}{W_{\text{eff}}}\right) \times W_{\text{strength}}[f] \times 40.0 \times 2.0$$
 
 ※親指については極座標系の旋回運動（$30.0 \times \Delta r + 10.0 \times \Delta\theta$）を適用する。
 
@@ -129,7 +129,7 @@ $$C_{\text{move}} = \log_2\left(1 + \frac{D_{3D} \times P_{\text{row\_lat}}}{W_{
 
 各手の重心（$COM$）を指数移動平均（EMA）で追跡。他の指が重心から大きく離れている場合にペナルティが発生する。
 
-$$P_{\text{hand\_split}} = \max(0, \text{Dist}_{\text{from\_com}} - \text{NeutralDist} - 1.2) \times 7.5 \times W_{\text{dynamic}}$$
+$$P_{\text{hand\_split}} = \max(0, \text{Dist}_{\text{from\_com}} - \text{NeutralDist} - 1.2) \times 2.0 \times W_{\text{dynamic}}$$
 
 - $\text{NeutralDist}$: 人差し指・小指: 2.25, 中指・薬指: 0.75。
 
@@ -153,19 +153,19 @@ $$P_{\text{tendon}} = \alpha \times (\max(0, \Delta Y - 0.5))^\beta$$
 ### 6-1. ペナルティ項目
 
 - **SFB (Same Finger Bigram)**: 同一指で異なるキーを直後連続打鍵。
-  $$C_{\text{sfb}} = (15.0 + 25.0 \times D_{\text{sfb}}^{1.5}) \times W_{\text{dynamic}}$$
+  $$C_{\text{sfb}} = (30.0 + 50.0 \times D_{\text{sfb}}^{1.5}) \times W_{\text{dynamic}}$$
 - **SFS (Same Finger Skipgram)**: 履歴内の1〜3文字放置同一指連打。減衰係数 $0.5^{\text{diff}-1}$ を適用。
   $$C_{\text{sfs}} = C_{\text{sfb\_equivalent}} \times 0.5^{\text{diff}-1}$$
 - **Scissor (シザー Bigram)**: 隣接指による行またぎ。
-  $$C_{\text{scissor}} = \Delta Y \times 12.0 \times W_{\text{dynamic}}$$
+  $$C_{\text{scissor}} = \Delta Y \times 24.0 \times W_{\text{dynamic}}$$
 - **FSS (Full Scissor Skipgram)**: 履歴内の1〜3文字放置シザー。
-  $$C_{\text{fss}} = 12.0 \times W_{\text{dynamic}} \times 0.5^{\text{diff}-1}$$
+  $$C_{\text{fss}} = 24.0 \times W_{\text{dynamic}} \times 0.5^{\text{diff}-1}$$
 - **RowJump**: 同一手でのホーム段を経由しない直截行またぎ（上段 ↔ 下段）。
-  $$C_{\text{rowjump}} = 15.0$$
+  $$C_{\text{rowjump}} = 30.0$$
 - **LSS (Lateral Stretch Skipgram)**: 履歴内の横方向引き裂かれストレッチ。
   $$C_{\text{lss}} = \max(0, \text{Dist} - \text{NeutralDist} - 1.2) \times 7.5 \times W_{\text{dynamic}} \times 0.5^{\text{diff}-1}$$
 - **Redirect (慣性急ターン)**: 同一手連続3打鍵でのベクトル角度 $\theta$ の急反転（上限15.0）。
-  $$C_{\text{redirect}} = \min(15.0, \text{Dist}^2 \times (1 - \cos\theta) \times W_{\text{dynamic}} \times \text{Const})$$
+  $$C_{\text{redirect}} = \min(15.0, \text{Dist}^2 \times (1 - \cos\theta) \times W_{\text{dynamic}} \times \text{Const (0.1)})$$
 
 ### 6-2. ボーナス・割引項目
 
@@ -173,13 +173,14 @@ $$P_{\text{tendon}} = \alpha \times (\max(0, \Delta Y - 0.5))^\beta$$
   連続する2打鍵の指番号差がちょうど **`1`** （親指除く）のアルペジオ打鍵時、算出されたロール値を `Move` コストから減算する（上限＝当該ストロークの `Move` コスト）。
   1. **方向判定**:
      - 内向き: 小指(0) $\rightarrow$ 薬指(1) $\rightarrow$ 中指(2) $\rightarrow$ 人差し指(3) $\Rightarrow B_{\text{base}} = \max(0, 15.0 - 2.0 \times \text{Dist})$
-     - 外向き: 人差し指(3) $\rightarrow$ 中指(2) $\rightarrow$ 薬指(1) $\rightarrow$ 小指(0) $\Rightarrow B_{\text{base}} = \max(0, 8.0 - 2.0 \times \text{Dist})$
+     - 外向き: 人差し指(3) $\rightarrow$ 中指(2) $\rightarrow$ 薬指(1) $\rightarrow$ 小指(0) $\Rightarrow B_{\text{base}} = \max(0, 10.0 - 2.0 \times \text{Dist})$
   2. **除外・減衰条件**:
+     - **反対の手での打鍵（手切り替え）＝対象外（$0.0$）** （※ロールは同一手内でのみ発生）
      - 2段またぎロール＝対象外（$0.0$）
      - 人差し指HandSplit発生時＝対象外（$0.0$）
      - 小薬の段違いロール＝対象外（$0.0$）
-     - 行跨ぎ / 手切り替え時＝ボーナス値 $\times 0.75$
-  3. **コンボ加速**: 3打鍵以上連続ロール時: $B_{\text{final}} = B_{\text{base}} \times 1.2^{\text{Combo}-1} \times 1.5$
+     - 同一手内での行跨ぎロール＝ボーナス値 $\times 0.75$
+  3. **コンボ加速**: 3打鍵以上連続ロール時: $B_{\text{final}} = B_{\text{base}} \times 1.2^{\text{Combo}-1} \times 24.0$
   4. **適用方法**: $\text{roll\_discount} = \min(C_{\text{move}}, P_{\text{roll}} + P_{\text{tenodesis}})$。内訳表示には $C_{\text{roll}} = -\text{roll\_discount}$ としてマイナス表記出力する。
 
 - **Shortcut Bonus (合字ボーナス)**: `ligature_penalty_factor = 0.0`。多文字キー（合字）利用による打鍵回数の自動削減を通じ、`BaseOverhead` や移動コストのスキップとして自然な形でスコアに反映される。
@@ -196,7 +197,7 @@ $$P_{\text{tendon}} = \alpha \times (\max(0, \Delta Y - 0.5))^\beta$$
    異手へ遷移した時点で $N_{\text{same}} = 1$ にリセットされる。コスト増分が $C_{\text{hand\_fatigue}}$ に独立計上される。
 
 2. **同一指の集中的使用疲労 (FingerFatigue)**:
-   直近の打鍵履歴（**10ストローク以内**）における同指の使用回数 $N_{\text{finger\_burst}}$ に応じた同指酷使ペナルティ：
+   直近の打鍵履歴（**5ストローク以内**）における同指の使用回数 $N_{\text{finger\_burst}}$ に応じた同指酷使ペナルティ：
    $$P_{\text{finger\_fatigue}} = (N_{\text{finger\_burst}})^{1.4} \times 5.0 \times W_{\text{dynamic}}$$
    特定の指（人差し指・中指等）に短期間で負荷が集中的に連用されることを強力にペナルティ化する。$C_{\text{finger\_fatigue}}$ に独立計上される。
 
@@ -215,5 +216,28 @@ $$
 最終的な**「総合スコア（Score）」**は、QWERTY配列の総コストを基準値（100.0）として相対的に算出される。
 
 $$
-\text{Score} = \left( \frac{\text{QWERTY Total Cost}}{\text{Layout Total Cost}} \right) \times 100
+\text{Score} = \left( \frac{\text{Layout Total Cost}}{\text{QWERTY Total Cost}} \right) \times 100
 $$
+## 8. 評価モデル 定数・パラメータ一覧
+
+本モデルで使用されている各種基礎点、ペナルティ係数、および減衰パラメータの一覧です。これらの値は、生体力学的負荷（疲労、伸展、慣性など）を定量的にシミュレートするためのベースライン（`TypingProfile` のデフォルト値）として機能します。
+
+| パラメータ名 | デフォルト値 | 適用箇所・意味 |
+| :--- | :--- | :--- |
+| **`hold_penalty`** | `2.0` | **Hold Cost (静的疲労)**: Shiftやレイヤー等のモディファイアキーを押し続けたまま他指を稼働させた際に、1ストロークごとに加算される等尺性収縮ペナルティ。 |
+| **`thumb_interference_penalty`** | `5.0` | **Thumb Coordination (親指協調)**: 親指を手のひら内側（C/Vキー下など）に深く折り込んだ状態で、他指（人差し指・中指）を伸ばして打鍵する際に生じる解剖学的な筋干渉ペナルティ。 |
+| **`base_cost_multiplier`** | `40.0` | **Static Cost**: 指の静的な基本配置コスト（指の強さ `finger_dynamic_weights` に乗算されるベース係数）。 |
+| **`base_overhead`** | `5.0` | **Static Cost**: 1ストロークごとの基本オーバーヘッド（合字などにより打鍵数が減るとこの分が節約される）。 |
+| **`sfb_base_penalty`** | `30.0` | **Sequence**: 同一指連続打鍵（SFB）の基礎ペナルティ。 |
+| **`sfb_dist_multiplier`** | `50.0` | **Sequence**: SFB発生時、キー間の移動距離の1.5乗に乗算される係数。 |
+| **`scissor_penalty`** | `24.0` | **Sequence**: 行またぎ（Scissor）およびその派生（FSS）における距離・段差あたりのペナルティ係数。 |
+| **`row_jump_penalty`** | `30.0` | **Sequence**: 同一手でホーム段を経由せずに上段↔下段を直接行き来する直截行またぎに対するペナルティ。 |
+| **`redirect_multiplier`** | `0.1` | **Sequence**: 慣性急ターン（Redirect）における角度・距離に乗算される係数 (`Const`)。 |
+| **`redirect_max_clamp`** | `15.0` | **Sequence**: 慣性急ターン（Redirect）ペナルティの上限値。 |
+| **`roll_inward_base`** | `15.0` | **Roll**: 内向きアルペジオ（Pinky $\rightarrow$ Index方向）におけるロールボーナス（Move割引）の基礎値。 |
+| **`roll_outward_base`** | `10.0` | **Roll**: 外向きアルペジオ（Index $\rightarrow$ Pinky方向）におけるロールボーナス（Move割引）の基礎値。 |
+| **`roll_dist_decay`** | `2.0` | **Roll**: キー間距離が広がるごとにロールボーナスから減衰される係数。 |
+| **`hand_split_multiplier`** | `2.0` | **Sequence**: 同一手の重心（COM）から外れた過度な指の広がり（HandSplit / LSS）に対するペナルティ乗数。 |
+| **`flexion_penalty`** | `8.0` | **Static**: 中指・薬指の下段（Row 2）打鍵時に人差し指が上段（Row 0）に拘束されるような、極端な屈曲・伸展状態に対するペナルティ。 |
+| **`tendon_threshold`** | `0.5` | **Sequence**: 腱の連動干渉（Tendon）が発生するY座標差の閾値。 |
+| **`ema_alpha_fast` / `slow`** | `0.55` / `0.25` | **動的重心追従**: 手の重心（COM）位置を時間経過とともに更新するための指数移動平均の平滑化係数（短距離/長距離移動時）。 |
