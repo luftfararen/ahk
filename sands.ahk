@@ -78,6 +78,8 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 
 }
 
+;+#F23::#!space
+
 ; ============================================================================
 ; レイヤー番号定義（グローバル定数）
 ; ============================================================================
@@ -2770,8 +2772,7 @@ LoadLayoutConfig() {
             case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
-            case "FMIX12x-Minato[Built-in]": ChangeFMIX12x_Minato_Layout()
-            case "FMIX12xei-Minato[Built-in]": ChangeFMIX12xei_Minato_Layout()
+            case "TWOFACE-Minato[Built-in]": ChangeTWOFACE_Minato_Layout()
             case "STREAM2-Minato[Built-in]": ChangeSTREAM2_Minato_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
             default:
@@ -4037,7 +4038,7 @@ ChangeMinatoLayoutImpl(ei := True) {
     ResetIME()
 
     ; IME ON 時の差分設定
-    q.SetImeKey("l", "?")
+    q.SetImeKey("j", "?")
     w.SetImeKey("w")
     e.SetImeKey("r")
     r.SetImeKey("d")
@@ -4046,13 +4047,13 @@ ChangeMinatoLayoutImpl(ei := True) {
     s.SetImeKey("s", ")")
     d.SetImeKey("k")
     f.SetImeKey("t", "-")
-    ;g.SetImeKey("h")
+    g.SetImeKey("g")
     z.SetImeKey("z", "[")
     x.SetImeKey("p", "]")
     c.SetImeKey("m")
     v.SetImeKey("h", "v")
     b.SetImeKey("b", "v")
-    y.SetImeKey("ya")
+    y.SetImeKey("l")
     u.SetImeKey("yu", "{BS}")
     i.SetImeKey("u", "ou")
     o.SetImeKey("yo")
@@ -4120,26 +4121,15 @@ ChangeFMIX13f_Minato_Layout() {
 /**
  * キーレイアウトを「FMIX13x-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
-ChangeFMIX12x_Minato_Layout() {
-    StoreLayout("FMIX12x-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,.;")
+ChangeTWOFACE_Minato_Layout() {
+    StoreLayout("TWOFACE-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
     ChangeMinatoLayoutImpl()
-    InitModLayer()
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
-/**
- * キーレイアウトを「FMIX13xx-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
- */
-ChangeFMIX12xei_Minato_Layout() {
-    StoreLayout("FMIX12xei-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,.;")
-    ChangeMinatoLayoutImpl()
-    k.SetImeKey("e", "xe")
-    l.SetImeKey("i", "xi")
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 ChangeSTREAM2_Minato_Layout() {
-    StoreLayout("STREAM2-Minato[Built-in]", "qwrdfjluyxasntgnheiozpmcbkv,.;", "1234567890-", "", "", true)
+    StoreLayout("STREAM2-Minato[Built-in]", "qprdkvcuy;atnswmheiozxlgbjf,./", "1234567890-", "", "", true)
 
     ChangeMinatoLayoutImpl()
     k.SetImeKey("e", "xe")
@@ -4510,8 +4500,7 @@ space:: ToggleImeState() ;Send(C_BS)
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#x:: ChangeFMIX12x_Minato_Layout()
-#e:: ChangeFMIX12xei_Minato_Layout()
+#x:: ChangeTWOFACE_Minato_Layout()
 #s:: ChangeSTREAM2_Minato_Layout()
 #m:: ChangeFMIX13f_Minato_Layout()
 #q:: ChangeQwertyLayout()
