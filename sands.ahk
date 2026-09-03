@@ -68,15 +68,20 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 #MaxThreadsBuffer True ; 中断された場合にホットキーをバッファリングする
 ;#MaxThreadsPerHotkey 3 ;（コメントアウト）ホットキーあたりのスレッド数を制限
 
-; Win+Alt+v / Ctrl+Win+Alt+v パススルー設定
-; これらをホットキーとして登録し何もしないことで、クリップボード履歴 (clipboard_history_list) などの
-; 外部アプリ/OSのショートカットが本スクリプトにブロックされるのを防ぎ、正しく動作させます。
-~^#!v:: {
+#HotIf !WinActive("ahk_exe TextInputHost.exe")
+^v::^v
+#HotIf
 
-}
-~#!v:: {
+#HotIf !WinActive("ahk_exe PowerToys.PowerPaste.exe")
+^v::^v
+#HotIf
 
-}
+; ~^#!v:: {
+
+; }
+; ~#!v:: {
+
+; }
 
 ;+#F23::#!space
 
