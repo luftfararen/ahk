@@ -2553,15 +2553,18 @@ global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_CHAR_K
  */
 InitGlobalKeys() {
     global
-    f13 := LKey("f13", 3, C_TAB)
-    space := LKey(R_SPACE, 3, C_SPACE)
-    tab := LKey(R_TAB, 3, C_ESC)
-    noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
-    ;conv := LKey(R_CONV, 3, C_ENTER)
+    ;f13 := LKey("f13", 3, C_TAB)
+    ;tab := LKey(R_TAB, 3, C_ESC)
+    ;conv := LKey(R_CONV, 3, C_ZENKAKU)
+    ;noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
+    f13 := LKey("f13", 3, C_ZENKAKU)
+    tab := LKey(R_TAB, 3, C_TAB)
+    conv := LKey(R_CONV, 3, C_ENTER)
+    noconv := LKey(R_NOCONV, 3, C_ENTER)
     ;conv := LKey(R_CONV, 3, C_BS)
-    conv := LKey(R_CONV, 3, C_ZENKAKU)
     ;f14 := LKey("f14", 3, C_ZENKAKU)
     f14 := LKey("f14", 3, C_ENTER)
+    space := LKey(R_SPACE, 3, C_SPACE)
 
     ; --- リマップキー (RKey) ---
     ; (数字列)
@@ -2777,7 +2780,8 @@ LoadLayoutConfig() {
             case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
-            case "TWOFACE-Minato[Built-in]": ChangeTWOFACE_Minato_Layout()
+            case "TF-Minato[Built-in]": ChangeTF_Minato_Layout()
+            case "TF3-Minato2[Built-in]": ChangeTF3_Minato2_Layout()
             case "STREAM2-Minato[Built-in]": ChangeSTREAM2_Minato_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
             default:
@@ -4075,7 +4079,7 @@ ChangeMinatoLayoutImpl(ei := True) {
     semicolon.SetImeKey("o", "ou")
     ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
     n.SetImeKey("-", "a-")
-    m.SetImeKey("ya", "ltu") ; :=ltu
+    m.SetImeKey("ya", "yan") ; :=ltu
     ;slash.SetImeKey("f")
 
     rm := CreateKeyMap()
@@ -4126,9 +4130,20 @@ ChangeFMIX13f_Minato_Layout() {
 /**
  * キーレイアウトを「FMIX13x-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
-ChangeTWOFACE_Minato_Layout() {
-    StoreLayout("TWOFACE-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
+ChangeTF_Minato_Layout() {
+    StoreLayout("TF-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
     ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+
+ChangeTF3_Minato2_Layout() {
+    StoreLayout("TF3-Minato2[Built-in]", "qwerfylupjasdtgkheiozxcvbnm,./")
+    ChangeMinatoLayoutImpl()
+
+    global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
+    n.SetImeKey("nn", "ann")
+    h.SetImeKey("-", "a-")
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -4505,7 +4520,8 @@ space:: ToggleImeState() ;Send(C_BS)
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#x:: ChangeTWOFACE_Minato_Layout()
+#x:: ChangeTF_Minato_Layout()
+#z:: ChangeTF3_Minato2_Layout()
 #s:: ChangeSTREAM2_Minato_Layout()
 #m:: ChangeFMIX13f_Minato_Layout()
 #q:: ChangeQwertyLayout()
