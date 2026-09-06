@@ -4046,40 +4046,43 @@ ChangeMinatoLayoutImpl(ei := True) {
     global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
     ResetIME()
 
+
     ; IME ON 時の差分設定
     q.SetImeKey("j", "?")
     w.SetImeKey("w")
-    e.SetImeKey("r")
-    r.SetImeKey("d")
+    e.SetImeKey("r","l")
+    r.SetImeKey("d","deli")
     t.SetImeKey("f")
     a.SetImeKey("n", "(")
-    s.SetImeKey("s", ")")
+    s.SetImeKey("s","sil")
     d.SetImeKey("k")
-    f.SetImeKey("t", "-")
+    f.SetImeKey("t","tile")
     g.SetImeKey("g")
     z.SetImeKey("z", "[")
     x.SetImeKey("p", "]")
-    c.SetImeKey("m")
+    c.SetImeKey("m","c")
     v.SetImeKey("h", "v")
     b.SetImeKey("b", "v")
-    y.SetImeKey("l")
+    y.SetImeKey("ye","y")
     u.SetImeKey("yu", "{BS}")
-    i.SetImeKey("u", "ou")
+    i.SetImeKey("u","unn")
     o.SetImeKey("yo")
     p.SetImeKey("ou")
-    h.SetImeKey(";", "ann") ; ;=nn
-    j.SetImeKey("a", "ou")
+    h.SetImeKey("nn", "yann")
+    j.SetImeKey("a","ann")
     if ei {
-        k.SetImeKey("e", "xe")
-        l.SetImeKey("i", "xi")
+        k.SetImeKey("e","enn")
+        l.SetImeKey("i","inn")
     } else {
-        k.SetImeKey("i", "xi")
-        l.SetImeKey("e", "xe")
+        k.SetImeKey("i", "inn")
+        l.SetImeKey("e", "enn")
     }
-    semicolon.SetImeKey("o", "ou")
-    ;ToolTip semicolon.shift_ime_key_text " " semicolon.ime_key_text
+    colon.SetImeKey("o","onn")
     n.SetImeKey("-", "a-")
-    m.SetImeKey("ya", "yan") ; :=ltu
+    m.SetImeKey("ya", "y-") 
+
+
+
     ;slash.SetImeKey("f")
 
     rm := CreateKeyMap()
@@ -4138,12 +4141,8 @@ ChangeTF_Minato_Layout() {
 }
 
 ChangeTF3_Minato2_Layout() {
-    StoreLayout("TF3-Minato2[Built-in]", "qwerfylupjasdtgkheiozxcvbnm,./")
+    StoreLayout("TF3-Minato2[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
     ChangeMinatoLayoutImpl()
-
-    global q, w, e, r, t, a, s, d, f, z, x, c, v, b, y, u, i, o, p, h, j, k, l, semicolon, n, m
-    n.SetImeKey("nn", "ann")
-    h.SetImeKey("-", "a-")
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
