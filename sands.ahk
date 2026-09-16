@@ -463,15 +463,34 @@ GetFocusedControlHandle() {
     st_gti := Buffer(cb_size, 0)
 
     hwnd := WinExist("A")
-    if hwnd {
-        NumPut("UInt", cb_size, st_gti, 0)
-        tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0) 
-        if DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", st_gti, "Int") {
-            hwndFocus := NumGet(st_gti, 8 + ptr_size, "Ptr")
-            if hwndFocus
-                hwnd := hwndFocus
+    if !hwnd
+        return 0
+
+    NumPut("UInt", cb_size, st_gti, 0)
+
+    ; 1. アクティブウィンドウのスレッドIDを指定して GUI 情報を取得
+    tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
+    if (tid && DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", st_gti)) {
+        hwndFocus := NumGet(st_gti, 8 + ptr_size, "Ptr")
+        if hwndFocus
+            return hwndFocus
+    }
+
+    ; 2. フォアグラウンドスレッド全体 (idThread = 0) で再取得
+    if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti) {
+        hwndFocus := NumGet(st_gti, 8 + ptr_size, "Ptr")
+        if hwndFocus
+            return hwndFocus
+    }
+
+    ; 3. AHK 組み込み機能によるコントロール取得のフォールバック
+    try {
+        if (ctrl := ControlGetFocus("A")) {
+            if (ctrlHwnd := ControlGetHwnd(ctrl, "A"))
+                return ctrlHwnd
         }
     }
+
     return hwnd
 }
 
@@ -580,37 +599,46 @@ class ImeState {
             return true
         }
 
-        ; 同じウィンドウであれば強制フラグを確認
+        ; 同じコントロールであれば強制 IME ON フラグを確認
         if (ImeState.last_active_control_hwnd == hwnd) {
             if ImeState.force_ime_on {
                 ImeState.cached_state := true
                 ImeState.RecordCheck()
                 return true
             }
-        }
-        else {
-            ; ウィンドウが変更されたため強制フラグをリセット
+        } else {
+            ; コントロールが変更されたため強制フラグをリセット
             ImeState.force_ime_on := false
         }
 
         ImeState.last_active_control_hwnd := hwnd
 
-        ; 実際の IME 状態を確認
-
+        ; 1. 自プロセスウィンドウの場合: ImmGetContext を試行
         hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
-        if hIMC{
+        if hIMC {
             openStatus := DllCall("imm32\ImmGetOpenStatus", "Ptr", hIMC)
-            DllCall("imm32\ImmReleaseContext", "Ptr", hwnd,"Ptr",hIMC)
+            DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
             ImeState.cached_state := (openStatus != 0)
-        }else{
-            state := 0
-            default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
-        ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
-            DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
-                "UInt", 0x0002, "UInt", 50, "Ptr*", &state, "Ptr")
-
-            ImeState.cached_state := (state != 0)
+            ImeState.RecordCheck()
+            return ImeState.cached_state
         }
+
+        ; 2. 他プロセスウィンドウの場合: ImmGetDefaultIMEWnd + WM_IME_CONTROL (SendMessageTimeout)
+        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+        if (!default_ime_wnd && (top_hwnd := WinExist("A"))) {
+            default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", top_hwnd, "Ptr")
+        }
+
+        if default_ime_wnd {
+            state := 0
+            ; 0x0283: WM_IME_CONTROL, 0x0005: IMC_GETOPENSTATUS
+            ; 0x0002: SMTO_ABORTIFHUNG (フリーズ対策), 50ms タイムアウト
+            if DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
+                "UInt", 0x0002, "UInt", 50, "Ptr*", &state, "Ptr") {
+                ImeState.cached_state := (state != 0)
+            }
+        }
+
         ImeState.RecordCheck()
         return ImeState.cached_state
     }
@@ -2490,7 +2518,8 @@ class LKey extends RKey {
         Critical
         ; モード0の場合はタイマー等がないため単純に初期化して終了
         ime_state := ImeState.IsOn()
-        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) : ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
+        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) :
+            ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
 
         if (hold_mode == 0) {
             this.state := LKey.st_init
@@ -2777,7 +2806,7 @@ LoadLayoutConfig() {
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
             case "TF-Minato[Built-in]": ChangeTF_Minato_Layout()
-            case "TF3-Minato2[Built-in]": ChangeTF3_Minato2_Layout()
+            case "TF2_2-Minato2[Built-in]": ChangeTF2_2_Minato2_Layout()
             case "STREAM2-Minato[Built-in]": ChangeSTREAM2_Minato_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
             default:
@@ -4133,8 +4162,8 @@ ChangeTF_Minato_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
-ChangeTF3_Minato2_Layout() {
-    StoreLayout("TF3-Minato2[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
+ChangeTF2_2_Minato2_Layout() {
+    StoreLayout("TF2_2-Minato2[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
@@ -4513,7 +4542,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 #x:: ChangeTF_Minato_Layout()
-#z:: ChangeTF3_Minato2_Layout()
+#z:: ChangeTF2_2_Minato2_Layout()
 #s:: ChangeSTREAM2_Minato_Layout()
 #m:: ChangeFMIX13f_Minato_Layout()
 #q:: ChangeQwertyLayout()
