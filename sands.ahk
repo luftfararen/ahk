@@ -80,13 +80,6 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 ^v::^v
 #HotIf
 
-; ~^#!v:: {
-
-; }
-; ~#!v:: {
-
-; }
-
 ;+#F23::#!space
 
 ; ============================================================================
@@ -472,8 +465,11 @@ GetFocusedControlHandle() {
     hwnd := WinExist("A")
     if hwnd {
         NumPut("UInt", cb_size, st_gti, 0)
-        if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti, "Int") {
-            hwnd := NumGet(st_gti, 8 + ptr_size, "Ptr")
+        tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0) 
+        if DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", st_gti, "Int") {
+            hwndFocus := NumGet(st_gti, 8 + ptr_size, "Ptr")
+            if hwndFocus
+                hwnd := hwndFocus
         }
     }
     return hwnd
@@ -505,6 +501,7 @@ SetImeStatus(hwnd, state) {
 class ImeState {
     static force_ime_on := false
     static cached_state := false
+    static last_active_control_hwnd := 0
 
     /**
      * 動作モード
@@ -577,12 +574,14 @@ class ImeState {
      * @returns {Boolean} 更新後の IME 状態 (ON なら true)
      */
     static UpdateState() {
-        static last_active_control_hwnd := 0
-
         hwnd := GetFocusedControlHandle()
+        if !hwnd {
+            ImeState.cached_state := true
+            return true
+        }
 
         ; 同じウィンドウであれば強制フラグを確認
-        if (last_active_control_hwnd == hwnd) {
+        if (ImeState.last_active_control_hwnd == hwnd) {
             if ImeState.force_ime_on {
                 ImeState.cached_state := true
                 ImeState.RecordCheck()
@@ -594,16 +593,24 @@ class ImeState {
             ImeState.force_ime_on := false
         }
 
-        last_active_control_hwnd := hwnd
+        ImeState.last_active_control_hwnd := hwnd
 
         ; 実際の IME 状態を確認
-        state := 0
-        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
-        ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
-        DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
-            "UInt", 0x0002, "UInt", 50, "Ptr*", &state, "Ptr")
 
-        ImeState.cached_state := (state != 0)
+        hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
+        if hIMC{
+            openStatus := DllCall("imm32\ImmGetOpenStatus", "Ptr", hIMC)
+            DllCall("imm32\ImmReleaseContext", "Ptr", hwnd,"Ptr",hIMC)
+            ImeState.cached_state := (openStatus != 0)
+        }else{
+            state := 0
+            default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+        ; 0x0002: SMTO_ABORTIFHUNG (フリーズしてたらすぐ帰る), タイムアウト50ms
+            DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
+                "UInt", 0x0002, "UInt", 50, "Ptr*", &state, "Ptr")
+
+            ImeState.cached_state := (state != 0)
+        }
         ImeState.RecordCheck()
         return ImeState.cached_state
     }
@@ -1428,7 +1435,11 @@ class TypeAnalyzer {
  * 現在のウィンドウに対して強制 IME ON フラグを切り替える
  */
 ToggleForceImeModeOn() {
+    hwnd := GetFocusedControlHandle()
     ImeState.ToggleForce()
+    if (hwnd) {
+        ImeState.last_active_control_hwnd := hwnd
+    }
     ImeState.UpdateState()
     UpdateImeIndicator()
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
@@ -2479,8 +2490,7 @@ class LKey extends RKey {
         Critical
         ; モード0の場合はタイマー等がないため単純に初期化して終了
         ime_state := ImeState.IsOn()
-        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
-        ) : ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
+        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) : ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
 
         if (hold_mode == 0) {
             this.state := LKey.st_init
@@ -2491,51 +2501,33 @@ class LKey extends RKey {
         ; 動作中のタイマーを確実にキャンセル
         SetTimer(this.timer_name, 0)
 
-        duration_qpc := QPC() - this.pressed_time_qpc
+        duration := QPC() - this.pressed_time_qpc
 
-        ; まだ長押し確定（st_processed）しておらず、押し込み中（st_pressing）だった場合のみUp処理を実行
-        if (this.state == LKey.st_pressing) {
-            ; 短押し判定（閾値未満、かつ他キーの割り込みなし）
-            if (duration_qpc < LKey.hold_th && !this.interrupted) {
-
-                ; モード 3: 短押し時のみ入力（down時に保持したscawを適用）
-                if (hold_mode == 3) {
-                    SendAndLog(this.saved_scaw . this.key_text)
-                }
-                ; モード 5: 短押し時のみ入力（IME依存のリマップ送信）
-                else if (hold_mode == 5) {
-                    this.SendKeyWithShift()
-                }
+        ; モード3（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
+        if (hold_mode == 3) {
+            if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
+                ; 長押しや他キーの割り込みがなかった場合、保持した修飾記号付きでキーを送信
+                SendAndLog("{Blind}" . this.saved_scaw . this.key_text)
             }
         }
 
-        ; キーが離されたら状態を完全にクリーンアップ
-        this.pressed_time_qpc := 0
+        ; 状態を初期化
         this.state := LKey.st_init
+        this.pressed_time_qpc := 0
         this.interrupted := false
         this.saved_scaw := ""
     }
 
     /**
-     * モード1 の長押し確定用タイマーコールバック
+     * 長押しタイムアウト（モード1用）
      */
     OnHoldTimeout() {
         Critical
-        ; 指がまだ物理的に押されており、かつ他のキーの割り込みがない場合のみ実行
-        if (this.state == LKey.st_pressing && !this.interrupted && this.IsPressed()) {
-
-            ime_state := this.down_ime_state
-            hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
-
-            if (hold_mode == 1) {
-                ; ※注意: モード1（長押し置換）は、IME ON での入力・変換中は Backspace が
-                ; 未確定文字列のみを消してしまうため、IME OFF（英語入力）時のみの使用を推奨します。
-                SendEvent("{Backspace}")
-                this.SendShiftedKey(true)
-            }
-
-            ; 長押し処理が確定したため、processed 状態へ移行（Upまでロック）
+        if (this.state == LKey.st_pressing && !this.interrupted) {
             this.state := LKey.st_processed
+            ; モード1：長押し時に既存文字をBSで消去し、Shift版に置換
+            Send("{Backspace}")
+            this.SendShiftedKey(true, this.down_ime_state)
         }
     }
 }
