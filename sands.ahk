@@ -20,7 +20,7 @@
 ; 7. マウス速度制御: ホットキーを使用してシステムのマウス速度を調整するクラス。
 ; 8. TypeAnalyzer: タイピングの統計（3キーシーケンス（トリグラム）の出現頻度と
 ;    打鍵間隔）を記録します。各配列の効率分析や、自身のタイピング傾向の把握に
-;    活用できます。
+;    活用できます
 ; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
 ;    日本語入力が ON の間、マウスカーソルに追従する小さなドットを表示します。
 ;
@@ -595,11 +595,8 @@ class ImeState {
     static UpdateState() {
         hwnd := GetFocusedControlHandle()
         if !hwnd {
-            ImeState.cached_state := true
-            return true
+            return ImeState.cached_state
         }
-
-        top_hwnd := WinExist("A")
 
         ; 同じコントロールであれば強制 IME ON フラグを確認
         if (ImeState.last_active_control_hwnd == hwnd) {
@@ -625,22 +622,23 @@ class ImeState {
             return ImeState.cached_state
         }
 
-        ; 2. 他プロセスウィンドウの場合: トップレベルウィンドウの DefaultIMEWnd を優先して取得
-        ; (VS Code / Chromium / Electron等の子コントロールHWNDでは WM_IME_CONTROL が応答しない問題への対処)
-        default_ime_wnd := 0
-        if top_hwnd {
-            default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", top_hwnd, "Ptr")
-        }
+        ; 2. 他プロセスウィンドウの場合: フォーカスのある hwnd から DefaultIMEWnd を取得
+        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+
+        ; 子ウィンドウで失敗した場合のみトップレベルウィンドウを試す
         if !default_ime_wnd {
-            default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+            top_hwnd := WinExist("A")
+            if (top_hwnd && top_hwnd != hwnd) {
+                default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", top_hwnd, "Ptr")
+            }
         }
 
         if default_ime_wnd {
             state := 0
             ; 0x0283: WM_IME_CONTROL, 0x0005: IMC_GETOPENSTATUS
-            ; 0x0002: SMTO_ABORTIFHUNG (フリーズ対策), 50ms タイムアウト
+            ; SMTO_ABORTIFHUNG (0x0002) を指定しつつ、タイムアウトを確実に取得
             if DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
-                "UInt", 0x0002, "UInt", 50, "Ptr*", &state, "Ptr") {
+                "UInt", 0x0002, "UInt", 100, "Ptr*", &state, "Ptr") {
                 ImeState.cached_state := (state != 0)
             }
         }
@@ -648,7 +646,6 @@ class ImeState {
         ImeState.RecordCheck()
         return ImeState.cached_state
     }
-
     /**
      * アクティブウィンドウの IME が現在 ON かどうかを確認する
      * `force_ime_on` フラグも考慮する
