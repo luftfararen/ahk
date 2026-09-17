@@ -599,6 +599,8 @@ class ImeState {
             return true
         }
 
+        top_hwnd := WinExist("A")
+
         ; 同じコントロールであれば強制 IME ON フラグを確認
         if (ImeState.last_active_control_hwnd == hwnd) {
             if ImeState.force_ime_on {
@@ -623,10 +625,14 @@ class ImeState {
             return ImeState.cached_state
         }
 
-        ; 2. 他プロセスウィンドウの場合: ImmGetDefaultIMEWnd + WM_IME_CONTROL (SendMessageTimeout)
-        default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
-        if (!default_ime_wnd && (top_hwnd := WinExist("A"))) {
+        ; 2. 他プロセスウィンドウの場合: トップレベルウィンドウの DefaultIMEWnd を優先して取得
+        ; (VS Code / Chromium / Electron等の子コントロールHWNDでは WM_IME_CONTROL が応答しない問題への対処)
+        default_ime_wnd := 0
+        if top_hwnd {
             default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", top_hwnd, "Ptr")
+        }
+        if !default_ime_wnd {
+            default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
         }
 
         if default_ime_wnd {
@@ -1518,7 +1524,7 @@ SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
     if key_ime_on == "{none}" || key_ime_off == "{none}" {
         return ; {none} が指定された場合は何も送信しない
     }
-    if key_ime_off = key_ime_on || key_ime_on = "" {
+    if key_ime_off == key_ime_on || key_ime_on == "" {
         SendAndLog(key_ime_off)
         return
     }
@@ -4334,7 +4340,7 @@ InitModLayer() {
     w.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}/")
     e.SetLayerKey(mode, L_SYMBOL_NUM, B_NMUL)
     r.SetLayerKey(mode, L_SYMBOL_NUM, B_NADD)
-    t.SetLayerKey(mode, L_SYMBOL_NUM, "+^")
+    t.SetLayerKey(mode, L_SYMBOL_NUM, ":=")
     a.SetLayerKey(mode, L_SYMBOL_NUM, "(")
     s.SetLayerKey(mode, L_SYMBOL_NUM, ")")
     d.SetLayerKey(mode, L_SYMBOL_NUM, "_")
@@ -4391,21 +4397,24 @@ InitModLayer() {
     n.SetLayerKey(mode, L_NUMPAD, C_DEL)
 
     ; L_SYMBOL2
-    q.SetLayerKey(mode, L_SYMBOL2, "+1")
-    w.SetLayerKey(mode, L_SYMBOL2, "+2")
-    e.SetLayerKey(mode, L_SYMBOL2, "+3")
-    r.SetLayerKey(mode, L_SYMBOL2, "+4")
-    t.SetLayerKey(mode, L_SYMBOL2, "+5")
-    a.SetLayerKey(mode, L_SYMBOL2, "+6")
-    s.SetLayerKey(mode, L_SYMBOL2, "+7")
-    d.SetLayerKey(mode, L_SYMBOL2, "+2")
-    f.SetLayerKey(mode, L_SYMBOL2, ";")
+    q.SetLayerKey(mode, L_SYMBOL2, "!") ;Exclamation Mark
+    w.SetLayerKey(mode, L_SYMBOL2, "@") ;Commercial At
+    e.SetLayerKey(mode, L_SYMBOL2, "#") ;Number Sign
+    r.SetLayerKey(mode, L_SYMBOL2, "$") ;Dollar Sign
+    t.SetLayerKey(mode, L_SYMBOL2, "%") ;Percent Sign
+    a.SetLayerKey(mode, L_SYMBOL2, "&") ;Ampersand
+    s.SetLayerKey(mode, L_SYMBOL2, "+7") ;' single quotation
+    d.SetLayerKey(mode, L_SYMBOL2, "+2") ;' double quotation
+    f.SetLayerKey(mode, L_SYMBOL2, ";") ;Semicolon
     g.SetLayerKey(mode, L_SYMBOL2, "+@") ;Grace Accent
-    z.SetLayerKey(mode, L_SYMBOL2, "~")
-    x.SetLayerKey(mode, L_SYMBOL2, "@")
-    c.SetLayerKey(mode, L_SYMBOL2, ":")
-    v.SetLayerKey(mode, L_SYMBOL2, "|")
-    b.SetLayerKey(mode, L_SYMBOL2, "\")
+    z.SetLayerKey(mode, L_SYMBOL2, "~") ;Tilde
+    x.SetLayerKey(mode, L_SYMBOL2, C_HAT) ;Accent Circumflex
+    c.SetLayerKey(mode, L_SYMBOL2, ":") ;Colon
+    v.SetLayerKey(mode, L_SYMBOL2, "|") ;Vertical Line
+    b.SetLayerKey(mode, L_SYMBOL2, "\") ;Backward Slash
+    h.SetLayerKey(mode, L_SYMBOL2, "=")
+    comma.SetLayerKey(mode, L_SYMBOL2, "<=")
+    period.SetLayerKey(mode, L_SYMBOL2, ">=")
 
     ; L_SHIFT
     k1.SetLayerKey(mode, L_SHIFT, B_F1)
@@ -4569,9 +4578,9 @@ space:: ToggleImeState() ;Send(C_BS)
     . "Win+M1+,: IMEインジケータの表示/非表示を切り替え`n"
     . "Win+M1+.: キーロガーのOn/Offを切り替`n"
     . "==記号レイヤ1==  ==記号レイヤ2==`n"
-    . "|?|/|*|+| |    |!|`"|#|$|%|`n"
-    . "|(|)|_|-|=|    |&&|`'|^| |``|`n"
-    . "|{|}|[|]|\|    |~|@|:|||\|`n"
+    . "|?|/|*|+| |    |!|@|#|$|%|`n"
+    . "|(|)|_|-|=|    |&&|`'|`"|;|``|`n"
+    . "|{|}|[|]|\|    |~|^|:|||\|`n"
     , 3000, True)
 ; --- マウス速度 ---
 #up:: MouseSpeed.IncSpeed() ; Win+Up
