@@ -1942,7 +1942,9 @@ class RKey {
      */
     __New(key, reg_key := "") {
         this.org_key := AddBraces(key)
-        this.org_key_raw := RemoveBraces(key)
+        raw := RemoveBraces(key)
+        sc := GetKeySC(raw)
+        this.org_key_raw := sc ? Format("sc{:03x}", sc) : raw
         if reg_key = "" {
             this.SetKey(key)   ; IME OFF 時のキーを設定
             this.SetImeKey(key) ; IME ON 時のキーを設定 (デフォルトは OFF 時と同じ)
@@ -2432,17 +2434,12 @@ class LKey extends RKey {
     }
 
     IsPressed() => GetKeyState(this.org_key_raw, "P")
-    ;IsPressed() => IsKeyPressedRaw(this.vk)
 
     /**
      * ループ内などで使用する、OS状態を直接チェックする軽量な判定関数。
      * AHKのフック更新がブロックされている状況でも、物理的なキーリリースを正確に検出できます。
      */
-    IsPressedDirect() {
-        ;if (this.vk == 0)
-        return GetKeyState(this.org_key_raw, "P")
-        ;return IsKeyPressedRaw(this.vk)
-    }
+    IsPressedDirect() => GetKeyState(this.org_key_raw, "P")
 
     /**
      * キー押し下げ時の処理
@@ -4104,7 +4101,7 @@ ChangeMinatoLayoutImpl(ei := True) {
         k.SetImeKey("i", "inn")
         l.SetImeKey("e", "enn")
     }
-    colon.SetImeKey("o", "onn")
+    semicolon.SetImeKey("o", "onn")
     n.SetImeKey("-", "a-")
     m.SetImeKey("ya", "y-")
 
@@ -4167,7 +4164,10 @@ ChangeTF_Minato_Layout() {
 
 ChangeTF2_2_Minato2_Layout() {
     StoreLayout("TF2_2-Minato2[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
+    global colon
     ChangeMinatoLayoutImpl()
+    colon.SetKey(B_ENTER)
+    colon.SetIMEKey(B_ENTER)
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -4311,6 +4311,7 @@ InitModLayer() {
     k.SetLayerKey(mode, L_NAVI_CTRL, B_DOWN)
     l.SetLayerKey(mode, L_NAVI_CTRL, B_RIGHT)
     semicolon.SetLayerKey(mode, L_NAVI_CTRL, B_ENTER)
+    colon.SetLayerKey(mode, L_NAVI_CTRL, "^{Enter}")
     closebracket.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
     n.SetLayerKey(mode, L_NAVI_CTRL, B_END)
     m.SetLayerKey(mode, L_NAVI_CTRL, B_DEL)
@@ -4426,7 +4427,7 @@ InitModLayer() {
     k0.SetLayerKey(mode, L_SHIFT, B_F10)
     minus.SetLayerKey(mode, L_SHIFT, B_F11)
     hat.SetLayerKey(mode, L_SHIFT, B_F12)
-    colon.SetLayerKey(mode, L_SHIFT, "+sc028")
+    colon.SetLayerKey(mode, L_SHIFT, "+{Enter}")
     closebracket.SetLayerKey(mode, L_SHIFT, "+]")
 }
 
