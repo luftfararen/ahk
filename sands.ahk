@@ -2804,10 +2804,10 @@ LoadLayoutConfig() {
             case "FMIX12f[Built-in]": ChangeFMIX12f_Layout()
             case "FMIX12f-13fR[Built-in]": ChangeFMIX12f_FMIX13fR_Layout()
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
+            case "FMIX15-15R[Built-in]": ChangeFMIX15_FMIX15R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
-            case "TF-Minato[Built-in]": ChangeTF_Minato_Layout()
-            case "TF2_2-Minato2[Built-in]": ChangeTF2_2_Minato2_Layout()
-            case "STREAM2-Minato[Built-in]": ChangeSTREAM2_Minato_Layout()
+            case "TF2_2-Minato[Built-in]": ChangeTF2_2_Minato_Layout()
+            case "STREAM1.5[Built-in]": ChangeSTREAM1_5_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
             default:
                 ; INIファイルからカスタムレイアウトの読み込みを試行
@@ -4139,6 +4139,21 @@ ChangeMinatoLayoutImpl(ei := True) {
 ChangeFMIX13_Minato_Layout() {
     StoreLayout("FMIX13-Minato[Built-in]", "qwrlkyfup;asdtghneiozxcvbjm,./")
     ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+
+ChangeFMIX15_FMIX15R_Layout() {
+    StoreLayout("FMIX15-FMIX15R[Built-in]", "qwldkjfuy;asrtghneiozxcvbpm,./")
+
+    global e, t, d
+
+    ; IME ON 時の差分設定
+    e.SetImeKey("r")
+    t.SetImeKey("l")
+    d.SetImeKey("k")
+
+    InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
@@ -4152,57 +4167,19 @@ ChangeFMIX13f_Minato_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
-/**
- * キーレイアウトを「FMIX13x-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
- */
-ChangeTF_Minato_Layout() {
-    StoreLayout("TF-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
-    ChangeMinatoLayoutImpl()
-    InitModLayer()
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
-
-ChangeTF2_2_Minato2_Layout() {
-    StoreLayout("TF2_2-Minato2[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
+ChangeTF2_2_Minato_Layout() {
+    StoreLayout("TF2_2-Minato[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
     global colon
     ChangeMinatoLayoutImpl()
     colon.SetKey(B_ENTER)
     colon.SetIMEKey(B_ENTER)
+    h.SetIMEKey(B_ENTER)
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
-ChangeSTREAM2_Minato_Layout() {
-    StoreLayout("STREAM2-Minato[Built-in]", "qprdkvcuy;atnswmheiozxlgbjf,./", "1234567890-", "", "", true)
-
-    ChangeMinatoLayoutImpl()
-    k.SetImeKey("e", "xe")
-    l.SetImeKey("i", "xi")
-
-    rm := CreateKeyMap()
-    SetLKeyMode(-1, 6)
-
-    target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
-    for layer_key in target_layers {
-        RegistIMECombination(8, layer_key, d, "nn") ; ん
-        RegistIMECombination(8, layer_key, f, "-") ;ー
-        RegistIMECombination(8, layer_key, v, "ltu", "ta", "{BS}te") ;
-        RegistIMECombination(8, layer_key, e, "ru", "{BS}rareru") ;
-    }
-
-    RegistIMECombination(7, rm["k"], rm["t"], "oto") ;こと
-    RegistIMECombination(7, rm["k"], r, "ara") ;から
-    RegistIMECombination(7, rm["o"], j, "u") ;
-    RegistIMECombination(7, rm["s"], rm["t"], "ite", "{BS}ta") ;して
-    RegistIMECombination(7, rm["s"], rm["r"], "uru", "{BS}{BS}sareru") ;する、される
-    RegistIMECombination(7, rm["s"], r, "uru", "{BS}{BS}sareru") ;する、される
-    RegistIMECombination(7, rm["r"], r, "eru", "{BS}{BS}rareru") ;られる
-    RegistIMECombination(7, z, v, "youhou") ;
-    RegistIMECombination(7, rm["u"], j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination(7, rm["u"], u, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination(7, k, j, "{BS}{BS}", "{BS}") ;
-    RegistIMECombination(7, rm["m"], v, "ono") ;
-    RegistIMECombination(7, rm["n"], r, "ode") ;
+ChangeSTREAM1_5_Layout() {
+    StoreLayout("STREAM1.5[Built-in]", "qwrpkvcuy;asntgfheiozxldbjf,./", "1234567890-", "", "", true)
 
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
@@ -4548,9 +4525,9 @@ space:: ToggleImeState() ;Send(C_BS)
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
-#x:: ChangeTF_Minato_Layout()
-#z:: ChangeTF2_2_Minato2_Layout()
-#s:: ChangeSTREAM2_Minato_Layout()
+#t:: ChangeFMIX15_FMIX15R_Layout()
+#x:: ChangeTF2_2_Minato_Layout()
+#s:: ChangeSTREAM1_5_Layout()
 #m:: ChangeFMIX13f_Minato_Layout()
 #q:: ChangeQwertyLayout()
 #o:: ChangeOonishiLayout()
