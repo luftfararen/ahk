@@ -156,6 +156,7 @@ B_SLASH := "{Blind}{sc035}"
 R_ENTER := "ENTER"
 C_ENTER := "{Enter}"
 B_ENTER := "{Blind}{Enter}"
+R_ADAPTIVE_ENTER := "AEnter"
 
 ; --- テンキー定数 ---
 C_N0 := "{Numpad0}"
@@ -521,6 +522,9 @@ class ImeState {
     static force_ime_on := false
     static cached_state := false
     static last_active_control_hwnd := 0
+    static is_composing_tracked := false
+    static composition_count := 0
+    static composition_hwnd := 0
 
     /**
      * 動作モード
@@ -642,7 +646,7 @@ class ImeState {
                 ImeState.cached_state := (state != 0)
             }
         }
-
+        ;Todo:Composing状態をキャッシュ
         ImeState.RecordCheck()
         return ImeState.cached_state
     }
@@ -656,6 +660,95 @@ class ImeState {
             return ImeState.UpdateState()
         }
         return ImeState.cached_state
+    }
+
+    /**
+     * 文字入力時にコンポジション開始・継続を記録
+     */
+    static RecordCompositionInput(c) {
+        if ImeState.IsOn() {
+            ImeState.is_composing_tracked := true
+            ImeState.composition_count++
+            ImeState.composition_hwnd := GetFocusedControlHandle()
+        }
+    }
+
+    /**
+     * 確定・キャンセル・フォーカス変更等でコンポジションをリセット
+     */
+    static ResetComposition() {
+        ImeState.is_composing_tracked := false
+        ImeState.composition_count := 0
+    }
+
+    /**
+     * Backspace押下時の処理
+     */
+    static HandleBackspace() {
+        if (ImeState.composition_count > 0) {
+            ImeState.composition_count--
+            if (ImeState.composition_count <= 0) {
+                ImeState.is_composing_tracked := false
+            }
+        }
+    }
+
+    /**
+     * 現在フォーカスされているコントロールで未確定文字列（入力中・変換中）が存在するかを取得する
+     * @returns {Boolean} 未確定文字が存在すれば true
+     */
+    static IsComposing() {
+        hwnd := GetFocusedControlHandle()
+        if !hwnd
+            return false
+
+        ; 1. IMM32 API (ImmGetCompositionStringW) による判定
+        hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
+        if hIMC {
+            compLen := DllCall("imm32\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x0008, "Ptr", 0, "UInt", 0,
+                "Int")
+            DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
+            if (compLen > 0) {
+                ImeState.is_composing_tracked := true
+                return true
+            }
+        }
+
+        ; 2. 他プロセスウィンドウの場合: AttachThreadInput によるコンテキスト取得
+        targetThreadId := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
+        currentThreadId := DllCall("GetCurrentThreadId", "UInt")
+        if (targetThreadId && targetThreadId != currentThreadId) {
+            if DllCall("AttachThreadInput", "UInt", currentThreadId, "UInt", targetThreadId, "Int", 1) {
+                hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
+                compLen := 0
+                if hIMC {
+                    compLen := DllCall("imm32\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x0008, "Ptr", 0, "UInt",
+                        0, "Int")
+                    DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
+                }
+                DllCall("AttachThreadInput", "UInt", currentThreadId, "UInt", targetThreadId, "Int", 0)
+                if (compLen > 0) {
+                    ImeState.is_composing_tracked := true
+                    return true
+                }
+            }
+        }
+
+        ; 3. 候補ウィンドウ等の存在チェック (変換中のフォールバック)
+        if WinExist("ahk_class Microsoft.IME.UIManager.CandidateWindow.Host") || WinExist("ahk_class MSCTFIME UI") {
+            return true
+        }
+
+        ; 4. TSF / モダンアプリ向け: キーストロークトラッキングによる判定
+        if (ImeState.IsOn() && ImeState.is_composing_tracked) {
+            if (ImeState.composition_hwnd != 0 && ImeState.composition_hwnd != hwnd) {
+                ImeState.ResetComposition()
+                return false
+            }
+            return true
+        }
+
+        return false
     }
 
     /**
@@ -1499,13 +1592,33 @@ ToggleImeState() {
  */
 SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
-        ; ImeState.Reset()
-        ; Send(c)
-        ; ImeState.UpdateState()
+        ImeState.ResetComposition()
         SendImeChar(c) ;criticalが二重にかかるが大丈夫
         UpdateImeIndicator()
         return
     }
+    if c = R_ADAPTIVE_ENTER {
+        if (ImeState.IsOn(true) && ImeState.IsComposing()) {
+            key_to_send := "^m"
+            Tooltip("Adaptive Enter: ON -> OFF (Ctrl+M)")
+        } else {
+            key_to_send := B_ENTER
+            Tooltip("Adaptive Enter: OFF -> ON (Enter)")
+        }
+        Send(key_to_send)
+        TypeAnalyzer.Log(key_to_send)
+        ImeState.RecordActivity()
+        ImeState.ResetComposition()
+        return
+    }
+    if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
+        ImeState.ResetComposition()
+    } else if (c = B_BS || c = C_BS || c = "{Backspace}" || c = "{Blind}{Backspace}") {
+        ImeState.HandleBackspace()
+    } else if (ImeState.IsOn()) {
+        ImeState.RecordCompositionInput(c)
+    }
+
     Send(c)
     TypeAnalyzer.Log(c)
     ImeState.RecordActivity()
@@ -1730,6 +1843,12 @@ UpdateImeIndicator(precise := False) {
  * 定期的に実行されるタイマーイベント。IME表示の更新やログの保存などを行う。
  */
 TimerEvent() {
+    static last_focus_hwnd := 0
+    cur_hwnd := GetFocusedControlHandle()
+    if (cur_hwnd != last_focus_hwnd) {
+        ImeState.ResetComposition()
+        last_focus_hwnd := cur_hwnd
+    }
     static counter := 0
     static is_rdp := false
     if (Mod(counter, 5) == 0) {
@@ -4169,11 +4288,11 @@ ChangeFMIX13f_Minato_Layout() {
 
 ChangeTF2_2_Minato_Layout() {
     StoreLayout("TF2_2-Minato[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
-    global colon
     ChangeMinatoLayoutImpl()
-    colon.SetKey(B_ENTER)
-    colon.SetIMEKey(B_ENTER)
-    h.SetIMEKey(B_ENTER)
+    ; global colon
+    ; colon.SetKey(B_ENTER)
+    ; colon.SetIMEKey(B_ENTER)
+    ;h.SetIMEKey(B_ENTER)
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -4287,7 +4406,7 @@ InitModLayer() {
     j.SetLayerKey(mode, L_NAVI_CTRL, B_LEFT)
     k.SetLayerKey(mode, L_NAVI_CTRL, B_DOWN)
     l.SetLayerKey(mode, L_NAVI_CTRL, B_RIGHT)
-    semicolon.SetLayerKey(mode, L_NAVI_CTRL, B_ENTER)
+    semicolon.SetLayerKey(mode, L_NAVI_CTRL, R_ADAPTIVE_ENTER)
     colon.SetLayerKey(mode, L_NAVI_CTRL, "^{Enter}")
     closebracket.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
     n.SetLayerKey(mode, L_NAVI_CTRL, B_END)
@@ -4710,3 +4829,4 @@ sc029:: ToggleImeState() ; 全角/半角 -> IME 切り替え
 #!Enter:: Suspend ; Win+Alt+Enter でスクリプトの一時停止を切り替え
 #SuspendExempt False
 #MaxThreadsBuffer False
+~*LButton:: ImeState.ResetComposition()
