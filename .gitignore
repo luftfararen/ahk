@@ -1,3 +1,6 @@
 log.txt
 *.bak
 data
+*.pyc
+tools/*
+*.ig

@@ -54,6 +54,11 @@ class IniDocument {
                     inlineComment = rawVal.substring(commentIndex).trim();
                 }
 
+                value = value.trim();
+                if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+                    value = value.substring(1, value.length - 1);
+                }
+
                 this.lines.push({
                     type: 'keyvalue',
                     section: currentSection,
@@ -157,7 +162,6 @@ class IniDocument {
                 });
             }
         }
-        this.markModified();
     }
 
     renameSection(oldName, newName) {
@@ -308,7 +312,7 @@ S00= 1 2 3 4 5 6 7   8  9  0 - ^ \\
 S01= q w r p l f yu  u  yo - @ [
 S02= k s t n h {sc027} ya  xi xe o : ]
 S03= [ ] d m b j ltu ,  .  / \\
-m_r+p = areru
+m_r_p = areru
 
 [NAVI_CTRL]
 h={Left}
@@ -441,6 +445,10 @@ const App = {
             this.doc.setValue('Settings', 'b_time', e.target.value);
             this.markModified();
         });
+        document.getElementById('setting-b-time2').addEventListener('change', (e) => {
+            this.doc.setValue('Settings', 'b_time2', e.target.value);
+            this.markModified();
+        });
         document.getElementById('setting-ime-indicator').addEventListener('change', (e) => {
             this.doc.setValue('Settings', 'ImeIndicatorEnabled', e.target.checked ? "1" : "0");
             this.markModified();
@@ -552,19 +560,39 @@ const App = {
             this.closeKeyEditor();
         });
 
-        // Key Editor Inputs
-        document.getElementById('key-mapping-value').addEventListener('input', (e) => {
-            this.applyKeyMappingChange(e.target.value);
+        // Layout Panel Tab switching
+        document.querySelectorAll('.layout-tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetTabId = e.currentTarget.getAttribute('data-tab');
+                document.querySelectorAll('.layout-tab-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                document.querySelectorAll('.layout-tab-content').forEach(content => content.classList.remove('active'));
+                const activeContent = document.getElementById(targetTabId);
+                if (activeContent) activeContent.classList.add('active');
+            });
         });
 
+        // Key Editor Inputs
         document.getElementById('btn-clear-key-mapping').addEventListener('click', () => {
             document.getElementById('key-mapping-value').value = "";
-            this.applyKeyMappingChange("");
         });
 
-        document.getElementById('key-override-toggle').addEventListener('change', (e) => {
-            const val = document.getElementById('key-mapping-value').value;
-            this.applyKeyMappingChange(val, e.target.checked);
+        // Apply mapping button in Modal
+        document.getElementById('btn-apply-key-mapping').addEventListener('click', () => {
+            try {
+                const val = document.getElementById('key-mapping-value').value;
+                const forceOverride = document.getElementById('key-override-toggle').checked;
+                this.applyKeyMappingChange(val, forceOverride);
+                this.closeKeyEditor();
+            } catch (err) {
+                console.error("Error applying key mapping:", err);
+                alert("設定の適用中にエラーが発生しました: " + err.message);
+            }
+        });
+
+        // Cancel mapping button in Modal
+        document.getElementById('btn-cancel-key-mapping').addEventListener('click', () => {
+            this.closeKeyEditor();
         });
 
         // Add Combination
@@ -576,16 +604,28 @@ const App = {
             key2Select.innerHTML = "";
             
             QWERTY_CHARS.forEach(c => {
-                const opt1 = document.createElement('option');
-                opt1.value = c;
-                opt1.textContent = c;
-                key1Select.appendChild(opt1);
+                const addOption = (val, label) => {
+                    const opt1 = document.createElement('option');
+                    opt1.value = val;
+                    opt1.textContent = label;
+                    key1Select.appendChild(opt1);
 
-                const opt2 = document.createElement('option');
-                opt2.value = c;
-                opt2.textContent = c;
-                key2Select.appendChild(opt2);
+                    const opt2 = document.createElement('option');
+                    opt2.value = val;
+                    opt2.textContent = label;
+                    key2Select.appendChild(opt2);
+                };
+                addOption(c, c);
+                addOption("P" + c, "P" + c + " (物理)");
             });
+
+            // Reset inputs for new modal specification
+            document.getElementById('add-comb-mode').value = "8";
+            document.getElementById('add-comb-hold-th').value = "";
+            document.getElementById('add-comb-b-time').value = "";
+            document.getElementById('add-comb-action1').value = "";
+            document.getElementById('add-comb-action2').value = "";
+            document.getElementById('add-comb-action3').value = "";
 
             showModal('modal-add-combination');
         });
@@ -593,15 +633,33 @@ const App = {
         document.getElementById('btn-add-combination-confirm').addEventListener('click', () => {
             const k1 = document.getElementById('add-comb-key1').value;
             const k2 = document.getElementById('add-comb-key2').value;
-            const val = document.getElementById('add-comb-value').value.trim();
+            
+            const mode = document.getElementById('add-comb-mode').value;
+            const holdThVal = document.getElementById('add-comb-hold-th').value.trim();
+            const bTimeVal = document.getElementById('add-comb-b-time').value.trim();
+            const action1 = document.getElementById('add-comb-action1').value.trim();
+            const action2 = document.getElementById('add-comb-action2').value.trim();
+            const action3 = document.getElementById('add-comb-action3').value.trim();
 
-            if (!val) {
-                alert("出力値は必須です。");
+            if (!action1) {
+                alert("アクション 1 は必須です。");
                 return;
             }
 
+            const holdTh = holdThVal !== "" ? parseInt(holdThVal, 10) : null;
+            const bTime = bTimeVal !== "" ? parseInt(bTimeVal, 10) : null;
+
+            const val = this.serializeCombinationValue({
+                mode: parseInt(mode, 10),
+                holdTh: holdTh,
+                bTime: bTime,
+                action1: action1,
+                action2: action2,
+                action3: action3
+            });
+
             if (this.activeLayoutSec) {
-                const combKey = `m_${k1}+${k2}`;
+                const combKey = `m_${k1}_${k2}`;
                 this.doc.setValue(this.activeLayoutSec, combKey, val);
                 this.renderCombinationsTable();
                 closeModal('modal-add-combination');
@@ -831,6 +889,29 @@ const App = {
        LOAD & PARSE FUNCTIONS
        ============================================================================ */
     async tryAutoload() {
+        // 0. Try loading from URL hash (passed from AutoHotkey launch to bypass file:// CORS restriction)
+        const hash = window.location.hash;
+        if (hash.startsWith('#ini=')) {
+            try {
+                const hexData = hash.substring(5);
+                const bytes = new Uint8Array(hexData.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                const text = new TextDecoder().decode(bytes);
+                this.doc.parse(text);
+                this.isModified = false;
+                document.getElementById('file-status').textContent = 'Loaded: config.ini (Auto via AHK)';
+                document.getElementById('file-status').className = 'status-indicator success';
+                this.loadDocumentData();
+                
+                // Clear the hash to keep the URL clean
+                try {
+                    history.replaceState(null, document.title, window.location.pathname + window.location.search);
+                } catch (e) {}
+                return;
+            } catch (e) {
+                console.error("Failed to parse URL hash config:", e);
+            }
+        }
+
         // 1. IndexedDBからファイルハンドルを復元してみる
         try {
             const handle = await getStoredHandle();
@@ -875,7 +956,22 @@ const App = {
             console.log("Auto-load fetched ../config.ini failed (expected in local browsers): ", e);
         }
 
-        // 3. デモデータを読み込み
+        // 3. ローカルストレージのキャッシュから復元を試みる
+        try {
+            const cachedText = localStorage.getItem('config_ini_cache');
+            if (cachedText) {
+                this.doc.parse(cachedText);
+                this.isModified = false;
+                document.getElementById('file-status').textContent = 'Loaded: config.ini (Local Cache)';
+                document.getElementById('file-status').className = 'status-indicator success';
+                this.loadDocumentData();
+                return;
+            }
+        } catch (e) {
+            console.error("Failed to read from localStorage cache:", e);
+        }
+
+        // 4. デモデータを読み込み
         this.doc.parse(DEFAULT_CONFIG_CONTENT);
         document.getElementById('file-status').textContent = 'デモ設定ファイル表示中（保存にはファイルを開いてください）';
         document.getElementById('file-status').className = 'status-indicator warning';
@@ -945,6 +1041,7 @@ const App = {
             if (response.ok) {
                 this.isModified = false;
                 this.updateStatusBar();
+                this.clearSaveButtonHighlight();
                 alert("config.ini を保存しました。");
                 return;
             }
@@ -996,6 +1093,7 @@ const App = {
                 await writable.close();
                 this.isModified = false;
                 this.updateStatusBar();
+                this.clearSaveButtonHighlight();
                 alert("config.ini を上書き保存しました。");
                 
                 // Status bar details update
@@ -1026,6 +1124,7 @@ const App = {
         
         this.isModified = false;
         this.updateStatusBar();
+        this.clearSaveButtonHighlight();
     },
 
     async exportLayout() {
@@ -1184,7 +1283,22 @@ const App = {
     markModified() {
         this.isModified = true;
         this.updateStatusBar();
+        this.highlightSaveButton();
         document.getElementById('raw-textarea').value = this.doc.toString();
+    },
+
+    highlightSaveButton() {
+        const saveBtn = document.getElementById('btn-save-file');
+        if (saveBtn) {
+            saveBtn.classList.add('glow-highlight');
+        }
+    },
+
+    clearSaveButtonHighlight() {
+        const saveBtn = document.getElementById('btn-save-file');
+        if (saveBtn) {
+            saveBtn.classList.remove('glow-highlight');
+        }
     },
 
     updateStatusBar() {
@@ -1204,16 +1318,66 @@ const App = {
         document.getElementById('setting-hold-th').value = this.doc.getValue('Settings', 'HoldTh', '300');
         document.getElementById('setting-layer-hold-th').value = this.doc.getValue('Settings', 'LayerHoldTh', '150');
         document.getElementById('setting-b-time').value = this.doc.getValue('Settings', 'b_time', '50');
+        document.getElementById('setting-b-time2').value = this.doc.getValue('Settings', 'b_time2', '50');
         document.getElementById('setting-ime-indicator').checked = this.doc.getValue('Settings', 'ImeIndicatorEnabled', '1') === "1";
         document.getElementById('setting-log-enabled').checked = this.doc.getValue('Settings', 'LogEnabled', '0') === "1";
         document.getElementById('setting-max-log').value = this.doc.getValue('Settings', 'MaxLog', '5000');
 
         document.getElementById('raw-textarea').value = this.doc.toString();
 
+        // Cache document to localStorage
+        try {
+            localStorage.setItem('config_ini_cache', this.doc.toString());
+        } catch (e) {
+            console.warn("Failed to write to localStorage:", e);
+        }
+
         this.renderSidebarLists();
         this.renderDynamicLayersTable();
         this.populateStartupLayoutDropdown();
         this.closeKeyEditor();
+
+        // Validate and refresh active slot
+        const slots = this.getLayoutSlots();
+        if (this.activeLayoutSlot) {
+            if (slots.includes(this.activeLayoutSlot)) {
+                this.loadLayoutSlot(this.activeLayoutSlot);
+            } else {
+                this.activeLayoutSlot = null;
+                if (this.currentPanel === 'panel-slot') {
+                    this.switchPanel('panel-settings');
+                }
+            }
+        }
+
+        // Validate and refresh active layout section
+        const keyLayouts = this.getKeyLayoutSections();
+        if (this.activeLayoutSec) {
+            if (keyLayouts.includes(this.activeLayoutSec)) {
+                this.loadLayoutSection(this.activeLayoutSec);
+            } else {
+                this.activeLayoutSec = null;
+                if (this.currentPanel === 'panel-layout') {
+                    this.switchPanel('panel-settings');
+                }
+            }
+        }
+
+        // Validate and refresh active modifier layer
+        const layers = this.getModifierLayers();
+        if (this.activeLayerName) {
+            if (layers.includes(this.activeLayerName)) {
+                this.loadLayerMap(this.activeLayerName);
+            } else {
+                this.activeLayerName = null;
+                if (this.currentPanel === 'panel-layer') {
+                    this.switchPanel('panel-settings');
+                }
+            }
+        }
+
+        // Highlight matching sidebar item for the current panel
+        this.switchPanel(this.currentPanel);
     },
 
     populateStartupLayoutDropdown() {
@@ -1642,7 +1806,7 @@ const App = {
 
         const mapVal = hasOverride ? overrideVal : keysArr[idx];
 
-        document.getElementById('key-editor').style.display = 'block';
+        document.getElementById('modal-key-editor').classList.add('show');
         document.getElementById('key-editor-physical-key').textContent = `${physKey.toUpperCase()} (${entryName})`;
         document.getElementById('key-mapping-value').value = mapVal;
         
@@ -1695,7 +1859,10 @@ const App = {
 
     closeKeyEditor() {
         this.selectedKeyIndex = null;
-        document.getElementById('key-editor').style.display = 'none';
+        closeModal('modal-key-editor');
+        document.querySelectorAll('#virtual-keyboard .keycap').forEach(el => {
+            el.classList.remove('active');
+        });
     },
 
     renderLayoutOverridesTable() {
@@ -1742,6 +1909,100 @@ const App = {
         });
     },
 
+    parseCombinationValue(val) {
+        if (!val) return null;
+        
+        const parts = [];
+        let inQuotes = false;
+        let current = "";
+        for (let i = 0; i < val.length; i++) {
+            const char = val[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+                current += char;
+            } else if (char === "," && !inQuotes) {
+                parts.push(current.trim());
+                current = "";
+            } else {
+                current += char;
+            }
+        }
+        parts.push(current.trim());
+
+        const processedParts = parts.map(part => {
+            if (part.startsWith('"') && part.endsWith('"') && part.length >= 2) {
+                return part.substring(1, part.length - 1);
+            }
+            return part;
+        });
+
+        if (processedParts.length === 0) {
+            return null;
+        }
+
+        let mode = 7;
+        let holdTh = null;
+        let bTime = null;
+        let startIdx = 1;
+
+        const firstVal = processedParts[0];
+        const modeParts = firstVal.split(',').map(p => p.trim());
+
+        if (modeParts.length > 0 && /^\d+$/.test(modeParts[0])) {
+            mode = parseInt(modeParts[0], 10);
+            if (modeParts.length >= 2 && modeParts[1] !== "") {
+                holdTh = parseInt(modeParts[1], 10);
+            }
+            if (modeParts.length >= 3 && modeParts[2] !== "") {
+                bTime = parseInt(modeParts[2], 10);
+            }
+            startIdx = 2;
+        } else {
+            mode = 7;
+            startIdx = 1;
+        }
+
+        const actions = [];
+        for (let i = startIdx - 1; i < processedParts.length; i++) {
+            actions.push(processedParts[i]);
+        }
+
+        return {
+            mode: mode,
+            holdTh: holdTh,
+            bTime: bTime,
+            action1: actions[0] || "",
+            action2: actions[1] || "",
+            action3: actions[2] || ""
+        };
+    },
+
+    serializeCombinationValue(opts) {
+        const { mode, holdTh, bTime, action1, action2, action3 } = opts;
+        
+        let modePart = mode.toString();
+        const hasHoldTh = holdTh !== null && holdTh !== undefined && holdTh !== "";
+        const hasBTime = bTime !== null && bTime !== undefined && bTime !== "";
+        
+        if (hasHoldTh || hasBTime) {
+            modePart += "," + (hasHoldTh ? holdTh : "");
+            if (hasBTime) {
+                modePart += "," + bTime;
+            }
+            modePart = `"${modePart}"`;
+        }
+        
+        const actions = [action1];
+        if (action3 !== "" && action3 !== undefined && action3 !== null) {
+            actions.push(action2 || "");
+            actions.push(action3);
+        } else if (action2 !== "" && action2 !== undefined && action2 !== null) {
+            actions.push(action2);
+        }
+        
+        return modePart + "," + actions.join(",");
+    },
+
     renderCombinationsTable() {
         const body = document.getElementById('combinations-table-body');
         body.innerHTML = "";
@@ -1753,17 +2014,35 @@ const App = {
         const combinations = keys.filter(kv => kv.key.toLowerCase().startsWith('m_'));
 
         if (combinations.length === 0) {
-            body.innerHTML = '<tr><td colspan="3" class="text-center text-muted italic">同時押し定義はありません</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" class="text-center text-muted italic">同時押し定義はありません</td></tr>';
             return;
         }
 
         combinations.forEach(kv => {
             const pair = kv.key.substring(2); 
+            const parsed = this.parseCombinationValue(kv.value);
+            
+            let modeDisplay = "";
+            if (parsed) {
+                modeDisplay = `Mode ${parsed.mode}`;
+                const hasHoldTh = parsed.holdTh !== null;
+                const hasBTime = parsed.bTime !== null;
+                if (hasHoldTh || hasBTime) {
+                    modeDisplay += ` (${hasHoldTh ? parsed.holdTh + 'ms' : 'デフォルト'} / ${hasBTime ? parsed.bTime + 'ms' : 'デフォルト'})`;
+                } else {
+                    modeDisplay += " (デフォルト)";
+                }
+            } else {
+                modeDisplay = "不正なフォーマット";
+            }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><code class="font-mono">${pair}</code></td>
-                <td><code class="font-mono">${kv.value}</code></td>
+                <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${modeDisplay}</span></td>
+                <td><code class="font-mono">${parsed ? parsed.action1 : kv.value}</code></td>
+                <td><code class="font-mono">${parsed && parsed.action2 ? parsed.action2 : '-'}</code></td>
+                <td><code class="font-mono">${parsed && parsed.action3 ? parsed.action3 : '-'}</code></td>
                 <td>
                     <button class="btn danger btn-xs btn-delete-comb">削除</button>
                 </td>
@@ -1903,6 +2182,29 @@ const App = {
         const activePanel = document.getElementById(panelId);
         if (activePanel) activePanel.classList.add('active');
         this.currentPanel = panelId;
+
+        // Highlight matching sidebar item
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        
+        if (panelId === 'panel-settings') {
+            const el = document.querySelector('.nav-item[data-panel="panel-settings"]');
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-dynamic-layers') {
+            const el = document.querySelector('.nav-item[data-panel="panel-dynamic-layers"]');
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-raw') {
+            const el = document.querySelector('.nav-item[data-panel="panel-raw"]');
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-slot' && this.activeLayoutSlot) {
+            const el = document.querySelector(`.nav-item[data-slot="${this.activeLayoutSlot}"]`);
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-layout' && this.activeLayoutSec) {
+            const el = document.querySelector(`.nav-item[data-layout="${this.activeLayoutSec}"]`);
+            if (el) el.classList.add('active');
+        } else if (panelId === 'panel-layer' && this.activeLayerName) {
+            const el = document.querySelector(`.nav-item[data-layer="${this.activeLayerName}"]`);
+            if (el) el.classList.add('active');
+        }
     }
 };
 
