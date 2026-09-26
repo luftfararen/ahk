@@ -37,6 +37,9 @@ image::img/stdahk.webp[]
 カーソル移動、編集操作、Fキーなど
 
 image::img/m1.webp[]
+(Enter誤爆対策)
+IMEの確定をShift+Enterの割り当てることを推奨
+
 
 === 記号・数値レイヤー [無変換 or 変換]
 数字、演算記号など (旧:記号・数値レイヤー)
