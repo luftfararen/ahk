@@ -67,6 +67,9 @@ image::img/m4.webp[]
 
 image::img/shift.webp[]
 
+=== ファンクションレイヤー [変換 + F14]
+F1〜F12キーなどの機能キー（L_FUNC）
+
 
 === 配列切り替え
 キー配列を変更可能。

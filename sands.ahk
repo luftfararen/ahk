@@ -92,6 +92,7 @@ global L_SYMBOL2 := 4
 global L_SELECT := 5
 global L_NUMPAD := 6
 global L_SHIFT := 7
+global L_FUNC := 8
 
 global mod_key_list := []
 
@@ -2593,6 +2594,15 @@ class LKey extends RKey {
         candidates := []
         seen := Map()
         for item in arr {
+            if (item.layer_id == L_FUNC) {
+                for m in [mod_key_list[L_SYMBOL1], mod_key_list[L_SYMBOL2]] {
+                    if (m && m != this && !seen.Has(m)) {
+                        seen[m] := true
+                        candidates.Push(m)
+                    }
+                }
+                continue
+            }
             if (item.layer_id <= mod_key_list.Length) {
                 mod_key := mod_key_list[item.layer_id]
                 if (mod_key && mod_key != this && !seen.Has(mod_key)) {
@@ -3018,16 +3028,16 @@ ResetIME() {
 ResetCombinations() {
     global LAYOUT_KEYS, mod_key_list
 
-    ; mod_key_list を初期の7要素にリセット
-    if (mod_key_list.Length > 7) {
-        mod_key_list.RemoveAt(8, mod_key_list.Length - 7)
+    ; mod_key_list を初期の8要素にリセット
+    if (mod_key_list.Length > 8) {
+        mod_key_list.RemoveAt(9, mod_key_list.Length - 8)
     }
 
-    ; すべてのキーからカスタムコンビネーション（layer_id > 7）を削除
+    ; すべてのキーからカスタムコンビネーション（layer_id > 8）を削除
     for keyObj in LAYOUT_KEYS {
         new_arr := []
         for item in keyObj.layers.arr {
-            if (item.layer_id <= 7) {
+            if (item.layer_id <= 8) {
                 new_arr.Push(item)
             }
         }
@@ -3035,7 +3045,7 @@ ResetCombinations() {
 
         new_ime_arr := []
         for item in keyObj.layers.ime_arr {
-            if (item.layer_id <= 7) {
+            if (item.layer_id <= 8) {
                 new_ime_arr.Push(item)
             }
         }
@@ -3160,16 +3170,27 @@ class Layers {
 
         key_navi := mod_key_list[L_NAVI_CTRL]
         key_symbol := mod_key_list[L_SYMBOL_NUM]
+        key_conv := mod_key_list[L_SYMBOL1]
+        key_f14 := mod_key_list[L_SYMBOL2]
 
         ; Check the specified layer
         if layer = L_NAVI_CTRL {
             return key_navi.IsPressed() && !(GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer = L_FUNC {
+            return key_conv.IsPressed() && key_f14.IsPressed()
         }
         if layer = L_SYMBOL_NUM {
             return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
         }
         if layer = L_SELECT {
             return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer = L_SYMBOL1 {
+            return key_conv.IsPressed() && !key_f14.IsPressed()
+        }
+        if layer = L_SYMBOL2 {
+            return key_f14.IsPressed() && !key_conv.IsPressed()
         }
 
         ; その他の単純なレイヤー判定は、対応するキーの押下状態を返す
@@ -3192,6 +3213,8 @@ class Layers {
 
         key_navi := mod_key_list[L_NAVI_CTRL]
         key_symbol := mod_key_list[L_SYMBOL_NUM]
+        key_conv := mod_key_list[L_SYMBOL1]
+        key_f14 := mod_key_list[L_SYMBOL2]
 
         ; Check the specified layer
         if layer_id = L_NAVI_CTRL {
@@ -3208,12 +3231,30 @@ class Layers {
                 return false
             return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
         }
+
         if layer_id = L_SELECT {
             if key_navi = key_obj
                 return false
             if key_symbol = key_obj
                 return false
             return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer_id = L_FUNC {
+            if key_conv = key_obj
+                return false
+            if key_f14 = key_obj
+                return false
+            return key_conv.IsPressed() && key_f14.IsPressed()
+        }
+        if layer_id = L_SYMBOL1 {
+            if key_conv = key_obj
+                return false
+            return key_conv.IsPressed() && !key_f14.IsPressed()
+        }
+        if layer_id = L_SYMBOL2 {
+            if key_f14 = key_obj
+                return false
+            return key_f14.IsPressed() && !key_conv.IsPressed()
         }
 
         key := mod_key_list[layer_id]
@@ -3323,6 +3364,23 @@ class Layers {
     SendLayerKey(key_obj, ime_state, force_held := false) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for item in arr {
+            if (item.layer_id == L_FUNC) {
+                key_conv := mod_key_list[L_SYMBOL1]
+                key_f14 := mod_key_list[L_SYMBOL2]
+                if (key_obj == key_conv || key_obj == key_f14)
+                    continue
+
+                if (force_held || (key_conv.IsPressed() && key_f14.IsPressed())) {
+                    if (force_held || key_conv.state != LKey.st_init || key_f14.state != LKey.st_init) {
+                        key_conv.state := LKey.st_processed
+                        key_f14.state := LKey.st_processed
+                        action_to_send := item.action
+                        this._SendKey(item.layer_id, action_to_send, key_obj)
+                        return true
+                    }
+                }
+                continue
+            }
             mod_key := mod_key_list[item.layer_id]
             if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
                 if Layers.State2(item.layer_id, key_obj) {
@@ -3599,7 +3657,7 @@ RegistCombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") 
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
  */
 LoadLayoutFromIni(index) {
-    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT, L_FUNC
     name := ReadConfig(index, "name", "")
     if name = "" {
         ; index がセクション名ではなくレイアウト名である場合の検索処理
@@ -3633,6 +3691,7 @@ LoadLayoutFromIni(index) {
             ApplyLayerLayoutFromIni(L_SYMBOL2, "SYMBOL2")
             ApplyLayerLayoutFromIni(L_SELECT, "SELECT")
             ApplyLayerLayoutFromIni(L_NUMPAD, "NUMPAD")
+            ApplyLayerLayoutFromIni(L_FUNC, "FUNC")
             success := true
         }
     }
@@ -4484,7 +4543,7 @@ InitModLayer() {
     global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
     global z, x, c, v, b, n, m, comma, period, slash, backslash
 
-    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT, L_FUNC
 
     ;SetLKeyMode(3)
     mode := 3
@@ -4671,6 +4730,20 @@ InitModLayer() {
     hat.SetLayerKey(mode, L_SHIFT, B_F12)
     colon.SetLayerKey(mode, L_SHIFT, "+{Enter}")
     closebracket.SetLayerKey(mode, L_SHIFT, "+]")
+
+    ; L_FUNC (conv + f14 同時押し)
+    k1.SetLayerKey(mode, L_FUNC, B_F1)
+    k2.SetLayerKey(mode, L_FUNC, B_F2)
+    k3.SetLayerKey(mode, L_FUNC, B_F3)
+    k4.SetLayerKey(mode, L_FUNC, B_F4)
+    k5.SetLayerKey(mode, L_FUNC, B_F5)
+    k6.SetLayerKey(mode, L_FUNC, B_F6)
+    k7.SetLayerKey(mode, L_FUNC, B_F7)
+    k8.SetLayerKey(mode, L_FUNC, B_F8)
+    k9.SetLayerKey(mode, L_FUNC, B_F9)
+    k0.SetLayerKey(mode, L_FUNC, B_F10)
+    minus.SetLayerKey(mode, L_FUNC, B_F11)
+    hat.SetLayerKey(mode, L_FUNC, B_F12)
 }
 
 /**
@@ -4729,8 +4802,8 @@ Init() {
 
     ; 3. モディファイアキーリストの初期化
     global mod_key_list
-    ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT
-    mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+    ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT,FUNC
+    mod_key_list := [f13, noconv, conv, f14, f13, tab, space, conv]
 
     ; 4. レイヤーとレイアウトの適用
     InitModLayer()
