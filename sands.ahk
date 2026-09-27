@@ -95,19 +95,6 @@ global L_SHIFT := 7
 
 global mod_key_list := []
 
-; ============================================================================
-; レイヤー番号定義（グローバル定数）
-; ============================================================================
-global L_NAVI_CTRL := 1
-global L_SYMBOL_NUM := 2
-global L_SYMBOL1 := 3
-global L_SYMBOL2 := 4
-global L_SELECT := 5
-global L_NUMPAD := 6
-global L_SHIFT := 7
-
-global mod_key_list := []
-
 ; --- 無変換キー ---
 R_NOCONV := "sc07B"
 C_NOCONV := "{sc07B}"
@@ -2129,9 +2116,9 @@ class RKey {
      * @param {Boolean} ime_state - 現在の IME 状態
      * @returns {Boolean} レイヤーキーが送信された場合は true
      */
-    SendLayerKey(ime_state) {
+    SendLayerKey(ime_state, force_held := false) {
         ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        return this.layers.SendLayerKey(this, ime_state)
+        return this.layers.SendLayerKey(this, ime_state, force_held)
     }
 
     /**
@@ -2467,6 +2454,7 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 */
 class LKey extends RKey {
     static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
+    static pre_stroke_buf := 30 ; 先行入力（モディファイアより早いメインキー押下）救済バッファ時間 (ms)
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -2590,9 +2578,94 @@ class LKey extends RKey {
      * @param {Boolean} ime_state - 現在の IME 状態
      * @returns {Boolean} レイヤーキーが送信された場合は true
      */
-    SendLayerKey(ime_state) {
+    SendLayerKey(ime_state, force_held := false) {
         ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        return this.layers.SendLayerKey(this, ime_state)
+        return this.layers.SendLayerKey(this, ime_state, force_held)
+    }
+
+    /**
+     * このキーのレイヤー定義に紐付くモディファイアキーのユニークなリストを取得する
+     * @param {Boolean} ime_state - 現在のIME状態
+     * @returns {Array} モディファイアキーオブジェクトの配列
+     */
+    GetCandidateModifiers(ime_state) {
+        arr := (ime_state == 1) ? this.layers.ime_arr : this.layers.arr
+        candidates := []
+        seen := Map()
+        for item in arr {
+            if (item.layer_id <= mod_key_list.Length) {
+                mod_key := mod_key_list[item.layer_id]
+                if (mod_key && mod_key != this && !seen.Has(mod_key)) {
+                    seen[mod_key] := true
+                    candidates.Push(mod_key)
+                }
+            }
+        }
+        return candidates
+    }
+
+    /**
+     * このキーに対して現在（IME状態に応じた）レイヤーマッピングが存在するか判定する
+     * @param {Boolean} ime_state - 現在のIME状態
+     * @returns {Boolean} レイヤー定義が存在すれば true
+     */
+    HasLayerDefinitions(ime_state) {
+        arr := (ime_state == 1) ? this.layers.ime_arr : this.layers.arr
+        return (arr.Length > 0)
+    }
+
+    /**
+     * 先行入力救済用：極小時間だけモディファイアキーの追いつき押下を監視する
+     * @param {Boolean} ime_state - 現在のIME状態
+     * @param {Integer} hold_mode - このキーのホールドモード
+     * @returns {Boolean} モディファイアが追いつきコンビネーションが発動した場合は true
+     */
+    _WaitForCatchUpModifier(ime_state, hold_mode) {
+        candidates := this.GetCandidateModifiers(ime_state)
+        if (candidates.Length == 0)
+            return false
+
+        start_qpc := QPC()
+        buf_ms := LKey.pre_stroke_buf
+
+        loop {
+            ; 1. モディファイア候補のいずれかが物理的に押されたかチェック
+            for mod_key in candidates {
+                if mod_key.IsPressedDirect() {
+                    ; 追いつき発生！
+                    ; モディファイアがまだ未処理(st_init)なら押下処理を開始させる
+                    if (mod_key.state == LKey.st_init) {
+                        mod_key.Down()
+                    }
+                    ; モディファイアを確定状態にする
+                    mod_key.state := LKey.st_processed
+
+                    ; コンビネーションを強制発動 (force_held := true)
+                    if this.SendLayerKey(ime_state, true) {
+                        if (hold_mode != 0) {
+                            LKey.InterruptOthers(this)
+                            this.state := LKey.st_processed
+                        }
+                        return true
+                    }
+                }
+            }
+
+            ; 2. メインキー自身がバッファ時間内に離された場合は早期離脱（超高速タップ対応）
+            if !this.IsPressedDirect() {
+                break
+            }
+
+            ; 3. バッファ時間の超過チェック
+            if (QPC() - start_qpc >= buf_ms) {
+                break
+            }
+
+            ; 4. 高精度待機 (1ms)
+            Sleep(1)
+        }
+
+        return false
     }
 
     /**
@@ -2642,6 +2715,13 @@ class LKey extends RKey {
                 this.state := LKey.st_processed
             }
             return
+        }
+
+        ; 先行入力（モディファイアより先にメインキーが押された）の救済バッファリング
+        if (LKey.pre_stroke_buf > 0 && this.HasLayerDefinitions(ime_state)) {
+            if this._WaitForCatchUpModifier(ime_state, hold_mode) {
+                return
+            }
         }
 
         ; レイヤーキー判定で送信されなかった場合、連続打鍵をリセットする
@@ -2969,6 +3049,7 @@ ResetCombinations() {
 LoadLayoutConfig() {
     try {
         LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
+        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
         Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
         Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
         Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
@@ -3239,7 +3320,7 @@ class Layers {
      * @param {Integer} ime_state - 現在のIME状態（0: OFF, 1: ON）
      * @returns {Boolean} 同時押しレイヤーアクションが発生して処理された場合は true、それ以外は false
      */
-    SendLayerKey(key_obj, ime_state) {
+    SendLayerKey(key_obj, ime_state, force_held := false) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for item in arr {
             mod_key := mod_key_list[item.layer_id]
@@ -3252,7 +3333,10 @@ class Layers {
                     t_qpc := QPC() - mod_key.pressed_time_qpc
                     x := Layers.hold_th
 
-                    if (mod_hold_mode == 6) {
+                    if force_held {
+                        mod_key.state := LKey.st_processed
+                        is_held := true
+                    } else if (mod_hold_mode == 6) {
                         if (t_qpc >= x) {
                             mod_key.state := LKey.st_processed
                             is_held := true
