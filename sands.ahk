@@ -258,15 +258,8 @@ B_F12 := "{Blind}{F12}"
 ReadConfig(section, key, defaultValue) {
     static ConfigPath := A_ScriptDir . "\config.ini"
     val := IniRead(ConfigPath, section, key, defaultValue)
-    pos := InStr(val, Chr(32) . Chr(59)) ;space+semicolon
-    if pos == 0 {
-        pos := InStr(val, "`t" . Chr(59)) ;tab+semicolon
-    }
-    if pos > 0 {
-        val := SubStr(val, 1, pos - 1)
-    }
-    val := Trim(val)
-    return StripQuotes(val)
+    val := RegExReplace(val, "[\t ]+;.*$") ; インラインコメントを除去
+    return StripQuotes(Trim(val))
 }
 
 /**
@@ -786,28 +779,34 @@ FlipMap(originalMap) {
 /**
  * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
  */
-IsSingleBraceText(text) {
-    return RegExMatch(text, "^\{[^{}]+\}$")
+IsSingleBraceText(text) => RegExMatch(text, "^\{[^{}]+\}$")
+
+/**
+ * 文字列に波括弧を追加 / 除去
+ */
+AddBraces(key) => IsSingleBraceText(key) ? key : "{" . key . "}"
+RemoveBraces(key) => IsSingleBraceText(key) ? SubStr(key, 2, -1) : key
+
+/**
+ * パイプ区切りのアクション文字列を分解するヘルパー
+ */
+ParseSplitActions(action, action2 := "") {
+    if (action2 == "" && action != "|" && InStr(action, "|")) {
+        parts := StrSplit(action, "|")
+        if parts.Length >= 2
+            return [parts[1], parts[2]]
+    }
+    return [action, action2]
 }
 
 /**
- * 文字列に波括弧を追加する。既に囲まれている場合はそのまま。
+ * 配列要素を結合する補助関数
  */
-AddBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return key
-    }
-    return "{" . key . "}"
-}
-
-/**
- * 文字列から波括弧を除去する。
- */
-RemoveBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return SubStr(key, 2, StrLen(key) - 2)
-    }
-    return key
+StrJoin(sep, arr) {
+    res := ""
+    for item in arr
+        res .= (res == "" ? "" : sep) . item
+    return res
 }
 
 /**
@@ -944,17 +943,11 @@ DispStr(str, remove_braces := true) {
  */
 ResolveKeyText(str) {
     str := StripQuotes(Trim(str))
-    if (InStr(str, "|") && str != "|") {
-        parts := StrSplit(str, "|")
-        resolved_parts := []
-        for part in parts {
-            resolved_parts.Push(ResolveKeyText_Single(Trim(part)))
-        }
-        res := ""
-        for part in resolved_parts {
-            res .= (res == "" ? "" : "|") . part
-        }
-        return res
+    if (str != "|" && InStr(str, "|")) {
+        resolved := []
+        for part in StrSplit(str, "|")
+            resolved.Push(ResolveKeyText_Single(Trim(part)))
+        return StrJoin("|", resolved)
     }
     return ResolveKeyText_Single(str)
 }
@@ -1592,29 +1585,17 @@ ToggleImeState() {
  * @param {String} c - 送信する文字列
  */
 SendAndLog(c) {
-    if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
+    if (c = B_NOCONV || c = B_CONV || c = B_ZENKAKU) {
         ImeState.ResetComposition()
-        SendImeChar(c) ;criticalが二重にかかるが大丈夫
+        SendImeChar(c)
         UpdateImeIndicator()
         return
     }
-    ; if c = R_ADAPTIVE_ENTER {
-    ;     if (ImeState.IsOn(true) && ImeState.IsComposing()) {
-    ;         key_to_send := "^m"
-    ;         Tooltip("Adaptive Enter: ON -> OFF (Ctrl+M)")
-    ;     } else {
-    ;         key_to_send := B_ENTER
-    ;         Tooltip("Adaptive Enter: OFF -> ON (Enter)")
-    ;     }
-    ;     Send(key_to_send)
-    ;     TypeAnalyzer.Log(key_to_send)
-    ;     ImeState.RecordActivity()
-    ;     ImeState.ResetComposition()
-    ;     return
-    ; }
-    if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
+
+    ; 送信キーの種類に応じた IME コンポジション状態の更新
+    if InStr(c, "Enter") || InStr(c, "Esc") {
         ImeState.ResetComposition()
-    } else if (c = B_BS || c = C_BS || c = "{Backspace}" || c = "{Blind}{Backspace}") {
+    } else if InStr(c, "Backspace") {
         ImeState.HandleBackspace()
     } else if (ImeState.IsOn()) {
         ImeState.RecordCompositionInput(c)
@@ -2079,37 +2060,19 @@ class RKey {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
+    /**
+     * レイヤーキーを設定（通常 / IME用で共通化）
+     */
     SetLayerKey(layer_id, action, action2 := "", ime := True) {
-        action1 := action
-        if action2 == "" && InStr(action, "|") && action != "|" {
-            parts := StrSplit(action, "|")
-            if parts.Length >= 2 {
-                action1 := parts[1]
-                action2 := parts[2]
-            }
-        }
-        this.layers.SetAction(layer_id, action1, action2)
-        if ime {
-            this.layers.SetImeAction(layer_id, action1, action2)
-        }
+        acts := ParseSplitActions(action, action2)
+        this.layers.SetAction(layer_id, acts[1], acts[2])
+        if ime
+            this.layers.SetImeAction(layer_id, acts[1], acts[2])
     }
 
-    /**
-     * IME ON 時の特定レイヤーのアクションを設定します。
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
-     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
-     */
     SetLayerImeKey(layer_id, action, action2 := "", reset_if_blank := false) {
-        action1 := action
-        if action2 == "" && InStr(action, "|") && action != "|" {
-            parts := StrSplit(action, "|")
-            if parts.Length >= 2 {
-                action1 := parts[1]
-                action2 := parts[2]
-            }
-        }
-        this.layers.SetImeAction(layer_id, action1, action2)
+        acts := ParseSplitActions(action, action2)
+        this.layers.SetImeAction(layer_id, acts[1], acts[2])
     }
 
     /**
@@ -2538,40 +2501,33 @@ class LKey extends RKey {
      * @param {Integer} layer_id - レイヤーID
      * @param {String} action - 設定するアクション
      */
+    /**
+     * LayerItem のモードとバッファ時間を正規化する内部ヘルパー
+     */
+    _PrepareLayerItem(layer_item, is_ime := false) {
+        if (layer_item.mode < 0) {
+            layer_item.mode := is_ime ? this.hold_mode_ime_org : this.hold_mode_org
+            layer_item.b_time := (layer_item.mode == 8) ? Layers.b_time2 : Layers.b_time
+        }
+        return layer_item
+    }
+
     SetLayerKey(mode, layer_id, action, action2 := "", action3 := "", ime := True) {
-        layer_item := Layers.LayerItem(layer_id, action, action2, action3, mode)
-        this.SetLayerKey2(layer_item, ime)
+        this.SetLayerKey2(Layers.LayerItem(layer_id, action, action2, action3, mode), ime)
     }
 
     SetLayerKey2(layer_item, ime := True) {
-        if (layer_item.mode < 0) {
-            layer_item.mode := this.hold_mode_org
-            layer_item.b_time := (layer_item.mode = 8) ? Layers.b_time2 : Layers.b_time
-        }
-        this.layers.SetAction2(layer_item)
-        if ime {
-            this.layers.SetIMEAction2(layer_item.Clone())
-        }
+        this.layers.SetAction2(this._PrepareLayerItem(layer_item, false))
+        if ime
+            this.layers.SetIMEAction2(this._PrepareLayerItem(layer_item.Clone(), true))
     }
 
-    /**
-     * IME ON 時の特定レイヤーのアクションを設定します。
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
-     * @param {String} action2 - 2回目以降の連続押下時に送信するアクション
-     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
-     */
     SetLayerImeKey(mode, layer_id, action, action2 := "", action3 := "", reset_if_blank := false) {
-        layer_item := Layers.LayerItem(layer_id, action, action2, action3, mode)
-        this.SetLayerImeKey2(layer_item, reset_if_blank)
+        this.SetLayerImeKey2(Layers.LayerItem(layer_id, action, action2, action3, mode), reset_if_blank)
     }
 
     SetLayerImeKey2(layer_item, reset_if_blank := false) {
-        if (layer_item.mode < 0) {
-            layer_item.mode := this.hold_mode_ime_org
-            layer_item.b_time := (layer_item.mode = 8) ? Layers.b_time2 : Layers.b_time
-        }
-        this.layers.SetIMEAction2(layer_item)
+        this.layers.SetIMEAction2(this._PrepareLayerItem(layer_item, true))
     }
 
     /**
