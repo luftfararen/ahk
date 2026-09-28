@@ -1843,6 +1843,9 @@ TimerEvent() {
 
     UpdateImeIndicator()
 
+    ; 物理キー非押下時のステート強制リセット（同期ずれガード）
+    LKey.CheckAllPhysicalState()
+
     ; 5秒以上操作がない場合、修飾キーのスタック（レイヤーロック）を防止するために状態をリセット
     ; static last_idle_reset := false
     ; if (A_TimeIdlePhysical > 5000) {
@@ -2178,6 +2181,7 @@ class RKey {
      */
     Down() {
         Critical
+        LKey.CheckAllPhysicalState()
         LKey.InterruptOthers(this)
         Layers.last_active_item := ""
         this._SendSCAWKey(this.org_key)
@@ -2426,17 +2430,49 @@ class LKey extends RKey {
     static instances := []
 
     /**
+     * このキーの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
+     */
+    Reset() {
+        this.state := LKey.st_init
+        this.pressed_time_qpc := 0
+        this.interrupted := false
+        this.saved_scaw := ""
+        if (this.timer_name != "") {
+            SetTimer(this.timer_name, 0)
+        }
+    }
+
+    /**
+     * 物理的な押下状態と内部ステートの不整合をチェックし、物理キーが離されていればリセットします。
+     * @returns {Boolean} 物理的に押されていれば true、離されていてリセットされた場合は false
+     */
+    CheckPhysicalState() {
+        if (this.state != LKey.st_init && !GetKeyState(this.org_key_raw, "P")) {
+            this.Reset()
+            return false
+        }
+        return true
+    }
+
+    /**
+     * すべての LKey インスタンスの物理押下状態を確認し、物理的に離されているキーのステートをリセットします。
+     */
+    static CheckAllPhysicalState(excludeKey := "") {
+        for inst in LKey.instances {
+            if (excludeKey != "" && inst == excludeKey)
+                continue
+            if (inst.state != LKey.st_init && !GetKeyState(inst.org_key_raw, "P")) {
+                inst.Reset()
+            }
+        }
+    }
+
+    /**
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
     static ResetAll() {
         for inst in LKey.instances {
-            inst.state := LKey.st_init
-            inst.pressed_time_qpc := 0
-            inst.interrupted := false
-            inst.saved_scaw := ""
-            if (inst.timer_name != "") {
-                SetTimer(inst.timer_name, 0)
-            }
+            inst.Reset()
         }
     }
 
@@ -2595,6 +2631,11 @@ class LKey extends RKey {
         buf_ms := LKey.pre_stroke_buf
 
         loop {
+            ; 割り込み検知または物理キー離脱で即座に待機中断
+            if (this.interrupted || !this.IsPressedDirect()) {
+                break
+            }
+
             ; 1. モディファイア候補のいずれかが物理的に押されたかチェック
             for mod_key in candidates {
                 if mod_key.IsPressedDirect() {
@@ -2617,17 +2658,12 @@ class LKey extends RKey {
                 }
             }
 
-            ; 2. メインキー自身がバッファ時間内に離された場合は早期離脱（超高速タップ対応）
-            if !this.IsPressedDirect() {
-                break
-            }
-
-            ; 3. バッファ時間の超過チェック
+            ; 2. バッファ時間の超過チェック
             if (QPC() - start_qpc >= buf_ms) {
                 break
             }
 
-            ; 4. 高精度待機 (1ms)
+            ; 3. 高精度待機 (1ms)
             Sleep(1)
         }
 
@@ -2639,8 +2675,15 @@ class LKey extends RKey {
      */
     static InterruptOthers(currentKey) {
         for inst in LKey.instances {
-            ; 絶賛押し込み中のキー（st_pressing）があれば割り込みをかける
-            if (inst != currentKey && inst.state == LKey.st_pressing) {
+            if (inst == currentKey)
+                continue
+            ; 物理状態の同期チェック
+            if (inst.state != LKey.st_init && !GetKeyState(inst.org_key_raw, "P")) {
+                inst.Reset()
+                continue
+            }
+            ; 絶賛押し込み中（st_pressing）のキーがあれば割り込みをかける
+            if (inst.state == LKey.st_pressing) {
                 inst.interrupted := true
                 ; モード1などのタイマーが走っていれば即時停止
                 if (inst.timer_name != "") {
@@ -2665,6 +2708,9 @@ class LKey extends RKey {
      */
     Down() {
         Critical
+        ; 他キーの物理状態との同期チェック
+        LKey.CheckAllPhysicalState(this)
+
         ;OutputDebug(this.vk)
         ime_state := ImeState.IsOn()
         hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
@@ -2742,14 +2788,14 @@ class LKey extends RKey {
      */
     Up() {
         Critical
+
         ; モード0の場合はタイマー等がないため単純に初期化して終了
         ime_state := ImeState.IsOn()
         hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) :
             ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
 
         if (hold_mode == 0) {
-            this.state := LKey.st_init
-            this.pressed_time_qpc := 0
+            this.Reset()
             return
         }
 
@@ -2767,10 +2813,7 @@ class LKey extends RKey {
         }
 
         ; 状態を初期化
-        this.state := LKey.st_init
-        this.pressed_time_qpc := 0
-        this.interrupted := false
-        this.saved_scaw := ""
+        this.Reset()
     }
 
     /**
@@ -2778,6 +2821,9 @@ class LKey extends RKey {
      */
     OnHoldTimeout() {
         Critical
+        if (!this.CheckPhysicalState()) {
+            return
+        }
         if (this.state == LKey.st_pressing && !this.interrupted) {
             this.state := LKey.st_processed
             ; モード1：長押し時に既存文字をBSで消去し、Shift版に置換
@@ -3338,7 +3384,7 @@ class Layers {
                 continue
             }
             mod_key := mod_key_list[item.layer_id]
-            if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
+            if (mod_key != key_obj && mod_key.CheckPhysicalState() && mod_key.state != LKey.st_init) {
                 if Layers.State2(item.layer_id, key_obj) {
                     mod_hold_mode := (item.mode != -1) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
                         mod_key.hold_mode_org)
@@ -3357,6 +3403,12 @@ class Layers {
                         } else {
                             ; t < x: Pend decision and monitor key states
                             loop {
+                                ; 後押しキー等による割り込み検知時は即座に待機破棄してHold確定
+                                if mod_key.interrupted {
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
                                 if !mod_key.IsPressedDirect() {
                                     ; Case 2-A: Mod key released first -> Send normal key
                                     is_held := false
@@ -3375,7 +3427,6 @@ class Layers {
                                     break
                                 }
                                 Sleep(1)
-
                             }
                         }
                     } else if (mod_hold_mode == 7) {
@@ -3389,7 +3440,12 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time) <= t < x
                             ; Pend decision and monitor key states
                             loop {
-
+                                ; 後押しキー等による割り込み検知時は即座に待機破棄してHold確定
+                                if mod_key.interrupted {
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
                                 if !mod_key.IsPressedDirect() {
                                     ; Case 3-A: Mod key released first -> Send normal key
                                     is_held := false
@@ -3416,6 +3472,12 @@ class Layers {
                         } else if (t_qpc < x - Layers.b_time) {
                             key_obj.SendKeyWithShift()
                             loop {
+                                if mod_key.interrupted {
+                                    SendEvent("{Backspace}")
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
                                 if !mod_key.IsPressedDirect() {
                                     return true
                                 }
@@ -3434,7 +3496,11 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time) <= t < x
                             ; Pend decision and monitor key states
                             loop {
-
+                                if mod_key.interrupted {
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
                                 if !mod_key.IsPressedDirect() {
                                     ; Case 3-A: Mod key released first -> Send normal key
                                     is_held := false
@@ -3465,6 +3531,11 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time2) <= t < x
                             ; Pend decision and monitor key states
                             loop {
+                                if mod_key.interrupted {
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
                                 if !mod_key.IsPressedDirect() {
                                     ; Case 3-A: Mod key released first -> Send normal key
                                     is_held := false
@@ -3499,6 +3570,11 @@ class Layers {
                             ; Grey zone: (x - Layers.b_time) <= t < x
                             ; Pend decision and monitor key states
                             loop {
+                                if mod_key.interrupted {
+                                    mod_key.state := LKey.st_processed
+                                    is_held := true
+                                    break
+                                }
                                 if !mod_key.IsPressedDirect() {
                                     ; Case 3-B: Mod key released first -> Send modifier key, then let main key flow through
                                     if (mod_key.state == LKey.st_pressing) {
