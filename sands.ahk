@@ -2730,10 +2730,8 @@ class LKey extends RKey {
         }
 
         ; 先行入力（モディファイアより先にメインキーが押された）の救済バッファリング
-        if (LKey.pre_stroke_buf > 0 && this.HasLayerDefinitions(ime_state)) {
-            if this._WaitForCatchUpModifier(ime_state, hold_mode) {
-                return
-            }
+        if (LKey.pre_stroke_buf > 0 && this._WaitForCatchUpModifier(ime_state, hold_mode)) {
+            return
         }
 
         ; レイヤーキー判定で送信されなかった場合、連続打鍵をリセットする
@@ -3358,13 +3356,115 @@ class Layers {
     }
 
     /**
+     * レイヤーキー判定におけるホールド状態（コンビネーション成立可否）を判定・解決します。
+     * @param {Object} key_obj - トリガーされたメインキー
+     * @param {Object} mod_key - 修飾キー
+     * @param {Object} item - 対象の LayerItem
+     * @param {Integer} mod_hold_mode - 修飾キーのホールドモード
+     * @param {Boolean} force_held - 強制ホールドフラグ
+     * @returns {Integer} 1: ホールド成立（コンビネーション送信へ）, 0: 不成立（通常キーへ）, 2: 処理完了（mode 9 などで送信済み）
+     */
+    static _EvaluateHoldState(key_obj, mod_key, item, mod_hold_mode, force_held := false) {
+        if force_held {
+            mod_key.state := LKey.st_processed
+            return 1
+        }
+
+        hold_th := (item.hold_th != "") ? item.hold_th : Layers.hold_th
+        t_qpc := QPC() - mod_key.pressed_time_qpc
+
+        ; ホールドモードに応じたバッファ時間 (b_time) の決定
+        ; mode 6: グレーゾーンなし (b_time := hold_th) -> 常に待機ループ
+        ; mode 8: 専用の b_time2
+        ; mode 5, 7, 9: 通常の b_time
+        b_time := (item.b_time != "") ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
+        if (mod_hold_mode == 6) {
+            b_time := hold_th
+        }
+
+        ; 条件1: 経過時間がホールド閾値以上
+        if (t_qpc >= hold_th) {
+            mod_key.state := LKey.st_processed
+            return 1
+        }
+
+        ; モード未指定/デフォルト（単純時間比較モードなど）
+        if (mod_hold_mode != 5 && mod_hold_mode != 6 && mod_hold_mode != 7 && mod_hold_mode != 8 && mod_hold_mode != 9) {
+            return (t_qpc > hold_th) ? 1 : 0
+        }
+
+        ; 条件2: 短時間（バッファ未満: t_qpc < hold_th - b_time）
+        if (t_qpc < hold_th - b_time) {
+            if (mod_hold_mode == 9) {
+                key_obj.SendKeyWithShift()
+                ; 短押しゾーンでの待機（両キー保持でhold_th到達ならBS送信してコンビネーションへ）
+                loop {
+                    if mod_key.interrupted || (QPC() - mod_key.pressed_time_qpc >= hold_th) {
+                        SendEvent("{Backspace}")
+                        mod_key.state := LKey.st_processed
+                        return 1
+                    }
+                    if !mod_key.IsPressedDirect() || !key_obj.IsPressedDirect() {
+                        return 2 ; 既に通常キー送信済み
+                    }
+                    Sleep(1)
+                }
+            } else if (mod_hold_mode == 5) {
+                if (mod_key.state == LKey.st_pressing) {
+                    mod_key.SendShiftedKey(false)
+                }
+                mod_key.state := LKey.st_processed
+                return 0
+            }
+            ; mode 7, 8
+            return 0
+        }
+
+        ; 条件3: グレーゾーン (hold_th - b_time <= t_qpc < hold_th)
+        loop {
+            ; 割り込み検知時は即座に待機破棄してHold確定
+            if mod_key.interrupted {
+                mod_key.state := LKey.st_processed
+                return 1
+            }
+            if !mod_key.IsPressedDirect() {
+                ; Modキーが先に離脱
+                if (mod_hold_mode == 5 && mod_key.state == LKey.st_pressing) {
+                    mod_key.SendShiftedKey(false)
+                    mod_key.state := LKey.st_processed
+                }
+                return 0
+            }
+            if !key_obj.IsPressedDirect() {
+                ; Mainキーが先に離脱
+                if (mod_hold_mode == 8) {
+                    ; Case 3-B (mode 8): Main key released first -> Send combination
+                    mod_key.state := LKey.st_processed
+                    return 1
+                }
+                if (mod_hold_mode == 5 && mod_key.state == LKey.st_pressing) {
+                    mod_key.SendShiftedKey(false)
+                    mod_key.state := LKey.st_processed
+                }
+                return 0
+            }
+            if (QPC() - mod_key.pressed_time_qpc >= hold_th) {
+                ; Case 3-C: 両キー保持のまま hold_th 超過 -> Send combination
+                mod_key.state := LKey.st_processed
+                return 1
+            }
+            Sleep(1)
+        }
+    }
+
+    /**
      * 現在押下されている修飾レイヤーキーに基づいて、同時押し入力の判定および処理を行います。
      * @param {Object} key_obj - トリガーされたメインキーのオブジェクト
      * @param {Integer} ime_state - 現在のIME状態（0: OFF, 1: ON）
      * @returns {Boolean} 同時押しレイヤーアクションが発生して処理された場合は true、それ以外は false
      */
     SendLayerKey(key_obj, ime_state, force_held := false) {
-        arr := ime_state == 1 ? this.ime_arr : this.arr
+        arr := (ime_state == 1) ? this.ime_arr : this.arr
         for item in arr {
             if (item.layer_id == L_FUNC) {
                 key_conv := mod_key_list[L_SYMBOL1]
@@ -3389,226 +3489,13 @@ class Layers {
                     mod_hold_mode := (item.mode != -1) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
                         mod_key.hold_mode_org)
 
-                    is_held := false
-                    t_qpc := QPC() - mod_key.pressed_time_qpc
-                    x := Layers.hold_th
-
-                    if force_held {
-                        mod_key.state := LKey.st_processed
-                        is_held := true
-                    } else if (mod_hold_mode == 6) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else {
-                            ; t < x: Pend decision and monitor key states
-                            loop {
-                                ; 後押しキー等による割り込み検知時は即座に待機破棄してHold確定
-                                if mod_key.interrupted {
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 2-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 2-B: Main key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                t := QPC() - mod_key.pressed_time_qpc
-                                if (t >= x) {
-                                    ; Case 2-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
-                    } else if (mod_hold_mode == 7) {
-
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
-                            is_held := false
-                        } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-                                ; 後押しキー等による割り込み検知時は即座に待機破棄してHold確定
-                                if mod_key.interrupted {
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-B: Main key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
-                    } else if (mod_hold_mode == 9) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
-                            key_obj.SendKeyWithShift()
-                            loop {
-                                if mod_key.interrupted {
-                                    SendEvent("{Backspace}")
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if !mod_key.IsPressedDirect() {
-                                    return true
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    return true
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    SendEvent("{Backspace}")
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-                                if mod_key.interrupted {
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-B: Main key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
+                    hold_result := Layers._EvaluateHoldState(key_obj, mod_key, item, mod_hold_mode, force_held)
+                    if (hold_result == 2) {
+                        return true ; mode 9 などで送信完了
                     }
-                    else if (mod_hold_mode == 8) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time2) {
-                            is_held := false
-                        } else {
-                            ; Grey zone: (x - Layers.b_time2) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-                                if mod_key.interrupted {
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-B: Main key released first -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
-                    } else if (mod_hold_mode == 5) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
-                            if (mod_key.state == LKey.st_pressing) {
-                                mod_key.SendShiftedKey(false)
-                            }
-                            mod_key.state := LKey.st_processed
-                            is_held := false
-                        } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-                                if mod_key.interrupted {
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-B: Mod key released first -> Send modifier key, then let main key flow through
-                                    if (mod_key.state == LKey.st_pressing) {
-                                        mod_key.SendShiftedKey(false)
-                                    }
-                                    mod_key.state := LKey.st_processed
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-A: Main key released first -> Send modifier key, then let main key flow through
-                                    if (mod_key.state == LKey.st_pressing) {
-                                        mod_key.SendShiftedKey(false)
-                                    }
-                                    mod_key.state := LKey.st_processed
-                                    is_held := false
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
-                    } else {
-                        is_held := (t_qpc > x)
-                    }
-                    if is_held {
+                    if (hold_result == 1) {
                         action_to_send := item.action
-                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
-                            false) {
+                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !== false) {
                             ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
                             if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
                                 Layers.last_active_item == item) {
