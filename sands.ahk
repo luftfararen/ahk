@@ -1201,6 +1201,7 @@ class TypeAnalyzer {
             WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
             WriteConfig(String(this.max_log), "Settings", "MaxLog")
             WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+            WriteConfig(String(LKey.pre_stroke_buf), "Settings", "PreStrokeBuf")
             WriteConfig(String(Layers.b_time), "Settings", "b_time")
             WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
         } catch {
@@ -2422,7 +2423,7 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 */
 class LKey extends RKey {
     static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
-    static pre_stroke_buf := 30 ; 先行入力（モディファイアより早いメインキー押下）救済バッファ時間 (ms)
+    static pre_stroke_buf := 30 ; 遅延同時押し判定の遅延時間 (ms)
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -2623,6 +2624,9 @@ class LKey extends RKey {
      * @returns {Boolean} モディファイアが追いつきコンビネーションが発動した場合は true
      */
     _WaitForCatchUpModifier(ime_state, hold_mode) {
+        if (LKey.pre_stroke_buf <= 0)
+            return false
+
         candidates := this.GetCandidateModifiers(ime_state)
         if (candidates.Length == 0)
             return false
@@ -2729,7 +2733,7 @@ class LKey extends RKey {
             return
         }
 
-        ; 先行入力（モディファイアより先にメインキーが押された）の救済バッファリング
+        ; 遅延同時押し判定（モディファイアより先にメインキーが押された）の救済バッファリング
         if (LKey.pre_stroke_buf > 0 && this._WaitForCatchUpModifier(ime_state, hold_mode)) {
             return
         }
@@ -3495,7 +3499,8 @@ class Layers {
                     }
                     if (hold_result == 1) {
                         action_to_send := item.action
-                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !== false) {
+                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                            false) {
                             ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
                             if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
                                 Layers.last_active_item == item) {
