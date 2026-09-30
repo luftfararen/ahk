@@ -2399,6 +2399,10 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 ・リマップキー
 モード３以外は、IME状態やシフト状態に応じてキーが送信される。
 */
+; バッファ管理用の状態変数 (遅延同時押し / Pre-stroke Buffer)
+global G_PendingKey := ""
+global G_PendingTime := 0
+
 class LKey extends RKey {
     static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
     static pre_stroke_buf := 30 ; 遅延同時押し判定の遅延時間 (ms)
@@ -2412,6 +2416,9 @@ class LKey extends RKey {
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
     static ResetAll() {
+        global G_PendingKey, G_PendingTime
+        G_PendingKey := ""
+        G_PendingTime := 0
         for inst in LKey.instances {
             inst.state := LKey.st_init
             inst.pressed_time_qpc := 0
@@ -2421,6 +2428,20 @@ class LKey extends RKey {
                 SetTimer(inst.timer_name, 0)
             }
         }
+    }
+
+    /**
+     * いずれかの Mode 3 キーが物理的に押されているか判定します。
+     */
+    static IsAnyMode3Pressed() {
+        for inst in LKey.instances {
+            ime_state := ImeState.IsOn()
+            hold_mode := (ime_state == 1) ? inst.hold_mode_ime_org : inst.hold_mode_org
+            if (hold_mode == 3 && inst.IsPressed()) {
+                return true
+            }
+        }
+        return false
     }
 
     state := 0
@@ -2592,7 +2613,86 @@ class LKey extends RKey {
             return
         }
 
-        ; 各モードに応じた処理の実行
+        ; --- Mode 3 キーの処理 ---
+        if (hold_mode == 3) {
+            this.HandleMode3Down()
+            return
+        }
+
+        ; --- メインキー（Mode 3 以外）の処理 ---
+        if (LKey.pre_stroke_buf <= 0) {
+            this.ExecuteDown(ime_state, hold_mode)
+            return
+        }
+
+        this.HandleMainKeyDown(ime_state, hold_mode)
+    }
+
+    /**
+     * Mode 3 キーの Down ハンドラ
+     */
+    HandleMode3Down() {
+        global G_PendingKey, G_PendingTime
+
+        this.saved_scaw := MakeModStr()
+        this.interrupted := false
+        this.pressed_time_qpc := QPC()
+        this.down_ime_state := ImeState.IsOn()
+        this.state := LKey.st_pressing
+        LKey.InterruptOthers(this)
+
+        ; 直前にメインキーが保留されていた場合（ロールオーバーによる遅延同時押し）
+        if (LKey.pre_stroke_buf > 0 && G_PendingKey != "") {
+            pending := G_PendingKey
+            G_PendingKey := ""
+            G_PendingTime := 0
+            this.state := LKey.st_processed
+            this.SendLayerKeyFor(pending)
+            return
+        }
+    }
+
+    /**
+     * メインキー（単体入力側）の送信遅延制御ハンドラ
+     */
+    HandleMainKeyDown(ime_state, hold_mode) {
+        global G_PendingKey, G_PendingTime
+
+        ; 直前に別のキーが保留されていれば先に確定送信
+        if (G_PendingKey != "" && G_PendingKey != this) {
+            prev := G_PendingKey
+            G_PendingKey := ""
+            G_PendingTime := 0
+            prev_ime := ImeState.IsOn()
+            prev_hold := (prev_ime == 1) ? prev.hold_mode_ime_org : prev.hold_mode_org
+            prev.ExecuteDown(prev_ime, prev_hold)
+        }
+
+        G_PendingKey := this
+        G_PendingTime := QPC()
+
+        start_qpc := QPC()
+        is_intercepted := false
+
+        while ((QPC() - start_qpc) < LKey.pre_stroke_buf) {
+            if LKey.IsAnyMode3Pressed() {
+                is_intercepted := true
+                break
+            }
+            SleepX(1)
+        }
+
+        if (!is_intercepted && G_PendingKey == this) {
+            G_PendingKey := ""
+            G_PendingTime := 0
+            this.ExecuteDown(ime_state, hold_mode)
+        }
+    }
+
+    /**
+     * 通常のキー押し下げ実行（モード0〜9）
+     */
+    ExecuteDown(ime_state, hold_mode) {
         if (hold_mode == 0) {
             this.SendKeyWithShift()
         } else {
@@ -2604,6 +2704,19 @@ class LKey extends RKey {
             this._Down(ime_state, hold_mode)
         }
     }
+
+    /**
+     * Mode 3 キーが長押し確定した際に、保留中のキーに対してレイヤーキーを実行する
+     */
+    SendLayerKeyFor(pendingKey) {
+        ime_state := ImeState.IsOn()
+        if !pendingKey.SendLayerKey(ime_state) {
+            ; レイヤー割り当てがなければ通常送信
+            pending_hold_mode := (ime_state == 1) ? pendingKey.hold_mode_ime_org : pendingKey.hold_mode_org
+            pendingKey.ExecuteDown(ime_state, pending_hold_mode)
+        }
+    }
+
     /**
      * 各モード（モード1, 3, 4, 7, 6）における押し下げ処理の具体的な振る舞いを実行します。
      * @param {Boolean} ime_state - 現在のIME状態
