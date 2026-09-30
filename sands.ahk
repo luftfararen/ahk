@@ -92,6 +92,7 @@ global L_SYMBOL2 := 4
 global L_SELECT := 5
 global L_NUMPAD := 6
 global L_SHIFT := 7
+global L_FUNC := 8
 
 global mod_key_list := []
 
@@ -257,15 +258,8 @@ B_F12 := "{Blind}{F12}"
 ReadConfig(section, key, defaultValue) {
     static ConfigPath := A_ScriptDir . "\config.ini"
     val := IniRead(ConfigPath, section, key, defaultValue)
-    pos := InStr(val, Chr(32) . Chr(59)) ;space+semicolon
-    if pos == 0 {
-        pos := InStr(val, "`t" . Chr(59)) ;tab+semicolon
-    }
-    if pos > 0 {
-        val := SubStr(val, 1, pos - 1)
-    }
-    val := Trim(val)
-    return StripQuotes(val)
+    val := RegExReplace(val, "[\t ]+;.*$") ; インラインコメントを除去
+    return StripQuotes(Trim(val))
 }
 
 /**
@@ -785,28 +779,34 @@ FlipMap(originalMap) {
 /**
  * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
  */
-IsSingleBraceText(text) {
-    return RegExMatch(text, "^\{[^{}]+\}$")
+IsSingleBraceText(text) => RegExMatch(text, "^\{[^{}]+\}$")
+
+/**
+ * 文字列に波括弧を追加 / 除去
+ */
+AddBraces(key) => IsSingleBraceText(key) ? key : "{" . key . "}"
+RemoveBraces(key) => IsSingleBraceText(key) ? SubStr(key, 2, -1) : key
+
+/**
+ * パイプ区切りのアクション文字列を分解するヘルパー
+ */
+ParseSplitActions(action, action2 := "") {
+    if (action2 == "" && action != "|" && InStr(action, "|")) {
+        parts := StrSplit(action, "|")
+        if parts.Length >= 2
+            return [parts[1], parts[2]]
+    }
+    return [action, action2]
 }
 
 /**
- * 文字列に波括弧を追加する。既に囲まれている場合はそのまま。
+ * 配列要素を結合する補助関数
  */
-AddBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return key
-    }
-    return "{" . key . "}"
-}
-
-/**
- * 文字列から波括弧を除去する。
- */
-RemoveBraces(key) {
-    if (IsSingleBraceText(key)) {
-        return SubStr(key, 2, StrLen(key) - 2)
-    }
-    return key
+StrJoin(sep, arr) {
+    res := ""
+    for item in arr
+        res .= (res == "" ? "" : sep) . item
+    return res
 }
 
 /**
@@ -943,17 +943,11 @@ DispStr(str, remove_braces := true) {
  */
 ResolveKeyText(str) {
     str := StripQuotes(Trim(str))
-    if (InStr(str, "|") && str != "|") {
-        parts := StrSplit(str, "|")
-        resolved_parts := []
-        for part in parts {
-            resolved_parts.Push(ResolveKeyText_Single(Trim(part)))
-        }
-        res := ""
-        for part in resolved_parts {
-            res .= (res == "" ? "" : "|") . part
-        }
-        return res
+    if (str != "|" && InStr(str, "|")) {
+        resolved := []
+        for part in StrSplit(str, "|")
+            resolved.Push(ResolveKeyText_Single(Trim(part)))
+        return StrJoin("|", resolved)
     }
     return ResolveKeyText_Single(str)
 }
@@ -1207,6 +1201,7 @@ class TypeAnalyzer {
             WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
             WriteConfig(String(this.max_log), "Settings", "MaxLog")
             WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+            WriteConfig(String(LKey.pre_stroke_buf), "Settings", "PreStrokeBuf")
             WriteConfig(String(Layers.b_time), "Settings", "b_time")
             WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
         } catch {
@@ -2406,6 +2401,7 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 */
 class LKey extends RKey {
     static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
+    static pre_stroke_buf := 30 ; 遅延同時押し判定の遅延時間 (ms)
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -2882,11 +2878,11 @@ ResetCombinations() {
         mod_key_list.RemoveAt(8, mod_key_list.Length - 7)
     }
 
-    ; すべてのキーからカスタムコンビネーション（layer_id > 7）を削除
+    ; すべてのキーからカスタムコンビネーション（layer_id > 8）を削除
     for keyObj in LAYOUT_KEYS {
         new_arr := []
         for item in keyObj.layers.arr {
-            if (item.layer_id <= 7) {
+            if (item.layer_id <= 8) {
                 new_arr.Push(item)
             }
         }
@@ -2894,7 +2890,7 @@ ResetCombinations() {
 
         new_ime_arr := []
         for item in keyObj.layers.ime_arr {
-            if (item.layer_id <= 7) {
+            if (item.layer_id <= 8) {
                 new_ime_arr.Push(item)
             }
         }
@@ -2908,6 +2904,7 @@ ResetCombinations() {
 LoadLayoutConfig() {
     try {
         LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
+        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
         Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
         Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
         Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
@@ -3018,16 +3015,27 @@ class Layers {
 
         key_navi := mod_key_list[L_NAVI_CTRL]
         key_symbol := mod_key_list[L_SYMBOL_NUM]
+        key_conv := mod_key_list[L_SYMBOL1]
+        key_f14 := mod_key_list[L_SYMBOL2]
 
         ; Check the specified layer
         if layer = L_NAVI_CTRL {
             return key_navi.IsPressed() && !(GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer = L_FUNC {
+            return key_conv.IsPressed() && key_f14.IsPressed()
         }
         if layer = L_SYMBOL_NUM {
             return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
         }
         if layer = L_SELECT {
             return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer = L_SYMBOL1 {
+            return key_conv.IsPressed() && !key_f14.IsPressed()
+        }
+        if layer = L_SYMBOL2 {
+            return key_f14.IsPressed() && !key_conv.IsPressed()
         }
 
         ; その他の単純なレイヤー判定は、対応するキーの押下状態を返す
@@ -3050,6 +3058,8 @@ class Layers {
 
         key_navi := mod_key_list[L_NAVI_CTRL]
         key_symbol := mod_key_list[L_SYMBOL_NUM]
+        key_conv := mod_key_list[L_SYMBOL1]
+        key_f14 := mod_key_list[L_SYMBOL2]
 
         ; Check the specified layer
         if layer_id = L_NAVI_CTRL {
@@ -3066,12 +3076,30 @@ class Layers {
                 return false
             return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
         }
+
         if layer_id = L_SELECT {
             if key_navi = key_obj
                 return false
             if key_symbol = key_obj
                 return false
             return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        }
+        if layer_id = L_FUNC {
+            if key_conv = key_obj
+                return false
+            if key_f14 = key_obj
+                return false
+            return key_conv.IsPressed() && key_f14.IsPressed()
+        }
+        if layer_id = L_SYMBOL1 {
+            if key_conv = key_obj
+                return false
+            return key_conv.IsPressed() && !key_f14.IsPressed()
+        }
+        if layer_id = L_SYMBOL2 {
+            if key_f14 = key_obj
+                return false
+            return key_f14.IsPressed() && !key_conv.IsPressed()
         }
 
         key := mod_key_list[layer_id]
@@ -3454,7 +3482,7 @@ RegistCombination(mode, layer_key_obj, key_obj, text, text2 := "", text3 := "") 
  * config.ini に設定された現在のレイアウト（StartupLayout）を強制的に再読み込みして適用する
  */
 LoadLayoutFromIni(index) {
-    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SELECT, L_FUNC
     name := ReadConfig(index, "name", "")
     if name = "" {
         ; index がセクション名ではなくレイアウト名である場合の検索処理
@@ -3488,6 +3516,7 @@ LoadLayoutFromIni(index) {
             ApplyLayerLayoutFromIni(L_SYMBOL2, "SYMBOL2")
             ApplyLayerLayoutFromIni(L_SELECT, "SELECT")
             ApplyLayerLayoutFromIni(L_NUMPAD, "NUMPAD")
+            ApplyLayerLayoutFromIni(L_FUNC, "FUNC")
             success := true
         }
     }
@@ -4194,12 +4223,12 @@ ChangeMinatoLayoutImpl(ei := True) {
     q.SetImeKey("j", "?")
     w.SetImeKey("w")
     e.SetImeKey("r", "l")
-    r.SetImeKey("d", "deli")
+    r.SetImeKey("d")
     t.SetImeKey("f")
     a.SetImeKey("n", "(")
     s.SetImeKey("s", "sil")
     d.SetImeKey("k")
-    f.SetImeKey("t", "tile")
+    f.SetImeKey("t")
     g.SetImeKey("g")
     z.SetImeKey("z", "[")
     x.SetImeKey("p", "]")
@@ -4211,7 +4240,7 @@ ChangeMinatoLayoutImpl(ei := True) {
     i.SetImeKey("u", "unn")
     o.SetImeKey("yo")
     p.SetImeKey("ou")
-    h.SetImeKey("nn", "yann")
+    h.SetImeKey(";", "yann")
     j.SetImeKey("a", "ann")
     if ei {
         k.SetImeKey("e", "enn")
@@ -4339,7 +4368,7 @@ InitModLayer() {
     global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
     global z, x, c, v, b, n, m, comma, period, slash, backslash
 
-    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT
+    global L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT, L_FUNC
 
     ;SetLKeyMode(3)
     mode := 3
@@ -4526,6 +4555,20 @@ InitModLayer() {
     hat.SetLayerKey(mode, L_SHIFT, B_F12)
     colon.SetLayerKey(mode, L_SHIFT, "+{Enter}")
     closebracket.SetLayerKey(mode, L_SHIFT, "+]")
+
+    ; L_FUNC (conv + f14 同時押し)
+    k1.SetLayerKey(mode, L_FUNC, B_F1)
+    k2.SetLayerKey(mode, L_FUNC, B_F2)
+    k3.SetLayerKey(mode, L_FUNC, B_F3)
+    k4.SetLayerKey(mode, L_FUNC, B_F4)
+    k5.SetLayerKey(mode, L_FUNC, B_F5)
+    k6.SetLayerKey(mode, L_FUNC, B_F6)
+    k7.SetLayerKey(mode, L_FUNC, B_F7)
+    k8.SetLayerKey(mode, L_FUNC, B_F8)
+    k9.SetLayerKey(mode, L_FUNC, B_F9)
+    k0.SetLayerKey(mode, L_FUNC, B_F10)
+    minus.SetLayerKey(mode, L_FUNC, B_F11)
+    hat.SetLayerKey(mode, L_FUNC, B_F12)
 }
 
 /**
@@ -4584,8 +4627,8 @@ Init() {
 
     ; 3. モディファイアキーリストの初期化
     global mod_key_list
-    ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT
-    mod_key_list := [f13, noconv, conv, f14, f13, tab, space]
+    ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT,FUNC
+    mod_key_list := [f13, noconv, conv, f14, f13, tab, space, conv]
 
     ; 4. レイヤーとレイアウトの適用
     InitModLayer()
