@@ -2202,6 +2202,15 @@ Shift 版（または指定キー）を再送信して置換する。
 down時に、scawの状態を保持。
 up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
 長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
+遅延同時押し（Pre-stroke Buffer）判定に対応。
+IME状態に依存しない。
+キーリピートは無効化される 。
+
+・モード13：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用) 【旧モード3】
+遅延同時押し判定のない従来のモード3。
+down時に、scawの状態を保持。
+up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
+長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
 IME状態に依存しない。
 キーリピートは無効化される 。
 
@@ -2399,6 +2408,10 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 ・リマップキー
 モード３以外は、IME状態やシフト状態に応じてキーが送信される。
 */
+; バッファ管理用の状態変数 (遅延同時押し / Pre-stroke Buffer)
+global G_PendingKey := ""
+global G_PendingTime := 0
+
 class LKey extends RKey {
     static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
     static pre_stroke_buf := 30 ; 遅延同時押し判定の遅延時間 (ms)
@@ -2412,6 +2425,9 @@ class LKey extends RKey {
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
     static ResetAll() {
+        global G_PendingKey, G_PendingTime
+        G_PendingKey := ""
+        G_PendingTime := 0
         for inst in LKey.instances {
             inst.state := LKey.st_init
             inst.pressed_time_qpc := 0
@@ -2421,6 +2437,32 @@ class LKey extends RKey {
                 SetTimer(inst.timer_name, 0)
             }
         }
+    }
+
+    /**
+     * 指定キー以外のいずれかの LKey インスタンスがホールド中（st_pressing または st_processed）か判定します。
+     */
+    static IsAnyOtherHeld(currentKey) {
+        for inst in LKey.instances {
+            if (inst != currentKey && (inst.state == LKey.st_pressing || inst.state == LKey.st_processed)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * いずれかの Mode 3 キーが物理的に押されているか判定します。
+     */
+    static IsAnyMode3Pressed() {
+        for inst in LKey.instances {
+            ime_state := ImeState.IsOn()
+            hold_mode := (ime_state == 1) ? inst.hold_mode_ime_org : inst.hold_mode_org
+            if (hold_mode == 3 && inst.IsPressed()) {
+                return true
+            }
+        }
+        return false
     }
 
     state := 0
@@ -2561,6 +2603,7 @@ class LKey extends RKey {
      */
     Down() {
         Critical
+        global G_PendingKey, G_PendingTime
         ;OutputDebug(this.vk)
         ime_state := ImeState.IsOn()
         hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
@@ -2592,7 +2635,102 @@ class LKey extends RKey {
             return
         }
 
-        ; 各モードに応じた処理の実行
+        ; --- Mode 3 キーの処理 ---
+        if (hold_mode == 3) {
+            this.HandleMode3Down()
+            return
+        }
+
+        ; --- Mode 13 キー（旧Mode 3：遅延同時押しなし）の処理 ---
+        if (hold_mode == 13) {
+            ; 直前にメインキーが保留されていた場合は先にフラッシュ
+            if (G_PendingKey != "") {
+                prev := G_PendingKey
+                G_PendingKey := ""
+                G_PendingTime := 0
+                prev_ime := ImeState.IsOn()
+                prev_hold := (prev_ime == 1) ? prev.hold_mode_ime_org : prev.hold_mode_org
+                prev.ExecuteDown(prev_ime, prev_hold)
+            }
+            this.ExecuteDown(ime_state, hold_mode)
+            return
+        }
+
+        ; --- メインキー（Mode 3 / 13 以外）の処理 ---
+        ; 遅延同時押しが無効、SandSでSpaceが押下中、または他キーがホールド中なら即時実行
+        if (LKey.pre_stroke_buf <= 0 || IsPhysicalShiftPressed(this) || LKey.IsAnyOtherHeld(this)) {
+            this.ExecuteDown(ime_state, hold_mode)
+            return
+        }
+
+        this.HandleMainKeyDown(ime_state, hold_mode)
+    }
+
+    /**
+     * Mode 3 キーの Down ハンドラ
+     */
+    HandleMode3Down() {
+        global G_PendingKey, G_PendingTime
+
+        this.saved_scaw := MakeModStr()
+        this.interrupted := false
+        this.pressed_time_qpc := QPC()
+        this.down_ime_state := ImeState.IsOn()
+        this.state := LKey.st_pressing
+        LKey.InterruptOthers(this)
+
+        ; 直前にメインキーが保留されていた場合（ロールオーバーによる遅延同時押し）
+        if (LKey.pre_stroke_buf > 0 && G_PendingKey != "") {
+            pending := G_PendingKey
+            G_PendingKey := ""
+            G_PendingTime := 0
+            this.state := LKey.st_processed
+            this.SendLayerKeyFor(pending)
+            return
+        }
+    }
+
+    /**
+     * メインキー（単体入力側）の送信遅延制御ハンドラ
+     */
+    HandleMainKeyDown(ime_state, hold_mode) {
+        global G_PendingKey, G_PendingTime
+
+        ; 直前に別のキーが保留されていれば先に確定送信
+        if (G_PendingKey != "" && G_PendingKey != this) {
+            prev := G_PendingKey
+            G_PendingKey := ""
+            G_PendingTime := 0
+            prev_ime := ImeState.IsOn()
+            prev_hold := (prev_ime == 1) ? prev.hold_mode_ime_org : prev.hold_mode_org
+            prev.ExecuteDown(prev_ime, prev_hold)
+        }
+
+        G_PendingKey := this
+        G_PendingTime := QPC()
+
+        start_qpc := QPC()
+        is_intercepted := false
+
+        while ((QPC() - start_qpc) < LKey.pre_stroke_buf) {
+            if LKey.IsAnyMode3Pressed() {
+                is_intercepted := true
+                break
+            }
+            SleepX(1)
+        }
+
+        if (!is_intercepted && G_PendingKey == this) {
+            G_PendingKey := ""
+            G_PendingTime := 0
+            this.ExecuteDown(ime_state, hold_mode)
+        }
+    }
+
+    /**
+     * 通常のキー押し下げ実行（モード0〜9, 13）
+     */
+    ExecuteDown(ime_state, hold_mode) {
         if (hold_mode == 0) {
             this.SendKeyWithShift()
         } else {
@@ -2604,8 +2742,21 @@ class LKey extends RKey {
             this._Down(ime_state, hold_mode)
         }
     }
+
     /**
-     * 各モード（モード1, 3, 4, 7, 6）における押し下げ処理の具体的な振る舞いを実行します。
+     * Mode 3 キーが長押し確定した際に、保留中のキーに対してレイヤーキーを実行する
+     */
+    SendLayerKeyFor(pendingKey) {
+        ime_state := ImeState.IsOn()
+        if !pendingKey.SendLayerKey(ime_state) {
+            ; レイヤー割り当てがなければ通常送信
+            pending_hold_mode := (ime_state == 1) ? pendingKey.hold_mode_ime_org : pendingKey.hold_mode_org
+            pendingKey.ExecuteDown(ime_state, pending_hold_mode)
+        }
+    }
+
+    /**
+     * 各モード（モード1, 3, 4, 7, 6, 13）における押し下げ処理の具体的な振る舞いを実行します。
      * @param {Boolean} ime_state - 現在のIME状態
      * @param {Integer} hold_mode - 長押し動作モード
      */
@@ -2617,7 +2768,7 @@ class LKey extends RKey {
                 this.SendKeyWithShift()
                 SetTimer(this.timer_name, -LKey.hold_th)
 
-            case 3: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
+            case 3, 13: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
                 ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
                 this.saved_scaw := MakeModStr()
 
@@ -2647,8 +2798,8 @@ class LKey extends RKey {
 
         duration := QPC() - this.pressed_time_qpc
 
-        ; モード3（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
-        if (hold_mode == 3) {
+        ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
+        if (hold_mode == 3 || hold_mode == 13) {
             if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
                 ; 長押しや他キーの割り込みがなかった場合、保持した修飾記号付きでキーを送信
                 SendAndLog("{Blind}" . this.saved_scaw . this.key_text)
@@ -2704,7 +2855,7 @@ InitGlobalKeys() {
     ;conv := LKey(R_CONV, 3, C_BS)
     ;f14 := LKey("f14", 3, C_ZENKAKU)
     f14 := LKey("f14", 3, C_ENTER)
-    space := LKey(R_SPACE, 3, C_SPACE)
+    space := LKey(R_SPACE, 13, C_SPACE)
 
     ; --- リマップキー (RKey) ---
     ; (数字列)
