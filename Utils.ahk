@@ -1436,3 +1436,114 @@ StringToHex(str) {
     }
     return hex
 }
+
+/**
+ * 現在フォーカスされているコントロールで未確定文字列（入力中・変換中）が存在するかを取得する
+ * @returns {Boolean} 未確定文字が存在すれば true
+ */
+; static IsComposing() {
+;     hwnd := GetFocusedControlHandle()
+;     if !hwnd
+;         return false
+
+;     ; 1. IMM32 API (ImmGetCompositionStringW) による判定
+;     hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
+;     if hIMC {
+;         compLen := DllCall("imm32\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x0008, "Ptr", 0, "UInt", 0,
+;             "Int")
+;         DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
+;         if (compLen > 0) {
+;             ImeState.is_composing_tracked := true
+;             return true
+;         }
+;     }
+
+;     ; 2. 他プロセスウィンドウの場合: AttachThreadInput によるコンテキスト取得
+;     targetThreadId := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
+;     currentThreadId := DllCall("GetCurrentThreadId", "UInt")
+;     if (targetThreadId && targetThreadId != currentThreadId) {
+;         if DllCall("AttachThreadInput", "UInt", currentThreadId, "UInt", targetThreadId, "Int", 1) {
+;             hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
+;             compLen := 0
+;             if hIMC {
+;                 compLen := DllCall("imm32\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x0008, "Ptr", 0, "UInt",
+;                     0, "Int")
+;                 DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
+;             }
+;             DllCall("AttachThreadInput", "UInt", currentThreadId, "UInt", targetThreadId, "Int", 0)
+;             if (compLen > 0) {
+;                 ImeState.is_composing_tracked := true
+;                 return true
+;             }
+;         }
+;     }
+
+;     ; 3. 候補ウィンドウ等の存在チェック (変換中のフォールバック)
+;     if WinExist("ahk_class Microsoft.IME.UIManager.CandidateWindow.Host") || WinExist("ahk_class MSCTFIME UI") {
+;         return true
+;     }
+
+;     ; 4. TSF / モダンアプリ向け: キーストロークトラッキングによる判定
+;     if (ImeState.IsOn() && ImeState.is_composing_tracked) {
+;         if (ImeState.composition_hwnd != 0 && ImeState.composition_hwnd != hwnd) {
+;             ImeState.ResetComposition()
+;             return false
+;         }
+;         return true
+;     }
+
+;     return false
+; }
+
+; I_1 := 0
+; I_2 := 1
+; I_3 := 2
+; I_4 := 3
+; I_5 := 4
+; I_6 := 5
+; I_7 := 6
+; I_8 := 7
+; I_9 := 8
+; I_0 := 9
+; I_minus := 10
+; I_hat := 11
+; I_yen := 12
+; I_q := 13
+; I_w := 14
+; I_e := 15
+; I_r := 16
+; I_t := 17
+; I_y := 18
+; I_u := 19
+; I_i := 20
+; I_o := 21
+; I_p := 22
+; I_at := 23
+; I_openbracket := 24
+; I_a := 25
+; I_s := 26
+; I_d := 27
+; I_f := 28
+; I_g := 29
+; I_h := 30
+; I_j := 31
+; I_k := 32
+; I_l := 33
+; I_semicolon := 34
+; I_colon := 35
+; I_closebracket := 36
+; I_z := 37
+; I_x := 38
+; I_c := 39
+; I_v := 40
+; I_b := 41
+; I_n := 42
+; I_m := 43
+; I_comma := 44
+; I_period := 45
+; I_slash := 46
+; I_backslash := 47
+; I_up := 48
+; I_down := 49
+; I_left := 50
+; I_right := 51
