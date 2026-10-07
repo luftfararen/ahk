@@ -113,7 +113,8 @@ ChangeMinatoLayoutImpl(ei := True) {
     ;slash.SetImeKey("f")
 
     rm := CreateKeyMap()
-    SetLKeyMode(-1, 6)
+    global LAYOUT_KEYS
+    SetLKeyMode(LAYOUT_KEYS, -1, 6)
 
     target_layers := [j, k, i, l, semicolon, o, u, m] ; あいうえおやゆよ
     for layer_key in target_layers {
@@ -148,6 +149,9 @@ ChangeFMIX13_Minato_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
+/**
+ * キーレイアウトを「FMIX15-FMIX15R配列」に変更し、IME ON時の差分およびレイヤーを初期化します。
+ */
 ChangeFMIX15_FMIX15R_Layout() {
     StoreLayout("FMIX15-FMIX15R[Built-in]", "qwldkjfuy;asrtghneiozxcvbpm,./")
 
@@ -172,6 +176,9 @@ ChangeFMIX13f_Minato_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
+/**
+ * キーレイアウトを「TF2_2-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
 ChangeTF2_2_Minato_Layout() {
     StoreLayout("TF2_2-Minato[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
     ChangeMinatoLayoutImpl()
@@ -183,6 +190,9 @@ ChangeTF2_2_Minato_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
+/**
+ * キーレイアウトを「STREAM1.5配列」に変更し、レイヤーを初期化します。
+ */
 ChangeSTREAM1_5_Layout() {
     StoreLayout("STREAM1.5[Built-in]", "qwrpkvcuy;asntgfheiozxldbjf,./", "1234567890-", "", "", true)
 
@@ -325,7 +335,8 @@ InitModLayer() {
     b.SetLayerKey(mode, L_SYMBOL_NUM, C_BACKSLASH)
     space.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
 
-    copyLayer(L_SYMBOL_NUM, L_SYMBOL1)
+    global LAYOUT_KEYS
+    copyLayer(LAYOUT_KEYS, L_SYMBOL_NUM, L_SYMBOL1)
 
     a.SetLayerKey(mode, L_NUMPAD, "(")
     s.SetLayerKey(mode, L_NUMPAD, ")")
@@ -356,7 +367,7 @@ InitModLayer() {
     ; L_SYMBOL2
     q.SetLayerKey(mode, L_SYMBOL2, "!") ;Exclamation Mark
     w.SetLayerKey(mode, L_SYMBOL2, "@") ;Commercial At
-    e.SetLayerKey(mode, L_SYMBOL2, "#") ;Number Sign
+    e.SetLayerKey(mode, L_SYMBOL2, "+3") ;Number Sign
     r.SetLayerKey(mode, L_SYMBOL2, "$") ;Dollar Sign
     t.SetLayerKey(mode, L_SYMBOL2, "%") ;Percent Sign
     a.SetLayerKey(mode, L_SYMBOL2, "&") ;Ampersand

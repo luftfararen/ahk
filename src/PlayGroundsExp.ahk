@@ -5,7 +5,7 @@
 ; このスクリプトは、AutoHotkey v2 用の高度なキーカスタマイズを提供します。
 ; ============================================================================
 ; このスクリプトの構造
-;   "PlaygroundsExp.ahk" - 本体(Playgrounds.ahkの実験用クローン)
+;   "PlaygroundsExp.ahk" - 実行対象本体(Playgrounds.ahkの実験用クローン)
 ;   "Utils.ahk" - ユーティリティ関数集
 ;   "Preset.ahk" - プリセットの設定関数
 ;   "Handler.ahk" - 各種イベントのハンドラー
