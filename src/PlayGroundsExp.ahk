@@ -722,17 +722,10 @@ Shift 版（または指定キー）を再送信して置換する。
 down時に、scawの状態を保持。
 up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
 長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
-遅延同時押し（Pre-stroke Buffer）判定に対応。
 IME状態に依存しない。
-キーリピートは無効化される 。
+キーリピートは無効化される。
 
-・ホールドモード13：短押し->リマップキー送信(up時)　長押し->未送信(修飾キー利用) 【旧モード3】
-遅延同時押し判定のない従来のモード3。
-down時に、scawの状態を保持。
-up時に、一定時間以上の長押しされていなければ、scawを反映してリマップキーを送信する。
-長押し中や確定後は何も送信されず、修飾キー（レイヤー用）として機能する。
-IME状態に依存しない。
-キーリピートは無効化される 。
+・ホールドモード13：ホールドモード3のエイリアス（後方互換性のため維持）。
 
 ・ホールドモード4：短押し->リマップキー送信(down時)　長押し->未送信(修飾キー利用)
 押し下げ時に即座にリマップキーを送信する。
@@ -928,13 +921,9 @@ Ctrl, Alt, Win (CAW) のいずれかが物理的に押されている場合、�
 ・リマップキー
 モード３以外は、IME状態やシフト状態に応じてキーが送信される。
 */
-; バッファ管理用の状態変数 (遅延同時押し / Pre-stroke Buffer)
-global G_PendingKey := ""
-global G_PendingTime := 0
-
 class LKey extends RKey {
-    static hold_th := 300 ; モード1用の長押しと判定する閾値 (ms)
-    static pre_stroke_buf := 30 ; 遅延同時押し判定の遅延時間 (ms)
+    static hold_th := 300 ; 長押し判定閾値 (ms)
+    static pre_stroke_buf := 30 ; 互換性保持用
     static st_init := 0
     static st_pressing := 1
     static st_processed := 2
@@ -945,9 +934,6 @@ class LKey extends RKey {
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
     static ResetAll() {
-        global G_PendingKey, G_PendingTime
-        G_PendingKey := ""
-        G_PendingTime := 0
         for inst in LKey.instances {
             inst.state := LKey.st_init
             inst.pressed_time_qpc := 0
@@ -960,33 +946,22 @@ class LKey extends RKey {
     }
 
     /**
-     * 指定キー以外のいずれかの LKey インスタンスがホールド中（st_pressing または st_processed）か判定します。
+     * 他のすべての LKey インスタンスに対して割り込みを通知する
      */
-    static IsAnyOtherHeld(currentKey) {
+    static InterruptOthers(currentKey) {
         for inst in LKey.instances {
-            if (inst != currentKey && (inst.state == LKey.st_pressing || inst.state == LKey.st_processed)) {
-                return true
+            if (inst != currentKey && inst.state == LKey.st_pressing) {
+                inst.interrupted := true
+                if (inst.timer_name != "") {
+                    SetTimer(inst.timer_name, 0)
+                }
+                inst.state := LKey.st_processed
             }
         }
-        return false
-    }
-
-    /**
-     * いずれかの Mode 3 キーが物理的に押されているか判定します。
-     */
-    static IsAnyMode3Pressed() {
-        for inst in LKey.instances {
-            ime_state := ImeState.IsOn()
-            hold_mode := (ime_state == 1) ? inst.hold_mode_ime_org : inst.hold_mode_org
-            if (hold_mode == 3 && inst.IsPressed()) {
-                return true
-            }
-        }
-        return false
     }
 
     state := 0
-    pressed_time_qpc := 0     ; 物理的に押し下げを開始した時刻
+    pressed_time_qpc := 0 ; 物理的に押し下げを開始した時刻
     interrupted := false  ; 他のキーが割り込んできたら true にするフラグ
     down_ime_state := 0   ; Down時のIME状態を記録
     saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
@@ -1020,8 +995,6 @@ class LKey extends RKey {
 
     /**
      * IME OFF 時の標準送信キーと、Shift押下時の送信キーを設定します。
-     * @param {String} key - 通常時の送信キー記述
-     * @param {String} [shift_key=""] - Shift押下時の送信キー記述
      */
     SetKey(key, shift_key := "", ime := false) {
         super.SetKey(key, shift_key)
@@ -1031,9 +1004,6 @@ class LKey extends RKey {
 
     /**
      * IME ON 時の送信キーと、Shift押下時の送信キー、および動作モードを設定します。
-     * @param {String} [ime_key=""] - IME ON 通常時の送信キー記述
-     * @param {String} [shift_ime_key=""] - IME ON Shift押下時の送信キー記述
-     * @param {Integer} [mode=-1] - 設定するホールド動作モード
      */
     SetImeKey(ime_key := "", shift_ime_key := "", mode := -1) {
         super.SetImeKey(ime_key, shift_ime_key)
@@ -1043,8 +1013,6 @@ class LKey extends RKey {
 
     /**
      * レイヤーキーを設定する
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
      */
     SetLayerKey(mode, layer_id, action, action2 := "", action3 := "", ime := True) {
         layer_item := Layers.LayerItem(layer_id, action, action2, action3, mode)
@@ -1053,8 +1021,6 @@ class LKey extends RKey {
 
     /**
      * LayerItem オブジェクトを直接指定してレイヤーキーアクションを設定します。
-     * @param {Layers.LayerItem} layer_item - 設定するレイヤーアイテム
-     * @param {Boolean} [ime=True] - IME ON時のレイヤーアクションとしても複製・設定するかどうか
      */
     SetLayerKey2(layer_item, ime := True) {
         if (layer_item.mode < 0) {
@@ -1069,12 +1035,6 @@ class LKey extends RKey {
 
     /**
      * IME ON 時の特定レイヤーのアクションを設定します。
-     * @param {Integer} mode - 長押し動作モード
-     * @param {Integer} layer_id - レイヤーID
-     * @param {String} action - 設定するアクション
-     * @param {String} [action2=""] - 2回目以降の連続押下時に送信するアクション
-     * @param {String} [action3=""] - 3回目以降の連続押下時に送信するアクション
-     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
     SetLayerImeKey(mode, layer_id, action, action2 := "", action3 := "", reset_if_blank := false) {
         layer_item := Layers.LayerItem(layer_id, action, action2, action3, mode)
@@ -1083,8 +1043,6 @@ class LKey extends RKey {
 
     /**
      * LayerItem オブジェクトを直接指定して IME ON 時のレイヤーキーアクションを設定します。
-     * @param {Layers.LayerItem} layer_item - 設定するレイヤーアイテム
-     * @param {Boolean} [reset_if_blank=false] - (予約) 空白時のリセットフラグ
      */
     SetLayerImeKey2(layer_item, reset_if_blank := false) {
         if (layer_item.mode < 0) {
@@ -1096,61 +1054,28 @@ class LKey extends RKey {
 
     /**
      * 現在アクティブなレイヤーに基づいてキーを送信します。
-     * @param {Boolean} ime_state - 現在の IME 状態
-     * @returns {Boolean} レイヤーキーが送信された場合は true
      */
-    SendLayerKey(ime_state) {
-        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
-        return this.layers.SendLayerKey(this, ime_state)
-    }
-
-    /**
-     * 他のすべての LKey インスタンスに対して割り込みを通知する
-     */
-    static InterruptOthers(currentKey) {
-        for inst in LKey.instances {
-            ; 絶賛押し込み中のキー（st_pressing）があれば割り込みをかける
-            if (inst != currentKey && inst.state == LKey.st_pressing) {
-                inst.interrupted := true
-                ; モード1などのタイマーが走っていれば即時停止
-                if (inst.timer_name != "") {
-                    SetTimer(inst.timer_name, 0)
-                }
-                ; 割り込まれたキーは修飾キーとして確定（st_processed）させる
-                inst.state := LKey.st_processed
-            }
-        }
-    }
+    SendLayerKey(ime_state) => this.layers.SendLayerKey(this, ime_state)
 
     /**
      * キーが物理的に押されているかどうかを判定します。
-     * @returns {Boolean} 物理的に押されている場合は true
      */
     IsPressed() => GetKeyState(this.org_key_raw, "P")
-
-    /**
-     * ループ内などで使用する、OS状態を直接チェックする軽量な判定関数。
-     * AHKのフック更新がブロックされている状況でも、物理的なキーリリースを正確に検出できます。
-     * @returns {Boolean} 物理的に押されている場合は true
-     */
-    IsPressedDirect() => GetKeyState(this.org_key_raw, "P")
 
     /**
      * キー押し下げ時の処理
      */
     Down() {
         Critical
-        global G_PendingKey, G_PendingTime
-        ;OutputDebug(this.vk)
         ime_state := ImeState.IsOn()
         hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
 
-        ; --- リピートガード (モード 0 以外用) ---
+        ; リピートガード (モード 0 以外用)
         if (hold_mode != 0 && (this.state == LKey.st_pressing || this.state == LKey.st_processed)) {
             return
         }
 
-        ; レイヤーキーの判定 (100ms以上経過している場合のみ実行)
+        ; レイヤーキーの判定
         if this.SendLayerKey(ime_state) {
             if (hold_mode != 0) {
                 LKey.InterruptOthers(this)
@@ -1159,7 +1084,6 @@ class LKey extends RKey {
             return
         }
 
-        ; レイヤーキー判定で送信されなかった場合、連続打鍵をリセットする
         Layers.last_active_item := ""
 
         ; 修飾キー (Ctrl/Alt/Win) パススルー判定
@@ -1172,144 +1096,29 @@ class LKey extends RKey {
             return
         }
 
-        ; --- Mode 3 キーの処理 ---
-        if (hold_mode == 3) {
-            this.HandleMode3Down()
-            return
-        }
-
-        ; --- Mode 13 キー（旧Mode 3：遅延同時押しなし）の処理 ---
-        if (hold_mode == 13) {
-            ; 直前にメインキーが保留されていた場合は先にフラッシュ
-            if (G_PendingKey != "") {
-                prev := G_PendingKey
-                G_PendingKey := ""
-                G_PendingTime := 0
-                prev_ime := ImeState.IsOn()
-                prev_hold := (prev_ime == 1) ? prev.hold_mode_ime_org : prev.hold_mode_org
-                prev.ExecuteDown(prev_ime, prev_hold)
-            }
-            this.ExecuteDown(ime_state, hold_mode)
-            return
-        }
-
-        ; --- メインキー（Mode 3 / 13 以外）の処理 ---
-        ; 遅延同時押しが無効、SandSでSpaceが押下中、または他キーがホールド中なら即時実行
-        if (LKey.pre_stroke_buf <= 0 || IsPhysicalShiftPressed(this) || LKey.IsAnyOtherHeld(this)) {
-            this.ExecuteDown(ime_state, hold_mode)
-            return
-        }
-
-        this.HandleMainKeyDown(ime_state, hold_mode)
-    }
-
-    /**
-     * Mode 3 キーの Down ハンドラ
-     */
-    HandleMode3Down() {
-        global G_PendingKey, G_PendingTime
-
-        this.saved_scaw := MakeModStr()
-        this.interrupted := false
-        this.pressed_time_qpc := QPC()
-        this.down_ime_state := ImeState.IsOn()
-        this.state := LKey.st_pressing
-        LKey.InterruptOthers(this)
-
-        ; 直前にメインキーが保留されていた場合（ロールオーバーによる遅延同時押し）
-        if (LKey.pre_stroke_buf > 0 && G_PendingKey != "") {
-            pending := G_PendingKey
-            G_PendingKey := ""
-            G_PendingTime := 0
-            this.state := LKey.st_processed
-            this.SendLayerKeyFor(pending)
-            return
-        }
-    }
-
-    /**
-     * メインキー（単体入力側）の送信遅延制御ハンドラ
-     */
-    HandleMainKeyDown(ime_state, hold_mode) {
-        global G_PendingKey, G_PendingTime
-
-        ; 直前に別のキーが保留されていれば先に確定送信
-        if (G_PendingKey != "" && G_PendingKey != this) {
-            prev := G_PendingKey
-            G_PendingKey := ""
-            G_PendingTime := 0
-            prev_ime := ImeState.IsOn()
-            prev_hold := (prev_ime == 1) ? prev.hold_mode_ime_org : prev.hold_mode_org
-            prev.ExecuteDown(prev_ime, prev_hold)
-        }
-
-        G_PendingKey := this
-        G_PendingTime := QPC()
-
-        start_qpc := QPC()
-        is_intercepted := false
-
-        while ((QPC() - start_qpc) < LKey.pre_stroke_buf) {
-            if LKey.IsAnyMode3Pressed() {
-                is_intercepted := true
-                break
-            }
-            SleepQPC(1)
-        }
-
-        if (!is_intercepted && G_PendingKey == this) {
-            G_PendingKey := ""
-            G_PendingTime := 0
-            this.ExecuteDown(ime_state, hold_mode)
-        }
-    }
-
-    /**
-     * 通常のキー押し下げ実行（モード0〜9, 13）
-     */
-    ExecuteDown(ime_state, hold_mode) {
+        ; モード0（長押し判定なし通常送信）
         if (hold_mode == 0) {
             this.SendKeyWithShift()
-        } else {
-            this.interrupted := false
-            this.pressed_time_qpc := QPC()
-            this.down_ime_state := ime_state
-            LKey.InterruptOthers(this)
-            this.state := LKey.st_pressing
-            this._Down(ime_state, hold_mode)
+            return
         }
-    }
 
-    /**
-     * Mode 3 キーが長押し確定した際に、保留中のキーに対してレイヤーキーを実行する
-     */
-    SendLayerKeyFor(pendingKey) {
-        ime_state := ImeState.IsOn()
-        if !pendingKey.SendLayerKey(ime_state) {
-            ; レイヤー割り当てがなければ通常送信
-            pending_hold_mode := (ime_state == 1) ? pendingKey.hold_mode_ime_org : pendingKey.hold_mode_org
-            pendingKey.ExecuteDown(ime_state, pending_hold_mode)
-        }
-    }
-
-    /**
-     * 各モード（モード1, 3, 4, 7, 6, 13）における押し下げ処理の具体的な振る舞いを実行します。
-     * @param {Boolean} ime_state - 現在のIME状態
-     * @param {Integer} hold_mode - 長押し動作モード
-     */
-    _Down(ime_state, hold_mode) {
-        ;hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
+        this.interrupted := false
+        this.pressed_time_qpc := QPC()
+        this.down_ime_state := ime_state
+        LKey.InterruptOthers(this)
+        this.state := LKey.st_pressing
 
         switch hold_mode {
             case 1: ; 短押し->即時送信、長押し->置換
                 this.SendKeyWithShift()
                 SetTimer(this.timer_name, -LKey.hold_th)
 
+            case 2: ; 修飾キー専用（キー送信なし）
+                ; 何も送信しない
             case 3, 13: ; 短押し->up時送信（IME不依存）、長押し->修飾キー
-                ; down時のSCAW状態（Ctrl, Alt, Shift, Win）を文字列として保持
                 this.saved_scaw := MakeModStr()
 
-            case 4, 6, 7, 8, 9: ; 短押し->即時送信、長押し->修飾キー
+            default: ; モード 4, 5, 6, 7, 8, 9: 短押し->即時送信、長押し->修飾キー
                 this.SendKeyWithShift()
         }
     }
@@ -1319,7 +1128,6 @@ class LKey extends RKey {
      */
     Up() {
         Critical
-        ; モード0の場合はタイマー等がないため単純に初期化して終了
         ime_state := ImeState.IsOn()
         hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) :
             ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
@@ -1330,15 +1138,15 @@ class LKey extends RKey {
             return
         }
 
-        ; 動作中のタイマーを確実にキャンセル
-        SetTimer(this.timer_name, 0)
+        if (this.timer_name != "") {
+            SetTimer(this.timer_name, 0)
+        }
 
         duration := QPC() - this.pressed_time_qpc
 
         ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
         if (hold_mode == 3 || hold_mode == 13) {
             if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
-                ; 長押しや他キーの割り込みがなかった場合、保持した修飾記号付きでキーを送信
                 SendAndLog("{Blind}" . this.saved_scaw . this.key_text)
             }
         }
@@ -1357,7 +1165,6 @@ class LKey extends RKey {
         Critical
         if (this.state == LKey.st_pressing && !this.interrupted) {
             this.state := LKey.st_processed
-            ; モード1：長押し時に既存文字をBSで消去し、Shift版に置換
             Send("{Backspace}")
             this.SendShiftedKey(true, this.down_ime_state)
         }
@@ -1392,7 +1199,7 @@ InitGlobalKeys() {
     ;conv := LKey(R_CONV, 3, C_BS)
     ;f14 := LKey("f14", 3, C_ZENKAKU)
     f14 := LKey("f14", 3, C_ENTER)
-    space := LKey(R_SPACE, 13, C_SPACE)
+    space := LKey(R_SPACE, 3, C_SPACE)
 
     ; --- リマップキー (RKey) ---
     ; (数字列)
@@ -1836,233 +1643,135 @@ class Layers {
     }
 
     /**
-     * 現在押下されている修飾レイヤーキーに基づいて、同時押し入力の判定および処理を行います。
-     * @param {Object} key_obj - トリガーされたメインキーのオブジェクト
-     * @param {Integer} ime_state - 現在のIME状態（0: OFF, 1: ON）
-     * @returns {Boolean} 同時押しレイヤーアクションが発生して処理された場合は true、それ以外は false
+     * 修飾キーとメインキーの押下状態を監視し、ホールド閾値の到達またはリリースを検出します。
+     * @param {LKey} mod_key - 修飾側のキーオブジェクト
+     * @param {LKey} key_obj - メイン側のキーオブジェクト
+     * @param {Integer} hold_th - ホールド成立閾値 (ms)
+     * @returns {Integer} 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
      */
-    SendLayerKey(key_obj, ime_state) {
-        arr := ime_state == 1 ? this.ime_arr : this.arr
-        for item in arr {
-            mod_key := mod_key_list[item.layer_id]
-            if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
-                if Layers.State2(item.layer_id, key_obj) {
-                    mod_hold_mode := (item.mode != -1) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
-                        mod_key.hold_mode_org)
+    static _WaitForHold(mod_key, key_obj, hold_th) {
+        loop
+            if !mod_key.IsPressed()
+                return 1
+        if !key_obj.IsPressed()
+            return 2
+        if (QPC() - mod_key.pressed_time_qpc >= hold_th)
+            return 3
+        Sleep(1)
+    }
+}
 
-                    is_held := false
-                    t_qpc := QPC() - mod_key.pressed_time_qpc
-                    x := Layers.hold_th
+/**
+ * 現在押下されている修飾レイヤーキーに基づいて、同時押し入力の判定および処理を行います。
+ * @param {Object} key_obj - トリガーされたメインキーのオブジェクト
+ * @param {Integer} ime_state - 現在のIME状態（0: OFF, 1: ON）
+ * @returns {Boolean} 同時押しレイヤーアクションが発生して処理された場合は true、それ以外は false
+ */
+SendLayerKey(key_obj, ime_state) {
+    arr := ime_state == 1 ? this.ime_arr : this.arr
+    for item in arr {
+        mod_key := mod_key_list[item.layer_id]
+        if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
+            if Layers.State2(item.layer_id, key_obj) {
+                mod_hold_mode := (item.mode != -1) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
+                    mod_key.hold_mode_org)
 
-                    if (mod_hold_mode == 6) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else {
-                            ; t < x: Pend decision and monitor key states
-                            loop {
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 2-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 2-B: Main key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                t := QPC() - mod_key.pressed_time_qpc
-                                if (t >= x) {
-                                    ; Case 2-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
+                is_held := false
+                t_qpc := QPC() - mod_key.pressed_time_qpc
+                x := item.hold_th > 0 ? item.hold_th : Layers.hold_th
+                b := item.b_time > 0 ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
 
-                            }
-                        }
-                    } else if (mod_hold_mode == 7) {
-
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
-                            is_held := false
-                        } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-B: Main key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
-                    } else if (mod_hold_mode == 9) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
-                            key_obj.SendKeyWithShift()
-                            loop {
-                                if !mod_key.IsPressedDirect() {
-                                    return true
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    return true
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    SendEvent("{Backspace}")
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-B: Main key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
+                if (mod_hold_mode == 6) {
+                    if (t_qpc >= x) {
+                        is_held := true
+                    } else {
+                        res := Layers._WaitForHold(mod_key, key_obj, x)
+                        is_held := (res == 3)
                     }
-                    else if (mod_hold_mode == 8) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
+                } else if (mod_hold_mode == 7) {
+                    if (t_qpc >= x) {
+                        is_held := true
+                    } else if (t_qpc >= x - b) {
+                        res := Layers._WaitForHold(mod_key, key_obj, x)
+                        is_held := (res == 3)
+                    }
+                } else if (mod_hold_mode == 8) {
+                    if (t_qpc >= x) {
+                        is_held := true
+                    } else if (t_qpc >= x - b) {
+                        res := Layers._WaitForHold(mod_key, key_obj, x)
+                        is_held := (res == 2 || res == 3) ; メインキー先行Upまたは時間超過で修飾成立
+                    }
+                } else if (mod_hold_mode == 9) {
+                    if (t_qpc >= x) {
+                        is_held := true
+                    } else if (t_qpc < x - b) {
+                        key_obj.SendKeyWithShift()
+                        res := Layers._WaitForHold(mod_key, key_obj, x)
+                        if (res == 3) {
+                            Send("{Backspace}")
                             is_held := true
-                        } else if (t_qpc < x - Layers.b_time2) {
-                            is_held := false
                         } else {
-                            ; Grey zone: (x - Layers.b_time2) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-A: Mod key released first -> Send normal key
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-B: Main key released first -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
-                        }
-                    } else if (mod_hold_mode == 5) {
-                        if (t_qpc >= x) {
-                            mod_key.state := LKey.st_processed
-                            is_held := true
-                        } else if (t_qpc < x - Layers.b_time) {
-                            if (mod_key.state == LKey.st_pressing) {
-                                mod_key.SendShiftedKey(false)
-                            }
-                            mod_key.state := LKey.st_processed
-                            is_held := false
-                        } else {
-                            ; Grey zone: (x - Layers.b_time) <= t < x
-                            ; Pend decision and monitor key states
-                            loop {
-                                if !mod_key.IsPressedDirect() {
-                                    ; Case 3-B: Mod key released first -> Send modifier key, then let main key flow through
-                                    if (mod_key.state == LKey.st_pressing) {
-                                        mod_key.SendShiftedKey(false)
-                                    }
-                                    mod_key.state := LKey.st_processed
-                                    is_held := false
-                                    break
-                                }
-                                if !key_obj.IsPressedDirect() {
-                                    ; Case 3-A: Main key released first -> Send modifier key, then let main key flow through
-                                    if (mod_key.state == LKey.st_pressing) {
-                                        mod_key.SendShiftedKey(false)
-                                    }
-                                    mod_key.state := LKey.st_processed
-                                    is_held := false
-                                    break
-                                }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
-                                    ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
-                                    mod_key.state := LKey.st_processed
-                                    is_held := true
-                                    break
-                                }
-                                Sleep(1)
-                            }
+                            return true
                         }
                     } else {
-                        is_held := (t_qpc > x)
+                        res := Layers._WaitForHold(mod_key, key_obj, x)
+                        is_held := (res == 3)
                     }
-                    if is_held {
-                        action_to_send := item.action
-                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
-                            false) {
-                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
-                            if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
-                                Layers.last_active_item == item) {
-                                item.tap_count += 1
-                            } else {
-                                item.tap_count := 1
-                                item.last_mod_key := mod_key
-                                item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
-                            }
-                            if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
-                                action_to_send := item.action3
-                            } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
-                                action_to_send := item.action2
-                            }
+                } else if (mod_hold_mode == 5) {
+                    if (t_qpc >= x) {
+                        is_held := true
+                    } else if (t_qpc < x - b) {
+                        if (mod_key.state == LKey.st_pressing)
+                            mod_key.SendShiftedKey(false)
+                        mod_key.state := LKey.st_processed
+                        is_held := false
+                    } else {
+                        res := Layers._WaitForHold(mod_key, key_obj, x)
+                        if (res == 3) {
+                            is_held := true
+                        } else {
+                            if (mod_key.state == LKey.st_pressing)
+                                mod_key.SendShiftedKey(false)
+                            mod_key.state := LKey.st_processed
+                            is_held := false
                         }
-                        ; 直近のアクティブなレイヤーアイテムを更新
-                        Layers.last_active_item := item
-
-                        this._SendKey(item.layer_id, action_to_send, key_obj)
-                        return true
                     }
+                } else {
+                    is_held := (t_qpc >= x)
+                }
+
+                if is_held {
+                    mod_key.state := LKey.st_processed
+                    action_to_send := item.action
+                    if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                        false) {
+                        ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                        if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
+                            Layers.last_active_item == item) {
+                            item.tap_count += 1
+                        } else {
+                            item.tap_count := 1
+                            item.last_mod_key := mod_key
+                            item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
+                        }
+                        if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
+                            action_to_send := item.action3
+                        } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
+                            action_to_send := item.action2
+                        }
+                    }
+                    ; 直近のアクティブなレイヤーアイテムを更新
+                    Layers.last_active_item := item
+
+                    this._SendKey(item.layer_id, action_to_send, key_obj)
+                    return true
                 }
             }
         }
-        return false
     }
+    return false
+}
 
 }
 /**
