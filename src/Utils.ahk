@@ -282,7 +282,7 @@ g_freq := QueryFrequency()
  * 高分解能タイマーによる現在時刻を取得します (単位: ミリ秒)。
  * @returns {Float} 経過ミリ秒
  */
-QPC() {
+HighPrecisionTimer() {
     ; static freq := 0
     ; if (!freq)
     ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq, "Int")
@@ -308,12 +308,12 @@ Wait(t) {
  * QPC高精度タイマーを利用した、ミリ秒未満の精度を持つビジーループと待機を組み合わせた高精度Sleep関数。
  * @param {Integer} t - 待機時間 (ms)
  */
-SleepQPC(t) {
-    start_qpc := QPC()
+SleepHighPrecision(t) {
+    start_qpc := HighPrecisionTimer()
 
     ; 【フェーズ1：大きく休む（2ms以上の隙間があるとき）】
     ; ターゲットの2ms手前までは、正確になった Wait() でCPUを完全に寝かせる
-    while ((rem := t - (QPC() - start_qpc)) > 2) {
+    while ((rem := t - (HighPrecisionTimer() - start_qpc)) > 2) {
         ; 残り時間に応じた可変ウェイト（最大でも5msに抑えてキー入力を逃さない）
         wait_time := (rem > 5) ? 5 : 1
         Wait(wait_time)
@@ -323,7 +323,7 @@ SleepQPC(t) {
     ; 【フェーズ2：ミリ秒未満の極小の隙間を埋める】
     ; 残り2ms未満になったら、Waitを使うと行き過ぎる可能性があるので、
     ; Sleep(0) または SwitchToThread で他のプロセスに優しく譲りつつ、QPCで超高精度に時間を合わせる
-    while (QPC() - start_qpc < t) {
+    while (HighPrecisionTimer() - start_qpc < t) {
         ; Sleep(0) または DllCall("SwitchToThread") は、
         ; タイマー解像度に関係なく、1タイムスライス（数マイクロ秒）だけタスクを譲る
         DllCall("SwitchToThread")

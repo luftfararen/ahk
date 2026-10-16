@@ -1,4 +1,5 @@
 #Requires AutoHotkey v2.0
+#SingleInstance Force
 
 ; ============================================================================
 ; キーカスタマイズスクリプト "Playgrounds" 概要
@@ -419,6 +420,11 @@ GroupAdd("RemoteDesktops", "ahk_class TscShellContainerClass") ; Windows 標準R
 ;GroupAdd("RemoteDesktops", "ahk_exe tvnviewer.exe")            ; TightVNC
 ;GroupAdd("RemoteDesktops", "ahk_exe vncviewer.exe")            ; RealVNC / UltraVNC
 
+; --- ホットキーリマップを除外するウィンドウグループ ---
+GroupAdd("IgnoreWindows", "ahk_group RemoteDesktops")
+GroupAdd("IgnoreWindows", "ahk_exe TextInputHost.exe")
+GroupAdd("IgnoreWindows", "ahk_exe PowerToys.AdvancedPaste.exe")
+
 /**
  * リモートデスクトップウィンドウがアクティブな場合に、スクリプトを自動的にサスペンド（一時停止）する
  * @returns {Boolean} サスペンドされた状態であれば true
@@ -651,9 +657,7 @@ class RKey {
      * @returns {Boolean} CAW が押されていた場合 (パススルー発生) は true
      */
     _SendCAWKey(pressed_key) {
-        caw := GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState(
-            "RWin",
-            "P")
+        caw := GetKeyState("Ctrl") || GetKeyState("Alt") || GetKeyState("LWin") || GetKeyState("RWin")
         if caw {
             Send("{Blind}" . pressed_key)
             return true
@@ -1095,7 +1099,7 @@ class LKey extends RKey {
         }
 
         this.interrupted := false
-        this.pressed_time_qpc := QPC()
+        this.pressed_time_qpc := HighPrecisionTimer()
         this.down_ime_state := ime_state
         LKey.InterruptOthers(this)
         this.state := LKey.st_pressing
@@ -1136,7 +1140,7 @@ class LKey extends RKey {
             SetTimer(this.timer_name, 0)
         }
 
-        duration := QPC() - this.pressed_time_qpc
+        duration := HighPrecisionTimer() - this.pressed_time_qpc
 
         ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
         if (hold_mode == 3 || hold_mode == 13) {
@@ -1163,7 +1167,7 @@ class LKey extends RKey {
     OnHoldTimeout() {
         Critical
         if (this.state == LKey.st_pressing && !this.interrupted) {
-            duration := QPC() - this.pressed_time_qpc
+            duration := HighPrecisionTimer() - this.pressed_time_qpc
             if (duration >= LKey.hold_th) {
                 this.state := LKey.st_processed
                 Send("{Backspace}")
@@ -1676,7 +1680,7 @@ class Layers {
                 return 1
             if !key_obj.IsPressed()
                 return 2
-            if (QPC() - mod_key.pressed_time_qpc >= hold_th)
+            if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= hold_th)
                 return 3
             Sleep(1)
         }
@@ -1700,7 +1704,7 @@ class Layers {
                         mod_key.hold_mode_org)
 
                     is_held := false
-                    t_qpc := QPC() - mod_key.pressed_time_qpc
+                    t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
                     x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
                     b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
 
@@ -2057,7 +2061,7 @@ ShowHelp() {
  */
 Init() {
     g_freq := QueryFrequency()
-    start_qpc := QPC()
+    start_qpc := HighPrecisionTimer()
 
     DllCall("winmm\timeBeginPeriod", "UInt", 1, "UInt")
 
@@ -2094,7 +2098,7 @@ Init() {
     ; 8. タイマーの開始 (初期化完了後に実行)
     SetTimer(TimerEvent, 100)
 
-    end_qpc := QPC()
+    end_qpc := HighPrecisionTimer()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", TypeAnalyzer.current_layout, end_qpc - start_qpc), 5000)
 }
 

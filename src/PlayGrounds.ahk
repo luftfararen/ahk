@@ -1,4 +1,5 @@
 #Requires AutoHotkey v2.0
+#SingleInstance Force
 
 ; ============================================================================
 ; キーカスタマイズスクリプト "Playgrounds" 概要
@@ -418,6 +419,11 @@ GroupAdd("RemoteDesktops", "ahk_class TscShellContainerClass") ; Windows 標準R
 ;GroupAdd("RemoteDesktops", "ahk_exe tvnviewer.exe")            ; TightVNC
 ;GroupAdd("RemoteDesktops", "ahk_exe vncviewer.exe")            ; RealVNC / UltraVNC
 
+; --- ホットキーリマップを除外するウィンドウグループ ---
+GroupAdd("IgnoreWindows", "ahk_group RemoteDesktops")
+GroupAdd("IgnoreWindows", "ahk_exe TextInputHost.exe")
+GroupAdd("IgnoreWindows", "ahk_exe PowerToys.AdvancedPaste.exe")
+
 /**
  * リモートデスクトップウィンドウがアクティブな場合に、スクリプトを自動的にサスペンド（一時停止）する
  * @returns {Boolean} サスペンドされた状態であれば true
@@ -650,9 +656,7 @@ class RKey {
      * @returns {Boolean} CAW が押されていた場合 (パススルー発生) は true
      */
     _SendCAWKey(pressed_key) {
-        caw := GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState(
-            "RWin",
-            "P")
+        caw := GetKeyState("Ctrl") || GetKeyState("Alt") || GetKeyState("LWin") || GetKeyState("RWin")
         if caw {
             Send("{Blind}" . pressed_key)
             return true
@@ -1210,7 +1214,7 @@ class LKey extends RKey {
 
         this.saved_scaw := MakeModStr()
         this.interrupted := false
-        this.pressed_time_qpc := QPC()
+        this.pressed_time_qpc := HighPrecisionTimer()
         this.down_ime_state := ImeState.IsOn()
         this.state := LKey.st_pressing
         LKey.InterruptOthers(this)
@@ -1243,17 +1247,17 @@ class LKey extends RKey {
         }
 
         G_PendingKey := this
-        G_PendingTime := QPC()
+        G_PendingTime := HighPrecisionTimer()
 
-        start_qpc := QPC()
+        start_qpc := HighPrecisionTimer()
         is_intercepted := false
 
-        while ((QPC() - start_qpc) < LKey.pre_stroke_buf) {
+        while ((HighPrecisionTimer() - start_qpc) < LKey.pre_stroke_buf) {
             if LKey.IsAnyMode3Pressed() {
                 is_intercepted := true
                 break
             }
-            SleepQPC(1)
+            SleepHighPrecision(1)
         }
 
         if (!is_intercepted && G_PendingKey == this) {
@@ -1271,7 +1275,7 @@ class LKey extends RKey {
             this.SendKeyWithShift()
         } else {
             this.interrupted := false
-            this.pressed_time_qpc := QPC()
+            this.pressed_time_qpc := HighPrecisionTimer()
             this.down_ime_state := ime_state
             LKey.InterruptOthers(this)
             this.state := LKey.st_pressing
@@ -1332,7 +1336,7 @@ class LKey extends RKey {
         ; 動作中のタイマーを確実にキャンセル
         SetTimer(this.timer_name, 0)
 
-        duration := QPC() - this.pressed_time_qpc
+        duration := HighPrecisionTimer() - this.pressed_time_qpc
 
         ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
         if (hold_mode == 3 || hold_mode == 13) {
@@ -1850,7 +1854,7 @@ class Layers {
                         mod_key.hold_mode_org)
 
                     is_held := false
-                    t_qpc := QPC() - mod_key.pressed_time_qpc
+                    t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
                     x := Layers.hold_th
 
                     if (mod_hold_mode == 6) {
@@ -1870,7 +1874,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                t := QPC() - mod_key.pressed_time_qpc
+                                t := HighPrecisionTimer() - mod_key.pressed_time_qpc
                                 if (t >= x) {
                                     ; Case 2-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     mod_key.state := LKey.st_processed
@@ -1903,7 +1907,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -1925,7 +1929,7 @@ class Layers {
                                 if !key_obj.IsPressedDirect() {
                                     return true
                                 }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= x) {
                                     SendEvent("{Backspace}")
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -1948,7 +1952,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -1979,7 +1983,7 @@ class Layers {
                                     is_held := true
                                     break
                                 }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -2020,7 +2024,7 @@ class Layers {
                                     is_held := false
                                     break
                                 }
-                                if (QPC() - mod_key.pressed_time_qpc >= x) {
+                                if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= x) {
                                     ; Case 3-C: Both remain held, time exceeds Layers.hold_th -> Send combination
                                     mod_key.state := LKey.st_processed
                                     is_held := true
@@ -2324,7 +2328,7 @@ ShowHelp() {
  */
 Init() {
     g_freq := QueryFrequency()
-    start_qpc := QPC()
+    start_qpc := HighPrecisionTimer()
 
     DllCall("winmm\timeBeginPeriod", "UInt", 1, "UInt")
 
@@ -2361,7 +2365,7 @@ Init() {
     ; 8. タイマーの開始 (初期化完了後に実行)
     SetTimer(TimerEvent, 100)
 
-    end_qpc := QPC()
+    end_qpc := HighPrecisionTimer()
     ShowOSD(Format("{} layout(init:{:.1f}ms)", TypeAnalyzer.current_layout, end_qpc - start_qpc), 5000)
 }
 

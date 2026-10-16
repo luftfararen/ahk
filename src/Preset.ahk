@@ -204,7 +204,7 @@ ChangeSTREAM1_5_Layout() {
  * 各レイヤー（ナビゲーション、記号、テンキー、選択、Shiftなど）に対する、物理キーから送信キーへの具体的なマッピングを初期設定します。
  */
 InitModLayer() {
-    start_qpc := QPC()
+    start_qpc := HighPrecisionTimer()
 
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
     global q, w, e, r, t, y, u, i, o, p, at, openbracket

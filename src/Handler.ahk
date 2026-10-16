@@ -1,21 +1,10 @@
 #Requires AutoHotkey v2.0
 
-#HotIf !WinActive("ahk_exe TextInputHost.exe")
-^v::^v
-^!v::^!v
-^+v::^+v
-#HotIf
-
-#HotIf !WinActive("ahk_exe PowerToys.PowerPaste.exe")
-^v::^v
-^!v::^!v
-^+v::^+v
-#HotIf
-
-#HotIf !WinActive("ahk_exe PowerToys.AdvancePaste.exe")
-^v::^v
-^!v::^!v
-^+v::^+v
+; クリップボード履歴 (TextInputHost.exe) や PowerToys Advanced Paste などの
+; 外部アプリからの貼り付け (Ctrl+V 等) がスクリプトのリマップ (*v) に横取りされないようパススルー
+#HotIf !WinActive("ahk_group RemoteDesktops")
+~^v:: {
+}
 #HotIf
 
 ; ============================================================================
@@ -79,7 +68,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ; これらのホットキーはレイヤーが押されていない時にアクティブになります。
 ; それぞれの RKey/LKey オブジェクトの Down() と Up() メソッドを呼び出し、
 ; リマップ、モディファイアのパススルー、および長押しのロジックを処理します。
-#HotIf !WinActive("ahk_group RemoteDesktops")
+#HotIf !WinActive("ahk_group IgnoreWindows")
 *1:: k1.Down()
 *1 up:: k1.Up()
 *2:: k2.Down()
