@@ -1326,6 +1326,16 @@ class TypeAnalyzer {
     }
 
     /**
+     * キーロガーの最大処理時間を更新・リセットして一時的な遅延スパイクから復帰可能にします。
+     */
+    static ResetTotalLogTime() {
+        if this.total_log_time > 0 {
+            this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
+            this.total_log_time := 0
+        }
+    }
+
+    /**
      * 指定されたアイドル時間に基づき、必要に応じてログデータを自動保存します。
      * @param {Integer} time - アイドル時間 (ms)
      */

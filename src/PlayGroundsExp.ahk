@@ -533,10 +533,7 @@ TimerEvent() {
 
     ; 10秒ごとにキーロガーの最大処理時間をリセットして一時的な遅延スパイクから復帰可能にする
     if (Mod(counter, 100) == 0) {
-        if TypeAnalyzer.total_log_time > 0 {
-            TypeAnalyzer.total_log_time2 := Max(TypeAnalyzer.total_log_time2, TypeAnalyzer.total_log_time)
-            TypeAnalyzer.total_log_time := 0
-        }
+        TypeAnalyzer.ResetTotalLogTime()
     }
 
     counter++
