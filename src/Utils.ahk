@@ -167,8 +167,10 @@ B_F12 := "{Blind}{F12}"
  * @param {String} defaultValue - デフォルト値
  * @returns {String} 読み込んだ設定値
  */
-ReadConfig(section, key, defaultValue) {
-    static ConfigPath := A_ScriptDir . "\config.ini"
+ReadConfig(section, key, defaultValue, ConfigPath := "") {
+    if ConfigPath = "" {
+        ConfigPath := A_ScriptDir . "\config.ini"
+    }
     val := IniRead(ConfigPath, section, key, defaultValue)
     val := RegExReplace(val, "[\t ]+;.*$") ; インラインコメントを除去
     return StripQuotes(Trim(val))
@@ -182,9 +184,12 @@ ReadConfig(section, key, defaultValue) {
  * @param {Integer} defaultValue - デフォルト値
  * @returns {Integer} 読み込んだ整数設定値
  */
-ReadConfigInt(section, key, defaultValue) {
+ReadConfigInt(section, key, defaultValue, ConfigPath := "") {
+    if ConfigPath = "" {
+        ConfigPath := A_ScriptDir . "\config.ini"
+    }
     try {
-        return Integer(ReadConfig(section, key, String(defaultValue)))
+        return Integer(ReadConfig(section, key, String(defaultValue), ConfigPath))
     } catch {
         return defaultValue
     }

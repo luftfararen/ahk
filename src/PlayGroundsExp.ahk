@@ -82,7 +82,7 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 ;+#F23::#!space
 
 ; ============================================================================
-; レイヤー番号定義（グローバル定数）
+; layer_num
 ; ============================================================================
 global L_NAVI_CTRL := 1
 global L_SYMBOL_NUM := 2
@@ -93,7 +93,13 @@ global L_NUMPAD := 6
 global L_SHIFT := 7
 global L_FUNC := 8
 
+;TODO:
+;将来的に、mod_key_listを配し、
+;layer_num(レイヤー用配列とその番号)
+;mod_idx(キー、または、キーの組み合わせのインデックス番号)
+;の管理に移行する予定
 global mod_key_list := []
+global layer_num_to_mod_idx := []
 
 /**
  * Shiftキーが物理的に押されているか、またはSpaceキーがシフト修飾として機能しているかを判定します。
@@ -1458,75 +1464,89 @@ class Layers {
     ;static layer_id_list := [L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT]
 
     /**
-     * 特定のモディファイアレイヤー（M1〜M6）がアクティブかどうかを判定します。
+     * レイヤー番号で指定されたレイヤーがアクティブかどうかを判定します。
      * 他のレイヤーが同時にアクティブでないことも確認します。
-     * @param {Integer} layer - 確認するレイヤー番号
+     * @param {Integer} layer_num - レイヤー番号
      * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
      */
-    static State(layer) {
+    static State(layer_num) {
+        if (layer_num < 1 || layer_num > layer_num_to_mod_idx.Length) {
+            ;Tooltip(layer_num " is not in the range of 1 to " layer_num_to_mod_idx.Length)
+            return false
+        }
+        return Layers.StateModIdx(layer_num_to_mod_idx[layer_num])
+    }
+
+    /**
+     * 特定のモディファイアインデックス（M1〜M8）がアクティブかどうかを判定します。
+     * 他のレイヤーが同時にアクティブでないことも確認します。
+     * @param {Integer} mod_idx - 修飾キーインデックス
+     * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+     */
+    static StateModIdx(mod_idx) {
         if WinActive("ahk_group RemoteDesktops")
             return false
 
-        if (layer < 1 || layer > mod_key_list.Length)
+        if (mod_idx < 1 || mod_idx > mod_key_list.Length)
             return false
 
-        key_navi := mod_key_list[L_NAVI_CTRL]
-        key_symbol := mod_key_list[L_SYMBOL_NUM]
-        key_conv := mod_key_list[L_SYMBOL1]
-        key_f14 := mod_key_list[L_SYMBOL2]
-
-        ; Check the specified layer
-        if layer = L_NAVI_CTRL {
-            return key_navi.IsPressed() && !(GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        ; Check the specified mod_idx
+        if mod_idx = 1 {
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
         }
-        if layer = L_FUNC {
-            return key_conv.IsPressed() && key_f14.IsPressed()
+        if mod_idx = 2 {
+            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P"))
         }
-        if layer = L_SYMBOL_NUM {
-            return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
+        if mod_idx = 3 {
+            return conv.IsPressed() && !f14.IsPressed()
         }
-        if layer = L_SELECT {
-            return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
+        if mod_idx = 4 {
+            return f14.IsPressed() && !conv.IsPressed()
         }
-        if layer = L_SYMBOL1 {
-            return key_conv.IsPressed() && !key_f14.IsPressed()
+        if mod_idx = 5 {
+            return f13.IsPressed() && (GetKeyState("Alt", "P") || noconv.IsPressed())
         }
-        if layer = L_SYMBOL2 {
-            return key_f14.IsPressed() && !key_conv.IsPressed()
+        if mod_idx = 6 {
+            return tab.IsPressed()
+        }
+        if mod_idx = 7 {
+            return space.IsPressed()
+        }
+        if mod_idx = 8 {
+            return conv.IsPressed() && f14.IsPressed()
         }
 
         ; その他の単純なレイヤー判定は、対応するキーの押下状態を返す
-        return mod_key_list[layer].IsPressed()
+        ;return mod_key_list[mod_idx].IsPressed()
     }
 
     /**
      * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを厳密に判定します。
-     * @param {Integer} layer - レイヤーID
-     * @param {Array} arr - レイヤーアイテム配列
+     * @param {Integer} layer_num- レイヤー番号
      * @param {Object} key_obj - 処理対象 of キーオブジェクト
      * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
      */
-    static State2(layer_id, key_obj) {
+    static State2(layer_num, key_obj) {
         if WinActive("ahk_group RemoteDesktops")
             return false
 
-        if (layer_id < 1 || layer_id > mod_key_list.Length)
+        if (layer_num < 1 || layer_num > mod_key_list.Length)
             return false
 
-        key_navi := mod_key_list[L_NAVI_CTRL]
-        key_symbol := mod_key_list[L_SYMBOL_NUM]
-        key_conv := mod_key_list[L_SYMBOL1]
-        key_f14 := mod_key_list[L_SYMBOL2]
+        key_navi := f13 ;mod_key_list[L_NAVI_CTRL]
+        key_symbol := noconv ;mod_key_list[L_SYMBOL_NUM]
+        key_conv := conv ;mod_key_list[L_SYMBOL1]
+        key_f14 := f14 ;mod_key_list[L_SYMBOL2]
 
         ; Check the specified layer
-        if layer_id = L_NAVI_CTRL {
+        if layer_num = L_NAVI_CTRL {
             if key_navi = key_obj
                 return false
             if key_symbol = key_obj
                 return false
             return key_navi.IsPressed() && !(GetKeyState("Alt", "P") || key_symbol.IsPressed())
         }
-        if layer_id = L_SYMBOL_NUM {
+        if layer_num = L_SYMBOL_NUM {
             if key_symbol = key_obj
                 return false
             if key_navi = key_obj
@@ -1534,36 +1554,37 @@ class Layers {
             return key_symbol.IsPressed() && !(key_navi.IsPressed() || GetKeyState("Alt", "P"))
         }
 
-        if layer_id = L_SELECT {
+        if layer_num = L_SELECT {
             if key_navi = key_obj
                 return false
             if key_symbol = key_obj
                 return false
             return key_navi.IsPressed() && (GetKeyState("Alt", "P") || key_symbol.IsPressed())
         }
-        if layer_id = L_FUNC {
+        if layer_num = L_FUNC {
             if key_conv = key_obj
                 return false
             if key_f14 = key_obj
                 return false
             return key_conv.IsPressed() && key_f14.IsPressed()
         }
-        if layer_id = L_SYMBOL1 {
+        if layer_num = L_SYMBOL1 {
             if key_conv = key_obj
                 return false
             return key_conv.IsPressed() && !key_f14.IsPressed()
         }
-        if layer_id = L_SYMBOL2 {
+        if layer_num = L_SYMBOL2 {
             if key_f14 = key_obj
                 return false
             return key_f14.IsPressed() && !key_conv.IsPressed()
         }
 
-        key := mod_key_list[layer_id]
+        key := mod_key_list[layer_num]
         if key = key_obj
             return false
         return key.IsPressed()
     }
+
     /**
      * レイヤー修飾キーを登録し、そのインデックスを返す
      * @param {HotKey} key_obj - 修飾キーオブジェクト
@@ -2072,6 +2093,9 @@ Init() {
     global mod_key_list
     ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT,FUNC
     mod_key_list := [f13, noconv, conv, f14, f13, tab, space, conv]
+
+    global layer_num_to_mod_idx
+    layer_num_to_mod_idx := [1, 2, 3, 4, 5, 6, 7, 8]
 
     ; 4. レイヤーとレイアウトの適用
     InitModLayer()
