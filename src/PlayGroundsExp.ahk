@@ -690,6 +690,7 @@ class RKey {
         Critical
         LKey.InterruptOthers(this)
         Layers.last_active_item := ""
+        Critical "Off"
         this._SendSCAWKey(this.org_key)
     }
 
@@ -1074,11 +1075,14 @@ class LKey extends RKey {
             return
         }
 
-        ; レイヤーキーの判定
+        ; レイヤーキーの判定 (待機処理を含むため Critical を解除して実行)
+        Critical "Off"
         if this.SendLayerKey(ime_state) {
             if (hold_mode != 0) {
+                Critical
                 LKey.InterruptOthers(this)
                 this.state := LKey.st_processed
+                Critical "Off"
             }
             return
         }
@@ -1088,9 +1092,11 @@ class LKey extends RKey {
         ; 修飾キー (Ctrl/Alt/Win) パススルー判定
         if super._SendCAWKey(this.org_key) {
             if (hold_mode != 0) {
+                Critical
                 LKey.InterruptOthers(this)
                 this.pressed_time_qpc := 0
                 this.state := LKey.st_processed
+                Critical "Off"
             }
             return
         }
@@ -1101,11 +1107,13 @@ class LKey extends RKey {
             return
         }
 
+        Critical
         this.interrupted := false
         this.pressed_time_qpc := HighPrecisionTimer()
         this.down_ime_state := ime_state
         LKey.InterruptOthers(this)
         this.state := LKey.st_pressing
+        Critical "Off"
 
         switch hold_mode {
             case 1: ; 短押し->即時送信、長押し->置換
@@ -1144,24 +1152,28 @@ class LKey extends RKey {
         }
 
         duration := HighPrecisionTimer() - this.pressed_time_qpc
-
-        ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
-        if (hold_mode == 3 || hold_mode == 13) {
-            if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
-                SendAndLog("{Blind}" . this.saved_scaw . this.key_text)
-            }
-        } else if (hold_mode == 5) {
-            ; モード5：短押し（単独Up時）に通常キーを送信
-            if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
-                this.SendKeyWithShift()
-            }
-        }
+        saved_state := this.state
+        saved_interrupted := this.interrupted
+        saved_scaw := this.saved_scaw
 
         ; 状態を初期化
         this.state := LKey.st_init
         this.pressed_time_qpc := 0
         this.interrupted := false
         this.saved_scaw := ""
+        Critical "Off"
+
+        ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
+        if (hold_mode == 3 || hold_mode == 13) {
+            if (saved_state == LKey.st_pressing && !saved_interrupted && duration < LKey.hold_th) {
+                SendAndLog("{Blind}" . saved_scaw . this.key_text)
+            }
+        } else if (hold_mode == 5) {
+            ; モード5：短押し（単独Up時）に通常キーを送信
+            if (saved_state == LKey.st_pressing && !saved_interrupted && duration < LKey.hold_th) {
+                this.SendKeyWithShift()
+            }
+        }
     }
 
     /**
@@ -1696,22 +1708,58 @@ class Layers {
     }
 
     /**
-     * 修飾キーとメインキーの押下状態を監視し、ホールド閾値の到達またはリリースを検出します。
+     * 修飾キーとメインキーの押下状態を監視し、ホールド閾値の到達またはリリースをイベント駆動で検出します。
+     * SetTimer と Windows メッセージ待機 (MsgWaitForMultipleObjects) を活用し、
+     * ビジーポーリング (Sleep(1) のループ) を廃止してキーリリースおよびタイムアウトを検知します。
      * @param {LKey} mod_key - 修飾側のキーオブジェクト
      * @param {LKey} key_obj - メイン側のキーオブジェクト
      * @param {Integer} hold_th - ホールド成立閾値 (ms)
      * @returns {Integer} 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
      */
     static _WaitForHold(mod_key, key_obj, hold_th) {
-        loop {
-            if !mod_key.IsPressed()
-                return 1
-            if !key_obj.IsPressed()
-                return 2
-            if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= hold_th)
-                return 3
-            Sleep(1)
+        elapsed := HighPrecisionTimer() - mod_key.pressed_time_qpc
+        if (elapsed >= hold_th)
+            return 3
+        if !mod_key.IsPressed()
+            return 1
+        if !key_obj.IsPressed()
+            return 2
+
+        remaining := hold_th - elapsed
+        timeout_fired := false
+        on_timeout := (*) => (timeout_fired := true)
+
+        ; 残り時間をワンショットタイマーとして登録
+        timer_ms := Max(1, Ceil(remaining))
+        SetTimer(on_timeout, -timer_ms)
+
+        res := 3
+        try {
+            loop {
+                ; キーのリリース判定
+                if !mod_key.IsPressed() {
+                    res := 1
+                    break
+                }
+                if !key_obj.IsPressed() {
+                    res := 2
+                    break
+                }
+                ; タイマー発火または時間超過判定
+                if (timeout_fired || (HighPrecisionTimer() - mod_key.pressed_time_qpc >= hold_th)) {
+                    res := 3
+                    break
+                }
+
+                ; Windowsメッセージキューの受信待機 (MsgWaitForMultipleObjects: QS_ALLINPUT = 0x04FF)
+                ; キーイベント等のメッセージが到着した瞬間に即座にウェイクアップし、CPUを消費しない
+                DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", 10, "UInt", 0x04FF, "UInt")
+            }
+        } finally {
+            SetTimer(on_timeout, 0)
         }
+
+        return res
     }
 
     /**
