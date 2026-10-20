@@ -19,32 +19,26 @@ C_CONV := "{sc079}"
 B_CONV := "{Blind}{sc079}"
 
 ; --- 円キー (¥) ---
-;R_YEN := "sc07D"
 C_YEN := "{sc07D}"
 B_YEN := "{Blind}{sc07D}"
 
 ; --- バックスラッシュキー (\) ---
-;R_BACKSLASH := "sc073"
 C_BACKSLASH := "{sc073}"
 
 ; --- ハット/キャレットキー (^) ---
-;R_HAT := "sc00D"
 C_HAT := "{sc00D}"
 
 ; --- セミコロン (;) ---
-;R_SEMICOLON := "sc027"
 C_SEMICOLON := "{sc027}"
 B_SEMICOLON := "{Blind}{sc027}"
 C_PLUS := "+{sc027}"
 
 ; --- コロン (:) ---
-;R_COLON := "sc028"
 C_COLON := "{sc028}"
 B_COLON := "{Blind}{sc028}"
 C_ASTERISK := "+{sc028}"
 
 ; --- カンマ (,) ---
-;R_COMMA := "sc033"
 C_COMMA := "{sc033}"
 
 ; --- 英数 (CapsLock) ---
@@ -61,7 +55,6 @@ C_ZENKAKU := "{sc029}"
 B_ZENKAKU := "{Blind}{sc029}"
 
 ; --- スラッシュ (/) ---
-;R_SLASH := "sc035"
 C_SLASH := "{sc035}"
 B_SLASH := "{Blind}{sc035}"
 
@@ -69,7 +62,6 @@ B_SLASH := "{Blind}{sc035}"
 R_ENTER := "ENTER"
 C_ENTER := "{Enter}"
 B_ENTER := "{Blind}{Enter}"
-;R_ADAPTIVE_ENTER := "AEnter"
 
 ; --- テンキー定数 ---
 C_N0 := "{Numpad0}"
@@ -267,7 +259,6 @@ QueryFrequency() {
     freq := 0
     DllCall("QueryPerformanceFrequency", "Int64*", &freq, "Int")
     return freq
-    ;return 1000
 }
 
 /**
@@ -278,7 +269,6 @@ QueryCounter() {
     tick := 0
     DllCall("QueryPerformanceCounter", "Int64*", &tick, "Int")
     return tick
-    ;return A_TickCount
 }
 
 g_freq := QueryFrequency()
@@ -288,12 +278,6 @@ g_freq := QueryFrequency()
  * @returns {Float} 経過ミリ秒
  */
 HighPrecisionTimer() {
-    ; static freq := 0
-    ; if (!freq)
-    ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq, "Int")
-    ; counter := 0
-    ; DllCall("QueryPerformanceCounter", "Int64*", &counter)
-    ; return (counter / freq) * 1000 ; ミリ秒単位に変換して返す
     global g_freq
     counter := 0
     DllCall("QueryPerformanceCounter", "Int64*", &counter)
@@ -834,9 +818,6 @@ class FontManager {
  * @param {Boolean} [key_close=False] - True の場合、全キーが離されるまで、またはタイムアウトまで表示を維持する
  */
 ShowOSD(text, duration := 3000, key_close := False) {
-    ; \n を `n に置換して改行を有効にする
-    ;text := StrReplace(text, "\n", "`n")
-
     my_gui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
     my_gui.BackColor := "333333"
     my_gui.SetFont("s16 cWhite w700", FontManager.Monospace)
@@ -1040,7 +1021,6 @@ class TypeAnalyzer {
     static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
 
     static log_file := A_ScriptDir . "\log.txt"
-    ;static config_file := A_ScriptDir . "\config.ini"
     static is_logging_enabled := false
     static is_showing_ime_indicator := true
     static stats := Map()     ; 段階3: フル辞書 (長期保存用)
@@ -1057,10 +1037,6 @@ class TypeAnalyzer {
     static total_log_time := 0
     static total_log_time2 := 0
     static freq := 0
-
-    ; __init() {
-    ;     DllCall("QueryPerformanceFrequency", "Int64*", &freq := 0)
-    ; }
 
     /**
      * 直近の打鍵履歴（3文字トリグラム追跡バッファ）をリセットします。
@@ -1498,117 +1474,6 @@ StringToHex(str) {
 }
 
 /**
- * 現在フォーカスされているコントロールで未確定文字列（入力中・変換中）が存在するかを取得する
- * @returns {Boolean} 未確定文字が存在すれば true
- */
-; static IsComposing() {
-;     hwnd := GetFocusedControlHandle()
-;     if !hwnd
-;         return false
-
-;     ; 1. IMM32 API (ImmGetCompositionStringW) による判定
-;     hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
-;     if hIMC {
-;         compLen := DllCall("imm32\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x0008, "Ptr", 0, "UInt", 0,
-;             "Int")
-;         DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
-;         if (compLen > 0) {
-;             ImeState.is_composing_tracked := true
-;             return true
-;         }
-;     }
-
-;     ; 2. 他プロセスウィンドウの場合: AttachThreadInput によるコンテキスト取得
-;     targetThreadId := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
-;     currentThreadId := DllCall("GetCurrentThreadId", "UInt")
-;     if (targetThreadId && targetThreadId != currentThreadId) {
-;         if DllCall("AttachThreadInput", "UInt", currentThreadId, "UInt", targetThreadId, "Int", 1) {
-;             hIMC := DllCall("imm32\ImmGetContext", "Ptr", hwnd, "Ptr")
-;             compLen := 0
-;             if hIMC {
-;                 compLen := DllCall("imm32\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x0008, "Ptr", 0, "UInt",
-;                     0, "Int")
-;                 DllCall("imm32\ImmReleaseContext", "Ptr", hwnd, "Ptr", hIMC)
-;             }
-;             DllCall("AttachThreadInput", "UInt", currentThreadId, "UInt", targetThreadId, "Int", 0)
-;             if (compLen > 0) {
-;                 ImeState.is_composing_tracked := true
-;                 return true
-;             }
-;         }
-;     }
-
-;     ; 3. 候補ウィンドウ等の存在チェック (変換中のフォールバック)
-;     if WinExist("ahk_class Microsoft.IME.UIManager.CandidateWindow.Host") || WinExist("ahk_class MSCTFIME UI") {
-;         return true
-;     }
-
-;     ; 4. TSF / モダンアプリ向け: キーストロークトラッキングによる判定
-;     if (ImeState.IsOn() && ImeState.is_composing_tracked) {
-;         if (ImeState.composition_hwnd != 0 && ImeState.composition_hwnd != hwnd) {
-;             ImeState.ResetComposition()
-;             return false
-;         }
-;         return true
-;     }
-
-;     return false
-; }
-
-; I_1 := 0
-; I_2 := 1
-; I_3 := 2
-; I_4 := 3
-; I_5 := 4
-; I_6 := 5
-; I_7 := 6
-; I_8 := 7
-; I_9 := 8
-; I_0 := 9
-; I_minus := 10
-; I_hat := 11
-; I_yen := 12
-; I_q := 13
-; I_w := 14
-; I_e := 15
-; I_r := 16
-; I_t := 17
-; I_y := 18
-; I_u := 19
-; I_i := 20
-; I_o := 21
-; I_p := 22
-; I_at := 23
-; I_openbracket := 24
-; I_a := 25
-; I_s := 26
-; I_d := 27
-; I_f := 28
-; I_g := 29
-; I_h := 30
-; I_j := 31
-; I_k := 32
-; I_l := 33
-; I_semicolon := 34
-; I_colon := 35
-; I_closebracket := 36
-; I_z := 37
-; I_x := 38
-; I_c := 39
-; I_v := 40
-; I_b := 41
-; I_n := 42
-; I_m := 43
-; I_comma := 44
-; I_period := 45
-; I_slash := 46
-; I_backslash := 47
-; I_up := 48
-; I_down := 49
-; I_left := 50
-; I_right := 51
-
-/**
  * 現在のキーレイアウトを指定された設定に保存・適用します。
  * @param {String} name - レイアウト名
  * @param {String} layout - 保存するキーレイアウト文字列
@@ -1892,12 +1757,6 @@ ApplyLayoutFromIni2(section) {
     ; --- 追加: Mode 4 コンビネーションの動的読み込み ---
     ApplyCombinationsFromIni(layout_sec, "m_", false)  ; IME OFF 用
     ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用
-    ;if (layout_sec != "") {
-    ;    ApplyCombinationsFromIni(layout_sec, "m_", true)  ; IME ON 用 (ベースレイアウトから)
-    ;}
-    ;if (layout_ime_sec != "" && layout_ime_sec != layout_sec) {
-    ;    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用 (IMEレイアウトで上書き/追加)
-    ;}
 
     ShowOSD("Loaded layout: " . name)
     return true

@@ -110,8 +110,6 @@ ChangeMinatoLayoutImpl(ei := True) {
     n.SetImeKey("-", "a-")
     m.SetImeKey("ya", "y-")
 
-    ;slash.SetImeKey("f")
-
     rm := CreateKeyMap()
     global LAYOUT_KEYS
     SetLKeyMode(LAYOUT_KEYS, -1, 6)
@@ -182,10 +180,6 @@ ChangeFMIX13f_Minato_Layout() {
 ChangeTF2_2_Minato_Layout() {
     StoreLayout("TF2_2-Minato[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
     ChangeMinatoLayoutImpl()
-    ; global colon
-    ; colon.SetKey(B_ENTER)
-    ; colon.SetIMEKey(B_ENTER)
-    ;h.SetIMEKey(B_ENTER)
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
@@ -278,7 +272,6 @@ InitModLayer() {
     j.SetLayerKey(mode, L_NAVI_CTRL, B_LEFT)
     k.SetLayerKey(mode, L_NAVI_CTRL, B_DOWN)
     l.SetLayerKey(mode, L_NAVI_CTRL, B_RIGHT)
-    ;semicolon.SetLayerKey(mode, L_NAVI_CTRL, R_ADAPTIVE_ENTER)
     semicolon.SetLayerKey(mode, L_NAVI_CTRL, "+{Enter}")
     colon.SetLayerKey(mode, L_NAVI_CTRL, "^{Enter}")
     closebracket.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
@@ -327,7 +320,6 @@ InitModLayer() {
     m.SetLayerKey(mode, L_SYMBOL_NUM, C_N4)
     comma.SetLayerKey(mode, L_SYMBOL_NUM, C_N5)
     period.SetLayerKey(mode, L_SYMBOL_NUM, C_N6)
-    ;slash.SetLayerKey(mode, L_SYMBOL_NUM, C_N7)
     z.SetLayerKey(mode, L_SYMBOL_NUM, "+[")
     x.SetLayerKey(mode, L_SYMBOL_NUM, "+]")
     c.SetLayerKey(mode, L_SYMBOL_NUM, "[")

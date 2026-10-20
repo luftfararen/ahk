@@ -32,7 +32,7 @@ g:: Send("^f") ; Find
 ; --- M1 保持中の IME 切り替え ---
 F14:: ToggleImeState() ; F14/Enter
 sc079:: ToggleImeState() ; Convert
-space:: ToggleImeState() ;Send(C_BS)
+space:: ToggleImeState()
 #f:: ToggleForceImeModeOn() ;Toggle Force IME Mode ON
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
@@ -175,7 +175,7 @@ space:: ToggleImeState() ;Send(C_BS)
 *Left up:: left.Up()
 *Right:: right.Down()
 *Right up:: right.Up()
-;#Hotif ; コンテキスト依存ホットキーの終了
+
 ; ============================================================================
 ; グローバルホットキー (モディファイアキー バインド)
 ; ============================================================================
@@ -196,9 +196,7 @@ space:: ToggleImeState() ;Send(C_BS)
 ; ============================================================================
 ; その他のグローバルホットキー
 ; ============================================================================
-;NumLock::Return ; NumLock キーを無効化
 +F15:: Send("{NumLock}") ; Shift+F15 で NumLock を送信
-;*F15::Send("{NumLock}")
 >+Up::_ ; RShift+Up -> _
 ; CapsLock 状態の修正
 ^+F13:: Send("+{CapsLock}")

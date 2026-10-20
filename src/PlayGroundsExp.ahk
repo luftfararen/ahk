@@ -65,8 +65,6 @@
 ;SingleInstance Force ;（コメントアウト）複数インスタンスを許可
 ProcessSetPriority "High" ; 最高の応答性を確保するため優先度を高に設定
 SendMode "Event" ; キー取りこぼし（レイヤーロック）を防ぐため "Event" モードを使用
-;SendMode "Input" ; AHK v2 推奨のデフォルト送信モード
-;SetKeyDelay(15, 5)
 SetKeyDelay(-1, -1)
 ListLines 0
 SetStoreCapsLockMode(false) ; CapsLockがONのときにキー送信でShiftがシミュレートされるのを防ぐ
@@ -78,8 +76,6 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 ;#MaxThreadsPerHotkey 3 ;（コメントアウト）ホットキーあたりのスレッド数を制限
 
 #Include "Utils.ahk"
-
-;+#F23::#!space
 
 ; ============================================================================
 ; layer_id (各レイヤー用配列の番号)
@@ -403,20 +399,6 @@ SendAndLog(c) {
         UpdateImeIndicator()
         return
     }
-    ; if c = R_ADAPTIVE_ENTER {
-    ;     if (ImeState.IsOn(true) && ImeState.IsComposing()) {
-    ;         key_to_send := "^m"
-    ;         Tooltip("Adaptive Enter: ON -> OFF (Ctrl+M)")
-    ;     } else {
-    ;         key_to_send := B_ENTER
-    ;         Tooltip("Adaptive Enter: OFF -> ON (Enter)")
-    ;     }
-    ;     Send(key_to_send)
-    ;     TypeAnalyzer.Log(key_to_send)
-    ;     ImeState.RecordActivity()
-    ;     ImeState.ResetComposition()
-    ;     return
-    ; }
     if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
         ImeState.ResetComposition()
     } else if (c = B_BS || c = C_BS || c = "{Backspace}" || c = "{Blind}{Backspace}") {
@@ -554,17 +536,6 @@ TimerEvent() {
 
     UpdateImeIndicator()
 
-    ; 5秒以上操作がない場合、修飾キーのスタック（レイヤーロック）を防止するために状態をリセット
-    ; static last_idle_reset := false
-    ; if (A_TimeIdlePhysical > 5000) {
-    ;     if (!last_idle_reset) {
-    ;         LKey.ResetAll()
-    ;         last_idle_reset := true
-    ;     }
-    ; } else {
-    ;     last_idle_reset := false
-    ; }
-
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
         TypeAnalyzer.SaveIfIdle(A_TimeIdlePhysical)
@@ -596,11 +567,7 @@ MakeModStr() {
  登録する文字列の仕様については BuildSendText() のコメントを参照してください。
 ============================================================================*/
 class RKey {
-    ;static layer_list := [1, 2, 3, 4, 5, 6, 7]
-    ;static layer_list := [L_NAVI_CTRL, L_SELECT, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_NUMPAD, L_SHIFT]
-
     static use_registered_key_for_ctrl := false ; (未使用？) ctrl または alt 用
-    ;static last_key := ""
 
     ;org_key: {}付き、基本は物理キーを設定
     ;org_key_raw: {}なし  基本は物理キーを設定
@@ -1233,16 +1200,10 @@ global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_CHAR_K
  */
 InitGlobalKeys() {
     global
-    ;f13 := LKey("f13", 3, C_TAB)
-    ;tab := LKey(R_TAB, 3, C_ESC)
-    ;conv := LKey(R_CONV, 3, C_ZENKAKU)
-    ;noconv := LKey(R_NOCONV, 3, C_ZENKAKU)
     f13 := LKey("f13", 3, C_ZENKAKU)
     tab := LKey(R_TAB, 3, C_TAB)
     conv := LKey(R_CONV, 3, C_ENTER)
     noconv := LKey(R_NOCONV, 3, C_ENTER)
-    ;conv := LKey(R_CONV, 3, C_BS)
-    ;f14 := LKey("f14", 3, C_ZENKAKU)
     f14 := LKey("f14", 3, C_ENTER)
     space := LKey(R_SPACE, 3, C_SPACE)
 
@@ -1494,7 +1455,6 @@ class Layers {
 
     ime_arr := []
     arr := []
-    ;static layer_id_list := [L_NAVI_CTRL, L_SYMBOL_NUM, L_SYMBOL1, L_SYMBOL2, L_SELECT, L_NUMPAD, L_SHIFT]
 
     /**
      * レイヤーIDで指定されたレイヤーがアクティブかどうかを判定します。
@@ -1732,7 +1692,6 @@ class Layers {
             if action == "{none}"
                 return
             SendAndLog(action)
-            ;ToolTip action . " " . layer_id
         }
     }
 
@@ -1988,8 +1947,6 @@ LoadLayoutFromIni(index) {
  * @returns {Boolean} 読み込みに成功した場合は true
  */
 ApplyLayoutFromIni(index) {
-    ;ini_path := A_ScriptDir . "\config.ini"
-
     ; 必須のレイアウト文字列を取得
     name := ReadConfig(index, "Name", "")
     if name = ""
