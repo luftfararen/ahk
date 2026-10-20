@@ -82,7 +82,7 @@ InstallMouseHook true ; マウスフックを常にインストール（MouseSpe
 ;+#F23::#!space
 
 ; ============================================================================
-; layer_id
+; layer_id (各レイヤー用配列の番号)
 ; ============================================================================
 global L_NAVI_CTRL := 1
 global L_SYMBOL_NUM := 2
@@ -93,15 +93,45 @@ global L_NUMPAD := 6
 global L_SHIFT := 7
 global L_FUNC := 8
 
-;TODO:
-;layer_id(レイヤー用配列とその番号)
-;mod_key_id(修飾キー、または、修飾キーの組み合わせのインデックス番号)
-;の管理に移行する予定
+; レイヤー名と layer_id の相互変換マップ
+global LAYER_NAME_TO_ID := Map(
+    "NAVI_CTRL", L_NAVI_CTRL,
+    "SYMBOL_NUM", L_SYMBOL_NUM,
+    "SYMBOL1", L_SYMBOL1,
+    "SYMBOL2", L_SYMBOL2,
+    "SELECT", L_SELECT,
+    "NUMPAD", L_NUMPAD,
+    "SHIFT", L_SHIFT,
+    "FUNC", L_FUNC
+)
 
-;layer_idからmod_key_idを引く配列
-global layer_id_to_mod_key_id := []
+global LAYER_ID_TO_NAME := Map(
+    L_NAVI_CTRL, "NAVI_CTRL",
+    L_SYMBOL_NUM, "SYMBOL_NUM",
+    L_SYMBOL1, "SYMBOL1",
+    L_SYMBOL2, "SYMBOL2",
+    L_SELECT, "SELECT",
+    L_NUMPAD, "NUMPAD",
+    L_SHIFT, "SHIFT",
+    L_FUNC, "FUNC"
+)
 
-;mod_key_idから修飾キー用のキーオブジェクトを引く配列
+; ============================================================================
+; mod_key_id (修飾キー、または修飾キーの組み合わせのインデックス番号)
+; ============================================================================
+global M1 := 1 ; F13 (単独)
+global M2 := 2 ; 無変換 (単独)
+global M3 := 3 ; 変換 (単独)
+global M4 := 4 ; F14 (単独)
+global M5 := 5 ; F13 + (Alt または 無変換)
+global M6 := 6 ; Tab
+global M7 := 7 ; Space
+global M8 := 8 ; 変換 + F14
+
+; layer_id から mod_key_id を引く変換配列
+global layer_id_to_mod_key_id := [M1, M2, M3, M4, M5, M6, M7, M8]
+
+; mod_key_id から修飾キー用のキーオブジェクトを引く配列
 global mod_key_list := []
 
 /**
@@ -1468,121 +1498,142 @@ class Layers {
 
     /**
      * レイヤーIDで指定されたレイヤーがアクティブかどうかを判定します。
-     * 他のレイヤーが同時にアクティブでないことも確認します。
+     * layer_id_to_mod_key_id を経由して mod_key_id を取得し、それに基づいて評価します。
      * @param {Integer} layer_id - レイヤーID
-     * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+     * @returns {Boolean} 指定されたレイヤーがアクティブな場合は true
      */
     static State(layer_id) {
         if (layer_id < 1 || layer_id > layer_id_to_mod_key_id.Length) {
-            ;Tooltip(layer_id " is not in the range of 1 to " layer_id_to_mod_key_id.Length)
             return false
         }
-        return Layers.StateModKeyId(layer_id_to_mod_key_id[layer_id])
+        mod_key_id := layer_id_to_mod_key_id[layer_id]
+        if (mod_key_id <= 0)
+            return false
+        return Layers.StateModKeyId(mod_key_id)
     }
 
     /**
-     * 特定のモディファイアインデックス（M1〜M8）がアクティブかどうかを判定します。
-     * 他のレイヤーが同時にアクティブでないことも確認します。
+     * 特定のモディファイアインデックス（M1〜M8、または登録キー）がアクティブかどうかを判定します。
      * @param {Integer} mod_key_id - 修飾キーID
-     * @returns {Boolean} 指定されたレイヤーのみがアクティブな場合は true
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
      */
     static StateModKeyId(mod_key_id) {
         if WinActive("ahk_group RemoteDesktops")
             return false
 
-        if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
+        if (mod_key_id < 1)
             return false
 
-        ; Check the specified mod_key_id
-        if mod_key_id = 1 {
+        ; M1: F13 (単独, Alt/無変換なし)
+        if mod_key_id == 1 {
             return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
         }
-        if mod_key_id = 2 {
+        ; M2: 無変換 (単独, F13/Altなし)
+        if mod_key_id == 2 {
             return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P"))
         }
-        if mod_key_id = 3 {
+        ; M3: 変換 (単独, F14なし)
+        if mod_key_id == 3 {
             return conv.IsPressed() && !f14.IsPressed()
         }
-        if mod_key_id = 4 {
+        ; M4: F14 (単独, 変換なし)
+        if mod_key_id == 4 {
             return f14.IsPressed() && !conv.IsPressed()
         }
-        if mod_key_id = 5 {
+        ; M5: F13 + (Alt または 無変換)
+        if mod_key_id == 5 {
             return f13.IsPressed() && (GetKeyState("Alt", "P") || noconv.IsPressed())
         }
-        if mod_key_id = 6 {
+        ; M6: Tab
+        if mod_key_id == 6 {
             return tab.IsPressed()
         }
-        if mod_key_id = 7 {
+        ; M7: Space
+        if mod_key_id == 7 {
             return space.IsPressed()
         }
-        if mod_key_id = 8 {
+        ; M8: 変換 + F14
+        if mod_key_id == 8 {
             return conv.IsPressed() && f14.IsPressed()
         }
 
-        ; その他の単純なレイヤー判定は、対応するキーの押下状態を返す
-        ;return mod_key_list[mod_key_id].IsPressed()
+        ; M9以降（動的に登録された修飾キーオブジェクト）
+        if (mod_key_id <= mod_key_list.Length) {
+            return mod_key_list[mod_key_id].IsPressed()
+        }
+        return false
     }
 
     /**
-     * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを厳密に判定します。
+     * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを判定します。
      * @param {Integer} layer_id - レイヤーID
-     * @param {Object} key_obj - 処理対象 of キーオブジェクト
+     * @param {Object} key_obj - 処理対象のキーオブジェクト
      * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
      */
     static State2(layer_id, key_obj) {
-        return Layers.State2ModKeyId(layer_id_to_mod_key_id[layer_id], key_obj)
+        if (layer_id < 1 || layer_id > layer_id_to_mod_key_id.Length)
+            return false
+        mod_key_id := layer_id_to_mod_key_id[layer_id]
+        if (mod_key_id <= 0)
+            return false
+        return Layers.State2ModKeyId(mod_key_id, key_obj)
     }
 
     static State2ModKeyId(mod_key_id, key_obj) {
         if WinActive("ahk_group RemoteDesktops")
             return false
 
-        if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
+        if (mod_key_id < 1)
             return false
 
-        if mod_key_id = 1 {
-            if f13 = key_obj
-                return false
-            if noconv = key_obj
+        if mod_key_id == 1 {
+            if f13 == key_obj || noconv == key_obj
                 return false
             return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
         }
-        if mod_key_id = 2 {
-            if noconv = key_obj
-                return false
-            if f13 = key_obj
+        if mod_key_id == 2 {
+            if noconv == key_obj || f13 == key_obj
                 return false
             return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P"))
         }
-        if mod_key_id = 3 {
-            if conv = key_obj
+        if mod_key_id == 3 {
+            if conv == key_obj
                 return false
             return conv.IsPressed() && !f14.IsPressed()
         }
-        if mod_key_id = 4 {
-            if f14 = key_obj
+        if mod_key_id == 4 {
+            if f14 == key_obj
                 return false
             return f14.IsPressed() && !conv.IsPressed()
         }
-        if mod_key_id = 5 {
-            if f13 = key_obj
-                return false
-            if noconv = key_obj
+        if mod_key_id == 5 {
+            if f13 == key_obj || noconv == key_obj
                 return false
             return f13.IsPressed() && (GetKeyState("Alt", "P") || noconv.IsPressed())
         }
-        if mod_key_id = 8 {
-            if conv = key_obj
+        if mod_key_id == 6 {
+            if tab == key_obj
                 return false
-            if f14 = key_obj
+            return tab.IsPressed()
+        }
+        if mod_key_id == 7 {
+            if space == key_obj
+                return false
+            return space.IsPressed()
+        }
+        if mod_key_id == 8 {
+            if conv == key_obj || f14 == key_obj
                 return false
             return conv.IsPressed() && f14.IsPressed()
         }
 
-        key := mod_key_list[mod_key_id]
-        if key = key_obj
-            return false
-        return key.IsPressed()
+        if (mod_key_id <= mod_key_list.Length) {
+            key := mod_key_list[mod_key_id]
+            if key == key_obj
+                return false
+            return key.IsPressed()
+        }
+        return false
     }
 
     /**
@@ -1713,9 +1764,16 @@ class Layers {
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for item in arr {
-            if (item.layer_id < 1 || item.layer_id > mod_key_list.Length)
+            mod_key_id := 0
+            if (item.layer_id >= 1 && item.layer_id <= layer_id_to_mod_key_id.Length) {
+                mod_key_id := layer_id_to_mod_key_id[item.layer_id]
+            } else if (item.layer_id > 8 && item.layer_id <= mod_key_list.Length) {
+                mod_key_id := item.layer_id
+            }
+            if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
                 continue
-            mod_key := mod_key_list[item.layer_id]
+
+            mod_key := mod_key_list[mod_key_id]
             if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
                 if Layers.State2(item.layer_id, key_obj) {
                     mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
@@ -2089,13 +2147,13 @@ Init() {
     ; 2. グローバルキー変数の初期化
     InitGlobalKeys()
 
-    ; 3. モディファイアキーリストの初期化
+    ; 3. モディファイアキーリストとレイヤーマッピングの初期化
     global mod_key_list
-    ;                NAVI_CTRL,SYMBOL_NUM,SYMBOL1,SYMBOL2,SELECT,NUMPAD,SHIFT,FUNC
+    ;                M1(F13), M2(noconv), M3(conv), M4(F14), M5(F13), M6(tab), M7(space), M8(conv)
     mod_key_list := [f13, noconv, conv, f14, f13, tab, space, conv]
 
     global layer_id_to_mod_key_id
-    layer_id_to_mod_key_id := [1, 2, 3, 4, 5, 6, 7, 8]
+    layer_id_to_mod_key_id := [M1, M2, M3, M4, M5, M6, M7, M8]
 
     ; 4. レイヤーとレイアウトの適用
     InitModLayer()
@@ -2128,7 +2186,7 @@ Init()
 #include "Handler.ahk"
 
 ; --- サスペンド（一時停止）ホットキー ---
-#SuspendExempt ; 一時停止中でもサスペンドホットキーが動作するように許可
+#SuspendExempt ; 一時停中でもサスペンドホットキーが動作するように許可
 #!Enter:: Suspend ; Win+Alt+Enter でスクリプトの一時停止を切り替え
 #SuspendExempt False
 #MaxThreadsBuffer False

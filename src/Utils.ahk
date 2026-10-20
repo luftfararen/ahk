@@ -1904,50 +1904,233 @@ ApplyLayoutFromIni2(section) {
 }
 
 /**
- * config.ini の [Settings] セクションから動的レイヤーの紐付けを読み込み、適用します。
+ * レイヤー名（"NAVI_CTRL", "L_NAVI_CTRL" 等）または数値から layer_id を解決します。
+ * @param {String|Integer} layer_name_or_id
+ * @param {Boolean} [create_if_missing=true]
+ * @returns {Integer} layer_id (見つからない場合は 0)
  */
-ApplyDynamicLayersFromSettings() {
+ResolveLayerId(layer_name_or_id, create_if_missing := true) {
+    if IsInteger(layer_name_or_id) {
+        val := Integer(layer_name_or_id)
+        if val > 0
+            return val
+    }
+    s := StrUpper(Trim(layer_name_or_id))
+    if RegExMatch(s, "^L_(.+)$", &m) {
+        s := m[1]
+    }
+    global LAYER_NAME_TO_ID, LAYER_ID_TO_NAME
+    if IsSet(LAYER_NAME_TO_ID) && LAYER_NAME_TO_ID.Has(s) {
+        return LAYER_NAME_TO_ID[s]
+    }
+    if create_if_missing && s != "" {
+        new_id := 1
+        if IsSet(LAYER_NAME_TO_ID) {
+            for name, id in LAYER_NAME_TO_ID {
+                if id >= new_id
+                    new_id := id + 1
+            }
+            LAYER_NAME_TO_ID[s] := new_id
+            if IsSet(LAYER_ID_TO_NAME)
+                LAYER_ID_TO_NAME[new_id] := s
+        }
+        return new_id
+    }
+    return 0
+}
+
+/**
+ * 修飾キー指定（"M1"〜"M8", 1〜8, "space", "f13", "noconv" 等）から mod_key_id を解決します。
+ * @param {String|Integer} mod_str
+ * @returns {Integer} mod_key_id (1〜8、解決できない場合は 0)
+ */
+ResolveModKeyId(mod_str) {
+    if IsInteger(mod_str) {
+        val := Integer(mod_str)
+        if (val >= 1 && val <= 8)
+            return val
+    }
+    s := StrLower(Trim(mod_str))
+    if RegExMatch(s, "^m(\d+)$", &m) {
+        val := Integer(m[1])
+        return val
+    }
+    global M1, M2, M3, M4, M5, M6, M7, M8
+    m1_val := IsSet(M1) ? M1 : 1
+    m2_val := IsSet(M2) ? M2 : 2
+    m3_val := IsSet(M3) ? M3 : 3
+    m4_val := IsSet(M4) ? M4 : 4
+    m5_val := IsSet(M5) ? M5 : 5
+    m6_val := IsSet(M6) ? M6 : 6
+    m7_val := IsSet(M7) ? M7 : 7
+    m8_val := IsSet(M8) ? M8 : 8
+
+    switch s {
+        case "f13", "navi", "navi_ctrl": return m1_val
+        case "noconv", "sc07b", "muhenkan", "symbol_num": return m2_val
+        case "conv", "sc079", "henkan", "symbol1": return m3_val
+        case "f14", "symbol2": return m4_val
+        case "f13+alt", "f13+noconv", "select": return m5_val
+        case "tab", "numpad": return m6_val
+        case "space", "shift": return m7_val
+        case "conv+f14", "f14+conv", "func": return m8_val
+    }
+    return 0
+}
+
+/**
+ * layer_id と mod_key_id をバインド（紐付け）します。
+ * @param {Integer} layer_id - レイヤーID
+ * @param {Integer} mod_key_id - 修飾キーID (M1〜M8など)
+ */
+BindLayerToModKey(layer_id, mod_key_id) {
+    global layer_id_to_mod_key_id
+    if !IsSet(layer_id_to_mod_key_id)
+        return
+    while (layer_id_to_mod_key_id.Length < layer_id) {
+        layer_id_to_mod_key_id.Push(0)
+    }
+    layer_id_to_mod_key_id[layer_id] := mod_key_id
+}
+
+/**
+ * layer_id にバインドされている mod_key_id を取得します。
+ * @param {Integer} layer_id - レイヤーID
+ * @returns {Integer} mod_key_id (未設定時は 0)
+ */
+GetModKeyIdByLayerId(layer_id) {
+    global layer_id_to_mod_key_id
+    if (IsSet(layer_id_to_mod_key_id) && layer_id >= 1 && layer_id <= layer_id_to_mod_key_id.Length) {
+        return layer_id_to_mod_key_id[layer_id]
+    }
+    return 0
+}
+
+/**
+ * INIファイルから各 layer_id に紐付けられた設定を読み込み、mod_key_id にバインドします。
+ * @param {String} [ini_path=""] - INIファイルのパス
+ */
+LoadLayerBindingsFromIni(ini_path := "") {
+    if ini_path == "" {
+        ini_path := A_ScriptDir . "\config.ini"
+    }
+    if !FileExist(ini_path)
+        return
+
+    global layer_id_to_mod_key_id, M1, M2, M3, M4, M5, M6, M7, M8
+    m1_val := IsSet(M1) ? M1 : 1
+    m2_val := IsSet(M2) ? M2 : 2
+    m3_val := IsSet(M3) ? M3 : 3
+    m4_val := IsSet(M4) ? M4 : 4
+    m5_val := IsSet(M5) ? M5 : 5
+    m6_val := IsSet(M6) ? M6 : 6
+    m7_val := IsSet(M7) ? M7 : 7
+    m8_val := IsSet(M8) ? M8 : 8
+
+    layer_id_to_mod_key_id := [m1_val, m2_val, m3_val, m4_val, m5_val, m6_val, m7_val, m8_val]
+
+    ; 1. [Settings] セクションから修飾キー -> レイヤー名の設定を読み込む (例: space=NAVI_CTRL, noconv=SHORTCUT_CTRL)
     modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
     for mod_name in modifiers {
-        key_entry := EntryName(mod_name)
-        sec := ReadConfig("Settings", key_entry, "")
+        sec := ReadConfig("Settings", mod_name, "", ini_path)
         if sec != "" {
-            ApplyDynamicLayer(key_entry, sec)
+            mod_id := ResolveModKeyId(mod_name)
+            lay_id := ResolveLayerId(sec, true)
+            if (mod_id > 0 && lay_id > 0) {
+                BindLayerToModKey(lay_id, mod_id)
+                ApplyDynamicLayerSection(lay_id, sec, ini_path)
+            }
+        }
+    }
+
+    ; 2. [Settings] セクションからレイヤー名 -> 修飾キーの設定を読み込む (例: NAVI_CTRL=M1, SYMBOL_NUM=space)
+    known_layers := ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"]
+    for lay_name in known_layers {
+        mod_val := ReadConfig("Settings", lay_name, "", ini_path)
+        if mod_val != "" {
+            mod_id := ResolveModKeyId(mod_val)
+            lay_id := ResolveLayerId(lay_name, true)
+            if (mod_id > 0 && lay_id > 0) {
+                BindLayerToModKey(lay_id, mod_id)
+                ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
+            }
+        }
+    }
+
+    ; 3. [LayerBinding] セクションが存在すれば、明示的なバインディングを読み込む
+    try {
+        sec_text := IniRead(ini_path, "LayerBinding")
+        for line in StrSplit(sec_text, "`n", "`r") {
+            line := Trim(line)
+            if line == "" || SubStr(line, 1, 1) == ";"
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key := Trim(SubStr(line, 1, pos - 1))
+                val := Trim(SubStr(line, pos + 1))
+                c_pos := InStr(val, Chr(32) . Chr(59))
+                if c_pos > 0
+                    val := Trim(SubStr(val, 1, c_pos - 1))
+
+                lay_id := ResolveLayerId(key, true)
+                mod_id := ResolveModKeyId(val)
+                if (lay_id > 0 && mod_id > 0) {
+                    BindLayerToModKey(lay_id, mod_id)
+                    ApplyDynamicLayerSection(lay_id, key, ini_path)
+                }
+            }
+        }
+    } catch {
+        ; セクションが存在しない場合は無視
+    }
+}
+
+/**
+ * 現在の layer_id と mod_key_id のバインディング設定を INI ファイルに保存します。
+ * @param {String} [ini_path=""] - INIファイルのパス
+ */
+SaveLayerBindingsToIni(ini_path := "") {
+    if ini_path == "" {
+        ini_path := A_ScriptDir . "\config.ini"
+    }
+    global layer_id_to_mod_key_id, LAYER_ID_TO_NAME
+    if !IsSet(layer_id_to_mod_key_id) || !IsSet(LAYER_ID_TO_NAME)
+        return
+
+    for lay_id, mod_id in layer_id_to_mod_key_id {
+        if (mod_id > 0 && LAYER_ID_TO_NAME.Has(lay_id)) {
+            lay_name := LAYER_ID_TO_NAME[lay_id]
+            mod_name := "M" . mod_id
+            try {
+                IniWrite(mod_name, ini_path, "LayerBinding", lay_name)
+            }
         }
     }
 }
 
 /**
- * 指定されたモディファイアキーに対応するレイヤーに、INIセクションのキーバリュー定義を適用（追加・上書き）します。
- * @param {String} mod_key_name - モディファイアキー名 (例: "space", "noconv")
- * @param {String} section - 設定読み込み対象の INI セクション名
+ * INIセクションのキーバリュー定義およびレイアウト配列を特定の layer_id に適用します。
+ * @param {Integer} layer_id - レイヤーID
+ * @param {String} section - セクション名
+ * @param {String} [ini_path=""] - INIファイルパス
  */
-ApplyDynamicLayer(mod_key_name, section) {
-    mod_entry := EntryName(mod_key_name)
-    mod_key_obj := GetKeyObjByName(mod_entry)
-    if (!mod_key_obj)
-        return
-
-    ; mod_key_list から一致するレイヤーID (インデックス) を特定
-    layer_id := 0
-    global mod_key_list
-    for i, obj in mod_key_list {
-        if (obj == mod_key_obj) {
-            layer_id := i
-            break
-        }
+ApplyDynamicLayerSection(layer_id, section, ini_path := "") {
+    if ini_path == "" {
+        ini_path := A_ScriptDir . "\config.ini"
     }
-
-    if (layer_id == 0)
-        return
-
     try {
-        section_text := IniRead(A_ScriptDir . "\config.ini", section)
+        section_text := IniRead(ini_path, section)
     } catch {
         section_text := ""
     }
 
     if section_text != "" {
+        ; グリッドレイアウト定義 (L00, L01...) がある場合は ApplyLayerLayoutFromIni を呼ぶ
+        if InStr(section_text, "L00") || InStr(section_text, "L01") {
+            ApplyLayerLayoutFromIni(layer_id, section)
+        }
+
+        ; 個別のキー定義（one=..., a=..., m_...=... 等）を適用
         for line in StrSplit(section_text, "`n", "`r") {
             line := Trim(line)
             if (line == "" || SubStr(line, 1, 1) == ";")
@@ -1960,7 +2143,7 @@ ApplyDynamicLayer(mod_key_name, section) {
                 ; インラインコメントの除去
                 c_pos := InStr(val, Chr(32) . Chr(59))
                 if c_pos == 0 {
-                    c_pos := InStr(val, "`t" . Chr(59))
+                    c_pos := InStr(val, "`t;")
                 }
                 if c_pos > 0 {
                     val := SubStr(val, 1, c_pos - 1)
@@ -1978,6 +2161,31 @@ ApplyDynamicLayer(mod_key_name, section) {
             }
         }
     }
+}
+
+/**
+ * config.ini の [Settings] や [LayerBinding] から動的レイヤーの紐付けを読み込み、適用します。
+ */
+ApplyDynamicLayersFromSettings() {
+    LoadLayerBindingsFromIni()
+}
+
+/**
+ * 指定されたモディファイアキーに対応するレイヤーに、INIセクションのキーバリュー定義を適用（追加・上書き）します。
+ * @param {String} mod_key_name - モディファイアキー名 (例: "space", "noconv")
+ * @param {String} section - 設定読み込み対象の INI セクション名
+ */
+ApplyDynamicLayer(mod_key_name, section) {
+    mod_id := ResolveModKeyId(mod_key_name)
+    if (mod_id == 0)
+        return
+
+    lay_id := ResolveLayerId(section, true)
+    if (lay_id == 0)
+        return
+
+    BindLayerToModKey(lay_id, mod_id)
+    ApplyDynamicLayerSection(lay_id, section)
 }
 
 /**
