@@ -1475,13 +1475,19 @@ class Layers {
      * @returns {Boolean} 指定されたレイヤーがアクティブな場合は true
      */
     static State(layer_id) {
-        if (layer_id < 1 || layer_id > layer_id_to_mod_key_id.Length) {
+        if (layer_id < 1) {
             return false
         }
-        mod_key_id := layer_id_to_mod_key_id[layer_id]
-        if (mod_key_id <= 0)
-            return false
-        return Layers.StateModKeyId(mod_key_id)
+        if (layer_id <= layer_id_to_mod_key_id.Length) {
+            mod_key_id := layer_id_to_mod_key_id[layer_id]
+            if (mod_key_id <= 0)
+                return false
+            return Layers.StateModKeyId(mod_key_id)
+        }
+        if (layer_id <= mod_key_list.Length) {
+            return Layers.StateModKeyId(layer_id)
+        }
+        return false
     }
 
     /**
@@ -1543,12 +1549,18 @@ class Layers {
      * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
      */
     static State2(layer_id, key_obj) {
-        if (layer_id < 1 || layer_id > layer_id_to_mod_key_id.Length)
+        if (layer_id < 1)
             return false
-        mod_key_id := layer_id_to_mod_key_id[layer_id]
-        if (mod_key_id <= 0)
-            return false
-        return Layers.State2ModKeyId(mod_key_id, key_obj)
+        if (layer_id <= layer_id_to_mod_key_id.Length) {
+            mod_key_id := layer_id_to_mod_key_id[layer_id]
+            if (mod_key_id <= 0)
+                return false
+            return Layers.State2ModKeyId(mod_key_id, key_obj)
+        }
+        if (layer_id <= mod_key_list.Length) {
+            return Layers.State2ModKeyId(layer_id, key_obj)
+        }
+        return false
     }
 
     static State2ModKeyId(mod_key_id, key_obj) {
@@ -1717,49 +1729,23 @@ class Layers {
      * @returns {Integer} 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
      */
     static _WaitForHold(mod_key, key_obj, hold_th) {
-        elapsed := HighPrecisionTimer() - mod_key.pressed_time_qpc
-        if (elapsed >= hold_th)
-            return 3
+        start_time := mod_key.pressed_time_qpc
         if !mod_key.IsPressed()
             return 1
         if !key_obj.IsPressed()
             return 2
+        if (HighPrecisionTimer() - start_time >= hold_th)
+            return 3
 
-        remaining := hold_th - elapsed
-        timeout_fired := false
-        on_timeout := (*) => (timeout_fired := true)
-
-        ; 残り時間をワンショットタイマーとして登録
-        timer_ms := Max(1, Ceil(remaining))
-        SetTimer(on_timeout, -timer_ms)
-
-        res := 3
-        try {
-            loop {
-                ; キーのリリース判定
-                if !mod_key.IsPressed() {
-                    res := 1
-                    break
-                }
-                if !key_obj.IsPressed() {
-                    res := 2
-                    break
-                }
-                ; タイマー発火または時間超過判定
-                if (timeout_fired || (HighPrecisionTimer() - mod_key.pressed_time_qpc >= hold_th)) {
-                    res := 3
-                    break
-                }
-
-                ; Windowsメッセージキューの受信待機 (MsgWaitForMultipleObjects: QS_ALLINPUT = 0x04FF)
-                ; キーイベント等のメッセージが到着した瞬間に即座にウェイクアップし、CPUを消費しない
-                DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", 10, "UInt", 0x04FF, "UInt")
-            }
-        } finally {
-            SetTimer(on_timeout, 0)
+        loop {
+            if !mod_key.IsPressed()
+                return 1
+            if !key_obj.IsPressed()
+                return 2
+            if (HighPrecisionTimer() - start_time >= hold_th)
+                return 3
+            Sleep(1)
         }
-
-        return res
     }
 
     /**
@@ -1782,7 +1768,7 @@ class Layers {
 
             mod_key := mod_key_list[mod_key_id]
             if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
-                if Layers.State2(item.layer_id, key_obj) {
+                if Layers.State2ModKeyId(mod_key_id, key_obj) {
                     mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
                         mod_key.hold_mode_org)
 
