@@ -41,8 +41,17 @@ This glossary contains the authoritative bilingual definitions and behavioral co
 - Do NOT replace `Sleep(1)` in wait loops with non-pumping Win32 calls like `MsgWaitForMultipleObjects` unless you explicitly dispatch incoming messages. `Sleep(1)` yields the CPU timeslice safely while allowing AHK to process keyboard hook events and key releases.
 
 ### 4. Post-Modification Requirement
-- After any code modification, always validate syntax using:
+- After any code modification, validate syntax using:
   ```powershell
-  & 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe' /validate PlayGroundsExp.ahk
+  & 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe' /validate src\PlayGroundsExp.ahk
   ```
+- **Automated Regression Testing**:
+  - Create new or update existing test cases in the `test/` directory to cover the modified behavior and guard against regressions.
+  - Execute both new and existing tests via the master test runner:
+    ```powershell
+    powershell -ExecutionPolicy Bypass -File test/run_tests.ps1
+    # or
+    & 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe' test/test_runner.ahk
+    ```
+  - Verify that 100% of tests pass (exit code 0, 0 failures).
 - Invoke the `update-changelog` skill to document all technical changes in English in `ChangLog.md`.

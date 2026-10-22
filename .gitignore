@@ -4,4 +4,7 @@ data
 *.pyc
 tools/*
 *.ig
-test_*.*
+/test_*.*
+test/*.log
+test/*.txt
+test/*.ini
