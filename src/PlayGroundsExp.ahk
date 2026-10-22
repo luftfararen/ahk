@@ -947,6 +947,7 @@ class LKey extends RKey {
             inst.pressed_time_qpc := 0
             inst.interrupted := false
             inst.saved_scaw := ""
+            inst.down_hwnd := 0
             if (inst.timer_name != "") {
                 SetTimer(inst.timer_name, 0)
             }
@@ -973,6 +974,7 @@ class LKey extends RKey {
     interrupted := false  ; 他のキーが割り込んできたら true にするフラグ
     down_ime_state := 0   ; Down時のIME状態を記録
     saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
+    down_hwnd := 0        ; 押下開始時のアクティブウィンドウハンドル
     timer_name := ""      ; 非同期タイマーコールバック名
 
     /**
@@ -1047,6 +1049,8 @@ class LKey extends RKey {
 
     /**
      * LayerItem オブジェクトを直接指定して IME ON 時のレイヤーキーアクションを設定します。
+     * @param {Layers.LayerItem} layer_item - 設定する LayerItem オブジェクト
+     * @param {Boolean} [reset_if_blank=false] - 後方互換性保持用パラメータ
      */
     SetLayerImeKey2(layer_item, reset_if_blank := false) {
         this.layers.SetIMEAction2(layer_item)
@@ -1087,6 +1091,19 @@ class LKey extends RKey {
             return
         }
 
+        ; レイヤー判定（待機処理を含む）中にキーが物理的に解放されていた場合の安全ガード
+        if !this.IsPressed() {
+            Critical
+            this.state := LKey.st_init
+            this.pressed_time_qpc := 0
+            this.interrupted := false
+            Critical "Off"
+            if (hold_mode != 2) {
+                this.SendKeyWithShift()
+            }
+            return
+        }
+
         Layers.last_active_item := ""
 
         ; 修飾キー (Ctrl/Alt/Win) パススルー判定
@@ -1111,6 +1128,7 @@ class LKey extends RKey {
         this.interrupted := false
         this.pressed_time_qpc := HighPrecisionTimer()
         this.down_ime_state := ime_state
+        this.down_hwnd := WinExist("A")
         LKey.InterruptOthers(this)
         this.state := LKey.st_pressing
         Critical "Off"
@@ -1144,6 +1162,7 @@ class LKey extends RKey {
         if (hold_mode == 0) {
             this.state := LKey.st_init
             this.pressed_time_qpc := 0
+            this.down_hwnd := 0
             return
         }
 
@@ -1161,6 +1180,7 @@ class LKey extends RKey {
         this.pressed_time_qpc := 0
         this.interrupted := false
         this.saved_scaw := ""
+        this.down_hwnd := 0
         Critical "Off"
 
         ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
@@ -1185,8 +1205,11 @@ class LKey extends RKey {
             duration := HighPrecisionTimer() - this.pressed_time_qpc
             if (duration >= LKey.hold_th) {
                 this.state := LKey.st_processed
-                Send("{Backspace}")
-                this.SendShiftedKey(true, this.down_ime_state)
+                ; 同一ウィンドウがアクティブな場合のみ安全に Backspace 置換を行う
+                if (this.down_hwnd == 0 || WinActive("ahk_id " . this.down_hwnd)) {
+                    Send("{Backspace}")
+                    this.SendShiftedKey(true, this.down_ime_state)
+                }
             } else {
                 remaining := Ceil(LKey.hold_th - duration)
                 SetTimer(this.timer_name, -(remaining > 0 ? remaining : 1))
@@ -1720,16 +1743,18 @@ class Layers {
     }
 
     /**
-     * 修飾キーとメインキーの押下状態を監視し、ホールド閾値の到達またはリリースをイベント駆動で検出します。
-     * SetTimer と Windows メッセージ待機 (MsgWaitForMultipleObjects) を活用し、
-     * ビジーポーリング (Sleep(1) のループ) を廃止してキーリリースおよびタイムアウトを検知します。
+     * 修飾キーとメインキーの押下状態を監視し、ホールド閾値の到達またはリリースを検出します。
+     * 低レベルキーボードフックのメッセージディスパッチを安全に行うため Sleep(1) で待機しつつ、
+     * キーリリース、他キーによる割り込み、およびタイムアウトを正確に判定します。
      * @param {LKey} mod_key - 修飾側のキーオブジェクト
      * @param {LKey} key_obj - メイン側のキーオブジェクト
      * @param {Integer} hold_th - ホールド成立閾値 (ms)
-     * @returns {Integer} 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
+     * @returns {Integer} 0: 割り込み中断, 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
      */
     static _WaitForHold(mod_key, key_obj, hold_th) {
         start_time := mod_key.pressed_time_qpc
+        if (mod_key.interrupted || mod_key.state != LKey.st_pressing)
+            return 0
         if !mod_key.IsPressed()
             return 1
         if !key_obj.IsPressed()
@@ -1738,6 +1763,8 @@ class Layers {
             return 3
 
         loop {
+            if (mod_key.interrupted || mod_key.state != LKey.st_pressing)
+                return 0
             if !mod_key.IsPressed()
                 return 1
             if !key_obj.IsPressed()

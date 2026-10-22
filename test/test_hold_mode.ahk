@@ -424,6 +424,40 @@ Test_Qwerty_Layout_Switch() {
     }
 }
 
+; ----------------------------------------------------------------------------
+; Test Group 11: _WaitForHold 割り込み検知 & Down() キー解放安全ガード
+; ----------------------------------------------------------------------------
+Test_WaitForHold_Interruption_And_SafetyGuard() {
+    LogMsg("`n--- Test Group 11: _WaitForHold Interruption & Safety Guard ---`n")
+
+    mod_key := LKey("q", 3)
+    mod_key.pressed_time_qpc := HighPrecisionTimer()
+    mod_key.state := LKey.st_pressing
+    mod_key.interrupted := false
+
+    main_key := LKey("w", 0)
+
+    ; 1. mod_key.interrupted == true の場合、_WaitForHold が即座に 0 を返すこと
+    mod_key.interrupted := true
+    res := Layers._WaitForHold(mod_key, main_key, 200)
+    Assert(res == 0, "_WaitForHold returns 0 immediately when mod_key is interrupted", "got: " . res)
+
+    ; 2. mod_key.state != st_pressing の場合、_WaitForHold が即座に 0 を返すこと
+    mod_key.interrupted := false
+    mod_key.state := LKey.st_processed
+    res := Layers._WaitForHold(mod_key, main_key, 200)
+    Assert(res == 0, "_WaitForHold returns 0 immediately when mod_key.state != st_pressing", "got: " . res)
+
+    ; 3. key_obj.Down() の安全ガード: 待機中にキーが物理解放された場合、state が st_pressing に上書きされず st_init を維持すること
+    test_key := LKey("x", 4)
+    test_key.state := LKey.st_init
+    test_key.pressed_time_qpc := 0
+    ; 物理的に押されていない状態（GetKeyState("x", "P") == 0）で Down() を実行
+    test_key.Down()
+    Assert(test_key.state == LKey.st_init, "Safety guard: state remains st_init after Down() when key is not physically held", "got: " . test_key.state)
+    Assert(test_key.pressed_time_qpc == 0, "Safety guard: pressed_time_qpc remains 0", "got: " . test_key.pressed_time_qpc)
+}
+
 RunHoldModeTests() {
     InitTestSuite("HOLD MODE & CORE REGRESSION TESTS")
     Test_Layers_Add_Update()
@@ -434,6 +468,7 @@ RunHoldModeTests() {
     Test_BTime_Special_Values()
     Test_Timer_Reschedule_And_Race()
     Test_Qwerty_Layout_Switch()
+    Test_WaitForHold_Interruption_And_SafetyGuard()
     FinishTestSuite()
 }
 

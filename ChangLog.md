@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-10-23] - Fix _WaitForHold Interruption Leak, Key Release State Corruption, and Focus Safety Guard
+
+### Overview
+- **Category**: Bug Fix / State Management & Robustness
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`
+- **Summary**: Resolved critical key press state corruption where keys were left in permanent `st_pressing` state when released during synchronous hold wait, added interruption detection (`interrupted`) to `_WaitForHold`, and added active window focus validation before `{Backspace}` execution.
+
+### Background & Root Cause
+- **Symptoms**:
+  - In rapid typing and rollover tapping, keys would occasionally get "stuck" or become unresponsive because the repeat guard (`state == st_pressing`) blocked subsequent key down events permanently.
+  - When typing a 3-key sequence (A -> B -> C) where A+B was in a gray zone wait, striking C properly interrupted A via `InterruptOthers()`, but `_WaitForHold()` continued polling until threshold expiry, firing an illegitimate A+B chord.
+  - When long-press timeouts occurred after the user switched windows (Alt+Tab or notification), `{Backspace}` was emitted into the wrong application.
+- **Root Cause**:
+  1. **Premature Key Release Race in `LKey.Down`**: While `_WaitForHold()` polled inside `SendLayerKey()`, releasing the key dispatched `LKey.Up()`, resetting `state := st_init`. Once `_WaitForHold()` exited and returned `false`, `LKey.Down()` resumed and blindly set `state := st_pressing`. Because the physical key was already released, no subsequent `_Up()` ever fired, causing the key to remain in `st_pressing` permanently.
+  2. **Interruption Blindness in `_WaitForHold`**: The wait loop only checked physical key states (`!mod_key.IsPressed()`) and duration, ignoring `mod_key.interrupted` and `mod_key.state != st_pressing`.
+  3. **Unchecked Backspace Execution**: `OnHoldTimeout()` emitted `{Backspace}` without verifying that the window active at press start was still active.
+
+### Technical Changes
+- **`Layers._WaitForHold`**:
+  - Added interruption check `(mod_key.interrupted || mod_key.state != LKey.st_pressing)` both prior to entering the loop and on every polling iteration, immediately returning status code `0` (interruption cancelled).
+  - Updated JSDoc documentation to accurately reflect `Sleep(1)` polling and return codes (`0: interruption, 1: mod先行Up, 2: key先行Up, 3: hold timeout`).
+- **`LKey.Down`**:
+  - Added physical release safety guard immediately following `SendLayerKey(ime_state)`: if `!this.IsPressed()`, resets state to `st_init`, clears timestamps, emits the tap character (`SendKeyWithShift()`) if mode != 2, and exits cleanly without re-entering `st_pressing`.
+  - Added `this.down_hwnd := WinExist("A")` tracking upon session start.
+- **`LKey.Up` & `LKey.ResetAll`**:
+  - Reset `down_hwnd := 0` on release and global reset.
+- **`LKey.OnHoldTimeout`**:
+  - Added safety guard checking `(this.down_hwnd == 0 || WinActive("ahk_id " . this.down_hwnd))` prior to sending `{Backspace}` to guard against erasing characters in different applications.
+- **`LKey.SetLayerImeKey2`**:
+  - Clarified JSDoc documentation for unused parameter `reset_if_blank` (preserved for backward compatibility).
+- **Regression Tests (`test/test_hold_mode.ahk`, `test/test_runner.ahk`)**:
+  - Added `Test Group 11: _WaitForHold Interruption & Safety Guard` covering immediate interruption cancellation (tests 1 & 2) and `Down()` physical release safety guard (test 3).
+
+### Verification & Impact
+- Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
+- Executed master regression test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 106 tests passed with 0 failures (100% pass rate).
+- Completely eliminated repeat guard lockups on rapid rollover releases while maintaining full backward compatibility with all HoldModes.
+
 ## [2026-10-23] - Establish Automated Regression Testing Framework and Agent Rules
 
 ### Overview
