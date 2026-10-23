@@ -458,6 +458,42 @@ Test_WaitForHold_Interruption_And_SafetyGuard() {
     Assert(test_key.pressed_time_qpc == 0, "Safety guard: pressed_time_qpc remains 0", "got: " . test_key.pressed_time_qpc)
 }
 
+; ----------------------------------------------------------------------------
+; Test Group 12: Layers._EvaluateChord 直接判定テスト
+; ----------------------------------------------------------------------------
+Test_EvaluateChord_Direct() {
+    LogMsg("`n--- Test Group 12: Layers._EvaluateChord Direct Evaluation ---`n")
+
+    mod_key := LKey("e", 3)
+    mod_key.pressed_time_qpc := HighPrecisionTimer() - 250
+    mod_key.state := LKey.st_pressing
+
+    main_key := LKey("r", 0)
+
+    ; 1. Zone 1 (t >= x=200): 全モード即時成立 (chord_result == 1)
+    res_m7_z1 := Layers._EvaluateChord(7, 201, 200, 50, mod_key, main_key)
+    Assert(res_m7_z1 == 1, "Zone 1 (t=201 >= x=200): Mode 7 returns 1 (chord held)", "got: " . res_m7_z1)
+
+    res_m8_z1 := Layers._EvaluateChord(8, 201, 200, 50, mod_key, main_key)
+    Assert(res_m8_z1 == 1, "Zone 1 (t=201 >= x=200): Mode 8 returns 1 (chord held)", "got: " . res_m8_z1)
+
+    res_m5_z1 := Layers._EvaluateChord(5, 201, 200, 50, mod_key, main_key)
+    Assert(res_m5_z1 == 1, "Zone 1 (t=201 >= x=200): Mode 5 returns 1 (chord held)", "got: " . res_m5_z1)
+
+    ; 2. Zone 2 (t < x-b=150): Mode 7, 8 は chord_result == 0 (即時不成立)
+    res_m7_z2 := Layers._EvaluateChord(7, 100, 200, 50, mod_key, main_key)
+    Assert(res_m7_z2 == 0, "Zone 2 (t=100 < x-b=150): Mode 7 returns 0 (chord denied)", "got: " . res_m7_z2)
+
+    res_m8_z2 := Layers._EvaluateChord(8, 100, 200, 50, mod_key, main_key)
+    Assert(res_m8_z2 == 0, "Zone 2 (t=100 < x-b=150): Mode 8 returns 0 (chord denied)", "got: " . res_m8_z2)
+
+    ; 3. Zone 2 (t < x-b=150): Mode 5 は mod_key をフォールバック処理し chord_result == 0
+    mod_key.state := LKey.st_pressing
+    res_m5_z2 := Layers._EvaluateChord(5, 100, 200, 50, mod_key, main_key)
+    Assert(res_m5_z2 == 0, "Zone 2 (t=100 < x-b=150): Mode 5 returns 0 (chord denied)", "got: " . res_m5_z2)
+    Assert(mod_key.state == LKey.st_processed, "Mode 5 Zone 2 sets mod_key.state := st_processed", "got: " . mod_key.state)
+}
+
 RunHoldModeTests() {
     InitTestSuite("HOLD MODE & CORE REGRESSION TESTS")
     Test_Layers_Add_Update()
@@ -469,6 +505,7 @@ RunHoldModeTests() {
     Test_Timer_Reschedule_And_Race()
     Test_Qwerty_Layout_Switch()
     Test_WaitForHold_Interruption_And_SafetyGuard()
+    Test_EvaluateChord_Direct()
     FinishTestSuite()
 }
 

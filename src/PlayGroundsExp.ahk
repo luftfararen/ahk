@@ -1776,6 +1776,66 @@ class Layers {
     }
 
     /**
+     * モード 5〜9 の同時押し（Chord）の成立判定および副作用を処理します。
+     * @param {Integer} mode - 長押し動作モード (5〜9)
+     * @param {Number} t_qpc - 修飾キー押下からの経過時間 (ms)
+     * @param {Integer} x - ホールド判定閾値 (ms)
+     * @param {Integer} b - ロールオーバー防止バッファ時間 (ms)
+     * @param {LKey} mod_key - 先行する修飾側キーオブジェクト
+     * @param {LKey} key_obj - 後続のメイン側キーオブジェクト
+     * @returns {Integer} 1: 修飾成立, 0: 修飾不成立, -1: 処理完了済 (即座に return true)
+     */
+    static _EvaluateChord(mode, t_qpc, x, b, mod_key, key_obj) {
+        ; ゾーン 1: 閾値超過 (全モード共通でホールド成立)
+        if (t_qpc >= x)
+            return 1
+
+        ; ゾーン 2: 高速ロールオーバー領域 (t < x - b)
+        ; ※ モード 6 はバッファなし (全領域で待機)
+        if (mode != 6 && t_qpc < x - b) {
+            if (mode == 9) {
+                ; モード 9 特有: 通常キーを先行送信した上で待機
+                key_obj.SendKeyWithShift()
+                res := Layers._WaitForHold(mod_key, key_obj, x)
+                if (res == 3) {
+                    if WinActive("A")
+                        Send("{Backspace}")
+                    return 1 ; ホールド成立 (置換)
+                }
+                return -1 ; 先行送信済みのまま確定
+            }
+            if (mode == 5) {
+                ; モード 5 特有: 保留していた A の通常キーをフォールバック送信
+                if (mod_key.state == LKey.st_pressing)
+                    mod_key.SendKeyWithShift()
+                mod_key.state := LKey.st_processed
+            }
+            return 0 ; 修飾不成立
+        }
+
+        ; ゾーン 3: グレーゾーン待機 (x - b <= t < x)
+        res := Layers._WaitForHold(mod_key, key_obj, x)
+        is_held := false
+
+        if (mode == 8) {
+            ; モード 8 特有: メインキー先行Up (res == 2) または時間超過 (res == 3) で修飾成立
+            is_held := (res == 2 || res == 3)
+        } else {
+            ; モード 5, 6, 7, 9: 時間超過 (res == 3) のみ修飾成立
+            is_held := (res == 3)
+        }
+
+        ; モード 5 の不成立時フォールバック
+        if (mode == 5 && !is_held) {
+            if (mod_key.state == LKey.st_pressing)
+                mod_key.SendKeyWithShift()
+            mod_key.state := LKey.st_processed
+        }
+
+        return is_held ? 1 : 0
+    }
+
+    /**
      * 現在押下されている修飾レイヤーキーに基づいて、同時押し入力の判定および処理を行います。
      * @param {Object} key_obj - トリガーされたメインキーのオブジェクト
      * @param {Integer} ime_state - 現在のIME状態（0: OFF, 1: ON）
@@ -1799,97 +1859,45 @@ class Layers {
                     mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
                         mod_key.hold_mode_org)
 
-                    is_held := false
                     t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
                     x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
                     b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
 
-                    if (mod_hold_mode == 6) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
-                    } else if (mod_hold_mode == 7) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            is_held := false
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
-                    } else if (mod_hold_mode == 8) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            is_held := false
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 2 || res == 3) ; メインキー先行Upまたは時間超過で修飾成立
-                        }
-                    } else if (mod_hold_mode == 9) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            key_obj.SendKeyWithShift()
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            if (res == 3) {
-                                Send("{Backspace}")
-                                is_held := true
-                            } else {
-                                return true
-                            }
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
-                    } else if (mod_hold_mode == 5) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            is_held := false
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
+                    ; 1. 判定エンジンによる同時押し評価
+                    chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
+                        ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj)
+                        : (t_qpc >= x ? 1 : 0)
 
-                        if !is_held {
-                            if (mod_key.state == LKey.st_pressing)
-                                mod_key.SendKeyWithShift()
-                            mod_key.state := LKey.st_processed
+                    if (chord_result == -1)
+                        return true ; 先行送信済みで処理完了
+                    if (chord_result == 0)
+                        continue
+
+                    ; 2. 修飾成立時のキー送信と状態更新
+                    mod_key.state := LKey.st_processed
+                    action_to_send := item.action
+                    if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                        false) {
+                        ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                        if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
+                            Layers.last_active_item == item) {
+                            item.tap_count += 1
+                        } else {
+                            item.tap_count := 1
+                            item.last_mod_key := mod_key
+                            item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
                         }
-                    } else {
-                        is_held := (t_qpc >= x)
+                        if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
+                            action_to_send := item.action3
+                        } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
+                            action_to_send := item.action2
+                        }
                     }
+                    ; 直近のアクティブなレイヤーアイテムを更新
+                    Layers.last_active_item := item
 
-                    if is_held {
-                        mod_key.state := LKey.st_processed
-                        action_to_send := item.action
-                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
-                            false) {
-                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
-                            if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
-                                Layers.last_active_item == item) {
-                                item.tap_count += 1
-                            } else {
-                                item.tap_count := 1
-                                item.last_mod_key := mod_key
-                                item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
-                            }
-                            if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
-                                action_to_send := item.action3
-                            } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
-                                action_to_send := item.action2
-                            }
-                        }
-                        ; 直近のアクティブなレイヤーアイテムを更新
-                        Layers.last_active_item := item
-
-                        this._SendKey(item.layer_id, action_to_send, key_obj)
-                        return true
-                    }
+                    this._SendKey(item.layer_id, action_to_send, key_obj)
+                    return true
                 }
             }
         }

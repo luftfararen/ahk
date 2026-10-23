@@ -3,6 +3,37 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-10-23] - Refactor Layers.SendLayerKey with Extracted _EvaluateChord Decision Engine
+
+### Overview
+- **Category**: Refactoring / Architecture & Clean Separation of Responsibilities
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
+- **Summary**: Extracted the core chord evaluation logic of HoldModes 5–9 from `Layers.SendLayerKey` into a dedicated static helper `Layers._EvaluateChord`, eliminating repetitive threshold/buffer branching and establishing clean separation between chord evaluation, side effects, and action dispatch.
+
+### Background & Root Cause
+- **Symptoms**:
+  - `Layers.SendLayerKey()` contained heavily duplicated logic: threshold evaluation (`t_qpc >= x`), rollover buffer checks (`t_qpc < x - b`), and `_WaitForHold()` invocations were repeated 5 to 6 times across individual if-else blocks for Modes 5 through 9.
+  - Mode-specific behaviors (Mode 8 preceding release acceptance, Mode 9 pre-send and Backspace cancellation, Mode 5 fallback key emission) were entangled with layer item iteration and key dispatch, impeding readability and testability.
+- **Root Cause**: Lack of functional decomposition between timing/zone classification, mode-specific chord resolution, and layer action emission.
+
+### Technical Changes
+- **`Layers._EvaluateChord`**:
+  - Created a static decision method handling the 3-zone timing model:
+    - Zone 1 ($t \ge x$): Unconditional hold completion across all modes.
+    - Zone 2 ($t < x - b$): High-speed rollover handling (Mode 9 pre-send and BS cancellation, Mode 5 A-fallback send, immediate chord denial for Modes 7 and 8).
+    - Zone 3 ($x - b \le t < x$): Gray zone wait via `_WaitForHold` (Mode 8 companion release acceptance `res == 2 || res == 3`, Mode 5/6/7/9 timeout requirement `res == 3`).
+- **`Layers.SendLayerKey`**:
+  - Streamlined the iteration loop to resolve parameters (`x`, `b`), delegate chord resolution to `_EvaluateChord`, and perform action dispatch and tap-count updates upon chord completion.
+- **Documentation (`.agents/references/CODE_ANALYSIS.md`)**:
+  - Documented complete architecture, lifecycle state machine, hold mode comparisons, and clean responsibility pipeline for future agent reference.
+- **Regression Tests (`test/test_hold_mode.ahk`, `test/test_runner.ahk`)**:
+  - Added `Test Group 12: Layers._EvaluateChord Direct Evaluation` directly validating `_EvaluateChord` against Zone 1, Zone 2, and fallback state transitions across Modes 5, 7, and 8.
+
+### Verification & Impact
+- Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
+- Executed master regression test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 113 tests passed with 0 failures (100% pass rate).
+- Fully preserved 100% behavioral compatibility with existing key configurations, rollover timing, and chord combinations.
+
 ## [2026-10-23] - Fix _WaitForHold Interruption Leak, Key Release State Corruption, and Focus Safety Guard
 
 ### Overview
