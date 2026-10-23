@@ -354,6 +354,7 @@ InitModLayer() {
     semicolon.SetLayerKey(mode, L_NUMPAD, B_LEFT)
     colon.SetLayerKey(mode, L_NUMPAD, B_DOWN)
     closebracket.SetLayerKey(mode, L_NUMPAD, B_RIGHT)
+    m.SetLayerKey(mode, L_NUMPAD, C_N0)
     n.SetLayerKey(mode, L_NUMPAD, C_DEL)
 
     ; L_SYMBOL2
