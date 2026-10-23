@@ -197,46 +197,79 @@ stateDiagram-v2
 
 ## 7. Discovered Issues & Root Causes / 課題と原因分析
 
-### 7.1 Confirmed Issues (Resolved)
-1. **Key Release State Corruption in `LKey.Down()`**:
-   - *Cause*: While `_WaitForHold` polled, releasing the key fired `LKey.Up()`, resetting to `st_init`. When `_WaitForHold` exited with `false`, `LKey.Down()` resumed and blindly set `state := st_pressing`. Because the key was already released, no subsequent `_Up()` ever fired, leaving the key permanently stuck in `st_pressing`.
-   - *Fix*: Added physical release safety guard (`if !this.IsPressed()`) immediately after `SendLayerKey()` to clean up and exit.
-2. **Interruption Leak in `_WaitForHold()`**:
-   - *Cause*: `_WaitForHold()` loop only checked physical press and timeout, ignoring `mod_key.interrupted`. Third-key strikes failed to abort the wait loop.
-   - *Fix*: Added `(mod_key.interrupted || mod_key.state != LKey.st_pressing)` check to immediately return `0` (interruption cancelled).
-3. **`hold_mode == 0` Interruption Omission & Errant Space Insertion**:
-   - *Cause*: In `LKey.Down()`, `if (hold_mode == 0)` exited immediately without calling `LKey.InterruptOthers(this)` or resetting `Layers.last_active_item`. Fast typing of normal characters while holding Space left Space un-interrupted, causing an unwanted trailing space on Space release.
-   - *Fix*: Added `LKey.InterruptOthers(this)` and `this.ResetState()` to both `hold_mode == 0` and the `!this.IsPressed()` safety guard branch.
-4. **Asynchronous Timer Race Across Sessions in Mode 1**:
-   - *Cause*: `LKey` lacked session identification. Rapid consecutive presses could execute delayed `OnHoldTimeout()` callbacks from prior press sessions.
-   - *Fix*: Introduced monotonic `session_id` and `timer_session_id`. Any callback where `timer_session_id != session_id` is discarded instantly.
-5. **Ghost Key Press Deadlocks After Window Focus Loss**:
-   - *Cause*: Alt-Tab or UAC focus transitions during physical key press caused the keyboard hook to lose the `Up` hotkey event, leaving the key in `st_processed` or `st_pressing`. Subsequent presses hit the repeat guard permanently.
-   - *Fix*: Added `LKey.CleanupReleasedKeys()` and stale auto-repeat reset (`A_TimeSincePriorHotkey > 1500`).
+### 7.1 確認済みの問題 (Confirmed Issues: 仕様違反・不正動作が明確なもの)
 
-### 7.2 Potential Issues & Latent Risks
-1. **Mode 9 Multi-Character Backspace Incompleteness**:
-   - *Risk*: Mode 9 sends `{Backspace}` once on timeout in Zone 2. If `key_obj` emitted a multi-character sequence or IME composition, a single Backspace leaves partial characters behind.
+1. **Mode 9 Zone 2 における `key_obj.down_ime_state` 未設定・古い状態の参照不具合**:
+   - **箇所**: `src/PlayGroundsExp.ahk` 内 `Layers._EvaluateChord` (Line 1887)
+   - **現象と根拠**:
+     ```ahk
+     pre_text := (key_obj.down_ime_state == 1) ? key_obj.ime_key_text : key_obj.key_text
+     bs_count := GetBackspaceUndoCount(pre_text)
+     ```
+     `SendLayerKey` は `key_obj.Down()` の最初期（Line 1163）に実行される。この段階では `key_obj`（メインキー）自身の押下初期化処理（Line 1212 の `this.down_ime_state := ime_state` や `this.pressed_time_qpc`）は**まだ実行されていない**。
+     そのため、`key_obj.down_ime_state` は前回のセッションの古い値、あるいは未初期化（0）のまま参照される。
+     もし直前の打鍵と現在の打鍵の間で IME 状態が切り替わっていた場合、誤ったキーテキスト（`ime_key_text` と `key_text` の逆）に基づいて `GetBackspaceUndoCount` が計算され、誤った文字数の Backspace が送信されるか、消去に失敗する。
+     なお、`SendLayerKey(key_obj, ime_state)` の引数には最新の正しい `ime_state` が渡されているため、`_EvaluateChord` に `ime_state` を渡すか、引数経由で参照するのが直接の解決策である。
 
+2. **Mode 5 単独 Up 時における IME 状態の取得不整合**:
+   - **箇所**: `src/PlayGroundsExp.ahk` 内 `LKey.Up()` (Line 1269)
+   - **現象と根拠**:
+     `Up()` の冒頭（Line 1243-1245）では、`hold_mode` の判定において「押下時に保存した `this.down_ime_state`」を正しく尊重している。
+     しかし、Line 1269 でキーを送信する `this.SendKeyWithShift()` は引数を取らないため、内部で `SendShiftedKey` -> `SendBasedOnImeState(..., ime_state := -1)` となり、**キー解放時点（Up時）のリアルタイムな IME 状態**を再取得して送信してしまう。
+     キーを押してから離すまでの間に IME のオン・オフが切り替わった場合、押下時の意図（`this.down_ime_state`）と異なるレイアウト文字が送信されてしまう。
 
 ---
 
-## 8. Clean Separation of Responsibilities / 責務分離設計
+### 7.2 潜在的な問題 (Potential Issues: 特定のタイミングや入力順序で発生するリスク)
 
-To refactor `Layers.SendLayerKey()` safely without changing external behavior:
+1. **`Critical` の適用範囲によるタイマーコールバック・入力遅延の懸念**:
+   - **箇所**: `LKey.Down()`, `LKey.Up()`, `LKey.OnHoldTimeout()`
+   - **現象と根拠**:
+     `LKey.Down()` では `SendLayerKey()` の前に一時的に `Critical "Off"` しているが、その後の `super._SendCAWKey` や `this.SendKeyWithShift()` の前後で `Critical` が適用されている。
+     特に `OnHoldTimeout()` では、関数全体が `Critical` になっている（Line 1278）。
+     `Send("{Backspace ...}")` や `this.SendShiftedKey(true, ...)` は OS へのキーストローク送信を伴うが、この間 Windows のスレッドメッセージキューや低レベルキーボードフックがブロックされると、高速打鍵時の次のキー入力の取りこぼしや遅延の原因になり得る。
+     必要な共有状態の更新（`this.state := LKey.st_processed` 等）のみを `Critical` で保護し、外部キー送信時は `Critical "Off"` にするのがより安全である。
 
-1. **Responsibility 1: Parameter & Threshold Resolution**
-   - Resolve `x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th`
-   - Resolve `b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)`
-   - Classify into `Zone 1` ($t \ge x$), `Zone 2` ($t < x - b$), or `Zone 3` (Gray Zone).
-2. **Responsibility 2: Event Wait & Polling**
-   - Perform `_WaitForHold()` only when Zone 3 (or Mode 9 Zone 2) is entered.
-   - Return status: `0: Interrupted`, `1: Mod Released First`, `2: Main Released First`, `3: Timeout`.
-3. **Responsibility 3: Mode-Specific Decision Matrix**
-   - Pure decision logic mapping `(mode, zone, wait_result) -> is_held`.
-4. **Responsibility 4: Mode-Specific Side Effects**
-   - Mode 5 fallback send on chord denial.
-   - Mode 9 Backspace cancellation.
-5. **Responsibility 5: Key Dispatch & State Finalization**
-   - Multi-stage continuous tap count update (`tap_count`).
-   - `_SendKey()` execution and `mod_key.state := st_processed`.
+2. **`config.ini` における不正なモード番号・時間閾値の検証欠落**:
+   - **箇所**: `src/Utils.ahk` の `LoadLayoutConfig` (Line 1631-1644) および `HoldMode.__New`
+   - **現象と根拠**:
+     `config.ini` で `m_s_f = 99, action1` のように存在しないモード番号や、`hold_th = -10` などの負値が記述されていた場合、検証が行われずそのまま格納される。
+     `Layers.SendLayerKey` では `chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9) ? ... : (t_qpc >= x ? 1 : 0)` と判定されるため、未知のモードの場合は未定義のフォールバック動作（単に `t_qpc >= x`）になり、意図しない挙動になる。
+     モード番号の範囲検証（0〜13）と時間閾値の非負検証を導入し、不正値の場合は安全なデフォルト（Mode 7, Layers.hold_th）にフォールバックすべきである。
+
+3. **Backspace 取消しにおける IME 未確定文字列（Composition）の考慮**:
+   - **箇所**: `LKey.OnHoldTimeout()` (Mode 1), `Layers._EvaluateChord` (Mode 9)
+   - **現象と根拠**:
+     `GetBackspaceUndoCount` は入力された物理/論理文字数（例えば "ka" なら 2）を返す。
+     しかし、IME が ON で日本語入力中（未確定文字列が存在する状態）の場合、ローマ字 "ka" は IME 内部で "か"（1文字）に変換されている。
+     ここで `Send("{Backspace 2}")` を送信すると、"か" を消去した上でさらにその前の確定文字まで消去してしまう（過剰削除）。
+     現在 `ImeState.is_composing_tracked` や `ImeState.composition_count` という変数が存在するが、未確定文字の文字数と Backspace 数が完全には連動していない。
+
+---
+
+### 7.3 設計上の改善案 (Architectural & Maintainability Proposals)
+
+1. **補助関数 `SetLayerImeKey2(layer_item, reset_if_blank := false)` の第2引数**:
+   - **箇所**: `src/PlayGroundsExp.ahk` (Line 1126)
+   - **現状**:
+     第2引数 `reset_if_blank` は現在内部で一切使用されていない（`this.layers.SetIMEAction2(layer_item)` に渡されていない）。
+     調査の結果、古いリビジョンとの呼び出し互換性のため JSDoc で「後方互換性保持用パラメータ」として明記されている。
+     外部からの呼び出し元を破壊しないため引数定義自体は維持しつつ、安全なデフォルト挙動を担保する。
+
+2. **状態変数の整合性とライフサイクル**:
+   - `last_mod_key`, `last_mod_press_start_qpc`, `Layers.last_active_item`, `tap_count`:
+     これらは連続打鍵（Multi-stage Action: `action1`, `action2`, `action3`）を判定するための変数である。
+     現在、`LKey.Down()` において `Layers.last_active_item := ""` が実行され、単独キーが押された際にはリセットされるようになっている。
+     レイヤー切り替え時および `ResetCombinations()`、`LKey.ResetAll()` 時に `Layers.last_active_item` を確実にクリアする処理を追加し、状態の一貫性をさらに高める。
+
+---
+
+## 8. 改善の優先順位と既存動作への影響 (Prioritization & Migration Plan)
+
+| 優先度 | 課題項目 | 対象ファイル・関数 | 修正内容 | 期待効果 | 既存仕様への影響 |
+| :---: | :--- | :--- | :--- | :--- | :--- |
+| **P1** | Mode 9 の IME 状態同期 | `Layers.SendLayerKey`, `Layers._EvaluateChord` | `_EvaluateChord` の引数に `ime_state` を追加し、`key_obj.down_ime_state` の未初期化参照を解消 | IME 切替直後の Mode 9 で正しい文字数の Backspace が送信される | 既存仕様の完全な正常化（副作用なし） |
+| **P1** | Mode 5 Up 時の IME 状態同期 | `RKey.SendKeyWithShift`, `LKey.Up` | `SendKeyWithShift(ime_state := -1)` に引数を追加し、`LKey.Up` から `this.down_ime_state` を渡す | キー長押し中の IME 切替による意図しない解放文字化を防止 | 既存仕様の完全な正常化（後方互換性 100% 維持） |
+| **P1** | `Critical` 適用範囲の局所化 | `LKey.OnHoldTimeout`, `LKey.Down` | 共有状態更新（state, session_id）のみを Critical で保護し、`Send()` の前に `Critical "Off"` | 高速打鍵時のキー取りこぼしとフック遅延を低減 | キー送信順序および状態保護は完全維持 |
+| **P2** | `config.ini` 設定値の検証とフォールバック | `Utils.ahk` (`LoadLayoutConfig`), `HoldMode` | モード番号（0〜13）、hold_th、b_time の境界値検証を追加し、無効値は安全なデフォルト値へ置換 | 設定ミスやファイル破損によるスクリプト停止・未定義動作を防止 | 正常な設定値には影響ゼロ |
+| **P2** | レイヤーリセット時の `last_active_item` クリア | `PlayGroundsExp.ahk` (`ResetCombinations`, `ResetAll`) | `Layers.last_active_item := ""` を確実に呼び出す | レイヤー切り替え直後の意図しない連打アクション誤爆を防止 | 連打仕様の安定化 |

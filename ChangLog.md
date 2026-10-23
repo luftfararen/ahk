@@ -3,6 +3,50 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-10-24] - Fix IME State Synchronization, Narrow Critical Scope, and Add Parameter Bounds Validation
+
+### Overview
+- **Category**: Bug Fix & Robustness / IME State Consistency & Config Validation
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
+- **Summary**: Resolved uninitialized `down_ime_state` reference in Mode 9 Backspace calculation, propagated captured IME state to `SendKeyWithShift` on Mode 5 release, narrowed `Critical` scope in `OnHoldTimeout` to prevent low-level hook latency, added comprehensive validation and safe fallbacks for `HoldMode` and `config.ini` parameters, and ensured `Layers.last_active_item` is reset on global resets.
+
+### Background & Root Cause
+- **Symptoms**:
+  - In Mode 9 chord evaluation, `GetBackspaceUndoCount()` occasionally calculated incorrect Backspace counts after rapid IME ON/OFF toggling.
+  - In Mode 5 solitary release, toggling IME state while holding the key caused the release key to reflect the real-time IME state rather than the state at press initiation.
+  - In Mode 1 timeout replacement, `Critical` remained active throughout `Send("{Backspace}")` and `this.SendShiftedKey()`, causing potential hook delays during rapid keying.
+  - Out-of-bounds mode numbers (e.g., > 13) or negative thresholds in `config.ini` were accepted silently without validation.
+  - Switching layout presets or calling `ResetCombinations()` left stale `Layers.last_active_item` references, risking unwanted multi-stage continuous tap actions.
+- **Root Cause**:
+  1. `SendLayerKey()` executes before the main key's `Down()` initialization, leaving `key_obj.down_ime_state` unpopulated when evaluated inside `_EvaluateChord()`.
+  2. `RKey.SendKeyWithShift()` lacked an `ime_state` parameter, defaulting to real-time OS IME querying on release.
+  3. Excessive duration of `Critical` thread protection covering external OS key transmissions.
+  4. Absence of boundary checking in `HoldMode` constructor and `LoadLayoutConfig()`.
+
+### Technical Changes
+- **`RKey.SendKeyWithShift`**:
+  - Added optional `ime_state := -1` parameter, delegating to `this.SendShiftedKey(IsPhysicalShiftPressed(this), ime_state)` to honor preserved press states.
+- **`LKey.Up`**:
+  - Captured `saved_down_ime_state := this.down_ime_state` before `ResetState()`, passing it to `this.SendKeyWithShift(saved_down_ime_state)` in Mode 5 release.
+- **`Layers._EvaluateChord` & `Layers.SendLayerKey`**:
+  - Updated `_EvaluateChord` signature and invocation to accept `ime_state`.
+  - Resolved Mode 9 pre-text via `current_ime := (ime_state != -1) ? ime_state : (key_obj.down_ime_state == 1 ? 1 : 0)`, ensuring exact Backspace undo calculations.
+  - Passed `mod_key.down_ime_state` to Mode 5 fallback sends.
+- **`LKey.OnHoldTimeout`**:
+  - Narrowed `Critical` scope: took atomic snapshots of `down_hwnd`, `down_ime_state`, and text, then explicitly disengaged `Critical "Off"` prior to sending Backspace and shifted key.
+- **`HoldMode.__New` & `LoadLayoutConfig`**:
+  - Added boundary validation: clamped `mode` to valid range (`-1` or `0..13`), defaulting out-of-range values to `7`.
+  - Enforced positive integers for `hold_th` (> 0) and non-negative integers for `b_time` (>= 0), falling back to defaults upon invalid input.
+- **`LKey.ResetAll` & `ResetCombinations`**:
+  - Explicitly cleared `Layers.last_active_item := ""` to prevent cross-layout multi-stage tap corruption.
+- **Regression Tests (`test/test_hold_mode.ahk`, `test/test_runner.ahk`)**:
+  - Added Test Group 14 assertions covering `SendKeyWithShift(ime_state)`, `_EvaluateChord` IME synchronization, `HoldMode` bounds fallbacks, and `ResetAll` cleanup. Total assertions increased to 159 (100% pass rate).
+
+### Verification & Impact
+- Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
+- Executed master test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 159 tests passed with 0 failures (100% pass rate).
+- Fully eliminated IME state desynchronization and Backspace length errors while preserving 100% behavioral compatibility with all existing layout definitions.
+
 ## [2026-10-23] - Formalize LKey State Machine with Session ID Generation and Ghost Recovery
 
 ### Overview

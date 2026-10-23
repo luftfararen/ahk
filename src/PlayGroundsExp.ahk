@@ -170,6 +170,7 @@ class ImeState {
     static force_ime_on := false
     static cached_state := false
     static last_active_control_hwnd := 0
+    static last_active_window_hwnd := 0
     static is_composing_tracked := false
     static composition_count := 0
     static composition_hwnd := 0
@@ -218,13 +219,19 @@ class ImeState {
     static Reset() {
         ImeState.last_action_time := 0
         ImeState.last_check_time := 0
+        ImeState.last_active_window_hwnd := 0
     }
 
     /**
      * 現在のモードと時間経過に基づき、IME状態のチェックが必要かどうかを判定します。
+     * アクティブウィンドウが切り替わった場合は時間経過にかかわらずチェックします。
      * @returns {Boolean} チェックが必要な場合は true
      */
     static MustCheck() {
+        cur_hwnd := WinExist("A")
+        if (cur_hwnd && cur_hwnd != ImeState.last_active_window_hwnd) {
+            return true
+        }
         if (ImeState.mode == 0) {
             ;キー入力が長時間されない場合、チェックする
             return A_TickCount - ImeState.last_action_time > ImeState.threshold
@@ -249,6 +256,8 @@ class ImeState {
         if !hwnd {
             return ImeState.cached_state
         }
+
+        ImeState.last_active_window_hwnd := WinExist("A")
 
         ; 同じコントロールであれば強制 IME ON フラグを確認
         if (ImeState.last_active_control_hwnd == hwnd) {
@@ -288,9 +297,9 @@ class ImeState {
         if default_ime_wnd {
             state := 0
             ; 0x0283: WM_IME_CONTROL, 0x0005: IMC_GETOPENSTATUS
-            ; SMTO_ABORTIFHUNG (0x0002) を指定しつつ、タイムアウトを確実に取得
+            ; SMTO_ABORTIFHUNG (0x0002) を指定しつつ、低レベルフックの遅延を防ぐため 30ms タイムアウトで取得
             if DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
-                "UInt", 0x0002, "UInt", 100, "Ptr*", &state, "Ptr") {
+                "UInt", 0x0002, "UInt", 30, "Ptr*", &state, "Ptr") {
                 ImeState.cached_state := (state != 0)
             }
         }
@@ -432,6 +441,45 @@ SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
     } else {
         SendAndLog(key_ime_off)
     }
+}
+
+/**
+ * 送信されたキーストロークを安全に Backspace で取り消すための文字数を算出します。
+ * 制御キーやショートカットなど Backspace で安全に取り消せないものは 0 を返します。
+ * @param {String} text - 送信されたキーまたはテキスト
+ * @returns {Integer} 送信すべき Backspace の回数 (0 の場合は消去スキップ)
+ */
+GetBackspaceUndoCount(text) {
+    if (text == "" || text == "{none}")
+        return 0
+
+    clean := RegExReplace(text, "i)^\{Blind\}", "")
+
+    ; Ctrl, Alt, Win 修飾付きショートカットキー (^c, !v, #e 等) は Backspace 取り消し不可
+    if RegExMatch(clean, "[\^!#]")
+        return 0
+
+    ; {Enter}, {Esc}, {Tab} 等の制御キーは Backspace で安全に取り消せないため 0
+    if RegExMatch(clean, "i)^\{(Enter|Return|Esc|Escape|Tab|BS|Backspace|Delete|Del|Up|Down|Left|Right|Home|End|PgUp|PgDn)\}")
+        return 0
+
+    ; 単一キー記述 {scXXX}, {vkXX}, {Space} の場合は 1 文字
+    if RegExMatch(clean, "i)^\{(sc[0-9a-fA-F]+|vk[0-9a-fA-F]+|Space)(\s+[0-9]+)?\}$")
+        return 1
+
+    ; Shift 修飾のみの単一文字 (+a, +1 等)
+    if RegExMatch(clean, "^\+([a-zA-Z0-9]|[^\w\s])$")
+        return 1
+
+    ; 中括弧を含まない通常の文字列は文字数
+    if !InStr(clean, "{") && !InStr(clean, "}")
+        return StrLen(clean)
+
+    ; 単一の波括弧で囲まれたその他キー {F1}〜{F24} 等は 0
+    if RegExMatch(clean, "i)^\{F\d+\}")
+        return 0
+
+    return StrLen(clean)
 }
 
 ; --- リモートデスクトップ使用時の自動無効化 ---
@@ -647,10 +695,11 @@ class RKey {
 
     /**
      * 物理的な Shift キーの押下状態に基づいて、対応するキーマッピングを送信します。
+     * @param {Integer} [ime_state=-1] - IME 状態 (-1: 自動取得, 0: OFF, 1: ON)
      * @returns {Boolean} 送信されたキーが Shift 版である場合は true
      */
-    SendKeyWithShift() {
-        return this.SendShiftedKey(IsPhysicalShiftPressed(this))
+    SendKeyWithShift(ime_state := -1) {
+        return this.SendShiftedKey(IsPhysicalShiftPressed(this), ime_state)
     }
 
     /**
@@ -688,6 +737,7 @@ class RKey {
      */
     Down() {
         Critical
+        ImeState.RecordActivity()
         LKey.InterruptOthers(this)
         Layers.last_active_item := ""
         Critical "Off"
@@ -945,6 +995,7 @@ class LKey extends RKey {
         for inst in LKey.instances {
             inst.ResetState()
         }
+        Layers.last_active_item := ""
     }
 
     /**
@@ -1093,6 +1144,7 @@ class LKey extends RKey {
      */
     Down() {
         Critical
+        ImeState.RecordActivity()
         ime_state := ImeState.IsOn()
         hold_mode := (ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org
 
@@ -1203,6 +1255,7 @@ class LKey extends RKey {
         saved_state := this.state
         saved_interrupted := this.interrupted
         saved_scaw := this.saved_scaw
+        saved_down_ime_state := this.down_ime_state
 
         ; 状態を初期化
         this.ResetState()
@@ -1214,9 +1267,9 @@ class LKey extends RKey {
                 SendAndLog("{Blind}" . saved_scaw . this.key_text)
             }
         } else if (hold_mode == 5) {
-            ; モード5：短押し（単独Up時）に通常キーを送信
+            ; モード5：短押し（単独Up時）に通常キーを送信（押下開始時の IME 状態を維持）
             if (saved_state == LKey.st_pressing && !saved_interrupted && duration < LKey.hold_th) {
-                this.SendKeyWithShift()
+                this.SendKeyWithShift(saved_down_ime_state)
             }
         }
     }
@@ -1235,10 +1288,17 @@ class LKey extends RKey {
             duration := HighPrecisionTimer() - this.pressed_time_qpc
             if (duration >= LKey.hold_th) {
                 this.state := LKey.st_processed
+                down_hwnd := this.down_hwnd
+                down_ime_state := this.down_ime_state
+                pre_text := (down_ime_state == 1) ? this.ime_key_text : this.key_text
+                Critical "Off"
                 ; 同一ウィンドウがアクティブな場合のみ安全に Backspace 置換を行う
-                if (this.down_hwnd == 0 || WinActive("ahk_id " . this.down_hwnd)) {
-                    Send("{Backspace}")
-                    this.SendShiftedKey(true, this.down_ime_state)
+                if (down_hwnd == 0 || WinActive("ahk_id " . down_hwnd)) {
+                    bs_count := GetBackspaceUndoCount(pre_text)
+                    if (bs_count > 0) {
+                        Send("{Backspace " . bs_count . "}")
+                    }
+                    this.SendShiftedKey(true, down_ime_state)
                 }
             } else {
                 remaining := Ceil(LKey.hold_th - duration)
@@ -1409,6 +1469,7 @@ ResetCombinations() {
         }
         keyObj.layers.ime_arr := new_ime_arr
     }
+    Layers.last_active_item := ""
 }
 
 /**
@@ -1501,7 +1562,8 @@ class Layers {
                 this.hold_th := mode.hold_th
                 this.b_time := mode.b_time
             } else {
-                this.mode := mode
+                valid_mode := (mode == -1 || (IsInteger(mode) && mode >= 0 && mode <= 13)) ? Integer(mode) : 7
+                this.mode := valid_mode
                 this.hold_th := -1
                 this.b_time := -1
             }
@@ -1813,9 +1875,10 @@ class Layers {
      * @param {Integer} b - ロールオーバー防止バッファ時間 (ms)
      * @param {LKey} mod_key - 先行する修飾側キーオブジェクト
      * @param {LKey} key_obj - 後続のメイン側キーオブジェクト
+     * @param {Integer} [ime_state=-1] - 現在のIME状態 (0: OFF, 1: ON, -1: 未指定)
      * @returns {Integer} 1: 修飾成立, 0: 修飾不成立, -1: 処理完了済 (即座に return true)
      */
-    static _EvaluateChord(mode, t_qpc, x, b, mod_key, key_obj) {
+    static _EvaluateChord(mode, t_qpc, x, b, mod_key, key_obj, ime_state := -1) {
         ; ゾーン 1: 閾値超過 (全モード共通でホールド成立)
         if (t_qpc >= x)
             return 1
@@ -1825,11 +1888,18 @@ class Layers {
         if (mode != 6 && t_qpc < x - b) {
             if (mode == 9) {
                 ; モード 9 特有: 通常キーを先行送信した上で待機
-                key_obj.SendKeyWithShift()
+                target_hwnd := WinExist("A")
+                current_ime := (ime_state != -1) ? ime_state : (key_obj.down_ime_state == 1 ? 1 : 0)
+                key_obj.SendKeyWithShift(current_ime)
                 res := Layers._WaitForHold(mod_key, key_obj, x)
                 if (res == 3) {
-                    if WinActive("A")
-                        Send("{Backspace}")
+                    if (target_hwnd == 0 || WinActive("ahk_id " . target_hwnd)) {
+                        pre_text := (current_ime == 1) ? key_obj.ime_key_text : key_obj.key_text
+                        bs_count := GetBackspaceUndoCount(pre_text)
+                        if (bs_count > 0) {
+                            Send("{Backspace " . bs_count . "}")
+                        }
+                    }
                     return 1 ; ホールド成立 (置換)
                 }
                 return -1 ; 先行送信済みのまま確定
@@ -1837,7 +1907,7 @@ class Layers {
             if (mode == 5) {
                 ; モード 5 特有: 保留していた A の通常キーをフォールバック送信
                 if (mod_key.state == LKey.st_pressing)
-                    mod_key.SendKeyWithShift()
+                    mod_key.SendKeyWithShift(mod_key.down_ime_state)
                 mod_key.state := LKey.st_processed
             }
             return 0 ; 修飾不成立
@@ -1858,7 +1928,7 @@ class Layers {
         ; モード 5 の不成立時フォールバック
         if (mode == 5 && !is_held) {
             if (mod_key.state == LKey.st_pressing)
-                mod_key.SendKeyWithShift()
+                mod_key.SendKeyWithShift(mod_key.down_ime_state)
             mod_key.state := LKey.st_processed
         }
 
@@ -1895,7 +1965,7 @@ class Layers {
 
                     ; 1. 判定エンジンによる同時押し評価
                     chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
-                        ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj)
+                        ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj, ime_state)
                         : (t_qpc >= x ? 1 : 0)
 
                     if (chord_result == -1)
@@ -1941,14 +2011,17 @@ class Layers {
 class HoldMode {
     /**
      * コンストラクタ
-     * @param {Integer} mode - 長押し動作モード
+     * @param {Integer} mode - 長押し動作モード (-1=継承, 0〜13)
      * @param {Integer} [hold_th=-1] - ホールド判定閾値 (ms, -1=未指定)
      * @param {Integer} [b_time=-1] - ロールオーバー誤判定防止バッファ時間 (ms, -1=未指定)
      */
     __New(mode, hold_th := -1, b_time := -1) {
-        this.mode := mode
-        this.hold_th := hold_th
-        this.b_time := b_time
+        valid_mode := (mode == -1 || (IsInteger(mode) && mode >= 0 && mode <= 13)) ? Integer(mode) : 7
+        valid_hold_th := (hold_th == -1 || (IsInteger(hold_th) && hold_th > 0)) ? Integer(hold_th) : -1
+        valid_b_time := (b_time == -1 || (IsInteger(b_time) && b_time >= 0)) ? Integer(b_time) : -1
+        this.mode := valid_mode
+        this.hold_th := valid_hold_th
+        this.b_time := valid_b_time
     }
 }
 

@@ -28,6 +28,7 @@ RunAllTests() {
     Test_WaitForHold_Interruption_And_SafetyGuard()
     Test_EvaluateChord_Direct()
     Test_LKey_State_Machine_And_Transitions()
+    Test_ImeState_And_Backspace_Safety()
 
     ; --- Test Suite 2: Layer Mapping & INI Binding ---
     Test_LayerId_To_ModKeyId_Mapping()

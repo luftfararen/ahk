@@ -1630,13 +1630,15 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
 
                 if (mode_parts.Length > 0 && IsInteger(mode_parts[1])) {
                     mode_val := Integer(mode_parts[1])
+                    if (mode_val != -1 && (mode_val < 0 || mode_val > 13)) {
+                        mode_val := 7 ; 不正なモード番号は安全なデフォルト Mode 7 にフォールバック
+                    }
                     if (mode_parts.Length >= 3) {
-                        hold_th := IsInteger(mode_parts[2]) ? Integer(mode_parts[2]) : Layers.hold_th
-                        b_time := IsInteger(mode_parts[3]) ? Integer(mode_parts[3]) : ((mode_val = 8) ? Layers.b_time2 :
-                            Layers.b_time)
+                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) : Layers.hold_th
+                        b_time := (IsInteger(mode_parts[3]) && Integer(mode_parts[3]) >= 0) ? Integer(mode_parts[3]) : ((mode_val = 8) ? Layers.b_time2 : Layers.b_time)
                         mode := HoldMode(mode_val, hold_th, b_time)
                     } else if (mode_parts.Length == 2) {
-                        hold_th := IsInteger(mode_parts[2]) ? Integer(mode_parts[2]) : Layers.hold_th
+                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) : Layers.hold_th
                         b_time := (mode_val = 8) ? Layers.b_time2 : Layers.b_time
                         mode := HoldMode(mode_val, hold_th, b_time)
                     } else {

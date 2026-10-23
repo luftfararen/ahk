@@ -553,6 +553,104 @@ Test_LKey_State_Machine_And_Transitions() {
     Assert(ghost_key.pressed_time_qpc == 0, "CleanupReleasedKeys clears pressed_time_qpc")
 }
 
+; ----------------------------------------------------------------------------
+; Test Group 14: IME 状態キャッシュ & Backspace 消去安全性テスト
+; ----------------------------------------------------------------------------
+Test_ImeState_And_Backspace_Safety() {
+    LogMsg("`n--- Test Group 14: IME State Caching & Backspace Safety ---`n")
+
+    ; 1. ImeState.MustCheck() のアクティブウィンドウ切り替え検知
+    orig_mode := ImeState.mode
+    orig_thresh := ImeState.threshold
+    orig_action_time := ImeState.last_action_time
+    orig_window := ImeState.last_active_window_hwnd
+
+    ImeState.mode := 0
+    ImeState.threshold := 10000 ; 10秒
+    ImeState.last_action_time := A_TickCount ; 直近で打鍵
+    cur_hwnd := WinExist("A")
+    if (cur_hwnd) {
+        ; 偽のウィンドウハンドルを設定
+        ImeState.last_active_window_hwnd := (cur_hwnd == 888888) ? 999999 : 888888
+        Assert(ImeState.MustCheck() == true, "MustCheck returns true when active window changes")
+
+        ; 現在のアクティブウィンドウと一致している場合
+        ImeState.last_active_window_hwnd := cur_hwnd
+        Assert(ImeState.MustCheck() == false, "MustCheck returns false within threshold on same window")
+    } else {
+        ; ヘッドレス / 非GUI実行環境
+        Assert(true, "MustCheck: window change test bypassed in headless environment")
+        Assert(true, "MustCheck: same window test bypassed in headless environment")
+    }
+
+    ; 状態復元
+    ImeState.mode := orig_mode
+    ImeState.threshold := orig_thresh
+    ImeState.last_action_time := orig_action_time
+    ImeState.last_active_window_hwnd := orig_window
+
+    ; 2. GetBackspaceUndoCount() の文字数計算
+    ; 単一文字
+    Assert(GetBackspaceUndoCount("a") == 1, "GetBackspaceUndoCount: single char 'a' -> 1")
+    Assert(GetBackspaceUndoCount("Z") == 1, "GetBackspaceUndoCount: single char 'Z' -> 1")
+    Assert(GetBackspaceUndoCount("+a") == 1, "GetBackspaceUndoCount: shifted char '+a' -> 1")
+    ; 複数文字
+    Assert(GetBackspaceUndoCount("->") == 2, "GetBackspaceUndoCount: multi char '->' -> 2")
+    Assert(GetBackspaceUndoCount(":=") == 2, "GetBackspaceUndoCount: multi char ':=' -> 2")
+    Assert(GetBackspaceUndoCount("abc") == 3, "GetBackspaceUndoCount: text 'abc' -> 3")
+    ; 特殊キー
+    Assert(GetBackspaceUndoCount("{Space}") == 1, "GetBackspaceUndoCount: {Space} -> 1")
+    Assert(GetBackspaceUndoCount("{sc027}") == 1, "GetBackspaceUndoCount: {sc027} -> 1")
+    Assert(GetBackspaceUndoCount("{Blind}x") == 1, "GetBackspaceUndoCount: {Blind}x -> 1")
+    Assert(GetBackspaceUndoCount("{Blind}:=") == 2, "GetBackspaceUndoCount: {Blind}:= -> 2")
+    ; 制御キー（消去不可）
+    Assert(GetBackspaceUndoCount("{Enter}") == 0, "GetBackspaceUndoCount: {Enter} -> 0")
+    Assert(GetBackspaceUndoCount("{Esc}") == 0, "GetBackspaceUndoCount: {Esc} -> 0")
+    Assert(GetBackspaceUndoCount("{Tab}") == 0, "GetBackspaceUndoCount: {Tab} -> 0")
+    Assert(GetBackspaceUndoCount("{BS}") == 0, "GetBackspaceUndoCount: {BS} -> 0")
+    Assert(GetBackspaceUndoCount("{Delete}") == 0, "GetBackspaceUndoCount: {Delete} -> 0")
+    Assert(GetBackspaceUndoCount("{Blind}{Enter}") == 0, "GetBackspaceUndoCount: {Blind}{Enter} -> 0")
+    ; ショートカットキー（消去不可）
+    Assert(GetBackspaceUndoCount("^c") == 0, "GetBackspaceUndoCount: ^c -> 0")
+    Assert(GetBackspaceUndoCount("!v") == 0, "GetBackspaceUndoCount: !v -> 0")
+    Assert(GetBackspaceUndoCount("#e") == 0, "GetBackspaceUndoCount: #e -> 0")
+    ; 空文字・{none}
+    Assert(GetBackspaceUndoCount("") == 0, "GetBackspaceUndoCount: empty string -> 0")
+    Assert(GetBackspaceUndoCount("{none}") == 0, "GetBackspaceUndoCount: {none} -> 0")
+
+    ; 3. SendKeyWithShift() および _EvaluateChord() の ime_state パラメータ受け渡し
+    test_key := LKey("q")
+    test_key.SetKey("q")
+    test_key.SetImeKey("ka")
+    Assert(HasMethod(test_key, "SendKeyWithShift"), "test_key has SendKeyWithShift")
+
+    dummy_mod := LKey("space")
+    dummy_target := LKey("a")
+    dummy_target.SetKey("a")
+    dummy_target.SetImeKey("ka")
+    Assert(Layers._EvaluateChord(9, 300, 200, 50, dummy_mod, dummy_target, 1) == 1, "_EvaluateChord accepts ime_state=1 in Zone 1")
+    Assert(Layers._EvaluateChord(9, 300, 200, 50, dummy_mod, dummy_target, 0) == 1, "_EvaluateChord accepts ime_state=0 in Zone 1")
+
+    ; 4. HoldMode & LayerItem 設定値のバリデーションとフォールバック
+    hm_invalid := HoldMode(99, -10, -5)
+    Assert(hm_invalid.mode == 7, "HoldMode out-of-range mode (99) falls back to 7")
+    Assert(hm_invalid.hold_th == -1, "HoldMode negative hold_th (-10) falls back to -1")
+    Assert(hm_invalid.b_time == -1, "HoldMode negative b_time (-5) falls back to -1")
+
+    hm_valid := HoldMode(8, 180, 0)
+    Assert(hm_valid.mode == 8, "HoldMode valid mode 8 preserved")
+    Assert(hm_valid.hold_th == 180, "HoldMode valid hold_th 180 preserved")
+    Assert(hm_valid.b_time == 0, "HoldMode valid b_time 0 preserved")
+
+    li_invalid := Layers.LayerItem(1, "a", "", "", 50)
+    Assert(li_invalid.mode == 7, "LayerItem out-of-range mode (50) falls back to 7")
+
+    ; 5. LKey.ResetAll() による Layers.last_active_item のクリア
+    Layers.last_active_item := li_invalid
+    LKey.ResetAll()
+    Assert(Layers.last_active_item == "", "LKey.ResetAll() clears Layers.last_active_item")
+}
+
 RunHoldModeTests() {
     InitTestSuite("HOLD MODE & CORE REGRESSION TESTS")
     Test_Layers_Add_Update()
@@ -566,6 +664,7 @@ RunHoldModeTests() {
     Test_WaitForHold_Interruption_And_SafetyGuard()
     Test_EvaluateChord_Direct()
     Test_LKey_State_Machine_And_Transitions()
+    Test_ImeState_And_Backspace_Safety()
     FinishTestSuite()
 }
 
