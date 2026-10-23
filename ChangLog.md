@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-10-23] - Formalize LKey State Machine with Session ID Generation and Ghost Recovery
+
+### Overview
+- **Category**: Bug Fix / State Management & Lifecycle Robustness
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
+- **Summary**: Formalized the `LKey` 3-state lifecycle (`st_init`, `st_pressing`, `st_processed`), resolved critical interruption omission in `hold_mode == 0` leading to errant space insertions, introduced monotonic `session_id` to eliminate stale timer race conditions, and implemented ghost press auto-recovery to prevent permanent key deadlocks upon window focus changes.
+
+### Background & Root Cause
+- **Symptoms**:
+  - Typing ordinary alphanumeric keys (`hold_mode == 0`) while holding Space (`hold_mode == 3`) failed to mark Space as interrupted; when Space was released, an unwanted trailing space was emitted.
+  - In rapid tapping sequences (Down -> Up -> Down), asynchronous `OnHoldTimeout` callbacks from a prior session could trigger or reschedule during a new session.
+  - When window focus changed (e.g. Alt-Tab, UAC prompt, or notifications) while a key was physically held, the physical key release (`Up`) was missed by the keyboard hook, leaving the key in `st_pressing` or `st_processed`. Subsequent presses hit the repeat guard and were permanently ignored.
+- **Root Cause**:
+  1. Early exit in `LKey.Down()` for `hold_mode == 0` occurred prior to executing `LKey.InterruptOthers(this)` and `Layers.last_active_item := ""`.
+  2. Lack of session/generation ID tracking across press sessions, allowing shared `timer_name` BoundFunc invocations from superseded sessions to interact with active state.
+  3. No automatic mechanism to recover keys whose physical state (`!IsPressed()`) had desynchronized from internal state (`state != st_init`).
+
+### Technical Changes
+- **`LKey.ResetState`**:
+  - Encapsulated complete instance cleanup (`state := st_init`, `pressed_time_qpc := 0`, `interrupted := false`, `saved_scaw := ""`, `down_hwnd := 0`, `session_id++`, and timer cancellation).
+- **`LKey.InterruptOthers`**:
+  - Ensured active pressing keys advance `session_id++`, cancel pending timers, set `interrupted := true`, and transition to `st_processed`.
+- **`LKey.CleanupReleasedKeys`**:
+  - Implemented automatic recovery: resets any instance stuck in `st_processed` to `st_init` if its physical key is not currently pressed (`!IsPressed()`).
+- **`LKey.Down`**:
+  - Added `LKey.CleanupReleasedKeys()` and stale-repeat auto-reset (`A_TimeSincePriorHotkey > 1500`).
+  - Added `LKey.InterruptOthers(this)` to `hold_mode == 0` path and to the `!this.IsPressed()` safety guard path, ensuring all emitted key down events notify other holding keys.
+  - Incremented `session_id` and tracked `timer_session_id := this.session_id` on press initiation.
+- **`LKey.OnHoldTimeout`**:
+  - Added session ID guard: `if (this.timer_session_id != this.session_id) return` to discard callbacks from prior sessions.
+- **Regression Tests (`test/test_hold_mode.ahk`, `test/test_runner.ahk`)**:
+  - Added `Test Group 13: LKey State Machine & Lifecycle Transitions` (12 assertions covering `ResetState`, `hold_mode == 0` interruption, session ID expiration, and `CleanupReleasedKeys`).
+
+### Verification & Impact
+- Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
+- Executed master regression test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 125 tests passed with 0 failures (100% pass rate).
+- Completely eliminated space insertion leaks during fast rollover typing and resolved ghost key deadlocks without altering key mapping definitions.
+
 ## [2026-10-23] - Refactor Layers.SendLayerKey with Extracted _EvaluateChord Decision Engine
 
 ### Overview

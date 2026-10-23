@@ -27,6 +27,7 @@ RunAllTests() {
     Test_Qwerty_Layout_Switch()
     Test_WaitForHold_Interruption_And_SafetyGuard()
     Test_EvaluateChord_Direct()
+    Test_LKey_State_Machine_And_Transitions()
 
     ; --- Test Suite 2: Layer Mapping & INI Binding ---
     Test_LayerId_To_ModKeyId_Mapping()

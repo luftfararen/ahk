@@ -943,14 +943,7 @@ class LKey extends RKey {
      */
     static ResetAll() {
         for inst in LKey.instances {
-            inst.state := LKey.st_init
-            inst.pressed_time_qpc := 0
-            inst.interrupted := false
-            inst.saved_scaw := ""
-            inst.down_hwnd := 0
-            if (inst.timer_name != "") {
-                SetTimer(inst.timer_name, 0)
-            }
+            inst.ResetState()
         }
     }
 
@@ -961,10 +954,22 @@ class LKey extends RKey {
         for inst in LKey.instances {
             if (inst != currentKey && inst.state == LKey.st_pressing) {
                 inst.interrupted := true
+                inst.session_id++
                 if (inst.timer_name != "") {
                     SetTimer(inst.timer_name, 0)
                 }
                 inst.state := LKey.st_processed
+            }
+        }
+    }
+
+    /**
+     * 物理キーが離されているにもかかわらず未初期化のインスタンスをすべてクリーンアップする
+     */
+    static CleanupReleasedKeys() {
+        for inst in LKey.instances {
+            if (inst.state == LKey.st_processed && !inst.IsPressed()) {
+                inst.ResetState()
             }
         }
     }
@@ -976,6 +981,23 @@ class LKey extends RKey {
     saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
     down_hwnd := 0        ; 押下開始時のアクティブウィンドウハンドル
     timer_name := ""      ; 非同期タイマーコールバック名
+    session_id := 0       ; 押下セッション識別子（世代管理）
+    timer_session_id := 0 ; タイマー登録時のセッションID
+
+    /**
+     * キーの状態（押下時間、割り込みフラグ、セッションID、タイマーなど）を初期状態にリセットします。
+     */
+    ResetState() {
+        this.state := LKey.st_init
+        this.pressed_time_qpc := 0
+        this.interrupted := false
+        this.saved_scaw := ""
+        this.down_hwnd := 0
+        this.session_id++
+        if (this.timer_name != "") {
+            SetTimer(this.timer_name, 0)
+        }
+    }
 
     /**
      * コンストラクタ
@@ -1072,11 +1094,18 @@ class LKey extends RKey {
     Down() {
         Critical
         ime_state := ImeState.IsOn()
-        hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
+        hold_mode := (ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org
+
+        ; 物理キーが離されているゴースト状態の自動復旧
+        LKey.CleanupReleasedKeys()
 
         ; リピートガード (モード 0 以外用)
         if (hold_mode != 0 && (this.state == LKey.st_pressing || this.state == LKey.st_processed)) {
-            return
+            if (A_TimeSincePriorHotkey != -1 && A_TimeSincePriorHotkey > 1500) {
+                this.ResetState()
+            } else {
+                return
+            }
         }
 
         ; レイヤーキーの判定 (待機処理を含むため Critical を解除して実行)
@@ -1094,9 +1123,8 @@ class LKey extends RKey {
         ; レイヤー判定（待機処理を含む）中にキーが物理的に解放されていた場合の安全ガード
         if !this.IsPressed() {
             Critical
-            this.state := LKey.st_init
-            this.pressed_time_qpc := 0
-            this.interrupted := false
+            LKey.InterruptOthers(this)
+            this.ResetState()
             Critical "Off"
             if (hold_mode != 2) {
                 this.SendKeyWithShift()
@@ -1118,8 +1146,12 @@ class LKey extends RKey {
             return
         }
 
-        ; モード0（長押し判定なし通常送信）
+        ; モード0（長押し判定なし通常送信）: 他キーへの割り込み通知を実行
         if (hold_mode == 0) {
+            Critical
+            LKey.InterruptOthers(this)
+            this.ResetState()
+            Critical "Off"
             this.SendKeyWithShift()
             return
         }
@@ -1129,6 +1161,8 @@ class LKey extends RKey {
         this.pressed_time_qpc := HighPrecisionTimer()
         this.down_ime_state := ime_state
         this.down_hwnd := WinExist("A")
+        this.session_id++
+        this.timer_session_id := this.session_id
         LKey.InterruptOthers(this)
         this.state := LKey.st_pressing
         Critical "Off"
@@ -1156,31 +1190,22 @@ class LKey extends RKey {
     Up() {
         Critical
         ime_state := ImeState.IsOn()
-        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) :
-            ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
+        hold_mode := (this.pressed_time_qpc == 0) ? 
+            ((ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org) :
+            ((this.down_ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org)
 
         if (hold_mode == 0) {
-            this.state := LKey.st_init
-            this.pressed_time_qpc := 0
-            this.down_hwnd := 0
+            this.ResetState()
             return
         }
 
-        if (this.timer_name != "") {
-            SetTimer(this.timer_name, 0)
-        }
-
-        duration := HighPrecisionTimer() - this.pressed_time_qpc
+        duration := (this.pressed_time_qpc > 0) ? (HighPrecisionTimer() - this.pressed_time_qpc) : 0
         saved_state := this.state
         saved_interrupted := this.interrupted
         saved_scaw := this.saved_scaw
 
         ; 状態を初期化
-        this.state := LKey.st_init
-        this.pressed_time_qpc := 0
-        this.interrupted := false
-        this.saved_scaw := ""
-        this.down_hwnd := 0
+        this.ResetState()
         Critical "Off"
 
         ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
@@ -1201,6 +1226,11 @@ class LKey extends RKey {
      */
     OnHoldTimeout() {
         Critical
+        ; セッションIDチェック: 過去のセッションからの遅延発火を完全に破棄
+        if (this.timer_session_id != this.session_id) {
+            return
+        }
+
         if (this.state == LKey.st_pressing && !this.interrupted) {
             duration := HighPrecisionTimer() - this.pressed_time_qpc
             if (duration >= LKey.hold_th) {

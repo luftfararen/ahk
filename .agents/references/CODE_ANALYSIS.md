@@ -171,24 +171,27 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> st_init: Initialize
+    [*] --> st_init: Initialize / ResetState()
 
-    st_init --> st_pressing: Down() [Physical Press]
-    st_pressing --> st_processed: SendLayerKey() Success [Chord Triggered]
-    st_pressing --> st_processed: CAW Pass-Through Triggered
-    st_pressing --> st_processed: InterruptOthers() [3rd Key Pressed]
-    st_pressing --> st_processed: OnHoldTimeout() [Mode 1 Long-Press]
+    st_init --> st_pressing: Down() [Physical Press (Modes 1-9, 13)]
+    st_init --> st_processed: Down() [SendLayerKey Chord Success]
+    st_init --> st_processed: Down() [CAW Pass-Through Triggered]
+    st_init --> st_init: Down() [hold_mode == 0 / Physical Release Safety Guard]
 
-    st_pressing --> st_init: Up() [Normal Tap Emitted / Solo Release]
-    st_processed --> st_init: Up() [Physical Release Cleanup]
-
+    st_pressing --> st_processed: InterruptOthers() [Other Key Pressed & Physical Press Active]
+    st_pressing --> st_processed: OnHoldTimeout() [Mode 1 Long-Press Timeout]
+    st_pressing --> st_init: Up() [Tap Emitted / Solo Release]
     st_pressing --> st_init: Safety Guard [Key Released During _WaitForHold]
+    
+    st_processed --> st_init: Up() [Physical Release Cleanup via ResetState()]
+    st_processed --> st_init: CleanupReleasedKeys() [Ghost Key Auto-Recovery]
 ```
 
 ### Invariant Conditions
-1. If a key is physically released (`!this.IsPressed()`), its state **MUST be `st_init`**, and `pressed_time_qpc` **MUST be 0**.
+1. If a key is physically released (`!this.IsPressed()`) and in `st_processed`, `CleanupReleasedKeys()` **resets it to `st_init`**, and `pressed_time_qpc` **is cleared to 0**.
 2. If `state == st_processed`, `Up()` **MUST NOT** emit default tap actions.
-3. If `interrupted == true`, timers are cancelled and chord triggers are suppressed.
+3. If `interrupted == true`, timers are cancelled, `session_id` is incremented, and chord triggers are suppressed.
+4. Each press session maintains a monotonic `session_id`. Stale asynchronous `OnHoldTimeout` callbacks with mismatched `timer_session_id != session_id` **MUST be discarded immediately**.
 
 ---
 
@@ -201,12 +204,20 @@ stateDiagram-v2
 2. **Interruption Leak in `_WaitForHold()`**:
    - *Cause*: `_WaitForHold()` loop only checked physical press and timeout, ignoring `mod_key.interrupted`. Third-key strikes failed to abort the wait loop.
    - *Fix*: Added `(mod_key.interrupted || mod_key.state != LKey.st_pressing)` check to immediately return `0` (interruption cancelled).
+3. **`hold_mode == 0` Interruption Omission & Errant Space Insertion**:
+   - *Cause*: In `LKey.Down()`, `if (hold_mode == 0)` exited immediately without calling `LKey.InterruptOthers(this)` or resetting `Layers.last_active_item`. Fast typing of normal characters while holding Space left Space un-interrupted, causing an unwanted trailing space on Space release.
+   - *Fix*: Added `LKey.InterruptOthers(this)` and `this.ResetState()` to both `hold_mode == 0` and the `!this.IsPressed()` safety guard branch.
+4. **Asynchronous Timer Race Across Sessions in Mode 1**:
+   - *Cause*: `LKey` lacked session identification. Rapid consecutive presses could execute delayed `OnHoldTimeout()` callbacks from prior press sessions.
+   - *Fix*: Introduced monotonic `session_id` and `timer_session_id`. Any callback where `timer_session_id != session_id` is discarded instantly.
+5. **Ghost Key Press Deadlocks After Window Focus Loss**:
+   - *Cause*: Alt-Tab or UAC focus transitions during physical key press caused the keyboard hook to lose the `Up` hotkey event, leaving the key in `st_processed` or `st_pressing`. Subsequent presses hit the repeat guard permanently.
+   - *Fix*: Added `LKey.CleanupReleasedKeys()` and stale auto-repeat reset (`A_TimeSincePriorHotkey > 1500`).
 
 ### 7.2 Potential Issues & Latent Risks
 1. **Mode 9 Multi-Character Backspace Incompleteness**:
    - *Risk*: Mode 9 sends `{Backspace}` once on timeout in Zone 2. If `key_obj` emitted a multi-character sequence or IME composition, a single Backspace leaves partial characters behind.
-2. **Code Duplication in `SendLayerKey()`**:
-   - *Risk*: Redundant threshold calculations (`x`, `b`) and `_WaitForHold` invocations across Modes 5, 6, 7, 8, and 9 obscure mode-specific logic and increase maintenance burden.
+
 
 ---
 

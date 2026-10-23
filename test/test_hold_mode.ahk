@@ -494,6 +494,65 @@ Test_EvaluateChord_Direct() {
     Assert(mod_key.state == LKey.st_processed, "Mode 5 Zone 2 sets mod_key.state := st_processed", "got: " . mod_key.state)
 }
 
+; ----------------------------------------------------------------------------
+; Test Group 13: LKey 状態遷移・セッション世代管理・ゴースト復旧テスト
+; ----------------------------------------------------------------------------
+Test_LKey_State_Machine_And_Transitions() {
+    LogMsg("`n--- Test Group 13: LKey State Machine & Lifecycle Transitions ---`n")
+
+    ; 1. ResetState() による完全初期化
+    k := LKey("q", 1)
+    k.state := LKey.st_pressing
+    k.pressed_time_qpc := HighPrecisionTimer()
+    k.interrupted := true
+    k.saved_scaw := "^!"
+    k.down_hwnd := 12345
+    init_session := k.session_id
+    k.ResetState()
+
+    Assert(k.state == LKey.st_init, "ResetState: state is st_init")
+    Assert(k.pressed_time_qpc == 0, "ResetState: pressed_time_qpc is 0")
+    Assert(k.interrupted == false, "ResetState: interrupted is false")
+    Assert(k.saved_scaw == "", "ResetState: saved_scaw cleared")
+    Assert(k.down_hwnd == 0, "ResetState: down_hwnd cleared")
+    Assert(k.session_id > init_session, "ResetState: session_id incremented")
+
+    ; 2. hold_mode == 0 による割り込み通知 (InterruptOthers)
+    space_key := LKey("space", 3)
+    space_key.state := LKey.st_pressing
+    space_key.pressed_time_qpc := HighPrecisionTimer()
+    space_key.interrupted := false
+
+    norm_key := LKey("a", 0) ; Mode 0 (通常送信)
+    norm_key.Down()
+
+    Assert(space_key.interrupted == true, "hold_mode 0 Down interrupts active pressing keys")
+    Assert(space_key.state == LKey.st_processed, "space_key state becomes st_processed after interruption")
+
+    ; 3. タイマーセッションID不一致による遅延発火無効化
+    t_key := LKey("w", 1)
+    t_key.state := LKey.st_pressing
+    t_key.pressed_time_qpc := HighPrecisionTimer() - (LKey.hold_th + 10)
+    t_key.interrupted := false
+    t_key.session_id := 10
+    t_key.timer_session_id := 9 ; 古いセッションのタイマー
+    t_key.OnHoldTimeout()
+    Assert(t_key.state == LKey.st_pressing, "Stale timer session (timer_session_id != session_id) is ignored")
+
+    ; セッションID一致時は正常に処理される
+    t_key.timer_session_id := 10
+    t_key.OnHoldTimeout()
+    Assert(t_key.state == LKey.st_processed, "Matching timer session transitions to st_processed")
+
+    ; 4. ゴースト押下の自動救済 (CleanupReleasedKeys)
+    ghost_key := LKey("e", 5)
+    ghost_key.state := LKey.st_processed
+    ghost_key.pressed_time_qpc := HighPrecisionTimer()
+    LKey.CleanupReleasedKeys()
+    Assert(ghost_key.state == LKey.st_init, "CleanupReleasedKeys resets physically unpressed keys to st_init")
+    Assert(ghost_key.pressed_time_qpc == 0, "CleanupReleasedKeys clears pressed_time_qpc")
+}
+
 RunHoldModeTests() {
     InitTestSuite("HOLD MODE & CORE REGRESSION TESTS")
     Test_Layers_Add_Update()
@@ -506,6 +565,7 @@ RunHoldModeTests() {
     Test_Qwerty_Layout_Switch()
     Test_WaitForHold_Interruption_And_SafetyGuard()
     Test_EvaluateChord_Direct()
+    Test_LKey_State_Machine_And_Transitions()
     FinishTestSuite()
 }
 
