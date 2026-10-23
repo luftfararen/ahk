@@ -19,6 +19,7 @@ This skill defines the workflow and guidelines for documenting all source code m
    - How it was resolved technically (affected functions, classes, logic flow, boundary condition changes)
    - Verification and impact
 5. **Terminology**: When describing technical changes, consult and strictly use the official domain terms defined in the [Project Glossary (GLOSSARY.md)](../../references/GLOSSARY.md).
+6. **Commit Log Ready (MANDATORY)**: Every entry MUST include a dedicated `### Suggested Commit Message` section with a ready-to-use Git commit log block (Title, Overview, Technical Changes, Verification) so that commit operations can extract and use it directly.
 
 ---
 
@@ -51,7 +52,7 @@ Draft the entry following the standardized format below in professional technica
 
 ## Standard Entry Format
 
-```markdown
+````markdown
 ## [YYYY-MM-DD] - <Concise Title of the Change>
 
 ### Overview
@@ -71,13 +72,27 @@ Draft the entry following the standardized format below in professional technica
 ### Verification & Impact
 - Validation results (syntax checking, test execution, manual verification).
 - Expected behavioral outcome and edge cases handled.
+
+### Suggested Commit Message
+```text
+<Concise 50-72 char title>
+
+Overview:
+- <1-3 bullet points summarizing what was achieved>
+
+Technical Changes:
+- <Key technical modifications by class/function>
+
+Verification:
+- <Test results, e.g. All 159 tests passed (run_tests.ps1)>
 ```
+````
 
 ---
 
 ## Example Entry
 
-```markdown
+````markdown
 ## [2026-10-21] - Fix HoldMode 7 and 8 Regression in PlayGroundsExp.ahk
 
 ### Overview
@@ -103,4 +118,21 @@ Draft the entry following the standardized format below in professional technica
 ### Verification & Impact
 - Validated syntax with `AutoHotkey64.exe /validate`.
 - Restored HoldMode 7 and 8 rollover and hold detection functionality.
+
+### Suggested Commit Message
+```text
+Fix HoldMode 7 and 8 Regression in PlayGroundsExp.ahk
+
+Overview:
+- Restored dynamic key combination evaluation for HoldMode 7 and 8.
+- Fixed message pump starvation and timestamp corruption during hold wait.
+
+Technical Changes:
+- Layers.State: Expanded layer validation bounds to mod_key_list.Length.
+- Layers._WaitForHold: Cached start_time and restored Sleep(1) event pump.
+
+Verification:
+- AutoHotkey64.exe /validate src\PlayGroundsExp.ahk passed
+- All regression tests passed (run_tests.ps1)
 ```
+````

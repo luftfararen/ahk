@@ -1,12 +1,12 @@
 ---
 name: git-commit
 description: >-
-  Use this skill whenever the user instructs to commit changes (e.g., "コミットして", "commit", "git commit", "コミット作成"). Guides the agent to review git status, inspect the latest entry in ChangLog.md, construct a structured commit message derived from the changelog, stage the appropriate files, and execute the git commit.
+  Use this skill whenever the user instructs to commit changes via custom command (e.g., "コミットして", "commit", "git commit", "コミット作成"). Guides the agent to review git status, inspect the latest entry in ChangLog.md (specifically the "### Suggested Commit Message" section), construct the commit log directly from it, stage the appropriate files, and execute the git commit.
 ---
 
-# Git Commit Skill (Changelog-Driven Commit Workflow)
+# Git Commit Skill (Changelog-Driven Commit Workflow / "コミットして" カスタムコマンド)
 
-This skill defines the standardized workflow for committing changes in this repository. Whenever the user instructs to commit (e.g., "コミットして"), you MUST reference `ChangLog.md` to construct a precise, high-quality commit message and execute the commit.
+This skill defines the standardized workflow for committing changes in this repository. Whenever the user instructs to commit (e.g., "コミットして"), you MUST reference `ChangLog.md` (or `ChangeLog.md`), extract the commit log from its `### Suggested Commit Message` section, and execute the commit.
 
 ---
 
@@ -41,18 +41,16 @@ This skill defines the standardized workflow for committing changes in this repo
 
 1. Open and inspect `ChangLog.md` at the repository root (`C:\src\ahk\ChangLog.md`).
 2. Read the **latest entry** (the top-most `## [YYYY-MM-DD] - <Title>` section).
-3. Extract:
-   - **Title**: The headline of the change.
-   - **Category**: (e.g., Bug Fix, Feature, Refactoring).
-   - **Summary**: Concise explanation of what was achieved.
-   - **Root Cause / Motivation**: Why the change was made.
-   - **Key Technical Changes**: Bullet points of specific functions, classes, and logic modified.
+3. If the entry contains a `### Suggested Commit Message` block:
+   - Extract the exact text inside the code block (` ```text ... ``` `). It is pre-formatted and ready to use directly.
+4. If the block is absent or needs adjustment:
+   - Extract Title, Overview, Technical Changes, and Verification manually to formulate the message.
 
 ---
 
 ### Step 3: Formulate Commit Message
 
-Construct a clear, informative commit message adhering to the following structure:
+Use the pre-formatted `### Suggested Commit Message` from `ChangLog.md`, or format it adhering to the following structure:
 
 ```text
 <Title from ChangLog.md or concise summary>
@@ -64,12 +62,12 @@ Technical Changes:
 - <Key technical modifications by class/function>
 
 Verification:
-- <Test results, e.g. All 106 tests passed (run_tests.ps1)>
+- <Test results, e.g. All 159 tests passed (run_tests.ps1)>
 ```
 
 > [!TIP]
 > - Keep the first line concise (around 50–72 characters if possible).
-> - Use standard technical English or Japanese matching user preference, but maintain full alignment with `ChangLog.md`.
+> - Directly reusing the `### Suggested Commit Message` guarantees 100% alignment between `ChangLog.md` and Git commit history.
 > - Do NOT write generic commit messages like "fix bug" or "update code".
 
 ---

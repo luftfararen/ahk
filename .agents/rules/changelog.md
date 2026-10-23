@@ -8,4 +8,5 @@
   3. Background & Root cause
   4. Specific technical modifications (functions, methods, logic changes)
   5. Verification & Impact
+  6. **Ready-to-use Commit Message**: Each entry MUST include a structured, copy-pasteable Git commit message section (`### Suggested Commit Message`) so that commit commands or subsequent agents can directly use it without reconstruction.
 - Refer to the `update-changelog` skill for the standard format and guidelines.

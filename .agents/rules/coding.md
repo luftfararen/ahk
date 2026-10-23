@@ -1,5 +1,7 @@
 # Coding & Development Rules
 
+- **Consult & Maintain Code Analysis (MANDATORY)**:
+  Before analyzing the source code from scratch, you MUST check [Code Analysis (`.agents/references/CODE_ANALYSIS.md`)](../../references/CODE_ANALYSIS.md). After modifying code, update only the affected analysis following the [Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`)](code_analysis.md) to minimize token consumption and re-analysis overhead.
 - **Consult Project Glossary**:
   Whenever you design, write, modify, debug, or refactor code in this project, you MUST reference the [Project Glossary (`.agents/references/GLOSSARY.md`)](../../references/GLOSSARY.md).
 - **Domain Consistency**:
@@ -13,4 +15,4 @@
   - After modifying files, create or update test cases in the `test/` directory for regression prevention.
   - When modifying code, always execute both newly created and existing regression test suites (`test/run_tests.ps1` or `test/test_runner.ahk`), confirming 100% pass rate.
 - **Skills Reference**:
-  Follow the `ahk-coding` skill for coding procedures and `update-changelog` skill for logging changes into `ChangLog.md`.
+  Follow the `ahk-coding` skill for coding procedures, `update-changelog` skill for logging changes into `ChangLog.md`, and `git-commit` skill along with [Git Commit Command Rule (`.agents/rules/commit.md`)](commit.md) whenever executing commits via "コミットして".

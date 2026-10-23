@@ -3,6 +3,57 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-10-24] - Formalize Code Analysis Persistence Rule and Changelog-Driven Commit Command Protocol
+
+### Overview
+- **Category**: Configuration / Agent Rules & Governance
+- **Affected Files**: `.agents/rules/code_analysis.md`, `.agents/rules/commit.md`, `.agents/rules/changelog.md`, `.agents/rules/coding.md`, `.agents/skills/ahk-coding/SKILL.md`, `.agents/skills/git-commit/SKILL.md`, `.agents/skills/update-changelog/SKILL.md`
+- **Summary**: Established the Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`) mandating incremental knowledge maintenance in `CODE_ANALYSIS.md` to minimize re-analysis costs, and formalized the "コミットして" custom command protocol to directly extract and execute commit logs from `ChangLog.md`'s `### Suggested Commit Message` section.
+
+### Background & Root Cause
+- **Symptoms**:
+  - Re-analyzing the entire codebase across agent turns wasted tokens and increased task latency.
+  - Custom commit commands ("コミットして") lacked an explicit rule mandating direct reuse of `ChangLog.md`'s structured commit messages, risking redundant message reconstruction.
+- **Root Cause**:
+  - Absence of a dedicated workspace rule governing code analysis lifecycle and commit message extraction.
+
+### Technical Changes
+- **`.agents/rules/code_analysis.md`**:
+  - Authored comprehensive persistence guidelines: Prior Reference requirement, minimal reading cost rule, AI-optimized compact structure (tables, bullet points, invariants), in-place differential updates, and accuracy contracts.
+- **`.agents/rules/commit.md`**:
+  - Created standardized protocol for "コミットして" / "commit": mandates extracting commit messages from `ChangLog.md`'s `### Suggested Commit Message`, verifying 100% test pass rate, and staging selectively.
+- **`.agents/rules/changelog.md` & `.agents/skills/update-changelog/SKILL.md`**:
+  - Added requirement for each changelog entry to include a copy-pasteable `### Suggested Commit Message` section.
+- **`.agents/skills/git-commit/SKILL.md`**:
+  - Updated workflow to directly extract and execute the pre-formatted commit log from `ChangLog.md`.
+- **`.agents/rules/coding.md` & `.agents/skills/ahk-coding/SKILL.md`**:
+  - Added mandatory cross-references requiring agents to read `CODE_ANALYSIS.md` before analyzing code and update it after modifications.
+
+### Verification & Impact
+- Validated consistency across all rule files, skills, and glossary references.
+- Executed master regression tests (`run_tests.ps1`): all 159 tests passed.
+
+### Suggested Commit Message
+```text
+Formalize Code Analysis Persistence Rule and Changelog-Driven Commit Command Protocol
+
+Overview:
+- Added Source Code Analysis Persistence Rule to minimize codebase re-analysis costs.
+- Formalized "コミットして" custom command protocol to reuse ChangLog.md commit sections.
+- Linked code analysis and commit rules across coding skills and agent rules.
+
+Technical Changes:
+- .agents/rules/code_analysis.md: Created persistence rule for CODE_ANALYSIS.md.
+- .agents/rules/commit.md: Created standardized protocol for "コミットして" command.
+- .agents/rules/changelog.md: Mandated Suggested Commit Message in all changelog entries.
+- .agents/skills/git-commit/SKILL.md: Updated workflow to extract commit log directly.
+- .agents/skills/ahk-coding/SKILL.md: Added prior reference and update requirements.
+- .agents/rules/coding.md: Integrated code analysis and commit rule references.
+
+Verification:
+- All 159 regression tests passed (run_tests.ps1)
+```
+
 ## [2026-10-24] - Fix IME State Synchronization, Narrow Critical Scope, and Add Parameter Bounds Validation
 
 ### Overview
@@ -46,6 +97,31 @@ The format is maintained in English with comprehensive technical details.
 - Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
 - Executed master test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 159 tests passed with 0 failures (100% pass rate).
 - Fully eliminated IME state desynchronization and Backspace length errors while preserving 100% behavioral compatibility with all existing layout definitions.
+
+### Suggested Commit Message
+```text
+Fix IME State Synchronization, Narrow Critical Scope, and Add Parameter Bounds Validation
+
+Overview:
+- Resolved uninitialized down_ime_state reference in Mode 9 Backspace calculation.
+- Propagated captured IME state to SendKeyWithShift on Mode 5 solitary release.
+- Narrowed Critical section in OnHoldTimeout to avoid input latency during OS key dispatch.
+- Added parameter bounds validation and safe fallbacks for HoldMode and config.ini.
+- Ensured Layers.last_active_item is cleared on global and combination resets.
+
+Technical Changes:
+- RKey.SendKeyWithShift: Added optional ime_state parameter to honor preserved press state.
+- LKey.Up: Captured saved_down_ime_state and passed to SendKeyWithShift in Mode 5 release.
+- Layers._EvaluateChord & SendLayerKey: Propagated ime_state to eliminate uninitialized key_obj.down_ime_state reference.
+- LKey.OnHoldTimeout: Released Critical before sending Backspace and shifted key.
+- HoldMode & LoadLayoutConfig: Clamped mode to 0..13 (or -1) and enforced positive thresholds with safe fallbacks.
+- LKey.ResetAll & ResetCombinations: Cleared Layers.last_active_item.
+- Regression Tests: Added Test Group 14 assertions (159/159 tests passing).
+
+Verification:
+- Syntax validated with AutoHotkey64.exe /validate src\PlayGroundsExp.ahk
+- Master regression test suite: 159 tests passed (100% pass rate)
+```
 
 ## [2026-10-23] - Formalize LKey State Machine with Session ID Generation and Ghost Recovery
 

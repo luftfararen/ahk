@@ -8,6 +8,14 @@ description: >-
 
 This skill defines the technical guidelines and mandatory references for implementing and maintaining code in the **Playgrounds** project.
 
+## MANDATORY: Consult & Maintain Code Analysis / 解析結果の参照・永続化義務
+
+To minimize token consumption and avoid full codebase re-analysis:
+- **Prior Reference**: Before analyzing code from scratch, you MUST read **[CODE_ANALYSIS.md](../../references/CODE_ANALYSIS.md)** (Local path: `.agents/references/CODE_ANALYSIS.md`).
+- **Persistence & Update**: Follow the **[Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`)](../rules/code_analysis.md)** to update only the affected analysis after modifications.
+
+---
+
 ## MANDATORY: Consult Project Glossary / 単語集の参照義務
 
 Whenever you plan, write, modify, or debug source code in this project, **you MUST reference the project glossary**:
@@ -53,5 +61,5 @@ This glossary contains the authoritative bilingual definitions and behavioral co
     # or
     & 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe' test/test_runner.ahk
     ```
-  - Verify that 100% of tests pass (exit code 0, 0 failures).
 - Invoke the `update-changelog` skill to document all technical changes in English in `ChangLog.md`.
+- Update affected analysis in `CODE_ANALYSIS.md` following the [Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`)](../rules/code_analysis.md).
