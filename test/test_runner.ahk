@@ -33,6 +33,7 @@ RunAllTests() {
     ; --- Test Suite 2: Layer Mapping & INI Binding ---
     Test_LayerId_To_ModKeyId_Mapping()
     Test_Ini_Layer_Binding()
+    Test_New_LayerBinding_Specification()
 
     FinishTestSuite()
 }

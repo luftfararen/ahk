@@ -3,6 +3,66 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-10-29] - Transition to INI File Specification Compliant with Layer Array Structure
+
+### Overview
+- **Category**: Refactoring / Architecture / INI Configuration
+- **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `readme.adoc`, `test/test_layer_mapping.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
+- **Summary**: Transitioned INI configuration to a clean specification directly compliant with the internal 1D layer array structure (`layer_id_to_mod_key_id`). Eliminated physical modifier key redundancy in INI files by formalizing the fixed mapping of modifier IDs (`M1`–`M8`), implemented prioritized fallback loading and array order preservation on saving, added comprehensive regression tests (183/183 passing), and updated documentation and analysis references.
+
+### Background & Root Cause
+- **Symptoms**:
+  - Layer bindings were scattered across `[Settings]` using physical key names (`space = NAVI_CTRL`), `[Settings]` using layer names (`NAVI_CTRL = M1`), and `[LayerBinding]`, resulting in duplicate storage and ambiguity.
+  - Storing physical key names like `space` or `noconv` in INI files duplicated the fixed mapping contracts already enforced by `Layers.StateModKeyId`.
+  - In-memory routing relies on `layer_id_to_mod_key_id = [M1..M8]`, but INI serialization did not cleanly mirror this 1D array structure or guarantee strict array index order.
+  - Built-in layouts on startup did not consistently invoke dynamic layer binding resolution.
+- **Root Cause**:
+  - Lack of a unified, prioritized specification for serializing and deserializing the `layer_id_to_mod_key_id` array structure, and absence of bounds validation for modifier key IDs.
+
+### Technical Changes
+- **`src/Utils.ahk`**:
+  - `ResolveModKeyId`: Bounded `mod_key_id` validation to `1 <= mod_id <= max_mod_id` using `mod_key_list.Length`, and added explicit handling for `"none"`, `"0"`, and `""` returning `0`.
+  - `ResolveLayerId`: Added support for numeric layer representations (`^LAYER_?(\d+)$`).
+  - `LoadLayerBindingsFromIni`: Implemented 4-tier prioritized loading (`[LayerBinding]` $\rightarrow$ layer section `ModKeyId` $\rightarrow$ legacy `[Settings]` $\rightarrow$ default array fallback `[1..8]`), explicit disabling (`0`/`none`), and safe fallback to default IDs on invalid values.
+  - `SaveLayerBindingsToIni`: Enforced 1D array index order traversal (`1..layer_id_to_mod_key_id.Length`), emitting `"M" . mod_id` or `"none"` without redundant physical key names.
+  - `ApplyDynamicLayerSection`: Added guard ignoring `ModKeyId` attribute so it is not processed as a keystroke override.
+- **`src/PlayGroundsExp.ahk`**:
+  - `LoadLayoutConfig`: Added call to `ApplyDynamicLayersFromSettings()` ensuring custom layer bindings are loaded even when `StartupLayout` is a built-in layout.
+- **`readme.adoc`**:
+  - Updated Section 3 with full specifications of `[LayerBinding]`, fixed mapping table (`M1`–`M8`), per-layer `ModKeyId` attribute, loading priority hierarchy, save format, and complete configuration example.
+- **`test/test_layer_mapping.ahk` & `test/test_runner.ahk`**:
+  - Added `Test_New_LayerBinding_Specification` covering full layer array loading, disabling with `none`/`0`, invalid ID fallbacks, line order tolerance, roundtrip serialization/deserialization, section `ModKeyId`, and numeric layer IDs.
+- **`.agents/references/CODE_ANALYSIS.md`**:
+  - Added Section 1.5 detailing Layer Array Binding architecture and marked `config.ini` value validation and layer array transition as resolved.
+
+### Verification & Impact
+- Validated script syntax with AutoHotkey v2: `AutoHotkey64.exe /validate src\PlayGroundsExp.ahk` (ExitCode: 0).
+- Ran master regression test suite (`test/run_tests.ps1`): all 183 tests passed (100% pass rate).
+- Full backwards compatibility maintained: existing `[Settings]` configurations continue to function seamlessly.
+
+### Suggested Commit Message
+```text
+Transition to INI File Specification Compliant with Layer Array Structure
+
+Overview:
+- Implemented clean INI specification mirroring layer_id_to_mod_key_id array.
+- Eliminated physical key redundancy via fixed modifier mapping (M1-M8).
+- Added 4-tier loading priority, safe fallbacks, and strict array save order.
+- Expanded regression test suite to 183 tests (100% passing).
+
+Technical Changes:
+- src/Utils.ahk: Upgraded LoadLayerBindingsFromIni, SaveLayerBindingsToIni, ResolveModKeyId, ResolveLayerId.
+- src/PlayGroundsExp.ahk: Ensured LoadLayoutConfig applies dynamic layer bindings on startup.
+- readme.adoc: Documented new [LayerBinding] spec, fixed mapping table, and priority rules.
+- test/test_layer_mapping.ahk: Added Test_New_LayerBinding_Specification test group.
+- test/test_runner.ahk: Integrated new test group into master test runner.
+- .agents/references/CODE_ANALYSIS.md: Documented layer binding architecture in Section 1.5.
+
+Verification:
+- AutoHotkey64.exe /validate src\PlayGroundsExp.ahk passed.
+- All 183 regression tests passed (run_tests.ps1).
+```
+
 ## [2026-10-24] - Formalize Code Analysis Persistence Rule and Changelog-Driven Commit Command Protocol
 
 ### Overview

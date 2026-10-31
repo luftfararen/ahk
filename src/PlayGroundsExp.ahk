@@ -460,7 +460,8 @@ GetBackspaceUndoCount(text) {
         return 0
 
     ; {Enter}, {Esc}, {Tab} 等の制御キーは Backspace で安全に取り消せないため 0
-    if RegExMatch(clean, "i)^\{(Enter|Return|Esc|Escape|Tab|BS|Backspace|Delete|Del|Up|Down|Left|Right|Home|End|PgUp|PgDn)\}")
+    if RegExMatch(clean,
+        "i)^\{(Enter|Return|Esc|Escape|Tab|BS|Backspace|Delete|Del|Up|Down|Left|Right|Home|End|PgUp|PgDn)\}")
         return 0
 
     ; 単一キー記述 {scXXX}, {vkXX}, {Space} の場合は 1 文字
@@ -1242,7 +1243,7 @@ class LKey extends RKey {
     Up() {
         Critical
         ime_state := ImeState.IsOn()
-        hold_mode := (this.pressed_time_qpc == 0) ? 
+        hold_mode := (this.pressed_time_qpc == 0) ?
             ((ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org) :
             ((this.down_ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org)
 
@@ -1503,6 +1504,7 @@ LoadLayoutConfig() {
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
         }
+        ApplyDynamicLayersFromSettings()
     } catch as err {
         MsgBox("Error in LoadLayoutConfig:`n" . err.Message . "`n" . err.Stack)
     }

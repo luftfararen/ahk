@@ -1784,6 +1784,9 @@ ResolveLayerId(layer_name_or_id, create_if_missing := true) {
     if IsSet(LAYER_NAME_TO_ID) && LAYER_NAME_TO_ID.Has(s) {
         return LAYER_NAME_TO_ID[s]
     }
+    if RegExMatch(s, "^LAYER_?(\d+)$", &m) {
+        return Integer(m[1])
+    }
     if create_if_missing && s != "" {
         new_id := 1
         if IsSet(LAYER_NAME_TO_ID) {
@@ -1806,15 +1809,23 @@ ResolveLayerId(layer_name_or_id, create_if_missing := true) {
  * @returns {Integer} mod_key_id (1〜8、解決できない場合は 0)
  */
 ResolveModKeyId(mod_str) {
+    global mod_key_list
+    max_mod_id := (IsSet(mod_key_list) && mod_key_list is Array && mod_key_list.Length >= 8) ? mod_key_list.Length : 8
+
     if IsInteger(mod_str) {
         val := Integer(mod_str)
-        if (val >= 1 && val <= 8)
+        if (val >= 1 && val <= max_mod_id)
             return val
+        return 0
     }
     s := StrLower(Trim(mod_str))
+    if (s == "none" || s == "0" || s == "")
+        return 0
     if RegExMatch(s, "^m(\d+)$", &m) {
         val := Integer(m[1])
-        return val
+        if (val >= 1 && val <= max_mod_id)
+            return val
+        return 0
     }
     global M1, M2, M3, M4, M5, M6, M7, M8
     m1_val := IsSet(M1) ? M1 : 1
@@ -1868,7 +1879,8 @@ GetModKeyIdByLayerId(layer_id) {
 }
 
 /**
- * INIファイルから各 layer_id に紐付けられた設定を読み込み、mod_key_id にバインドします。
+ * INIファイルからレイヤー配列構造および各 layer_id に紐付けられた設定を読み込み、mod_key_id にバインドします。
+ * 新仕様の [LayerBinding] セクション、各レイヤーセクションの ModKeyId、レガシー [Settings] の順に優先適用します。
  * @param {String} [ini_path=""] - INIファイルのパス
  */
 LoadLayerBindingsFromIni(ini_path := "") {
@@ -1878,7 +1890,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
     if !FileExist(ini_path)
         return
 
-    global layer_id_to_mod_key_id, M1, M2, M3, M4, M5, M6, M7, M8
+    global layer_id_to_mod_key_id, M1, M2, M3, M4, M5, M6, M7, M8, LAYER_NAME_TO_ID, LAYER_ID_TO_NAME
     m1_val := IsSet(M1) ? M1 : 1
     m2_val := IsSet(M2) ? M2 : 2
     m3_val := IsSet(M3) ? M3 : 3
@@ -1888,66 +1900,128 @@ LoadLayerBindingsFromIni(ini_path := "") {
     m7_val := IsSet(M7) ? M7 : 7
     m8_val := IsSet(M8) ? M8 : 8
 
-    layer_id_to_mod_key_id := [m1_val, m2_val, m3_val, m4_val, m5_val, m6_val, m7_val, m8_val]
+    default_bindings := [m1_val, m2_val, m3_val, m4_val, m5_val, m6_val, m7_val, m8_val]
+    layer_id_to_mod_key_id := default_bindings.Clone()
 
-    ; 1. [Settings] セクションから修飾キー -> レイヤー名の設定を読み込む (例: space=NAVI_CTRL, noconv=SHORTCUT_CTRL)
-    modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
-    for mod_name in modifiers {
-        sec := ReadConfig("Settings", mod_name, "", ini_path)
-        if sec != "" {
-            mod_id := ResolveModKeyId(mod_name)
-            lay_id := ResolveLayerId(sec, true)
-            if (mod_id > 0 && lay_id > 0) {
-                BindLayerToModKey(lay_id, mod_id)
-                ApplyDynamicLayerSection(lay_id, sec, ini_path)
-            }
-        }
-    }
+    ; 各レイヤーが明示的にバインド設定されたかを追跡するマップ (layer_id -> true)
+    explicit_bound := Map()
+    applied_sections := Map()
 
-    ; 2. [Settings] セクションからレイヤー名 -> 修飾キーの設定を読み込む (例: NAVI_CTRL=M1, SYMBOL_NUM=space)
-    known_layers := ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"]
-    for lay_name in known_layers {
-        mod_val := ReadConfig("Settings", lay_name, "", ini_path)
-        if mod_val != "" {
-            mod_id := ResolveModKeyId(mod_val)
-            lay_id := ResolveLayerId(lay_name, true)
-            if (mod_id > 0 && lay_id > 0) {
-                BindLayerToModKey(lay_id, mod_id)
-                ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
-            }
-        }
-    }
-
-    ; 3. [LayerBinding] セクションが存在すれば、明示的なバインディングを読み込む
+    ; 1. 新仕様: [LayerBinding] セクションからの読み込み (最優先)
     try {
         sec_text := IniRead(ini_path, "LayerBinding")
         for line in StrSplit(sec_text, "`n", "`r") {
             line := Trim(line)
-            if line == "" || SubStr(line, 1, 1) == ";"
+            if (line == "" || SubStr(line, 1, 1) == ";")
                 continue
             pos := InStr(line, "=")
-            if pos > 0 {
+            if (pos > 0) {
                 key := Trim(SubStr(line, 1, pos - 1))
                 val := Trim(SubStr(line, pos + 1))
+
+                ; インラインコメントの除去
                 c_pos := InStr(val, Chr(32) . Chr(59))
-                if c_pos > 0
-                    val := Trim(SubStr(val, 1, c_pos - 1))
+                if (c_pos == 0) {
+                    c_pos := InStr(val, "`t;")
+                }
+                if (c_pos > 0) {
+                    val := SubStr(val, 1, c_pos - 1)
+                }
+                val := Trim(val)
 
                 lay_id := ResolveLayerId(key, true)
-                mod_id := ResolveModKeyId(val)
-                if (lay_id > 0 && mod_id > 0) {
-                    BindLayerToModKey(lay_id, mod_id)
-                    ApplyDynamicLayerSection(lay_id, key, ini_path)
+                if (lay_id > 0) {
+                    val_lower := StrLower(val)
+                    if (val == "" || val == "0" || val_lower == "none") {
+                        ; 明示的な無効化
+                        BindLayerToModKey(lay_id, 0)
+                        explicit_bound[lay_id] := true
+                    } else {
+                        mod_id := ResolveModKeyId(val)
+                        if (mod_id > 0) {
+                            BindLayerToModKey(lay_id, mod_id)
+                            explicit_bound[lay_id] := true
+                            ApplyDynamicLayerSection(lay_id, key, ini_path)
+                            applied_sections[key] := true
+                        } else {
+                            ; 不正な修飾キーIDの場合の安全なフォールバック
+                            fallback_mod := (lay_id <= default_bindings.Length) ? default_bindings[lay_id] : 0
+                            BindLayerToModKey(lay_id, fallback_mod)
+                            explicit_bound[lay_id] := true
+                        }
+                    }
                 }
             }
         }
     } catch {
         ; セクションが存在しない場合は無視
     }
+
+    ; 2. 各レイヤーセクション内の ModKeyId 属性の確認 (未設定のレイヤーのみ)
+    known_layers := ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"]
+    for lay_name in known_layers {
+        lay_id := ResolveLayerId(lay_name, false)
+        if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
+            mod_val := ReadConfig(lay_name, "ModKeyId", "", ini_path)
+            if (mod_val != "") {
+                mod_id := ResolveModKeyId(mod_val)
+                if (mod_id > 0) {
+                    BindLayerToModKey(lay_id, mod_id)
+                    explicit_bound[lay_id] := true
+                }
+            }
+        }
+    }
+
+    ; 3. 後方互換性: [Settings] セクションからのレガシー設定読み込み
+    ; 3-A. [Settings] 修飾キー名 -> レイヤー名 (例: space=NAVI_CTRL, noconv=SHORTCUT_CTRL)
+    modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
+    for mod_name in modifiers {
+        sec := ReadConfig("Settings", mod_name, "", ini_path)
+        if (sec != "") {
+            lay_id := ResolveLayerId(sec, true)
+            if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
+                mod_id := ResolveModKeyId(mod_name)
+                if (mod_id > 0) {
+                    BindLayerToModKey(lay_id, mod_id)
+                    explicit_bound[lay_id] := true
+                    ApplyDynamicLayerSection(lay_id, sec, ini_path)
+                    applied_sections[sec] := true
+                }
+            }
+        }
+    }
+
+    ; 3-B. [Settings] レイヤー名 -> 修飾キー (例: NAVI_CTRL=M1, SYMBOL_NUM=space)
+    for lay_name in known_layers {
+        lay_id := ResolveLayerId(lay_name, false)
+        if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
+            mod_val := ReadConfig("Settings", lay_name, "", ini_path)
+            if (mod_val != "") {
+                mod_id := ResolveModKeyId(mod_val)
+                if (mod_id > 0) {
+                    BindLayerToModKey(lay_id, mod_id)
+                    explicit_bound[lay_id] := true
+                    ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
+                    applied_sections[lay_name] := true
+                }
+            }
+        }
+    }
+
+    ; 4. 定義済みレイヤーで未適用のセクションがあればキー定義を適用
+    for lay_name in known_layers {
+        lay_id := ResolveLayerId(lay_name, false)
+        if (lay_id > 0 && !applied_sections.Has(lay_name)) {
+            ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
+            applied_sections[lay_name] := true
+        }
+    }
 }
 
 /**
- * 現在の layer_id と mod_key_id のバインディング設定を INI ファイルに保存します。
+ * 現在の layer_id と mod_key_id の配列構造を INI ファイルの [LayerBinding] セクションに保存します。
+ * 配列の順序（layer_id: 1..N）を維持し、冗長な物理キー名を省いて "M" . mod_id 形式で出力します。
  * @param {String} [ini_path=""] - INIファイルのパス
  */
 SaveLayerBindingsToIni(ini_path := "") {
@@ -1955,16 +2029,19 @@ SaveLayerBindingsToIni(ini_path := "") {
         ini_path := A_ScriptDir . "\config.ini"
     }
     global layer_id_to_mod_key_id, LAYER_ID_TO_NAME
-    if !IsSet(layer_id_to_mod_key_id) || !IsSet(LAYER_ID_TO_NAME)
+    if !IsSet(layer_id_to_mod_key_id)
         return
 
-    for lay_id, mod_id in layer_id_to_mod_key_id {
-        if (mod_id > 0 && LAYER_ID_TO_NAME.Has(lay_id)) {
-            lay_name := LAYER_ID_TO_NAME[lay_id]
-            mod_name := "M" . mod_id
-            try {
-                IniWrite(mod_name, ini_path, "LayerBinding", lay_name)
-            }
+    loop layer_id_to_mod_key_id.Length {
+        lay_id := A_Index
+        mod_id := layer_id_to_mod_key_id[lay_id]
+        lay_name := (IsSet(LAYER_ID_TO_NAME) && LAYER_ID_TO_NAME.Has(lay_id))
+            ? LAYER_ID_TO_NAME[lay_id]
+            : ("Layer_" . lay_id)
+
+        mod_str := (mod_id > 0) ? ("M" . mod_id) : "none"
+        try {
+            IniWrite(mod_str, ini_path, "LayerBinding", lay_name)
         }
     }
 }
@@ -1999,6 +2076,8 @@ ApplyDynamicLayerSection(layer_id, section, ini_path := "") {
             pos := InStr(line, "=")
             if pos > 0 {
                 key_name := Trim(SubStr(line, 1, pos - 1))
+                if (StrLower(key_name) == "modkeyid")
+                    continue
                 val := Trim(SubStr(line, pos + 1))
 
                 ; インラインコメントの除去
