@@ -1957,22 +1957,6 @@ LoadLayerBindingsFromIni(ini_path := "") {
         ; セクションが存在しない場合は無視
     }
 
-    ; 2. 各レイヤーセクション内の ModKeyId 属性の確認 (未設定のレイヤーのみ)
-    known_layers := ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"]
-    for lay_name in known_layers {
-        lay_id := ResolveLayerId(lay_name, false)
-        if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
-            mod_val := ReadConfig(lay_name, "ModKeyId", "", ini_path)
-            if (mod_val != "") {
-                mod_id := ResolveModKeyId(mod_val)
-                if (mod_id > 0) {
-                    BindLayerToModKey(lay_id, mod_id)
-                    explicit_bound[lay_id] := true
-                }
-            }
-        }
-    }
-
     ; 3. 後方互換性: [Settings] セクションからのレガシー設定読み込み
     ; 3-A. [Settings] 修飾キー名 -> レイヤー名 (例: space=NAVI_CTRL, noconv=SHORTCUT_CTRL)
     modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
