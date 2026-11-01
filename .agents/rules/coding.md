@@ -1,7 +1,10 @@
 # Coding & Development Rules
 
 - **Consult & Maintain Code Analysis (MANDATORY)**:
-  Before analyzing the source code from scratch, you MUST check [Code Analysis (`.agents/references/CODE_ANALYSIS.md`)](../../references/CODE_ANALYSIS.md). After modifying code, update only the affected analysis following the [Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`)](code_analysis.md) to minimize token consumption and re-analysis overhead.
+  Before analyzing the source code from scratch, you MUST check the relevant analysis reference based on your task domain:
+  - For AHK Core engine (`src/*.ahk`): [Code Analysis (`.agents/references/CODE_ANALYSIS.md`)](../../references/CODE_ANALYSIS.md).
+  - For Web Config Editor UI (`src/ui/*`): [UI Code Analysis (`.agents/references/CODE_ANALYSIS_UI.md`)](../../references/CODE_ANALYSIS_UI.md).
+  Avoid reading the unneeded domain reference to conserve context/tokens. After modifying code, update only the affected analysis following the [Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`)](code_analysis.md).
 - **Consult Project Glossary**:
   Whenever you design, write, modify, debug, or refactor code in this project, you MUST reference the [Project Glossary (`.agents/references/GLOSSARY.md`)](../../references/GLOSSARY.md).
 - **Domain Consistency**:

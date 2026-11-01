@@ -3,6 +3,59 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-01] - Reorganize Code Analysis References and Domain Rules for Token Efficiency
+
+### Overview
+- **Category**: Documentation / Agent Rules & Analysis Architecture
+- **Affected Files**: `.agents/references/CODE_ANALYSIS.md`, `.agents/references/CODE_ANALYSIS_UI.md`, `.agents/references/GLOSSARY.md`, `.agents/rules/code_analysis.md`, `.agents/rules/coding.md`, `todo.txt`
+- **Summary**: Modularized codebase analysis references by separating Web Config Editor UI architecture into `CODE_ANALYSIS_UI.md`, streamlining `CODE_ANALYSIS.md` for AHK core logic, converting `GLOSSARY.md` into compact日英 decision/mapping tables, and updating workspace coding/analysis rules to strictly restrict pre-task reference reading to the relevant domain to reduce AI token/quota consumption.
+
+### Background & Root Cause
+- **Symptoms**:
+  - `CODE_ANALYSIS.md` was large (~24KB) and mixed AHK engine logic with Web UI concerns, incurring high reading/token cost before any simple task.
+  - Absence of dedicated UI analysis documentation made Web UI modifications require full DOM/JS re-analysis.
+  - `GLOSSARY.md` contained lengthy prose descriptions instead of compact tables.
+- **Root Cause**:
+  - Lack of domain separation in code analysis documentation and rules.
+
+### Technical Changes
+- **`.agents/references/CODE_ANALYSIS_UI.md`**:
+  - Created dedicated analysis document covering Web UI architecture, `IniDocument` AST parser, 6 content panels, `[LayerBinding]` synchronization, and file persistence flow.
+- **`.agents/references/CODE_ANALYSIS.md`**:
+  - Excluded Web UI concerns to focus purely on AHK core engine (`PlayGroundsExp.ahk`, `Preset.ahk`, `Utils.ahk`, `Handler.ahk`).
+  - Restructured into structured English with essential Japanese domain terms, key state variables, 3-state machine (`st_init` -> `st_pressing` -> `st_processed`), HoldMode 0–9 decision matrix, and invariant contracts (~65% size reduction).
+- **`.agents/references/GLOSSARY.md`**:
+  - Streamlined definitions into compact tables with Japanese-English mappings for core key concepts, HoldModes, timing parameters, and string conventions (~37% size reduction).
+- **`.agents/rules/code_analysis.md` & `.agents/rules/coding.md`**:
+  - Formulated domain-specific prior reference rules: inspect only `CODE_ANALYSIS.md` for AHK logic or `CODE_ANALYSIS_UI.md` for Web UI, prohibiting loading irrelevant references to conserve quota.
+- **`todo.txt`**:
+  - Updated task list reflecting completion of analysis re-organization and rule updates.
+
+### Verification & Impact
+- Verified structure and links across all reference files (`CODE_ANALYSIS.md`, `CODE_ANALYSIS_UI.md`, `GLOSSARY.md`).
+- Syntax-checked AHK files (`AutoHotkey64.exe /validate src\PlayGroundsExp.ahk`).
+
+### Suggested Commit Message
+```text
+Reorganize Code Analysis References and Domain Rules for Token Efficiency
+
+Overview:
+- Separated Web UI analysis into new CODE_ANALYSIS_UI.md.
+- Streamlined CODE_ANALYSIS.md and GLOSSARY.md with compact English tables.
+- Updated agent rules to mandate domain-specific prior reference to save quota.
+
+Technical Changes:
+- .agents/references/CODE_ANALYSIS_UI.md: Created Web Config Editor architecture analysis.
+- .agents/references/CODE_ANALYSIS.md: Refactored for AHK core engine with English structure.
+- .agents/references/GLOSSARY.md: Converted terminology into compact bilingual tables.
+- .agents/rules/code_analysis.md: Added scope separation and domain-specific reading rules.
+- .agents/rules/coding.md: Updated mandatory prior reference targets by task domain.
+- todo.txt: Updated task tracking.
+
+Verification:
+- Cross-references verified across all rule and reference files.
+```
+
 ## [2026-11-01] - Refactor Web UI and Utils for LayerBinding INI Specification
 
 ### Overview
