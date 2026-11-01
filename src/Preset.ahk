@@ -175,6 +175,16 @@ ChangeFMIX13f_Minato_Layout() {
 }
 
 /**
+ * キーレイアウトを「TF-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ */
+ChangeTF_Minato_Layout() {
+    StoreLayout("TF-Minato[Built-in]", "qwerfylupjasdtghneiozxcvkpm,./")
+    ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
+
+/**
  * キーレイアウトを「TF2_2-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
  */
 ChangeTF2_2_Minato_Layout() {
