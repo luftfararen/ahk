@@ -38,6 +38,7 @@ space:: ToggleImeState()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 #t:: ChangeTF_Minato_Layout()
+#w:: ChangeTF1_Minato_Layout()
 #x:: ChangeTF2_2_Minato_Layout()
 #s:: ChangeSTREAM1_5_Layout()
 #m:: ChangeFMIX13f_Minato_Layout()

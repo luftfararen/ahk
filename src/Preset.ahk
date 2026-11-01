@@ -138,7 +138,7 @@ ChangeMinatoLayoutImpl(ei := True) {
 }
 
 /**
- * キーレイアウトを「FMIX13-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ * FMIX13を英語入力用、湊配列を日本語入力用として変更する。
  */
 ChangeFMIX13_Minato_Layout() {
     StoreLayout("FMIX13-Minato[Built-in]", "qwrlkyfup;asdtghneiozxcvbjm,./")
@@ -148,7 +148,7 @@ ChangeFMIX13_Minato_Layout() {
 }
 
 /**
- * キーレイアウトを「FMIX15-FMIX15R配列」に変更し、IME ON時の差分およびレイヤーを初期化します。
+ * FMIX15を英語入力用、FMIX15Rを日本語入力用として変更する。
  */
 ChangeFMIX15_FMIX15R_Layout() {
     StoreLayout("FMIX15-FMIX15R[Built-in]", "qwldkjfuy;asrtghneiozxcvbpm,./")
@@ -165,7 +165,7 @@ ChangeFMIX15_FMIX15R_Layout() {
 }
 
 /**
- * キーレイアウトを「FMIX13f-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ * FMIX13f配列を英語入力用、湊配列を日本語入力用として変更する。
  */
 ChangeFMIX13f_Minato_Layout() {
     StoreLayout("FMIX13f-Minato[Built-in]", "qwrfkylup;asdtghneiozxcvbjm,./")
@@ -175,7 +175,7 @@ ChangeFMIX13f_Minato_Layout() {
 }
 
 /**
- * キーレイアウトを「TF-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ * TF配列を英語入力用、湊配列を日本語入力用として変更する。
  */
 ChangeTF_Minato_Layout() {
     StoreLayout("TF-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
@@ -183,9 +183,18 @@ ChangeTF_Minato_Layout() {
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
+/**
+ * TF配列1を英語入力用、湊配列を日本語入力用として変更する。
+ */
+ChangeTF1_Minato_Layout() {
+    StoreLayout("TF1-Minato[Built-in]", "qwerfylupjasdtgnheiozxcvbkm,./")
+    ChangeMinatoLayoutImpl()
+    InitModLayer()
+    ShowOSD(TypeAnalyzer.current_layout . " layout")
+}
 
 /**
- * キーレイアウトを「TF2_2-Minato配列」に変更し、湊配列用の日本語入力差分を適用します。
+ * TF配列2を英語入力用、湊配列を日本語入力用として変更する。
  */
 ChangeTF2_2_Minato_Layout() {
     StoreLayout("TF2_2-Minato[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
