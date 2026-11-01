@@ -3,6 +3,63 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-01] - Refactor Web UI and Utils for LayerBinding INI Specification
+
+### Overview
+- **Category**: UI / Architecture / Configuration
+- **Affected Files**: `src/ui/app.js`, `src/ui/index.html`, `src/Utils.ahk`, `readme.adoc`, `src/config.ini`, `todo.txt`
+- **Summary**: Aligned Web Config Editor UI with the canonical `[LayerBinding]` specification, replacing the legacy modifier-to-layer table with a clean layer-to-modifier (`M1`–`M8`) binding view with descriptions. Restored `known_layers` definition in `src/Utils.ahk` to resolve `#Warn` unassigned variable warning, cleaned up sample `config.ini`, and updated documentation.
+
+### Background & Root Cause
+- **Symptoms**:
+  - Web UI dynamic layers panel still mapped physical modifiers (`space`, `noconv`, etc.) under `[Settings]` rather than `[LayerBinding]`.
+  - Renaming or deleting layers in the Web UI updated `[Settings]` instead of `[LayerBinding]`.
+  - In `src/Utils.ahk`, removing `ModKeyId` logic accidentally removed `known_layers` definition, triggering AutoHotkey v2 `#Warn` for unassigned local variable.
+- **Root Cause**:
+  - Web UI templates and scripts were not yet migrated to the new `[LayerBinding]` INI specification.
+  - Inadvertent omission of `known_layers` definition in `LoadLayerBindingsFromIni`.
+
+### Technical Changes
+- **`src/ui/index.html`**:
+  - Updated navigation menu item from "動的レイヤー ( space / noconv )" to "レイヤーバインド ([LayerBinding])".
+  - Refactored panel header, guidance alert, and table headers to display `レイヤー名 / ID`, `修飾キーID (バインド先)`, `修飾キーの説明`, and `操作`.
+  - Updated modal and help text to reference `[LayerBinding]` instead of `[Settings]`.
+- **`src/ui/app.js`**:
+  - Updated `DEFAULT_CONFIG_CONTENT` to include default `[LayerBinding]` section (`NAVI_CTRL=M1` .. `FUNC=M8`).
+  - Added filter in `getModifierLayers()` and `getKeyLayoutSections()` to exclude `LayerBinding` section from being treated as a key layout.
+  - Reimplemented `renderDynamicLayersTable()` to iterate over standard (`NAVI_CTRL`, `SYMBOL_NUM`, etc.) and custom layers, providing selectable `none` and `M1`–`M8` dropdown options with dynamic descriptions.
+  - Updated layer rename and deletion handlers to sync with `[LayerBinding]`.
+- **`src/Utils.ahk`**:
+  - Restored `known_layers` list in `LoadLayerBindingsFromIni` preceding the loop, eliminating the `#Warn` unassigned variable warning.
+- **`readme.adoc`**:
+  - Removed obsolete `ModKeyId` reference from `[NAVI_CTRL]` example.
+- **`src/config.ini`**:
+  - Cleaned up legacy commented/unused layer sample definitions.
+
+### Verification & Impact
+- Validated script syntax with AutoHotkey v2: `AutoHotkey64.exe /validate src\PlayGroundsExp.ahk` (ExitCode: 0, zero warnings or errors).
+- UI HTML and JS parsed cleanly.
+
+### Suggested Commit Message
+```text
+Refactor Web UI and Utils for LayerBinding INI Specification
+
+Overview:
+- Replaced legacy Settings dynamic layer panel with LayerBinding editor.
+- Restored known_layers definition in LoadLayerBindingsFromIni to fix #Warn warning.
+- Cleaned up config.ini and updated documentation.
+
+Technical Changes:
+- src/ui/app.js: Rewrote renderDynamicLayersTable for [LayerBinding] (M1-M8 mapping) and updated rename/delete sync.
+- src/ui/index.html: Updated dynamic layer UI strings, table headers, and modal text to [LayerBinding].
+- src/Utils.ahk: Restored known_layers variable definition in LoadLayerBindingsFromIni.
+- readme.adoc: Removed obsolete ModKeyId from layer section example.
+- src/config.ini: Removed obsolete legacy layer lines.
+
+Verification:
+- AutoHotkey64.exe /validate src\PlayGroundsExp.ahk passed with zero warnings.
+```
+
 ## [2026-10-29] - Transition to INI File Specification Compliant with Layer Array Structure
 
 ### Overview

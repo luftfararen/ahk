@@ -1977,6 +1977,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
     }
 
     ; 3-B. [Settings] レイヤー名 -> 修飾キー (例: NAVI_CTRL=M1, SYMBOL_NUM=space)
+    known_layers := ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"]
     for lay_name in known_layers {
         lay_id := ResolveLayerId(lay_name, false)
         if (lay_id > 0 && !explicit_bound.Has(lay_id)) {

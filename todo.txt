@@ -10,9 +10,9 @@ C:\src\ahk\.agents\references\GLOSSARY.md
 内容を過不足を調整する
 * 冗長な内容を整理する
 
-# CODE_ANALYSIS.m
+# CODE_ANALYSIS.md
 * 全体のアーキテクチャ
-* ファイルを横断的な実装
+* ファイルの横断的な実装
 * 複雑なロジックの概要
 
 # GLOSSARY.md

@@ -373,7 +373,6 @@ SHORTCUT_CTRL = M2
 ; 各レイヤーの個別定義
 ; ============================================================================
 [NAVI_CTRL]
-ModKeyId = M1
 h = {Blind}{Left}
 j = {Blind}{Down}|{Blind}{PageDown}
 k = {Blind}{Up}|{Blind}{PageUp}
