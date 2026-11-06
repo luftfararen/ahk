@@ -267,14 +267,22 @@ const JIS_SHIFT_DEFAULTS = {
 
 const DEFAULT_CONFIG_CONTENT = `[Settings]
 ImeIndicatorEnabled=1
-StartupLayout=FMIX13f-Minato
+StartupLayout=TF2_2-Minato[Built-in]
 HoldTh=300
 LayerHoldTh=150 ;Layers.HoldThに設定される
 b_time=50
 LogEnabled=0
 MaxLog=5000
-space=NAVI_CTRL
-noconv=SHORTCUT_CTRL
+
+[LayerBinding]
+NAVI_CTRL=M1
+SYMBOL_NUM=M2
+SYMBOL1=M3
+SYMBOL2=M4
+SELECT=M5
+NUMPAD=M6
+SHIFT=M7
+FUNC=M8
 
 [1]
 ver = 2
@@ -709,7 +717,13 @@ const App = {
 
                 this.doc.renameSection(oldSec, newSec);
                 
-                // Update references in Settings modifiers
+                // Update references in [LayerBinding]
+                const boundVal = this.doc.getValue('LayerBinding', oldSec, '');
+                if (boundVal !== '') {
+                    this.doc.deleteKey('LayerBinding', oldSec);
+                    this.doc.setValue('LayerBinding', newSec, boundVal);
+                }
+                // Legacy Settings cleanup if present
                 const modifiers = ["space", "noconv", "conv", "tab", "f13", "f14"];
                 modifiers.forEach(mod => {
                     if (this.doc.getValue('Settings', mod) === oldSec) {
@@ -729,6 +743,9 @@ const App = {
             if (this.activeLayerName && confirm(`モディファイアレイヤー [${this.activeLayerName}] を本当に削除しますか？`)) {
                 this.doc.deleteSection(this.activeLayerName);
                 
+                // Clear [LayerBinding] references
+                this.doc.deleteKey('LayerBinding', this.activeLayerName);
+
                 // Clear Settings references
                 const modifiers = ["space", "noconv", "conv", "tab", "f13", "f14"];
                 modifiers.forEach(mod => {
@@ -1418,7 +1435,7 @@ const App = {
         
         const sections = this.doc.getSections();
         return sections.filter(sec => {
-            if (sec === 'Settings' || /^\d+$/.test(sec)) return false;
+            if (sec === 'Settings' || sec === 'LayerBinding' || /^\d+$/.test(sec)) return false;
             if (referenced.has(sec)) return true;
             
             // Check if it contains rows like L00
@@ -1433,7 +1450,7 @@ const App = {
         const sections = this.doc.getSections();
         
         return sections.filter(sec => {
-            if (sec === 'Settings') return false;
+            if (sec === 'Settings' || sec === 'LayerBinding') return false;
             if (slots.has(sec)) return false;
             if (layouts.has(sec)) return false;
             return true;
@@ -1551,64 +1568,136 @@ const App = {
         const body = document.getElementById('dynamic-layers-table-body');
         body.innerHTML = "";
         
-        const modifiers = ["space", "noconv", "conv", "tab", "f13", "f14"];
-        const layers = this.getModifierLayers();
-        
-        modifiers.forEach(mod => {
-            const currentLayerVal = this.doc.getValue('Settings', mod, '');
-            
+        // Fixed mapping descriptions for M1-M8
+        const modKeyDescriptions = {
+            "M1": "F13 (単独)",
+            "M2": "無変換 (単独)",
+            "M3": "変換 (単独)",
+            "M4": "F14 (単独)",
+            "M5": "F13 + (Alt または 無変換)",
+            "M6": "Tab",
+            "M7": "Space (Space-Shift)",
+            "M8": "変換 + F14"
+        };
+        const modOptions = [
+            { val: "none", label: "未割り当て (none / 0)" },
+            { val: "M1", label: "M1 (F13 単独)" },
+            { val: "M2", label: "M2 (無変換 単独)" },
+            { val: "M3", label: "M3 (変換 単独)" },
+            { val: "M4", label: "M4 (F14 単独)" },
+            { val: "M5", label: "M5 (F13 + Alt/無変換)" },
+            { val: "M6", label: "M6 (Tab)" },
+            { val: "M7", label: "M7 (Space / Shift)" },
+            { val: "M8", label: "M8 (変換 + F14)" }
+        ];
+
+        // Known layers in order
+        const defaultLayers = ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"];
+        const customLayers = this.getModifierLayers().filter(l => !defaultLayers.includes(l));
+        const allLayers = [...defaultLayers, ...customLayers];
+
+        allLayers.forEach(layerName => {
+            let currentModVal = this.doc.getValue('LayerBinding', layerName, '');
+            // Check legacy Settings if LayerBinding has not defined it yet
+            if (!currentModVal) {
+                // If legacy key exists (e.g. space=NAVI_CTRL or NAVI_CTRL=M1)
+                const legacyVal = this.doc.getValue('Settings', layerName, '');
+                if (legacyVal) {
+                    currentModVal = legacyVal;
+                } else {
+                    const legacyMods = ["space", "noconv", "conv", "tab", "f13", "f14"];
+                    for (let m of legacyMods) {
+                        if (this.doc.getValue('Settings', m, '') === layerName) {
+                            if (m === 'f13') currentModVal = 'M1';
+                            else if (m === 'noconv') currentModVal = 'M2';
+                            else if (m === 'conv') currentModVal = 'M3';
+                            else if (m === 'f14') currentModVal = 'M4';
+                            else if (m === 'tab') currentModVal = 'M6';
+                            else if (m === 'space') currentModVal = 'M7';
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Normalize
+            let normVal = currentModVal.toUpperCase();
+            if (normVal === "0" || normVal === "") normVal = "NONE";
+
             const tr = document.createElement('tr');
             
-            const tdMod = document.createElement('td');
-            tdMod.innerHTML = `<code class="font-mono">${mod}</code>`;
-            tr.appendChild(tdMod);
+            // Layer Name
+            const tdLayer = document.createElement('td');
+            tdLayer.innerHTML = `<code class="font-mono font-bold">${layerName}</code>`;
+            tr.appendChild(tdLayer);
 
+            // ModKey Select
             const tdSelect = document.createElement('td');
             const select = document.createElement('select');
             select.className = 'form-control';
             
-            const optNone = document.createElement('option');
-            optNone.value = "";
-            optNone.textContent = "無し (未設定)";
-            select.appendChild(optNone);
-            
-            layers.forEach(layName => {
+            modOptions.forEach(optData => {
                 const opt = document.createElement('option');
-                opt.value = layName;
-                opt.textContent = layName;
-                if (layName === currentLayerVal) {
+                opt.value = optData.val;
+                opt.textContent = optData.label;
+                if (optData.val.toUpperCase() === normVal || (optData.val === "none" && (normVal === "NONE" || normVal === "0" || !normVal))) {
                     opt.selected = true;
                 }
                 select.appendChild(opt);
             });
 
+            // Description Cell
+            const tdDesc = document.createElement('td');
+            const updateDesc = (val) => {
+                const upper = (val || "").toUpperCase();
+                tdDesc.textContent = modKeyDescriptions[upper] || (upper === "NONE" || upper === "0" || !upper ? "未バインド（無効）" : upper);
+            };
+            updateDesc(normVal);
+
             select.addEventListener('change', (e) => {
                 const val = e.target.value;
-                if (val === "") {
-                    this.doc.deleteKey('Settings', mod);
+                if (val === "none" || val === "") {
+                    this.doc.setValue('LayerBinding', layerName, 'none');
                 } else {
-                    this.doc.setValue('Settings', mod, val);
+                    this.doc.setValue('LayerBinding', layerName, val);
                 }
+                updateDesc(val);
                 this.markModified();
             });
 
             tdSelect.appendChild(select);
             tr.appendChild(tdSelect);
+            tr.appendChild(tdDesc);
 
+            // Action
             const tdAction = document.createElement('td');
-            if (currentLayerVal) {
+            const hasSection = this.doc.getSections().includes(layerName);
+            if (hasSection) {
                 const btn = document.createElement('button');
                 btn.className = 'btn secondary btn-xs';
-                btn.textContent = '編集を開く';
+                btn.textContent = 'キー定義を編集';
                 btn.addEventListener('click', () => {
-                    this.loadLayerMap(currentLayerVal);
+                    this.loadLayerMap(layerName);
                     this.switchPanel('panel-layer');
                     
                     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-                    const item = document.querySelector(`.nav-item[data-layer="${currentLayerVal}"]`);
+                    const item = document.querySelector(`.nav-item[data-layer="${layerName}"]`);
                     if (item) item.classList.add('active');
                 });
                 tdAction.appendChild(btn);
+            } else {
+                const btnCreate = document.createElement('button');
+                btnCreate.className = 'btn primary btn-xs';
+                btnCreate.textContent = 'セクションを作成';
+                btnCreate.addEventListener('click', () => {
+                    this.doc.setValue(layerName, '; custom key mappings', '');
+                    this.doc.deleteKey(layerName, '; custom key mappings');
+                    this.renderSidebarLists();
+                    this.loadLayerMap(layerName);
+                    this.switchPanel('panel-layer');
+                    this.markModified();
+                });
+                tdAction.appendChild(btnCreate);
             }
             tr.appendChild(tdAction);
 

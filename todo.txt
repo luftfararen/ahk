@@ -1,0 +1,30 @@
+#概要
+C:\src\ahk\.agents\references\CODE_ANALYSIS.md
+C:\src\ahk\.agents\references\GLOSSARY.md
+の内容の再整理したい
+これらは、AIコーディングを開始する際、ソースコードを解析する前に先立って
+解析されるファイルである
+
+# 目的
+* AIコーディングする際、解析してquotaを使用する量を減らすために
+内容を過不足を調整する
+* 冗長な内容を整理する
+* UI関連の解析情報ファイル（CODE_ANALYSIS_UI）を作る
+* 開発ルールとして、CODE_ANALYSIS_UI.md、CODE_ANALYSIS.mdの作成ルールを更新
+
+# CODE_ANALYSIS.mdの内容
+* 全体のアーキテクチャ
+* ファイルの横断的な実装
+* 複雑なロジックの概要
+* UI関連の実装は除く 
+
+# GLOSSARY.mdの内容
+* 用語とその説明
+* 日本語と英語の関連付け
+* コーディングルール
+
+# CODE_ANALYSIS_UI.mdの内容
+* UIに関する全体のアーキテクチャ
+* UIに関するファイルの横断的な実装
+* UIに関するロジックの概要
+
