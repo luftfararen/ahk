@@ -170,6 +170,7 @@ class ImeState {
     static force_ime_on := false
     static cached_state := false
     static last_active_control_hwnd := 0
+    static last_active_window_hwnd := 0
     static is_composing_tracked := false
     static composition_count := 0
     static composition_hwnd := 0
@@ -218,13 +219,19 @@ class ImeState {
     static Reset() {
         ImeState.last_action_time := 0
         ImeState.last_check_time := 0
+        ImeState.last_active_window_hwnd := 0
     }
 
     /**
      * 現在のモードと時間経過に基づき、IME状態のチェックが必要かどうかを判定します。
+     * アクティブウィンドウが切り替わった場合は時間経過にかかわらずチェックします。
      * @returns {Boolean} チェックが必要な場合は true
      */
     static MustCheck() {
+        cur_hwnd := WinExist("A")
+        if (cur_hwnd && cur_hwnd != ImeState.last_active_window_hwnd) {
+            return true
+        }
         if (ImeState.mode == 0) {
             ;キー入力が長時間されない場合、チェックする
             return A_TickCount - ImeState.last_action_time > ImeState.threshold
@@ -249,6 +256,8 @@ class ImeState {
         if !hwnd {
             return ImeState.cached_state
         }
+
+        ImeState.last_active_window_hwnd := WinExist("A")
 
         ; 同じコントロールであれば強制 IME ON フラグを確認
         if (ImeState.last_active_control_hwnd == hwnd) {
@@ -288,9 +297,9 @@ class ImeState {
         if default_ime_wnd {
             state := 0
             ; 0x0283: WM_IME_CONTROL, 0x0005: IMC_GETOPENSTATUS
-            ; SMTO_ABORTIFHUNG (0x0002) を指定しつつ、タイムアウトを確実に取得
+            ; SMTO_ABORTIFHUNG (0x0002) を指定しつつ、低レベルフックの遅延を防ぐため 30ms タイムアウトで取得
             if DllCall("user32\SendMessageTimeout", "Ptr", default_ime_wnd, "UInt", 0x0283, "Ptr", 0x0005, "Ptr", 0,
-                "UInt", 0x0002, "UInt", 100, "Ptr*", &state, "Ptr") {
+                "UInt", 0x0002, "UInt", 30, "Ptr*", &state, "Ptr") {
                 ImeState.cached_state := (state != 0)
             }
         }
@@ -432,6 +441,46 @@ SendBasedOnImeState(key_ime_off, key_ime_on := "", ime_state := -1) {
     } else {
         SendAndLog(key_ime_off)
     }
+}
+
+/**
+ * 送信されたキーストロークを安全に Backspace で取り消すための文字数を算出します。
+ * 制御キーやショートカットなど Backspace で安全に取り消せないものは 0 を返します。
+ * @param {String} text - 送信されたキーまたはテキスト
+ * @returns {Integer} 送信すべき Backspace の回数 (0 の場合は消去スキップ)
+ */
+GetBackspaceUndoCount(text) {
+    if (text == "" || text == "{none}")
+        return 0
+
+    clean := RegExReplace(text, "i)^\{Blind\}", "")
+
+    ; Ctrl, Alt, Win 修飾付きショートカットキー (^c, !v, #e 等) は Backspace 取り消し不可
+    if RegExMatch(clean, "[\^!#]")
+        return 0
+
+    ; {Enter}, {Esc}, {Tab} 等の制御キーは Backspace で安全に取り消せないため 0
+    if RegExMatch(clean,
+        "i)^\{(Enter|Return|Esc|Escape|Tab|BS|Backspace|Delete|Del|Up|Down|Left|Right|Home|End|PgUp|PgDn)\}")
+        return 0
+
+    ; 単一キー記述 {scXXX}, {vkXX}, {Space} の場合は 1 文字
+    if RegExMatch(clean, "i)^\{(sc[0-9a-fA-F]+|vk[0-9a-fA-F]+|Space)(\s+[0-9]+)?\}$")
+        return 1
+
+    ; Shift 修飾のみの単一文字 (+a, +1 等)
+    if RegExMatch(clean, "^\+([a-zA-Z0-9]|[^\w\s])$")
+        return 1
+
+    ; 中括弧を含まない通常の文字列は文字数
+    if !InStr(clean, "{") && !InStr(clean, "}")
+        return StrLen(clean)
+
+    ; 単一の波括弧で囲まれたその他キー {F1}〜{F24} 等は 0
+    if RegExMatch(clean, "i)^\{F\d+\}")
+        return 0
+
+    return StrLen(clean)
 }
 
 ; --- リモートデスクトップ使用時の自動無効化 ---
@@ -647,10 +696,11 @@ class RKey {
 
     /**
      * 物理的な Shift キーの押下状態に基づいて、対応するキーマッピングを送信します。
+     * @param {Integer} [ime_state=-1] - IME 状態 (-1: 自動取得, 0: OFF, 1: ON)
      * @returns {Boolean} 送信されたキーが Shift 版である場合は true
      */
-    SendKeyWithShift() {
-        return this.SendShiftedKey(IsPhysicalShiftPressed(this))
+    SendKeyWithShift(ime_state := -1) {
+        return this.SendShiftedKey(IsPhysicalShiftPressed(this), ime_state)
     }
 
     /**
@@ -688,8 +738,10 @@ class RKey {
      */
     Down() {
         Critical
+        ImeState.RecordActivity()
         LKey.InterruptOthers(this)
         Layers.last_active_item := ""
+        Critical "Off"
         this._SendSCAWKey(this.org_key)
     }
 
@@ -942,14 +994,9 @@ class LKey extends RKey {
      */
     static ResetAll() {
         for inst in LKey.instances {
-            inst.state := LKey.st_init
-            inst.pressed_time_qpc := 0
-            inst.interrupted := false
-            inst.saved_scaw := ""
-            if (inst.timer_name != "") {
-                SetTimer(inst.timer_name, 0)
-            }
+            inst.ResetState()
         }
+        Layers.last_active_item := ""
     }
 
     /**
@@ -959,10 +1006,22 @@ class LKey extends RKey {
         for inst in LKey.instances {
             if (inst != currentKey && inst.state == LKey.st_pressing) {
                 inst.interrupted := true
+                inst.session_id++
                 if (inst.timer_name != "") {
                     SetTimer(inst.timer_name, 0)
                 }
                 inst.state := LKey.st_processed
+            }
+        }
+    }
+
+    /**
+     * 物理キーが離されているにもかかわらず未初期化のインスタンスをすべてクリーンアップする
+     */
+    static CleanupReleasedKeys() {
+        for inst in LKey.instances {
+            if (inst.state == LKey.st_processed && !inst.IsPressed()) {
+                inst.ResetState()
             }
         }
     }
@@ -972,7 +1031,25 @@ class LKey extends RKey {
     interrupted := false  ; 他のキーが割り込んできたら true にするフラグ
     down_ime_state := 0   ; Down時のIME状態を記録
     saved_scaw := ""      ; モード3用のCAW状態保持用フラグ
+    down_hwnd := 0        ; 押下開始時のアクティブウィンドウハンドル
     timer_name := ""      ; 非同期タイマーコールバック名
+    session_id := 0       ; 押下セッション識別子（世代管理）
+    timer_session_id := 0 ; タイマー登録時のセッションID
+
+    /**
+     * キーの状態（押下時間、割り込みフラグ、セッションID、タイマーなど）を初期状態にリセットします。
+     */
+    ResetState() {
+        this.state := LKey.st_init
+        this.pressed_time_qpc := 0
+        this.interrupted := false
+        this.saved_scaw := ""
+        this.down_hwnd := 0
+        this.session_id++
+        if (this.timer_name != "") {
+            SetTimer(this.timer_name, 0)
+        }
+    }
 
     /**
      * コンストラクタ
@@ -1046,6 +1123,8 @@ class LKey extends RKey {
 
     /**
      * LayerItem オブジェクトを直接指定して IME ON 時のレイヤーキーアクションを設定します。
+     * @param {Layers.LayerItem} layer_item - 設定する LayerItem オブジェクト
+     * @param {Boolean} [reset_if_blank=false] - 後方互換性保持用パラメータ
      */
     SetLayerImeKey2(layer_item, reset_if_blank := false) {
         this.layers.SetIMEAction2(layer_item)
@@ -1066,19 +1145,42 @@ class LKey extends RKey {
      */
     Down() {
         Critical
+        ImeState.RecordActivity()
         ime_state := ImeState.IsOn()
-        hold_mode := (ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org
+        hold_mode := (ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org
+
+        ; 物理キーが離されているゴースト状態の自動復旧
+        LKey.CleanupReleasedKeys()
 
         ; リピートガード (モード 0 以外用)
         if (hold_mode != 0 && (this.state == LKey.st_pressing || this.state == LKey.st_processed)) {
+            if (A_TimeSincePriorHotkey != -1 && A_TimeSincePriorHotkey > 1500) {
+                this.ResetState()
+            } else {
+                return
+            }
+        }
+
+        ; レイヤーキーの判定 (待機処理を含むため Critical を解除して実行)
+        Critical "Off"
+        if this.SendLayerKey(ime_state) {
+            if (hold_mode != 0) {
+                Critical
+                LKey.InterruptOthers(this)
+                this.state := LKey.st_processed
+                Critical "Off"
+            }
             return
         }
 
-        ; レイヤーキーの判定
-        if this.SendLayerKey(ime_state) {
-            if (hold_mode != 0) {
-                LKey.InterruptOthers(this)
-                this.state := LKey.st_processed
+        ; レイヤー判定（待機処理を含む）中にキーが物理的に解放されていた場合の安全ガード
+        if !this.IsPressed() {
+            Critical
+            LKey.InterruptOthers(this)
+            this.ResetState()
+            Critical "Off"
+            if (hold_mode != 2) {
+                this.SendKeyWithShift()
             }
             return
         }
@@ -1088,24 +1190,35 @@ class LKey extends RKey {
         ; 修飾キー (Ctrl/Alt/Win) パススルー判定
         if super._SendCAWKey(this.org_key) {
             if (hold_mode != 0) {
+                Critical
                 LKey.InterruptOthers(this)
                 this.pressed_time_qpc := 0
                 this.state := LKey.st_processed
+                Critical "Off"
             }
             return
         }
 
-        ; モード0（長押し判定なし通常送信）
+        ; モード0（長押し判定なし通常送信）: 他キーへの割り込み通知を実行
         if (hold_mode == 0) {
+            Critical
+            LKey.InterruptOthers(this)
+            this.ResetState()
+            Critical "Off"
             this.SendKeyWithShift()
             return
         }
 
+        Critical
         this.interrupted := false
         this.pressed_time_qpc := HighPrecisionTimer()
         this.down_ime_state := ime_state
+        this.down_hwnd := WinExist("A")
+        this.session_id++
+        this.timer_session_id := this.session_id
         LKey.InterruptOthers(this)
         this.state := LKey.st_pressing
+        Critical "Off"
 
         switch hold_mode {
             case 1: ; 短押し->即時送信、長押し->置換
@@ -1130,38 +1243,36 @@ class LKey extends RKey {
     Up() {
         Critical
         ime_state := ImeState.IsOn()
-        hold_mode := (this.pressed_time_qpc == 0) ? ((ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org) :
-            ((this.down_ime_state == 1) ? this.hold_mode_ime_org : this.hold_mode_org)
+        hold_mode := (this.pressed_time_qpc == 0) ?
+            ((ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org) :
+            ((this.down_ime_state == 1 && this.hold_mode_ime_org >= 0) ? this.hold_mode_ime_org : this.hold_mode_org)
 
         if (hold_mode == 0) {
-            this.state := LKey.st_init
-            this.pressed_time_qpc := 0
+            this.ResetState()
             return
         }
 
-        if (this.timer_name != "") {
-            SetTimer(this.timer_name, 0)
-        }
+        duration := (this.pressed_time_qpc > 0) ? (HighPrecisionTimer() - this.pressed_time_qpc) : 0
+        saved_state := this.state
+        saved_interrupted := this.interrupted
+        saved_scaw := this.saved_scaw
+        saved_down_ime_state := this.down_ime_state
 
-        duration := HighPrecisionTimer() - this.pressed_time_qpc
+        ; 状態を初期化
+        this.ResetState()
+        Critical "Off"
 
         ; モード3 / モード13（短押し：Up時に送信、長押し：修飾キー化）のリリース処理
         if (hold_mode == 3 || hold_mode == 13) {
-            if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
-                SendAndLog("{Blind}" . this.saved_scaw . this.key_text)
+            if (saved_state == LKey.st_pressing && !saved_interrupted && duration < LKey.hold_th) {
+                SendAndLog("{Blind}" . saved_scaw . this.key_text)
             }
         } else if (hold_mode == 5) {
-            ; モード5：短押し（単独Up時）に通常キーを送信
-            if (this.state == LKey.st_pressing && !this.interrupted && duration < LKey.hold_th) {
-                this.SendKeyWithShift()
+            ; モード5：短押し（単独Up時）に通常キーを送信（押下開始時の IME 状態を維持）
+            if (saved_state == LKey.st_pressing && !saved_interrupted && duration < LKey.hold_th) {
+                this.SendKeyWithShift(saved_down_ime_state)
             }
         }
-
-        ; 状態を初期化
-        this.state := LKey.st_init
-        this.pressed_time_qpc := 0
-        this.interrupted := false
-        this.saved_scaw := ""
     }
 
     /**
@@ -1169,12 +1280,27 @@ class LKey extends RKey {
      */
     OnHoldTimeout() {
         Critical
+        ; セッションIDチェック: 過去のセッションからの遅延発火を完全に破棄
+        if (this.timer_session_id != this.session_id) {
+            return
+        }
+
         if (this.state == LKey.st_pressing && !this.interrupted) {
             duration := HighPrecisionTimer() - this.pressed_time_qpc
             if (duration >= LKey.hold_th) {
                 this.state := LKey.st_processed
-                Send("{Backspace}")
-                this.SendShiftedKey(true, this.down_ime_state)
+                down_hwnd := this.down_hwnd
+                down_ime_state := this.down_ime_state
+                pre_text := (down_ime_state == 1) ? this.ime_key_text : this.key_text
+                Critical "Off"
+                ; 同一ウィンドウがアクティブな場合のみ安全に Backspace 置換を行う
+                if (down_hwnd == 0 || WinActive("ahk_id " . down_hwnd)) {
+                    bs_count := GetBackspaceUndoCount(pre_text)
+                    if (bs_count > 0) {
+                        Send("{Backspace " . bs_count . "}")
+                    }
+                    this.SendShiftedKey(true, down_ime_state)
+                }
             } else {
                 remaining := Ceil(LKey.hold_th - duration)
                 SetTimer(this.timer_name, -(remaining > 0 ? remaining : 1))
@@ -1344,6 +1470,7 @@ ResetCombinations() {
         }
         keyObj.layers.ime_arr := new_ime_arr
     }
+    Layers.last_active_item := ""
 }
 
 /**
@@ -1370,6 +1497,8 @@ LoadLayoutConfig() {
             case "FMIX14-14R[Built-in]": ChangeFMIX14_FMIX14R_Layout()
             case "FMIX15-15R[Built-in]": ChangeFMIX15_FMIX15R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
+            case "TF-Minato[Built-in]": ChangeTF_Minato_Layout()
+            case "TF1-Minato[Built-in]": ChangeTF1_Minato_Layout()
             case "TF2_2-Minato[Built-in]": ChangeTF2_2_Minato_Layout()
             case "STREAM1.5[Built-in]": ChangeSTREAM1_5_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
@@ -1377,6 +1506,7 @@ LoadLayoutConfig() {
                 ; INIファイルからカスタムレイアウトの読み込みを試行
                 LoadLayoutFromIni(layout_name)
         }
+        ApplyDynamicLayersFromSettings()
     } catch as err {
         MsgBox("Error in LoadLayoutConfig:`n" . err.Message . "`n" . err.Stack)
     }
@@ -1436,7 +1566,8 @@ class Layers {
                 this.hold_th := mode.hold_th
                 this.b_time := mode.b_time
             } else {
-                this.mode := mode
+                valid_mode := (mode == -1 || (IsInteger(mode) && mode >= 0 && mode <= 13)) ? Integer(mode) : 7
+                this.mode := valid_mode
                 this.hold_th := -1
                 this.b_time := -1
             }
@@ -1463,13 +1594,19 @@ class Layers {
      * @returns {Boolean} 指定されたレイヤーがアクティブな場合は true
      */
     static State(layer_id) {
-        if (layer_id < 1 || layer_id > layer_id_to_mod_key_id.Length) {
+        if (layer_id < 1) {
             return false
         }
-        mod_key_id := layer_id_to_mod_key_id[layer_id]
-        if (mod_key_id <= 0)
-            return false
-        return Layers.StateModKeyId(mod_key_id)
+        if (layer_id <= layer_id_to_mod_key_id.Length) {
+            mod_key_id := layer_id_to_mod_key_id[layer_id]
+            if (mod_key_id <= 0)
+                return false
+            return Layers.StateModKeyId(mod_key_id)
+        }
+        if (layer_id <= mod_key_list.Length) {
+            return Layers.StateModKeyId(layer_id)
+        }
+        return false
     }
 
     /**
@@ -1531,12 +1668,18 @@ class Layers {
      * @returns {Boolean} レイヤー状態が有効で、対象キーがそのトリガーでない場合は true
      */
     static State2(layer_id, key_obj) {
-        if (layer_id < 1 || layer_id > layer_id_to_mod_key_id.Length)
+        if (layer_id < 1)
             return false
-        mod_key_id := layer_id_to_mod_key_id[layer_id]
-        if (mod_key_id <= 0)
-            return false
-        return Layers.State2ModKeyId(mod_key_id, key_obj)
+        if (layer_id <= layer_id_to_mod_key_id.Length) {
+            mod_key_id := layer_id_to_mod_key_id[layer_id]
+            if (mod_key_id <= 0)
+                return false
+            return Layers.State2ModKeyId(mod_key_id, key_obj)
+        }
+        if (layer_id <= mod_key_list.Length) {
+            return Layers.State2ModKeyId(layer_id, key_obj)
+        }
+        return false
     }
 
     static State2ModKeyId(mod_key_id, key_obj) {
@@ -1697,21 +1840,103 @@ class Layers {
 
     /**
      * 修飾キーとメインキーの押下状態を監視し、ホールド閾値の到達またはリリースを検出します。
+     * 低レベルキーボードフックのメッセージディスパッチを安全に行うため Sleep(1) で待機しつつ、
+     * キーリリース、他キーによる割り込み、およびタイムアウトを正確に判定します。
      * @param {LKey} mod_key - 修飾側のキーオブジェクト
      * @param {LKey} key_obj - メイン側のキーオブジェクト
      * @param {Integer} hold_th - ホールド成立閾値 (ms)
-     * @returns {Integer} 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
+     * @returns {Integer} 0: 割り込み中断, 1: mod_key 先行Up, 2: key_obj 先行Up, 3: ホールド成立(時間超過)
      */
     static _WaitForHold(mod_key, key_obj, hold_th) {
+        start_time := mod_key.pressed_time_qpc
+        if (mod_key.interrupted || mod_key.state != LKey.st_pressing)
+            return 0
+        if !mod_key.IsPressed()
+            return 1
+        if !key_obj.IsPressed()
+            return 2
+        if (HighPrecisionTimer() - start_time >= hold_th)
+            return 3
+
         loop {
+            if (mod_key.interrupted || mod_key.state != LKey.st_pressing)
+                return 0
             if !mod_key.IsPressed()
                 return 1
             if !key_obj.IsPressed()
                 return 2
-            if (HighPrecisionTimer() - mod_key.pressed_time_qpc >= hold_th)
+            if (HighPrecisionTimer() - start_time >= hold_th)
                 return 3
             Sleep(1)
         }
+    }
+
+    /**
+     * モード 5〜9 の同時押し（Chord）の成立判定および副作用を処理します。
+     * @param {Integer} mode - 長押し動作モード (5〜9)
+     * @param {Number} t_qpc - 修飾キー押下からの経過時間 (ms)
+     * @param {Integer} x - ホールド判定閾値 (ms)
+     * @param {Integer} b - ロールオーバー防止バッファ時間 (ms)
+     * @param {LKey} mod_key - 先行する修飾側キーオブジェクト
+     * @param {LKey} key_obj - 後続のメイン側キーオブジェクト
+     * @param {Integer} [ime_state=-1] - 現在のIME状態 (0: OFF, 1: ON, -1: 未指定)
+     * @returns {Integer} 1: 修飾成立, 0: 修飾不成立, -1: 処理完了済 (即座に return true)
+     */
+    static _EvaluateChord(mode, t_qpc, x, b, mod_key, key_obj, ime_state := -1) {
+        ; ゾーン 1: 閾値超過 (全モード共通でホールド成立)
+        if (t_qpc >= x)
+            return 1
+
+        ; ゾーン 2: 高速ロールオーバー領域 (t < x - b)
+        ; ※ モード 6 はバッファなし (全領域で待機)
+        if (mode != 6 && t_qpc < x - b) {
+            if (mode == 9) {
+                ; モード 9 特有: 通常キーを先行送信した上で待機
+                target_hwnd := WinExist("A")
+                current_ime := (ime_state != -1) ? ime_state : (key_obj.down_ime_state == 1 ? 1 : 0)
+                key_obj.SendKeyWithShift(current_ime)
+                res := Layers._WaitForHold(mod_key, key_obj, x)
+                if (res == 3) {
+                    if (target_hwnd == 0 || WinActive("ahk_id " . target_hwnd)) {
+                        pre_text := (current_ime == 1) ? key_obj.ime_key_text : key_obj.key_text
+                        bs_count := GetBackspaceUndoCount(pre_text)
+                        if (bs_count > 0) {
+                            Send("{Backspace " . bs_count . "}")
+                        }
+                    }
+                    return 1 ; ホールド成立 (置換)
+                }
+                return -1 ; 先行送信済みのまま確定
+            }
+            if (mode == 5) {
+                ; モード 5 特有: 保留していた A の通常キーをフォールバック送信
+                if (mod_key.state == LKey.st_pressing)
+                    mod_key.SendKeyWithShift(mod_key.down_ime_state)
+                mod_key.state := LKey.st_processed
+            }
+            return 0 ; 修飾不成立
+        }
+
+        ; ゾーン 3: グレーゾーン待機 (x - b <= t < x)
+        res := Layers._WaitForHold(mod_key, key_obj, x)
+        is_held := false
+
+        if (mode == 8) {
+            ; モード 8 特有: メインキー先行Up (res == 2) または時間超過 (res == 3) で修飾成立
+            is_held := (res == 2 || res == 3)
+        } else {
+            ; モード 5, 6, 7, 9: 時間超過 (res == 3) のみ修飾成立
+            is_held := (res == 3)
+        }
+
+        ; モード 5 の不成立時フォールバック
+        if (mode == 5 && !is_held) {
+            if (mod_key.state == LKey.st_pressing)
+                mod_key.SendKeyWithShift(mod_key.down_ime_state)
+            mod_key.state := LKey.st_processed
+        }
+
+        return is_held ? 1 : 0
     }
 
     /**
@@ -1734,101 +1959,49 @@ class Layers {
 
             mod_key := mod_key_list[mod_key_id]
             if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
-                if Layers.State2(item.layer_id, key_obj) {
+                if Layers.State2ModKeyId(mod_key_id, key_obj) {
                     mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
                         mod_key.hold_mode_org)
 
-                    is_held := false
                     t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
                     x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
                     b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
 
-                    if (mod_hold_mode == 6) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
-                    } else if (mod_hold_mode == 7) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            is_held := false
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
-                    } else if (mod_hold_mode == 8) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            is_held := false
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 2 || res == 3) ; メインキー先行Upまたは時間超過で修飾成立
-                        }
-                    } else if (mod_hold_mode == 9) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            key_obj.SendKeyWithShift()
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            if (res == 3) {
-                                Send("{Backspace}")
-                                is_held := true
-                            } else {
-                                return true
-                            }
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
-                    } else if (mod_hold_mode == 5) {
-                        if (t_qpc >= x) {
-                            is_held := true
-                        } else if (t_qpc < x - b) {
-                            is_held := false
-                        } else {
-                            res := Layers._WaitForHold(mod_key, key_obj, x)
-                            is_held := (res == 3)
-                        }
+                    ; 1. 判定エンジンによる同時押し評価
+                    chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
+                        ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj, ime_state)
+                        : (t_qpc >= x ? 1 : 0)
 
-                        if !is_held {
-                            if (mod_key.state == LKey.st_pressing)
-                                mod_key.SendKeyWithShift()
-                            mod_key.state := LKey.st_processed
+                    if (chord_result == -1)
+                        return true ; 先行送信済みで処理完了
+                    if (chord_result == 0)
+                        continue
+
+                    ; 2. 修飾成立時のキー送信と状態更新
+                    mod_key.state := LKey.st_processed
+                    action_to_send := item.action
+                    if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                        false) {
+                        ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                        if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
+                            Layers.last_active_item == item) {
+                            item.tap_count += 1
+                        } else {
+                            item.tap_count := 1
+                            item.last_mod_key := mod_key
+                            item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
                         }
-                    } else {
-                        is_held := (t_qpc >= x)
+                        if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
+                            action_to_send := item.action3
+                        } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
+                            action_to_send := item.action2
+                        }
                     }
+                    ; 直近のアクティブなレイヤーアイテムを更新
+                    Layers.last_active_item := item
 
-                    if is_held {
-                        mod_key.state := LKey.st_processed
-                        action_to_send := item.action
-                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
-                            false) {
-                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
-                            if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
-                                Layers.last_active_item == item) {
-                                item.tap_count += 1
-                            } else {
-                                item.tap_count := 1
-                                item.last_mod_key := mod_key
-                                item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
-                            }
-                            if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
-                                action_to_send := item.action3
-                            } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
-                                action_to_send := item.action2
-                            }
-                        }
-                        ; 直近のアクティブなレイヤーアイテムを更新
-                        Layers.last_active_item := item
-
-                        this._SendKey(item.layer_id, action_to_send, key_obj)
-                        return true
-                    }
+                    this._SendKey(item.layer_id, action_to_send, key_obj)
+                    return true
                 }
             }
         }
@@ -1842,14 +2015,17 @@ class Layers {
 class HoldMode {
     /**
      * コンストラクタ
-     * @param {Integer} mode - 長押し動作モード
+     * @param {Integer} mode - 長押し動作モード (-1=継承, 0〜13)
      * @param {Integer} [hold_th=-1] - ホールド判定閾値 (ms, -1=未指定)
      * @param {Integer} [b_time=-1] - ロールオーバー誤判定防止バッファ時間 (ms, -1=未指定)
      */
     __New(mode, hold_th := -1, b_time := -1) {
-        this.mode := mode
-        this.hold_th := hold_th
-        this.b_time := b_time
+        valid_mode := (mode == -1 || (IsInteger(mode) && mode >= 0 && mode <= 13)) ? Integer(mode) : 7
+        valid_hold_th := (hold_th == -1 || (IsInteger(hold_th) && hold_th > 0)) ? Integer(hold_th) : -1
+        valid_b_time := (b_time == -1 || (IsInteger(b_time) && b_time >= 0)) ? Integer(b_time) : -1
+        this.mode := valid_mode
+        this.hold_th := valid_hold_th
+        this.b_time := valid_b_time
     }
 }
 
