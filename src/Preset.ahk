@@ -276,32 +276,17 @@ InitModLayer() {
     minus.SetLayerKey(mode, L_NAVI_CTRL, B_F11)
     hat.SetLayerKey(mode, L_NAVI_CTRL, B_F12)
     yen.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
-    z.SetLayerKey(mode, L_NAVI_CTRL, B_UNDO)
-    x.SetLayerKey(mode, L_NAVI_CTRL, B_CUT)
-    c.SetLayerKey(mode, L_NAVI_CTRL, B_COPY)
-    v.SetLayerKey(mode, L_NAVI_CTRL, B_PASTE)
-    b.SetLayerKey(mode, L_NAVI_CTRL, B_UNDO)
-    y.SetLayerKey(mode, L_NAVI_CTRL, B_UNDO)
-    u.SetLayerKey(mode, L_NAVI_CTRL, B_BS)
-    i.SetLayerKey(mode, L_NAVI_CTRL, B_UP)
-    o.SetLayerKey(mode, L_NAVI_CTRL, B_PGUP)
-    p.SetLayerKey(mode, L_NAVI_CTRL, B_PGDN)
+
+    SetLayerKeys(LAYOUT_30_KEYS, mode, L_NAVI_CTRL, [
+        "", "", "", "", "", B_UNDO, B_BS, B_UP, B_PGUP, B_PGDN,
+        "{Blind}^a", "", "", "", "", B_HOME, B_LEFT, B_DOWN, B_RIGHT, "+{Enter}",
+        B_UNDO, B_CUT, B_COPY, B_PASTE, B_UNDO, B_END, B_DEL, B_CLEFT, B_CRIGHT, "^+{sc07D}"])
+
     at.SetLayerKey(mode, L_NAVI_CTRL, B_CHOME)
     openbracket.SetLayerKey(mode, L_NAVI_CTRL, B_CEND)
-    h.SetLayerKey(mode, L_NAVI_CTRL, B_HOME)
-    j.SetLayerKey(mode, L_NAVI_CTRL, B_LEFT)
-    k.SetLayerKey(mode, L_NAVI_CTRL, B_DOWN)
-    l.SetLayerKey(mode, L_NAVI_CTRL, B_RIGHT)
-    semicolon.SetLayerKey(mode, L_NAVI_CTRL, "+{Enter}")
     colon.SetLayerKey(mode, L_NAVI_CTRL, "^{Enter}")
     closebracket.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
-    n.SetLayerKey(mode, L_NAVI_CTRL, B_END)
-    m.SetLayerKey(mode, L_NAVI_CTRL, B_DEL)
-    comma.SetLayerKey(mode, L_NAVI_CTRL, B_CLEFT)
-    period.SetLayerKey(mode, L_NAVI_CTRL, B_CRIGHT)
-    slash.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
     enter.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}^{Enter}")
-    a.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}^a")
     space.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}{Enter}")
 
     ; L_SYMBOL_NUM
@@ -317,44 +302,18 @@ InitModLayer() {
     k0.SetLayerKey(mode, L_SYMBOL_NUM, B_F10)
     minus.SetLayerKey(mode, L_SYMBOL_NUM, B_F11)
     hat.SetLayerKey(mode, L_SYMBOL_NUM, B_F12)
-    q.SetLayerKey(mode, L_SYMBOL_NUM, "?")
-    w.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}/")
-    e.SetLayerKey(mode, L_SYMBOL_NUM, B_NMUL)
-    r.SetLayerKey(mode, L_SYMBOL_NUM, B_NADD)
-    t.SetLayerKey(mode, L_SYMBOL_NUM, ":=")
-    a.SetLayerKey(mode, L_SYMBOL_NUM, "(")
-    s.SetLayerKey(mode, L_SYMBOL_NUM, ")")
-    d.SetLayerKey(mode, L_SYMBOL_NUM, "_")
-    f.SetLayerKey(mode, L_SYMBOL_NUM, "{Blind}-")
-    g.SetLayerKey(mode, L_SYMBOL_NUM, "=")
-    y.SetLayerKey(mode, L_SYMBOL_NUM, C_YEN)
-    u.SetLayerKey(mode, L_SYMBOL_NUM, C_N7)
-    i.SetLayerKey(mode, L_SYMBOL_NUM, C_N8)
-    o.SetLayerKey(mode, L_SYMBOL_NUM, C_N9)
-    p.SetLayerKey(mode, L_SYMBOL_NUM, "+^p")
-    h.SetLayerKey(mode, L_SYMBOL_NUM, "=")
-    j.SetLayerKey(mode, L_SYMBOL_NUM, C_N0)
-    k.SetLayerKey(mode, L_SYMBOL_NUM, C_N1)
-    l.SetLayerKey(mode, L_SYMBOL_NUM, C_N2)
-    semicolon.SetLayerKey(mode, L_SYMBOL_NUM, C_N3)
-    n.SetLayerKey(mode, L_SYMBOL_NUM, "+3")
-    m.SetLayerKey(mode, L_SYMBOL_NUM, C_N4)
-    comma.SetLayerKey(mode, L_SYMBOL_NUM, C_N5)
-    period.SetLayerKey(mode, L_SYMBOL_NUM, C_N6)
-    z.SetLayerKey(mode, L_SYMBOL_NUM, "+[")
-    x.SetLayerKey(mode, L_SYMBOL_NUM, "+]")
-    c.SetLayerKey(mode, L_SYMBOL_NUM, "[")
-    v.SetLayerKey(mode, L_SYMBOL_NUM, "]")
-    b.SetLayerKey(mode, L_SYMBOL_NUM, C_BACKSLASH)
+
+    SetLayerKeys(LAYOUT_30_KEYS, mode, L_SYMBOL_NUM, [
+        "?", "{Blind}/", B_NMUL, B_NADD, ":=", C_YEN, C_N7, C_N8, C_N9, "+^p",
+        "(", ")", "_", "{Blind}-", "=", "=", C_N0, C_N1, C_N2, C_N3,
+        "+[", "+]", "[", "]", C_BACKSLASH, "+3", C_N4, C_N5, C_N6, ""])
+
     space.SetLayerKey(mode, L_SYMBOL_NUM, B_BS)
 
     global LAYOUT_KEYS
     copyLayer(LAYOUT_KEYS, L_SYMBOL_NUM, L_SYMBOL1)
 
-    a.SetLayerKey(mode, L_NUMPAD, "(")
-    s.SetLayerKey(mode, L_NUMPAD, ")")
-    f.SetLayerKey(mode, L_NUMPAD, "-")
-    g.SetLayerKey(mode, L_NUMPAD, "=")
+    ; L_NUMPAD
     k7.SetLayerKey(mode, L_NUMPAD, C_N7)
     k8.SetLayerKey(mode, L_NUMPAD, C_N8)
     k9.SetLayerKey(mode, L_NUMPAD, C_N9)
@@ -362,41 +321,22 @@ InitModLayer() {
     minus.SetLayerKey(mode, L_NUMPAD, B_NSUB)
     hat.SetLayerKey(mode, L_NUMPAD, C_HAT)
     yen.SetLayerKey(mode, L_NUMPAD, "\")
-    y.SetLayerKey(mode, L_NUMPAD, C_BS)
-    u.SetLayerKey(mode, L_NUMPAD, C_N4)
-    i.SetLayerKey(mode, L_NUMPAD, C_N5)
-    o.SetLayerKey(mode, L_NUMPAD, C_N6)
-    p.SetLayerKey(mode, L_NUMPAD, B_NADD)
+
+    SetLayerKeys(LAYOUT_30_KEYS, mode, L_NUMPAD, [
+        "", "", "", "", "", C_BS, C_N4, C_N5, C_N6, B_NADD,
+        "(", ")", "", "-", "=", "=", C_N1, C_N2, C_N3, "",
+        "", "", "", "", "", C_DEL, C_N0, "", "", ""])
+
     at.SetLayerKey(mode, L_NUMPAD, B_UP)
-    h.SetLayerKey(mode, L_NUMPAD, "=")
-    j.SetLayerKey(mode, L_NUMPAD, C_N1)
-    k.SetLayerKey(mode, L_NUMPAD, C_N2)
-    l.SetLayerKey(mode, L_NUMPAD, C_N3)
     semicolon.SetLayerKey(mode, L_NUMPAD, B_LEFT)
     colon.SetLayerKey(mode, L_NUMPAD, B_DOWN)
     closebracket.SetLayerKey(mode, L_NUMPAD, B_RIGHT)
-    m.SetLayerKey(mode, L_NUMPAD, C_N0)
-    n.SetLayerKey(mode, L_NUMPAD, C_DEL)
 
     ; L_SYMBOL2
-    q.SetLayerKey(mode, L_SYMBOL2, "!") ;Exclamation Mark
-    w.SetLayerKey(mode, L_SYMBOL2, "@") ;Commercial At
-    e.SetLayerKey(mode, L_SYMBOL2, "+3") ;Number Sign
-    r.SetLayerKey(mode, L_SYMBOL2, "$") ;Dollar Sign
-    t.SetLayerKey(mode, L_SYMBOL2, "%") ;Percent Sign
-    a.SetLayerKey(mode, L_SYMBOL2, "&") ;Ampersand
-    s.SetLayerKey(mode, L_SYMBOL2, "+7") ;' single quotation
-    d.SetLayerKey(mode, L_SYMBOL2, "+2") ;' double quotation
-    f.SetLayerKey(mode, L_SYMBOL2, ";") ;Semicolon
-    g.SetLayerKey(mode, L_SYMBOL2, "+@") ;Grace Accent
-    z.SetLayerKey(mode, L_SYMBOL2, "~") ;Tilde
-    x.SetLayerKey(mode, L_SYMBOL2, C_HAT) ;Accent Circumflex
-    c.SetLayerKey(mode, L_SYMBOL2, ":") ;Colon
-    v.SetLayerKey(mode, L_SYMBOL2, "|") ;Vertical Line
-    b.SetLayerKey(mode, L_SYMBOL2, "\") ;Backward Slash
-    h.SetLayerKey(mode, L_SYMBOL2, "=")
-    comma.SetLayerKey(mode, L_SYMBOL2, "<=")
-    period.SetLayerKey(mode, L_SYMBOL2, ">=")
+    SetLayerKeys(LAYOUT_30_KEYS, mode, L_SYMBOL2, [
+        "!", "@", "+3", "$", "%", "", "", "", "", "",              ;Exclamation, At, Number Sign, Dollar, Percent
+        "&", "+7", "+2", ";", "+@", "=", "", "", "", "",           ;Ampersand, single/double quotation, Semicolon, Grave Accent
+        "~", C_HAT, ":", "|", "\", "", "", "<=", ">=", ""])        ;Tilde, Circumflex, Colon, Vertical Line, Backslash
 
     ; L_SHIFT
     k1.SetLayerKey(mode, L_SHIFT, B_F1)

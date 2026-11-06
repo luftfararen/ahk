@@ -3,6 +3,54 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-07] - Refactor InitModLayer to Use SetLayerKeys for Batch Layer Assignment
+
+### Overview
+- **Category**: Refactoring
+- **Affected Files**: `src/Preset.ahk`
+- **Summary**: Replaced individual `SetLayerKey` calls for LAYOUT_30_KEYS targets with batch `SetLayerKeys` calls across multiple layers in `InitModLayer`. Also replaced individual `SetLayerKey` calls in `L_NAVI_CTRL` with `SetLayerKeys` for the 30-key block. Reduces line count significantly and aligns with the pattern established in `L_SELECT`.
+
+### Background & Root Cause
+- **Motivation**: The `InitModLayer` function contained long repetitive sequences of `key.SetLayerKey(mode, layer_id, value)` calls for every LAYOUT_30_KEYS key in each layer. The `SetLayerKeys` helper exists precisely to batch-assign the 30-key array in one call, matching the pattern already used for `L_SELECT`. Applying it consistently improves readability and maintainability.
+
+### Technical Changes
+- **`InitModLayer` / `L_NAVI_CTRL`**:
+  - Replaced 20 individual `SetLayerKey` calls for `q`–`slash` (LAYOUT_30_KEYS) with a single `SetLayerKeys(LAYOUT_30_KEYS, mode, L_NAVI_CTRL, [...])` call (30 elements).
+  - Keys outside LAYOUT_30_KEYS (`at`, `openbracket`, `colon`, `closebracket`, `enter`, `space`) retained as individual `SetLayerKey` calls.
+- **`InitModLayer` / `L_SYMBOL_NUM`**:
+  - Replaced 20 individual `SetLayerKey` calls for LAYOUT_30_KEYS keys with `SetLayerKeys(LAYOUT_30_KEYS, mode, L_SYMBOL_NUM, [...])`.
+  - `space` retained as individual `SetLayerKey`.
+- **`InitModLayer` / `L_NUMPAD`**:
+  - Replaced 15 individual `SetLayerKey` calls for LAYOUT_30_KEYS keys with `SetLayerKeys(LAYOUT_30_KEYS, mode, L_NUMPAD, [...])`.
+  - `at`, `semicolon`, `colon`, `closebracket` (not in LAYOUT_30_KEYS) retained individually.
+- **`InitModLayer` / `L_SYMBOL2`**:
+  - Replaced 18 individual `SetLayerKey` calls with `SetLayerKeys(LAYOUT_30_KEYS, mode, L_SYMBOL2, [...])`.
+  - All assignments fit within the 30-key array; no individual overrides needed.
+- **`L_SHIFT`**: No LAYOUT_30_KEYS assignments existed; unchanged.
+
+### Verification & Impact
+- Net reduction: 83 lines removed, 23 lines added (net -60 lines) in `src/Preset.ahk`.
+- Logic and key mappings are functionally identical to the original individual assignments.
+- Syntax validation pending (AutoHotkey64.exe /validate unavailable in sandbox).
+
+### Suggested Commit Message
+```text
+Refactor InitModLayer: Use SetLayerKeys for L_NAVI_CTRL, L_SYMBOL_NUM, L_NUMPAD, L_SYMBOL2
+
+Overview:
+- Replaced repetitive SetLayerKey loops with SetLayerKeys batch calls for 4 layers.
+- Aligns with the L_SELECT pattern; reduces Preset.ahk by ~60 lines.
+
+Technical Changes:
+- InitModLayer/L_NAVI_CTRL: 20 individual calls → SetLayerKeys(LAYOUT_30_KEYS, ...).
+- InitModLayer/L_SYMBOL_NUM: 20 individual calls → SetLayerKeys(LAYOUT_30_KEYS, ...).
+- InitModLayer/L_NUMPAD: 15 individual calls → SetLayerKeys(LAYOUT_30_KEYS, ...).
+- InitModLayer/L_SYMBOL2: 18 individual calls → SetLayerKeys(LAYOUT_30_KEYS, ...).
+
+Verification:
+- Mappings verified against original individual SetLayerKey assignments.
+```
+
 ## [2026-11-01] - Reorganize Code Analysis References and Domain Rules for Token Efficiency
 
 ### Overview
