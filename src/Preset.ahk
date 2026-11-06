@@ -213,12 +213,25 @@ ChangeSTREAM1_5_Layout() {
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
+SetLayerKeys(layout, mode, layer_id, keys) {
+    global q, w, e, r, t, y, u, i, o, p, at, openbracket
+    global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
+    global z, x, c, v, b, n, m, comma, period, slash, backslash
+
+    for i, key in keys {
+        if key != "" {
+            layout[i].SetLayerKey(mode, layer_id, key)
+        }
+    }
+}
+
 /**
  * 各レイヤー（ナビゲーション、記号、テンキー、選択、Shiftなど）に対する、物理キーから送信キーへの具体的なマッピングを初期設定します。
  */
 InitModLayer() {
     start_qpc := HighPrecisionTimer()
 
+    global LAYOUT_30_KEYS
     global k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus, hat, yen
     global q, w, e, r, t, y, u, i, o, p, at, openbracket
     global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
@@ -233,28 +246,16 @@ InitModLayer() {
     k2.SetLayerKey(mode, L_SELECT, "^x")
     k3.SetLayerKey(mode, L_SELECT, "^c")
     k4.SetLayerKey(mode, L_SELECT, "^v")
-    z.SetLayerKey(mode, L_SELECT, "^z")
-    x.SetLayerKey(mode, L_SELECT, "^x")
-    c.SetLayerKey(mode, L_SELECT, "^c")
-    v.SetLayerKey(mode, L_SELECT, "^v")
-    b.SetLayerKey(mode, L_SELECT, "^z")
-    y.SetLayerKey(mode, L_SELECT, R_REDO)
-    u.SetLayerKey(mode, L_SELECT, C_BS)
-    i.SetLayerKey(mode, L_SELECT, "+{Up}")
-    o.SetLayerKey(mode, L_SELECT, "+{PgUp}")
-    p.SetLayerKey(mode, L_SELECT, "+{PgDn}")
+
+    SetLayerKeys(LAYOUT_30_KEYS, mode, L_SELECT, [
+        "", "", "", "", "", R_REDO, C_BS, "+{Up}", "+{PgUp}", "+{PgDn}",
+        "", "", "", "", "", "+{Home}", "+{Left}", "+{Down}", "+{Right}", "+{Enter}",
+        "^z", "^x", "^c", "^v", "^z", "+{End}", C_DEL, "^+{Left}", "^+{Left}", ""])
+
+    semicolon.SetLayerKey(mode, L_SELECT, "+{Enter}")
     at.SetLayerKey(mode, L_SELECT, C_CSHOME)
     openbracket.SetLayerKey(mode, L_SELECT, C_CSEND)
-    h.SetLayerKey(mode, L_SELECT, "+{Home}")
-    j.SetLayerKey(mode, L_SELECT, "+{Left}")
-    k.SetLayerKey(mode, L_SELECT, "+{Down}")
-    l.SetLayerKey(mode, L_SELECT, "+{Right}")
-    semicolon.SetLayerKey(mode, L_SELECT, "+{Enter}")
     enter.SetLayerKey(mode, L_SELECT, B_ENTER)
-    n.SetLayerKey(mode, L_SELECT, "+{End}")
-    m.SetLayerKey(mode, L_SELECT, C_DEL)
-    comma.SetLayerKey(mode, L_SELECT, "^+{Left}")
-    period.SetLayerKey(mode, L_SELECT, "^+{Right}")
     space.SetLayerKey(mode, L_SELECT, C_BS)
     up.SetLayerKey(mode, L_SELECT, "+{Up}")
     left.SetLayerKey(mode, L_SELECT, "+{Left}")
@@ -301,6 +302,7 @@ InitModLayer() {
     slash.SetLayerKey(mode, L_NAVI_CTRL, "^+{sc07D}")
     enter.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}^{Enter}")
     a.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}^a")
+    space.SetLayerKey(mode, L_NAVI_CTRL, "{Blind}{Enter}")
 
     ; L_SYMBOL_NUM
     k1.SetLayerKey(mode, L_SYMBOL_NUM, B_F1)

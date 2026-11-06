@@ -1498,7 +1498,9 @@ StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift
         keyObj.SetMode(1, 0)
     }
     l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
-    for i, keyObj in LAYOUT_CHAR_KEYS {
+
+    global LAYOUT_30_KEYS
+    for i, keyObj in LAYOUT_30_KEYS {
         keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i), ime)
     }
     global LAYOUT_KEYS
@@ -1634,11 +1636,14 @@ ApplyCombinationsFromIni(section, prefix, is_ime) {
                         mode_val := 7 ; 不正なモード番号は安全なデフォルト Mode 7 にフォールバック
                     }
                     if (mode_parts.Length >= 3) {
-                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) : Layers.hold_th
-                        b_time := (IsInteger(mode_parts[3]) && Integer(mode_parts[3]) >= 0) ? Integer(mode_parts[3]) : ((mode_val = 8) ? Layers.b_time2 : Layers.b_time)
+                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) :
+                            Layers.hold_th
+                        b_time := (IsInteger(mode_parts[3]) && Integer(mode_parts[3]) >= 0) ? Integer(mode_parts[3]) :
+                            ((mode_val = 8) ? Layers.b_time2 : Layers.b_time)
                         mode := HoldMode(mode_val, hold_th, b_time)
                     } else if (mode_parts.Length == 2) {
-                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) : Layers.hold_th
+                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) :
+                            Layers.hold_th
                         b_time := (mode_val = 8) ? Layers.b_time2 : Layers.b_time
                         mode := HoldMode(mode_val, hold_th, b_time)
                     } else {
@@ -2164,7 +2169,7 @@ StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "
         keyObj.SetIMEKey(l_num.GetElement(i), l_snum.GetElement(i))
     }
     l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
-    for i, keyObj in LAYOUT_CHAR_KEYS {
+    for i, keyObj in LAYOUT_30_KEYS {
         keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
     }
 }

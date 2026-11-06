@@ -1192,7 +1192,7 @@ global q, w, e, r, t, y, u, i, o, p, at, openbracket
 global a, s, d, f, g, h, j, k, l, semicolon, colon, closebracket
 global z, x, c, v, b, n, m, comma, period, slash, backslash, enter
 global up, down, left, right
-global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_CHAR_KEYS, LAYOUT_KEYS, QWERTY_CHARS
+global LAYOUT_SPECIAL_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_NUM_KEYS, LAYOUT_30_KEYS, LAYOUT_KEYS, QWERTY_CHARS
 
 /**
  * すべての物理キーに対応する RKey / LKey オブジェクトのインスタンスを生成し、
@@ -1280,7 +1280,7 @@ InitGlobalKeys() {
     LAYOUT_SPECIAL_NAMES := ["space", "tab", "noconv", "conv", "f14", "enter", "up", "down", "left", "right"]
 
     LAYOUT_NUM_KEYS := [k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, minus]
-    LAYOUT_CHAR_KEYS := [
+    LAYOUT_30_KEYS := [
         q, w, e, r, t, y, u, i, o, p,
         a, s, d, f, g, h, j, k, l, semicolon,
         z, x, c, v, b, n, m, comma, period, slash
