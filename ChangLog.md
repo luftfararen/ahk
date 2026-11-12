@@ -3,6 +3,55 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-13] - Fix TypeAnalyzer Performance Guard and Add Auto-Recovery Logic
+
+### Overview
+- **Category**: Bug Fix / Performance & Reliability
+- **Affected Files**: `src/Utils.ahk`
+- **Summary**: Fixed raw QPC counter comparison against milliseconds in `TypeAnalyzer.Log` and implemented an automatic recovery mechanism to resume typing logging after load spikes settle.
+
+### Background & Root Cause
+- **Symptoms**: `TypeAnalyzer` frequently halted keystroke logging permanently with the warning "TypeAnalyzer: 処理遅延のため記録を一時停止", even under nominal load conditions. Once paused, logging never resumed.
+- **Root Cause**:
+  1. `total_log_time` stored raw `QueryPerformanceCounter` ticks rather than milliseconds. Comparing raw ticks against `50` resulted in false positives within microseconds (~5 µs on a 10 MHz timer).
+  2. `this.total_log_time := Max(time_qpc, this.total_log_time)` caused a single spike to permanently block future logging because `Log()` returned early without resetting `total_log_time`.
+  3. `ResetTotalLogTime()` was not invoked internally during idle periods or within `TypeAnalyzer`'s lifecycle.
+
+### Technical Changes
+- **`TypeAnalyzer.GetFreq`**:
+  - Added static helper to safely retrieve the performance counter frequency via `this.freq`, global `g_freq`, or `QueryFrequency()`.
+- **`TypeAnalyzer.Log`**:
+  - Normalized `this.total_log_time` to milliseconds via `(total_log_time * 1000.0) / freq` before evaluating against `MAX_LOG_TIME_MS` (50 ms).
+  - Added auto-recovery probe trigger when 3000 ms (`PAUSE_RECOVERY_MS`) or 20 keystrokes (`PAUSE_MAX_SKIPS`) elapse during a pause.
+  - Scheduled one-shot recovery timer `SetTimer(ObjBindMethod(this, "ResetTotalLogTime"), -3000)` upon entering pause state.
+  - Added periodic reset every 100 strokes (`stroke_count >= 100`) to prevent single-event spikes from lingering.
+- **`TypeAnalyzer.ResetTotalLogTime`**:
+  - Cleared `pause_time`, `skip_count`, and `is_warning_shown` state flags to cleanly resume logging.
+- **`TypeAnalyzer.SaveIfIdle`**:
+  - Added call to `ResetTotalLogTime()` at the start of idle processing to guarantee recovery when typing pauses.
+
+### Verification & Impact
+- Converted latency checks to genuine millisecond scale, eliminating premature pause triggers during sub-millisecond execution.
+- Ensured automated recovery without user intervention via timers, stroke thresholds, and idle callbacks.
+
+### Suggested Commit Message
+```text
+Fix TypeAnalyzer performance guard and implement auto-recovery logic
+
+Overview:
+- Normalized raw QPC count to milliseconds against 50ms latency threshold.
+- Added multi-layered auto-recovery logic via timers, skip limits, and idle reset.
+
+Technical Changes:
+- TypeAnalyzer.GetFreq: Added helper for safe QPC frequency retrieval.
+- TypeAnalyzer.Log: Converted latency checks to ms; added recovery timer and skip probe.
+- TypeAnalyzer.ResetTotalLogTime: Reset pause timestamps, skip counts, and warning state.
+- TypeAnalyzer.SaveIfIdle: Invoked ResetTotalLogTime on idle to guarantee clean resumption.
+
+Verification:
+- Validated millisecond conversion logic and recovery state transitions.
+```
+
 ## [2026-11-07] - Refactor InitModLayer to Use SetLayerKeys for Batch Layer Assignment
 
 ### Overview
