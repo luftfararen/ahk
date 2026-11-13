@@ -1037,6 +1037,29 @@ class TypeAnalyzer {
     static total_log_time := 0
     static total_log_time2 := 0
     static freq := 0
+    static MAX_LOG_TIME_MS := 50       ; 処理遅延判定閾値 (ms)
+    static PAUSE_RECOVERY_MS := 3000   ; 遅延一時停止からの自動復帰試行間隔 (ms)
+    static PAUSE_MAX_SKIPS := 20       ; 遅延一時停止からの最大スキップ打鍵数
+    static is_warning_shown := false   ; 警告表示中フラグ
+    static pause_time := 0             ; 一時停止開始時刻 (TickCount)
+    static skip_count := 0             ; 一時停止中のスキップ回数
+    static stroke_count := 0           ; 最大処理時間リセット用打鍵カウンタ
+
+    /**
+     * 高精度パフォーマンスカウンタの周波数を取得します。
+     * @returns {Integer} カウンタ周波数 (Hz)
+     */
+    static GetFreq() {
+        if this.freq > 0
+            return this.freq
+        global g_freq
+        if IsSet(g_freq) && g_freq > 0 {
+            this.freq := g_freq
+            return this.freq
+        }
+        this.freq := QueryFrequency()
+        return this.freq
+    }
 
     /**
      * 直近の打鍵履歴（3文字トリグラム追跡バッファ）をリセットします。
@@ -1122,7 +1145,7 @@ class TypeAnalyzer {
         ; 初回呼び出し時のオーバーヘッド（DLLロードや静的変数初期化）を排除する
         this.is_logging_enabled := true ; 一時的に有効化
         this.Log("warmup")
-        this.total_log_time := 0
+        this.ResetTotalLogTime()
         this.stats_short_idx := 0
         this.LoadConfig() ; 本来の設定に戻す
 
@@ -1314,6 +1337,9 @@ class TypeAnalyzer {
             this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
             this.total_log_time := 0
         }
+        this.pause_time := 0
+        this.skip_count := 0
+        this.is_warning_shown := false
     }
 
     /**
@@ -1322,6 +1348,11 @@ class TypeAnalyzer {
      */
     static SaveIfIdle(time) {
         Critical()
+        ; アイドル時に遅延スパイク状態をリセットし、復帰可能にする
+        if this.total_log_time > 0 || this.pause_time > 0 {
+            this.ResetTotalLogTime()
+        }
+
         if (time < 20000) {
             Critical("Off")
             return
@@ -1419,23 +1450,35 @@ class TypeAnalyzer {
      * @param {String} char - 記録対象の文字
      */
     static Log(char) {
-        static is_warning_shown := false
-
         if !this.is_logging_enabled
             return
         if WinActive("ahk_group RemoteDesktops")
             return
 
-        if (this.total_log_time > 50) {
-            if (!is_warning_shown) {
-                ToolTip("TypeAnalyzer: 処理遅延のため記録を一時停止")
-                SetTimer(() => ToolTip(), -3000)
-                is_warning_shown := true
+        ; --- パフォーマンス保護と自動復帰ロジック ---
+        freq := this.GetFreq()
+        last_ms := freq > 0 ? (this.total_log_time * 1000.0) / freq : 0
+
+        if (last_ms > this.MAX_LOG_TIME_MS) {
+            now := A_TickCount
+            ; 自動復帰判定: 一定時間経過(PAUSE_RECOVERY_MS) または 一定打鍵スキップ(PAUSE_MAX_SKIPS)
+            if (this.pause_time > 0 && (now - this.pause_time >= this.PAUSE_RECOVERY_MS || this.skip_count >= this.PAUSE_MAX_SKIPS)) {
+                ; 負荷低下のプローブ（テスト再開）のためにリセット
+                this.ResetTotalLogTime()
+            } else {
+                if (!this.is_warning_shown) {
+                    ToolTip("TypeAnalyzer: 処理遅延のため記録を一時停止")
+                    SetTimer(() => ToolTip(), -3000)
+                    this.is_warning_shown := true
+                    this.pause_time := now
+                    this.skip_count := 0
+                    ; タイマーでも自動復帰を予約
+                    SetTimer(ObjBindMethod(this, "ResetTotalLogTime"), -this.PAUSE_RECOVERY_MS)
+                }
+                this.skip_count += 1
+                return ; パフォーマンス保護のため早期リターン
             }
-            ; 50msを超えた入力があった場合は、パフォーマンス保護のため早期リターン
-            return
         }
-        is_warning_shown := false
 
         if char = ""
             return
@@ -1454,6 +1497,12 @@ class TypeAnalyzer {
         time_qpc := end_qpc - start_qpc
         this.total_log_time := Max(time_qpc, this.total_log_time)
 
+        ; 定期的に最大処理時間をリセットし、単発スパイクによる永続的な遅延判定を防止
+        this.stroke_count += 1
+        if (this.stroke_count >= 100) {
+            this.stroke_count := 0
+            this.ResetTotalLogTime()
+        }
     }
 } ;class TypeAnalyzer
 

@@ -175,29 +175,30 @@ ChangeFMIX13f_Minato_Layout() {
 }
 
 /**
- * TF配列を英語入力用、湊配列を日本語入力用として変更する。
+ * TFカスタム配列を英語入力用、湊配列を日本語入力用として変更する。
  */
 ChangeTF_Minato_Layout() {
-    StoreLayout("TF-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
-    ChangeMinatoLayoutImpl()
-    InitModLayer()
-    ShowOSD(TypeAnalyzer.current_layout . " layout")
-}
-/**
- * TF配列1を英語入力用、湊配列を日本語入力用として変更する。
- */
-ChangeTF1_Minato_Layout() {
-    StoreLayout("TF1-Minato[Built-in]", "qwerfylupjasdtgnheiozxcvbkm,./")
+    StoreLayout("TF-Minato[Built-in]", "qwerfylupjasdtgnheiozxcvbkm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")
 }
 
 /**
+ * TF配列1を英語入力用、湊配列を日本語入力用として変更する。
+ */
+; ChangeTF1_Minato_Layout() {
+;     StoreLayout("TF1-Minato[Built-in]", "qwerfylupjasdtgnheiozxcvbkm,./")
+;     ChangeMinatoLayoutImpl()
+;     InitModLayer()
+;     ShowOSD(TypeAnalyzer.current_layout . " layout")
+; }
+
+/**
  * TF配列2を英語入力用、湊配列を日本語入力用として変更する。
  */
-ChangeTF2_2_Minato_Layout() {
-    StoreLayout("TF2_2-Minato[Built-in]", "qwerfjluykasdtghneiozxcvbpm,./")
+ChangeTF2_1_Minato_Layout() {
+    StoreLayout("TF2_1-Minato[Built-in]", "qwerfylupjasdtghneiozxcvbkm,./")
     ChangeMinatoLayoutImpl()
     InitModLayer()
     ShowOSD(TypeAnalyzer.current_layout . " layout")

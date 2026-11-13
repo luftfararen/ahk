@@ -32,14 +32,14 @@ g:: Send("^f") ; Find
 ; --- M1 保持中の IME 切り替え ---
 F14:: ToggleImeState() ; F14/Enter
 sc079:: ToggleImeState() ; Convert
-space:: ToggleImeState()
+;space:: ToggleImeState()
 #f:: ToggleForceImeModeOn() ;Toggle Force IME Mode ON
 #p:: OpenConfigEditor()
 ; --- レイアウト切り替え ---
 #r:: ChangeFMIX14_FMIX14R_Layout()
 #t:: ChangeTF_Minato_Layout()
-#w:: ChangeTF1_Minato_Layout()
-#x:: ChangeTF2_2_Minato_Layout()
+;#w:: ChangeTF1_Minato_Layout()
+#x:: ChangeTF2_1_Minato_Layout()
 #s:: ChangeSTREAM1_5_Layout()
 #m:: ChangeFMIX13f_Minato_Layout()
 #q:: ChangeQwertyLayout()

@@ -8,3 +8,4 @@ tools/*
 test/*.log
 test/*.txt
 test/*.ini
+src/config.ini
