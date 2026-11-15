@@ -1498,8 +1498,8 @@ LoadLayoutConfig() {
             case "FMIX15-15R[Built-in]": ChangeFMIX15_FMIX15R_Layout()
             case "FMIX13f-Minato[Built-in]": ChangeFMIX13f_Minato_Layout()
             case "TF-Minato[Built-in]": ChangeTF_Minato_Layout()
-            case "TF1-Minato[Built-in]": ChangeTF1_Minato_Layout()
-            case "TF2_2-Minato[Built-in]": ChangeTF2_2_Minato_Layout()
+                ;case "TF1-Minato[Built-in]": ChangeTF1_Minato_Layout()
+            case "TF2_1-Minato[Built-in]": ChangeTF2_1_Minato_Layout()
             case "STREAM1.5[Built-in]": ChangeSTREAM1_5_Layout()
             case "FMIX13-Minato[Built-in]": ChangeFMIX13_Minato_Layout()
             default:
