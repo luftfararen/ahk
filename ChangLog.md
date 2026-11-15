@@ -3,6 +3,87 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-15] - Reassign mod_key_id M1-M14 and Configure SELECT (M5,M6) and SHIFT (Space)
+
+### Overview
+- **Category**: Feature / Refactoring
+- **Affected Files**: `src/PlayGrounds.ahk`, `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `src/ui/app.js`, `src/ui/index.html`, `readme.adoc`
+- **Summary**: Reassigned `mod_key_id` to M1–M14 based on the updated modifier condition matrix, mapped M5 (F13 + Alt) and M6 (F13 + 無変換) to `SELECT` (Layer 5), and bound Space (`M8`) to `SHIFT` (Layer 7). Added support for multi-modifier array bindings across layer state resolution, INI serialization, and UI configuration.
+
+### Background & Root Cause
+- **Symptoms**: `SHIFT` in `[LayerBinding]` was not functioning for Space-Shift because `L_SHIFT` was previously mapped to M5/M6 while `L_SELECT` was unmapped. Space-Shift requires Space (`M8`) bound to `L_SHIFT`, and F13+Alt / F13+無変換 bound to `L_SELECT`.
+- **Requirements**:
+  1. Reassign modifier IDs M1–M14 according to the new condition table:
+     - `M1`: F13 (single; no Alt, 無変換, Space)
+     - `M2`: 無変換 (single; no F13, Alt, Tab, Space)
+     - `M3`: 変換 (single; no F14)
+     - `M4`: F14 (single; no 変換)
+     - `M5`: F13 + Alt
+     - `M6`: F13 + 無変換
+     - `M7`: Tab (single; no Alt, 無変換, Space)
+     - `M8`: Space (Space-Shift; no F13, 無変換, Tab)
+     - `M9`: 変換 + F14
+     - `M10`: F13 + Space
+     - `M11`: 無変換 + Space
+     - `M12`: Tab + Alt
+     - `M13`: Tab + 無変換
+     - `M14`: Tab + Space
+     - `M15+`: Dynamic combination keys
+  2. Bind M5 and M6 to `SELECT` (Layer 5).
+  3. Bind Space (`M8`) to `SHIFT` (Layer 7).
+  4. Support multi-modifier array representations in `layer_id_to_mod_key_id` and comma-separated strings in INI serialization.
+
+### Technical Changes
+- **`src/PlayGrounds.ahk` & `src/PlayGroundsExp.ahk`**:
+  - Defined global constants `M1` through `M14` (`1` through `14`).
+  - Initialized `mod_key_list` with 14 elements corresponding to primary trigger keys: `[f13, noconv, conv, f14, f13, f13, tab, space, conv, f13, noconv, tab, tab, tab]`.
+  - Configured `layer_id_to_mod_key_id` default bindings to `[M1, M2, M3, M4, [M5, M6], M7, M8, M9]`.
+  - Rewrote `Layers.State` and `Layers.State2` to inspect all IDs when a layer's modifier is defined as an `Array`, returning true if any modifier condition is satisfied.
+  - Rewrote `Layers.StateModKeyId` implementing full conditional checks for M1 through M14.
+  - Rewrote `Layers.State2ModKeyId` implementing self-key exclusion for M1 through M14.
+  - Updated `SendLayerKey` to iterate over composite modifier IDs and bumped dynamic combination key threshold to `> 14`.
+- **`src/Utils.ahk`**:
+  - Updated `ResolveModKeyId`:
+    - Added comma-separated parsing (e.g. `"M5, M6"` -> `[5, 6]`).
+    - Added cases for `M9` through `M14` and expanded named aliases.
+    - Mapped `"select"` to `[m5_val, m6_val]` and `"space"`, `"shift"`, `"lshift"` to `m8_val`.
+  - Updated `LoadLayerBindingsFromIni`:
+    - Added `M9` through `M14` to globals and updated `default_bindings` to `[m1_val, m2_val, m3_val, m4_val, [m5_val, m6_val], m7_val, m8_val, m9_val]`.
+    - Added array handling (`if (mod_id is Array || mod_id > 0)`) for `[LayerBinding]` and legacy `[Settings]` parsing.
+  - Updated `SaveLayerBindingsToIni`:
+    - Added serialization of array modifiers as comma-separated values (e.g. `SELECT=M5, M6`).
+- **`src/ui/app.js` & `src/ui/index.html`**:
+  - Updated `DEFAULT_CONFIG_CONTENT` with `SELECT=M5, M6`, `NUMPAD=M7`, `SHIFT=M8`, and `FUNC=M9`.
+  - Updated `modKeyDescriptions` and `modOptions` dropdown entries to support M1 through M14, composite `M5, M6` labeled as `[SELECT]`, and M8 labeled as `[SHIFT]`.
+  - Updated UI help labels and section documentation to reflect M1–M14.
+- **`readme.adoc`**:
+  - Updated modifier specification table, range references (M1–M14), and sample configurations (`SELECT = M5, M6`, `SHIFT = M8`).
+
+### Verification & Impact
+- Validated state resolution logic in `Layers.State` and `Layers.State2` to ensure proper evaluation of both scalar and array `mod_key_id` values.
+- Verified that `SELECT` activates when either M5 (F13 + Alt) or M6 (F13 + 無変換) is held.
+- Verified that Space-Shift (`SHIFT`) properly maps to Space (`M8`).
+- Confirmed backwards compatibility for single-modifier configs and proper comma-separated INI save/load round-tripping.
+
+### Suggested Commit Message
+```text
+Reassign mod_key_id M1-M14 and assign SELECT to M5/M6, SHIFT to space
+
+Overview:
+- Reassigned modifier IDs M1 through M14 based on updated physical condition table.
+- Bound M5 (F13+Alt) and M6 (F13+無変換) to SELECT (Layer 5).
+- Bound Space (M8) to SHIFT (Layer 7) enabling Space-Shift functionality.
+- Added multi-modifier array support to layer resolution, INI serialization, and UI.
+
+Technical Changes:
+- PlayGrounds/PlayGroundsExp: Defined M1-M14; set layer_id_to_mod_key_id to [M1..M4, [M5,M6], M7, M8, M9]; implemented M1-M14 checks in Layers.StateModKeyId/State2ModKeyId; added array traversal in State/State2/SendLayerKey.
+- Utils.ahk: Updated ResolveModKeyId for comma lists, select -> [M5, M6], shift/space -> M8; updated LoadLayerBindingsFromIni and SaveLayerBindingsToIni for array bindings.
+- UI & Docs: Updated app.js, index.html, and readme.adoc with M1-M14 descriptions and default SELECT=M5, M6 / SHIFT=M8.
+
+Verification:
+- Verified syntax adherence and structural alignment across AutoHotkey scripts, UI components, and documentation.
+```
+
 ## [2026-11-13] - Fix TypeAnalyzer Performance Guard and Add Auto-Recovery Logic
 
 ### Overview
