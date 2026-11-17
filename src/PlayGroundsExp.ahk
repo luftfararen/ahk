@@ -119,20 +119,20 @@ global M1 := 1   ; F13 (単独)
 global M2 := 2   ; 無変換 (単独)
 global M3 := 3   ; 変換 (単独)
 global M4 := 4   ; F14 (単独)
-global M5 := 5   ; 予約 / 互換用 (Alt+M1 はレイヤー側修飾で指定)
+global M5 := 5   ; F13 + Alt
 global M6 := 6   ; F13 + 無変換
 global M7 := 7   ; Tab (単独)
 global M8 := 8   ; Space (Space-Shift)
 global M9 := 9   ; 変換 + F14
 global M10 := 10 ; F13 + Space
 global M11 := 11 ; 無変換 + Space
-global M12 := 12 ; 予約 / 互換用 (Alt+Tab/Alt+M7 はレイヤー側修飾で指定)
+global M12 := 12 ; Tab + Alt
 global M13 := 13 ; Tab + 無変換
 global M14 := 14 ; Tab + Space
 
-; layer_id から mod_key_id / 修飾記述子 を引く変換配列
-; SELECT に Alt+M1, M6、SHIFT に space (M8) を割り当て
-global layer_id_to_mod_key_id := [M1, M2, M3, M4, ["Alt+M1", M6], M7, M8, M9]
+; layer_id から mod_key_id を引く変換配列
+; SELECT に M5, M6、SHIFT に space (M8) を割り当て
+global layer_id_to_mod_key_id := [M1, M2, M3, M4, [M5, M6], M7, M8, M9]
 
 ; mod_key_id から修飾キー用のキーオブジェクトを引く配列
 global mod_key_list := []
@@ -1449,14 +1449,14 @@ ResetIME() {
 
 /**
  * 登録されているカスタムキーコンビネーション（レイヤーID > 8）および
- * 動的に拡張された修飾キーリスト（mod_key_list）を初期状態（長さ14）にリセットします。
+ * 動的に拡張された修飾キーリスト（mod_key_list）を初期状態（長さ8）にリセットします。
  */
 ResetCombinations() {
     global LAYOUT_KEYS, mod_key_list
 
-    ; mod_key_list を初期の14要素にリセット
-    if (mod_key_list.Length > 14) {
-        mod_key_list.RemoveAt(15, mod_key_list.Length - 14)
+    ; mod_key_list を初期の8要素にリセット
+    if (mod_key_list.Length > 8) {
+        mod_key_list.RemoveAt(9, mod_key_list.Length - 8)
     }
 
     ; すべてのキーからカスタムコンビネーション（layer_id > 8）を削除
@@ -1595,139 +1595,8 @@ class Layers {
     arr := []
 
     /**
-     * 修飾キー指定（整数ID、または "Alt+M1", "!M1" 等の文字列）を解析します。
-     * @param {Integer|String|Object} spec - 修飾キー指定
-     * @returns {Object} {mod_key_id: Integer, alt: Boolean, ctrl: Boolean, shift: Boolean, win: Boolean}
-     */
-    static ParseModSpec(spec) {
-        if (spec is Object && !(spec is String) && !(spec is Array) && spec.HasProp("mod_key_id"))
-            return spec
-
-        if IsInteger(spec) {
-            val := Integer(spec)
-            ; 後方互換性: M5 (旧 F13+Alt) -> Alt+M1, M12 (旧 Tab+Alt) -> Alt+M7
-            if val == 5
-                return { mod_key_id: 1, alt: true, ctrl: false, shift: false, win: false }
-            if val == 12
-                return { mod_key_id: 7, alt: true, ctrl: false, shift: false, win: false }
-            return { mod_key_id: val, alt: false, ctrl: false, shift: false, win: false }
-        }
-
-        s := Trim(String(spec))
-        if (s == "" || s == "0" || StrLower(s) == "none")
-            return { mod_key_id: 0, alt: false, ctrl: false, shift: false, win: false }
-
-        ; 後方互換性: "M5" -> Alt+M1, "M12" -> Alt+M7
-        s_lower := StrLower(s)
-        if (s_lower == "m5")
-            return { mod_key_id: 1, alt: true, ctrl: false, shift: false, win: false }
-        if (s_lower == "m12")
-            return { mod_key_id: 7, alt: true, ctrl: false, shift: false, win: false }
-
-        has_alt := false
-        has_ctrl := false
-        has_shift := false
-        has_win := false
-
-        ; プレフィックス記号 (!, ^, +, #) の処理
-        while (StrLen(s) > 0) {
-            first_char := SubStr(s, 1, 1)
-            if (first_char == "!") {
-                has_alt := true
-                s := SubStr(s, 2)
-            } else if (first_char == "^") {
-                has_ctrl := true
-                s := SubStr(s, 2)
-            } else if (first_char == "+") {
-                has_shift := true
-                s := SubStr(s, 2)
-            } else if (first_char == "#") {
-                has_win := true
-                s := SubStr(s, 2)
-            } else {
-                break
-            }
-        }
-
-        ; "Alt+M1", "Ctrl+Alt+M1" などの "+" 区切りトークン処理
-        parts := StrSplit(s, "+")
-        clean_parts := []
-        for part in parts {
-            p := Trim(part)
-            p_lower := StrLower(p)
-            if (p_lower == "alt" || p_lower == "lalt" || p_lower == "ralt") {
-                has_alt := true
-            } else if (p_lower == "ctrl" || p_lower == "control" || p_lower == "lctrl" || p_lower == "rctrl") {
-                has_ctrl := true
-            } else if (p_lower == "shift" || p_lower == "lshift" || p_lower == "rshift") {
-                has_shift := true
-            } else if (p_lower == "win" || p_lower == "lwin" || p_lower == "rwin") {
-                has_win := true
-            } else if (p != "") {
-                clean_parts.Push(p)
-            }
-        }
-
-        base_str := clean_parts.Length > 0 ? clean_parts[clean_parts.Length] : ""
-        mid := 0
-        if (base_str != "") {
-            if RegExMatch(base_str, "i)^m(\d+)$", &m) {
-                mid := Integer(m[1])
-            } else if IsInteger(base_str) {
-                mid := Integer(base_str)
-            } else {
-                ; 名前エイリアス (f13, noconv, conv, f14, tab, space)
-                b_lower := StrLower(base_str)
-                if (b_lower == "f13") mid := 1
-                else if (b_lower == "noconv" || b_lower == "muhenkan") mid := 2
-                else if (b_lower == "conv" || b_lower == "henkan") mid := 3
-                else if (b_lower == "f14") mid := 4
-                else if (b_lower == "tab") mid := 7
-                else if (b_lower == "space") mid := 8
-            }
-        }
-
-        if (mid == 5) {
-            mid := 1
-            has_alt := true
-        } else if (mid == 12) {
-            mid := 7
-            has_alt := true
-        }
-
-        return { mod_key_id: mid, alt: has_alt, ctrl: has_ctrl, shift: has_shift, win: has_win }
-    }
-
-    /**
-     * 修飾キー指定（整数ID、または "Alt+M1" 等）を評価し、現在アクティブかどうかを判定します。
-     * @param {Integer|String|Object} spec - 修飾キー指定
-     * @param {Object} [key_obj=""] - 除外対象キー（State2用）
-     * @returns {Boolean} アクティブなら true
-     */
-    static EvalModSpec(spec, key_obj := "") {
-        parsed := Layers.ParseModSpec(spec)
-        if (parsed.mod_key_id < 1)
-            return false
-
-        ; 標準修飾キー（Alt, Ctrl, Shift, Win）の判定
-        if parsed.alt && !GetKeyState("Alt", "P")
-            return false
-        if parsed.ctrl && !GetKeyState("Ctrl", "P")
-            return false
-        if parsed.shift && !GetKeyState("Shift", "P")
-            return false
-        if parsed.win && !(GetKeyState("LWin", "P") || GetKeyState("RWin", "P"))
-            return false
-
-        if (key_obj == "")
-            return Layers.StateModKeyId(parsed.mod_key_id)
-        else
-            return Layers.State2ModKeyId(parsed.mod_key_id, key_obj)
-    }
-
-    /**
      * レイヤーIDで指定されたレイヤーがアクティブかどうかを判定します。
-     * layer_id_to_mod_key_id を経由して mod_key_id または修飾記述子を取得し、それに基づいて評価します。
+     * layer_id_to_mod_key_id を経由して mod_key_id を取得し、それに基づいて評価します。
      * @param {Integer} layer_id - レイヤーID
      * @returns {Boolean} 指定されたレイヤーがアクティブな場合は true
      */
@@ -1739,14 +1608,14 @@ class Layers {
             target_mod := layer_id_to_mod_key_id[layer_id]
             if (target_mod is Array) {
                 for mid in target_mod {
-                    if (Layers.EvalModSpec(mid))
+                    if (mid > 0 && Layers.StateModKeyId(mid))
                         return true
                 }
                 return false
             }
-            if (target_mod == 0 || target_mod == "" || StrLower(String(target_mod)) == "none")
+            if (target_mod <= 0)
                 return false
-            return Layers.EvalModSpec(target_mod)
+            return Layers.StateModKeyId(target_mod)
         }
         if (layer_id <= mod_key_list.Length) {
             return Layers.StateModKeyId(layer_id)
@@ -1755,8 +1624,7 @@ class Layers {
     }
 
     /**
-     * 特定の物理モディファイアインデックス（M1〜M14、または動的登録キー）がアクティブかどうかを判定します。
-     * 標準修飾キー（Alt等）への局所依存は排除されており、物理レイヤーキーの状態のみを判定します。
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
      * @param {Integer} mod_key_id - 修飾キーID
      * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
      */
@@ -1767,13 +1635,13 @@ class Layers {
         if (mod_key_id < 1)
             return false
 
-        ; M1: F13 (単独, 無変換・Spaceなし) ※Alt依存排除
+        ; M1: F13 (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 1 {
-            return f13.IsPressed() && !(noconv.IsPressed() || space.IsPressed())
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
-        ; M2: 無変換 (単独, F13・Tab・Spaceなし) ※Alt依存排除
+        ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
         if mod_key_id == 2 {
-            return noconv.IsPressed() && !(f13.IsPressed() || tab.IsPressed() || space.IsPressed())
+            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
         }
         ; M3: 変換 (単独, F14なし)
         if mod_key_id == 3 {
@@ -1783,17 +1651,17 @@ class Layers {
         if mod_key_id == 4 {
             return f14.IsPressed() && !conv.IsPressed()
         }
-        ; M5: 予約 / 廃止（Alt依存排除。Alt+M1 はレイヤー側修飾で判定）
+        ; M5: F13 + Alt
         if mod_key_id == 5 {
-            return false
+            return f13.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M6: F13 + 無変換
         if mod_key_id == 6 {
             return f13.IsPressed() && noconv.IsPressed()
         }
-        ; M7: Tab (単独, 無変換・Spaceなし) ※Alt依存排除
+        ; M7: Tab (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 7 {
-            return tab.IsPressed() && !(noconv.IsPressed() || space.IsPressed())
+            return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
         ; M8: Space (Space-Shift, F13・無変換・Tabなし)
         if mod_key_id == 8 {
@@ -1811,9 +1679,9 @@ class Layers {
         if mod_key_id == 11 {
             return noconv.IsPressed() && space.IsPressed()
         }
-        ; M12: 予約 / 廃止（Alt依存排除。Alt+Tab/Alt+M7 はレイヤー側修飾で判定）
+        ; M12: Tab + Alt
         if mod_key_id == 12 {
-            return false
+            return tab.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M13: Tab + 無変換
         if mod_key_id == 13 {
@@ -1844,14 +1712,14 @@ class Layers {
             target_mod := layer_id_to_mod_key_id[layer_id]
             if (target_mod is Array) {
                 for mid in target_mod {
-                    if (Layers.EvalModSpec(mid, key_obj))
+                    if (mid > 0 && Layers.State2ModKeyId(mid, key_obj))
                         return true
                 }
                 return false
             }
-            if (target_mod == 0 || target_mod == "" || StrLower(String(target_mod)) == "none")
+            if (target_mod <= 0)
                 return false
-            return Layers.EvalModSpec(target_mod, key_obj)
+            return Layers.State2ModKeyId(target_mod, key_obj)
         }
         if (layer_id <= mod_key_list.Length) {
             return Layers.State2ModKeyId(layer_id, key_obj)
@@ -1866,17 +1734,17 @@ class Layers {
         if (mod_key_id < 1)
             return false
 
-        ; M1: F13 (単独, 無変換・Spaceなし) ※Alt依存排除
+        ; M1: F13 (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 1 {
             if f13 == key_obj || noconv == key_obj || space == key_obj
                 return false
-            return f13.IsPressed() && !(noconv.IsPressed() || space.IsPressed())
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
-        ; M2: 無変換 (単独, F13・Tab・Spaceなし) ※Alt依存排除
+        ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
         if mod_key_id == 2 {
             if noconv == key_obj || f13 == key_obj || tab == key_obj || space == key_obj
                 return false
-            return noconv.IsPressed() && !(f13.IsPressed() || tab.IsPressed() || space.IsPressed())
+            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
         }
         ; M3: 変換 (単独, F14なし)
         if mod_key_id == 3 {
@@ -1890,9 +1758,11 @@ class Layers {
                 return false
             return f14.IsPressed() && !conv.IsPressed()
         }
-        ; M5: 予約 / 廃止（Alt依存排除）
+        ; M5: F13 + Alt
         if mod_key_id == 5 {
-            return false
+            if f13 == key_obj
+                return false
+            return f13.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M6: F13 + 無変換
         if mod_key_id == 6 {
@@ -1900,11 +1770,11 @@ class Layers {
                 return false
             return f13.IsPressed() && noconv.IsPressed()
         }
-        ; M7: Tab (単独, 無変換・Spaceなし) ※Alt依存排除
+        ; M7: Tab (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 7 {
             if tab == key_obj || noconv == key_obj || space == key_obj
                 return false
-            return tab.IsPressed() && !(noconv.IsPressed() || space.IsPressed())
+            return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
         ; M8: Space (Space-Shift, F13・無変換・Tabなし)
         if mod_key_id == 8 {
@@ -1930,9 +1800,11 @@ class Layers {
                 return false
             return noconv.IsPressed() && space.IsPressed()
         }
-        ; M12: 予約 / 廃止（Alt依存排除）
+        ; M12: Tab + Alt
         if mod_key_id == 12 {
-            return false
+            if tab == key_obj
+                return false
+            return tab.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M13: Tab + 無変換
         if mod_key_id == 13 {
@@ -2165,100 +2037,68 @@ class Layers {
      */
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
-
-        ; 標準修飾キー（Alt, Ctrl, Shift, Win）が押されている場合は、
-        ; その修飾キーを明示的に要求するレイヤー指定を優先マッチング（pass 1）、
-        ; その後に通常のレイヤー指定を評価（pass 2）
-        is_std_mod_pressed := GetKeyState("Alt", "P") || GetKeyState("Ctrl", "P") || GetKeyState("Shift", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
-
-        loop (is_std_mod_pressed ? 2 : 1) {
-            current_pass := A_Index ; 1: 修飾キー要求あり優先, 2: 修飾キー要求なし
-
-            for item in arr {
-                mod_specs := []
-                if (item.layer_id >= 1 && item.layer_id <= layer_id_to_mod_key_id.Length) {
-                    target_mod := layer_id_to_mod_key_id[item.layer_id]
-                    if (target_mod is Array) {
-                        mod_specs := target_mod
-                    } else if (target_mod != "" && target_mod != 0) {
-                        mod_specs := [target_mod]
-                    }
-                } else if (item.layer_id > 14 && item.layer_id <= mod_key_list.Length) {
-                    mod_specs := [item.layer_id]
+        for item in arr {
+            mod_key_ids := []
+            if (item.layer_id >= 1 && item.layer_id <= layer_id_to_mod_key_id.Length) {
+                target_mod := layer_id_to_mod_key_id[item.layer_id]
+                if (target_mod is Array) {
+                    mod_key_ids := target_mod
+                } else if (target_mod > 0) {
+                    mod_key_ids := [target_mod]
                 }
+            } else if (item.layer_id > 14 && item.layer_id <= mod_key_list.Length) {
+                mod_key_ids := [item.layer_id]
+            }
 
-                for spec in mod_specs {
-                    parsed := Layers.ParseModSpec(spec)
-                    mod_key_id := parsed.mod_key_id
-                    if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
-                        continue
+            for mod_key_id in mod_key_ids {
+                if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
+                    continue
 
-                    has_req_std := parsed.alt || parsed.ctrl || parsed.shift || parsed.win
+                mod_key := mod_key_list[mod_key_id]
+                if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
+                    if Layers.State2ModKeyId(mod_key_id, key_obj) {
+                        mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
+                            mod_key.hold_mode_org)
 
-                    ; パス1では標準修飾キー要求があるものだけを対象にし、パス2では要求がないものを対象にする
-                    if is_std_mod_pressed {
-                        if (current_pass == 1 && !has_req_std)
+                        t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
+                        x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
+                        b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
+
+                        ; 1. 判定エンジンによる同時押し評価
+                        chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
+                            ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj, ime_state)
+                            : (t_qpc >= x ? 1 : 0)
+
+                        if (chord_result == -1)
+                            return true ; 先行送信済みで処理完了
+                        if (chord_result == 0)
                             continue
-                        if (current_pass == 2 && has_req_std)
-                            continue
-                    }
 
-                    ; 標準修飾キー要求の充足確認
-                    if parsed.alt && !GetKeyState("Alt", "P")
-                        continue
-                    if parsed.ctrl && !GetKeyState("Ctrl", "P")
-                        continue
-                    if parsed.shift && !GetKeyState("Shift", "P")
-                        continue
-                    if parsed.win && !(GetKeyState("LWin", "P") || GetKeyState("RWin", "P"))
-                        continue
-
-                    mod_key := mod_key_list[mod_key_id]
-                    if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
-                        if Layers.State2ModKeyId(mod_key_id, key_obj) {
-                            mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
-                                mod_key.hold_mode_org)
-
-                            t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
-                            x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
-                            b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
-
-                            ; 1. 判定エンジンによる同時押し評価
-                            chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
-                                ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj, ime_state)
-                                : (t_qpc >= x ? 1 : 0)
-
-                            if (chord_result == -1)
-                                return true ; 先行送信済みで処理完了
-                            if (chord_result == 0)
-                                continue
-
-                            ; 2. 修飾成立時のキー送信と状態更新
-                            mod_key.state := LKey.st_processed
-                            action_to_send := item.action
-                            if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
-                                false) {
-                                ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
-                                if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
-                                    Layers.last_active_item == item) {
-                                    item.tap_count += 1
-                                } else {
-                                    item.tap_count := 1
-                                    item.last_mod_key := mod_key
-                                    item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
-                                }
-                                if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
-                                    action_to_send := item.action3
-                                } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
-                                    action_to_send := item.action2
-                                }
+                        ; 2. 修飾成立時のキー送信と状態更新
+                        mod_key.state := LKey.st_processed
+                        action_to_send := item.action
+                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                            false) {
+                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                            if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
+                                Layers.last_active_item == item) {
+                                item.tap_count += 1
+                            } else {
+                                item.tap_count := 1
+                                item.last_mod_key := mod_key
+                                item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
                             }
-                            ; 直近のアクティブなレイヤーアイテムを更新
-                            Layers.last_active_item := item
-
-                            this._SendKey(item.layer_id, action_to_send, key_obj)
-                            return true
+                            if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
+                                action_to_send := item.action3
+                            } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
+                                action_to_send := item.action2
+                            }
                         }
+                        ; 直近のアクティブなレイヤーアイテムを更新
+                        Layers.last_active_item := item
+
+                        this._SendKey(item.layer_id, action_to_send, key_obj)
+                        return true
                     }
                 }
             }
@@ -2544,7 +2384,7 @@ Init() {
     mod_key_list := [f13, noconv, conv, f14, f13, f13, tab, space, conv, f13, noconv, tab, tab, tab]
 
     global layer_id_to_mod_key_id
-    layer_id_to_mod_key_id := [M1, M2, M3, M4, ["Alt+M1", M6], M7, M8, M9]
+    layer_id_to_mod_key_id := [M1, M2, M3, M4, [M5, M6], M7, M8, M9]
 
     ; 4. レイヤーとレイアウトの適用
     InitModLayer()

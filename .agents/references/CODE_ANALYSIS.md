@@ -83,14 +83,13 @@ graph TD
 
 ### 2.5 Layer Array Binding & INI Specification (`Utils.ahk`)
 
-- **Structure**: 1D array `layer_id_to_mod_key_id := [M1, M2, M3, M4, ["Alt+M1", M6], M7, M8, M9, ...]`.
-- **Fixed Mapping (`Layers.StateModKeyId`) & Standard Modifiers**:
-  - `M1`: F13 (単独), `M2`: 無変換 (単独), `M3`: 変換 (単独), `M4`: F14 (単独), `M5`: 予約/互換用 (Alt+M1 はレイヤー修飾で指定), `M6`: F13+無変換, `M7`: Tab (単独), `M8`: Space (Space-Shift), `M9`: 変換+F14, `M10`: F13+Space, `M11`: 無変換+Space, `M12`: 予約/互換用 (Alt+M7), `M13`: Tab+無変換, `M14`: Tab+Space.
-  - Standard modifiers (`Alt`, `Ctrl`, `Shift`, `Win`) are decoupled from `StateModKeyId` and parsed/evaluated via `Layers.ParseModSpec` / `Layers.EvalModSpec`.
+- **Structure**: 1D array `layer_id_to_mod_key_id := [M1, M2, M3, M4, M5, M6, M7, M8, ...]`.
+- **Fixed Mapping (`Layers.StateModKeyId`)**:
+  - `M1`: F13 (単独), `M2`: 無変換 (単独), `M3`: 変換 (単独), `M4`: F14 (単独), `M5`: F13+(Alt/無変換), `M6`: Tab, `M7`: Space (Space-Shift), `M8`: 変換+F14.
 - **Loading Hierarchy (`LoadLayerBindingsFromIni`)**:
-  1. `[LayerBinding]` section (highest priority: `NAVI_CTRL=M1`, `SELECT=Alt+M1, M6`, etc.).
+  1. `[LayerBinding]` section (highest priority: `NAVI_CTRL=M1`, `SELECT=none`, etc.).
   2. Legacy `[Settings]` section (backward compatibility).
-  3. Default fallback: `[1, 2, 3, 4, ["Alt+M1", 6], 7, 8, 9]`.
+  3. Default fallback: `[1, 2, 3, 4, 5, 6, 7, 8]`.
 
 ---
 

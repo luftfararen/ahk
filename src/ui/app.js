@@ -279,7 +279,7 @@ NAVI_CTRL=M1
 SYMBOL_NUM=M2
 SYMBOL1=M3
 SYMBOL2=M4
-SELECT=Alt+M1, M6
+SELECT=M5, M6
 NUMPAD=M7
 SHIFT=M8
 FUNC=M9
@@ -1574,16 +1574,15 @@ const App = {
             "M2": "無変換 (単独)",
             "M3": "変換 (単独)",
             "M4": "F14 (単独)",
-            "M5": "予約/互換用 (Alt+M1)",
+            "M5": "F13 + Alt",
             "M6": "F13 + 無変換",
-            "Alt+M1, M6": "Alt+M1 / F13+無変換 (SELECT)",
-            "M5, M6": "Alt+M1 / F13+無変換 (SELECT互換)",
+            "M5, M6": "F13 + Alt / F13 + 無変換 (SELECT)",
             "M7": "Tab (単独)",
             "M8": "Space (Space-Shift / SHIFT)",
             "M9": "変換 + F14",
             "M10": "F13 + Space",
             "M11": "無変換 + Space",
-            "M12": "予約/互換用 (Alt+M7)",
+            "M12": "Tab + Alt",
             "M13": "Tab + 無変換",
             "M14": "Tab + Space"
         };
@@ -1593,16 +1592,17 @@ const App = {
             { val: "M2", label: "M2 (無変換 単独)" },
             { val: "M3", label: "M3 (変換 単独)" },
             { val: "M4", label: "M4 (F14 単独)" },
-            { val: "Alt+M1, M6", label: "Alt+M1, M6 (Alt+F13 / F13+無変換 [SELECT])" },
+            { val: "M5", label: "M5 (F13 + Alt)" },
             { val: "M6", label: "M6 (F13 + 無変換)" },
+            { val: "M5, M6", label: "M5, M6 (F13+Alt / F13+無変換 [SELECT])" },
             { val: "M7", label: "M7 (Tab 単独)" },
             { val: "M8", label: "M8 (Space / Space-Shift [SHIFT])" },
             { val: "M9", label: "M9 (変換 + F14)" },
             { val: "M10", label: "M10 (F13 + Space)" },
             { val: "M11", label: "M11 (無変換 + Space)" },
+            { val: "M12", label: "M12 (Tab + Alt)" },
             { val: "M13", label: "M13 (Tab + 無変換)" },
-            { val: "M14", label: "M14 (Tab + Space)" },
-            { val: "M5, M6", label: "M5, M6 (旧表記 [SELECT])" }
+            { val: "M14", label: "M14 (Tab + Space)" }
         ];
 
         // Known layers in order
