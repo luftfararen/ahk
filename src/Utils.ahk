@@ -1885,10 +1885,10 @@ ResolveModKeyId(mod_str) {
             p_val := ResolveModKeyId(Trim(part))
             if (p_val is Array) {
                 for sub_val in p_val {
-                    if (sub_val > 0)
+                    if (sub_val is Integer ? sub_val > 0 : sub_val != "")
                         res_arr.Push(sub_val)
                 }
-            } else if (p_val > 0) {
+            } else if (p_val is Integer ? p_val > 0 : p_val != "") {
                 res_arr.Push(p_val)
             }
         }
@@ -1900,6 +1900,10 @@ ResolveModKeyId(mod_str) {
         return 0
     if RegExMatch(s, "^m(\d+)$", &m) {
         val := Integer(m[1])
+        if (val == 5)
+            return "Alt+M1"
+        if (val == 12)
+            return "Alt+M7"
         if (val >= 1 && val <= max_mod_id)
             return val
         return 0
@@ -1920,22 +1924,28 @@ ResolveModKeyId(mod_str) {
     m13_val := IsSet(M13) ? M13 : 13
     m14_val := IsSet(M14) ? M14 : 14
 
+    ; 標準修飾キー付きの明示的指定 (Alt+M1, !M1, Alt+F13 等)
+    if (s == "alt+m1" || s == "!m1" || s == "alt+f13" || s == "f13+alt")
+        return "Alt+M1"
+    if (s == "alt+m7" || s == "!m7" || s == "alt+tab" || s == "tab+alt")
+        return "Alt+M7"
+
     switch s {
         case "f13", "navi", "navi_ctrl": return m1_val
         case "noconv", "sc07b", "muhenkan", "symbol_num": return m2_val
         case "conv", "sc079", "henkan", "symbol1": return m3_val
         case "f14", "symbol2": return m4_val
-        case "f13+alt": return m5_val
+        case "f13+alt": return "Alt+M1"
         case "f13+noconv", "f13+muhenkan": return m6_val
         case "tab", "numpad": return m7_val
         case "space", "shift", "lshift": return m8_val ; space / shift is M8
         case "conv+f14", "f14+conv", "func": return m9_val
         case "f13+space": return m10_val
         case "noconv+space", "muhenkan+space": return m11_val
-        case "tab+alt": return m12_val
+        case "tab+alt": return "Alt+M7"
         case "tab+noconv", "tab+muhenkan": return m13_val
         case "tab+space": return m14_val
-        case "select": return [m5_val, m6_val] ; SELECT is M5, M6
+        case "select": return ["Alt+M1", m6_val] ; SELECT is Alt+M1, M6
     }
     return 0
 }
@@ -1997,7 +2007,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
     m13_val := IsSet(M13) ? M13 : 13
     m14_val := IsSet(M14) ? M14 : 14
 
-    default_bindings := [m1_val, m2_val, m3_val, m4_val, [m5_val, m6_val], m7_val, m8_val, m9_val]
+    default_bindings := [m1_val, m2_val, m3_val, m4_val, ["Alt+M1", m6_val], m7_val, m8_val, m9_val]
     layer_id_to_mod_key_id := default_bindings.Clone()
 
     ; 各レイヤーが明示的にバインド設定されたかを追跡するマップ (layer_id -> true)
@@ -2035,7 +2045,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
                         explicit_bound[lay_id] := true
                     } else {
                         mod_id := ResolveModKeyId(val)
-                        if (mod_id is Array || mod_id > 0) {
+                        if (mod_id is Array || (mod_id is Integer ? mod_id > 0 : mod_id != "")) {
                             BindLayerToModKey(lay_id, mod_id)
                             explicit_bound[lay_id] := true
                             ApplyDynamicLayerSection(lay_id, key, ini_path)
@@ -2063,7 +2073,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
             lay_id := ResolveLayerId(sec, true)
             if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
                 mod_id := ResolveModKeyId(mod_name)
-                if (mod_id is Array || mod_id > 0) {
+                if (mod_id is Array || (mod_id is Integer ? mod_id > 0 : mod_id != "")) {
                     BindLayerToModKey(lay_id, mod_id)
                     explicit_bound[lay_id] := true
                     ApplyDynamicLayerSection(lay_id, sec, ini_path)
@@ -2081,7 +2091,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
             mod_val := ReadConfig("Settings", lay_name, "", ini_path)
             if (mod_val != "") {
                 mod_id := ResolveModKeyId(mod_val)
-                if (mod_id is Array || mod_id > 0) {
+                if (mod_id is Array || (mod_id is Integer ? mod_id > 0 : mod_id != "")) {
                     BindLayerToModKey(lay_id, mod_id)
                     explicit_bound[lay_id] := true
                     ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
@@ -2104,7 +2114,7 @@ LoadLayerBindingsFromIni(ini_path := "") {
 /**
  * 現在の layer_id と mod_key_id の配列構造を INI ファイルの [LayerBinding] セクションに保存します。
  * 配列の順序（layer_id: 1..N）を維持し、冗長な物理キー名を省いて "M" . mod_id 形式で出力します。
- * 複数修飾キーの場合はカンマ区切り（例: "M5, M6"）で出力します。
+ * 複数修飾キーの場合はカンマ区切り（例: "Alt+M1, M6"）で出力します。
  * @param {String} [ini_path=""] - INIファイルのパス
  */
 SaveLayerBindingsToIni(ini_path := "") {
@@ -2125,10 +2135,11 @@ SaveLayerBindingsToIni(ini_path := "") {
         if (mod_id is Array) {
             mod_str := ""
             for idx, m in mod_id {
-                mod_str .= (idx > 1 ? ", " : "") . "M" . m
+                item_str := (m is Integer) ? ("M" . m) : String(m)
+                mod_str .= (idx > 1 ? ", " : "") . item_str
             }
         } else {
-            mod_str := (mod_id > 0) ? ("M" . mod_id) : "none"
+            mod_str := (mod_id is Integer) ? ((mod_id > 0) ? ("M" . mod_id) : "none") : String(mod_id)
         }
         try {
             IniWrite(mod_str, ini_path, "LayerBinding", lay_name)

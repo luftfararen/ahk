@@ -22,9 +22,10 @@ Test_LayerId_To_ModKeyId_Mapping() {
     ; 2. 初期配列の紐付け確認
     Assert(layer_id_to_mod_key_id[L_NAVI_CTRL] == M1, "L_NAVI_CTRL mapped to M1")
     Assert(layer_id_to_mod_key_id[L_SYMBOL_NUM] == M2, "L_SYMBOL_NUM mapped to M2")
-    Assert(layer_id_to_mod_key_id[L_SELECT] == M5, "L_SELECT mapped to M5")
-    Assert(layer_id_to_mod_key_id[L_SHIFT] == M7, "L_SHIFT mapped to M7")
-    Assert(layer_id_to_mod_key_id[L_FUNC] == M8, "L_FUNC mapped to M8")
+    Assert(layer_id_to_mod_key_id[L_SELECT] is Array && layer_id_to_mod_key_id[L_SELECT][1] == "Alt+M1" &&
+        layer_id_to_mod_key_id[L_SELECT][2] == M6, "L_SELECT mapped to ['Alt+M1', M6]")
+    Assert(layer_id_to_mod_key_id[L_SHIFT] == M8, "L_SHIFT mapped to M8 (Space)")
+    Assert(layer_id_to_mod_key_id[L_FUNC] == M9, "L_FUNC mapped to M9")
 
     ; 3. ResolveLayerId / ResolveModKeyId の動作確認
     Assert(ResolveLayerId("NAVI_CTRL") == L_NAVI_CTRL, "ResolveLayerId('NAVI_CTRL') == L_NAVI_CTRL")
@@ -75,10 +76,10 @@ Test_Ini_Layer_Binding() {
 
     ; space=NAVI_CTRL -> L_NAVI_CTRL (1) が space (M7 = 7) にバインドされていること
     Assert(GetModKeyIdByLayerId(L_NAVI_CTRL) == 7, "INI: space=NAVI_CTRL binds L_NAVI_CTRL to M7 (7)",
-        "got: " . GetModKeyIdByLayerId(L_NAVI_CTRL))
+    "got: " . GetModKeyIdByLayerId(L_NAVI_CTRL))
     ; noconv=SYMBOL_NUM -> L_SYMBOL_NUM (2) が noconv (M2 = 2) にバインドされていること
     Assert(GetModKeyIdByLayerId(L_SYMBOL_NUM) == 2, "INI: noconv=SYMBOL_NUM binds L_SYMBOL_NUM to M2 (2)",
-        "got: " . GetModKeyIdByLayerId(L_SYMBOL_NUM))
+    "got: " . GetModKeyIdByLayerId(L_SYMBOL_NUM))
 
     ; SaveLayerBindingsToIni のテスト
     SaveLayerBindingsToIni(test_ini)
@@ -167,7 +168,8 @@ Test_New_LayerBinding_Specification() {
     FileAppend(ini_content4, test_ini, "CP0")
     LoadLayerBindingsFromIni(test_ini)
     loop 8 {
-        Assert(layer_id_to_mod_key_id[A_Index] == A_Index, "Spec: Reverse-order entry accurately restores index " . A_Index)
+        Assert(layer_id_to_mod_key_id[A_Index] == A_Index, "Spec: Reverse-order entry accurately restores index " .
+            A_Index)
     }
 
     ; 5. 完全往復 (Save -> Re-read -> Compare) 保存テスト
@@ -214,11 +216,54 @@ Test_New_LayerBinding_Specification() {
     global layer_id_to_mod_key_id := orig_bindings
 }
 
+; ----------------------------------------------------------------------------
+; Test Group 12: Alt 修飾キー分離 & 標準修飾キー統合テスト
+; ----------------------------------------------------------------------------
+Test_Alt_Separation_And_Spec_Matching() {
+    LogMsg("`n--- Test Group 12: Alt Separation & ModSpec Matching ---`n")
+
+    ; 1. ParseModSpec の解析妥当性テスト
+    p1 := Layers.ParseModSpec(1)
+    Assert(p1.mod_key_id == 1 && !p1.alt && !p1.ctrl && !p1.shift && !p1.win, "ParseModSpec(1) parses pure M1")
+
+    p_alt_m1 := Layers.ParseModSpec("Alt+M1")
+    Assert(p_alt_m1.mod_key_id == 1 && p_alt_m1.alt, "ParseModSpec('Alt+M1') parses mod_key_id=1 with alt=true")
+
+    p_prefix := Layers.ParseModSpec("!M1")
+    Assert(p_prefix.mod_key_id == 1 && p_prefix.alt, "ParseModSpec('!M1') parses mod_key_id=1 with alt=true")
+
+    p_compat_m5 := Layers.ParseModSpec(5)
+    Assert(p_compat_m5.mod_key_id == 1 && p_compat_m5.alt, "ParseModSpec(5) backwards-compatible resolves to Alt+M1")
+
+    p_compat_m12 := Layers.ParseModSpec(12)
+    Assert(p_compat_m12.mod_key_id == 7 && p_compat_m12.alt, "ParseModSpec(12) backwards-compatible resolves to Alt+M7"
+    )
+
+    p_ctrl_alt := Layers.ParseModSpec("Ctrl+Alt+M2")
+    Assert(p_ctrl_alt.mod_key_id == 2 && p_ctrl_alt.ctrl && p_ctrl_alt.alt,
+        "ParseModSpec('Ctrl+Alt+M2') parses ctrl and alt")
+
+    ; 2. StateModKeyId からの Alt 排除テスト（M5, M12 は false を返す）
+    Assert(Layers.StateModKeyId(5) == false, "Layers.StateModKeyId(5) is false (Alt eliminated from local mod check)")
+    Assert(Layers.StateModKeyId(12) == false, "Layers.StateModKeyId(12) is false (Alt eliminated from local mod check)"
+    )
+
+    ; 3. ResolveModKeyId での Alt+M1 / !M1 解決テスト
+    Assert(ResolveModKeyId("Alt+M1") == "Alt+M1", "ResolveModKeyId('Alt+M1') resolves to 'Alt+M1'")
+    Assert(ResolveModKeyId("!M1") == "Alt+M1", "ResolveModKeyId('!M1') resolves to 'Alt+M1'")
+    Assert(ResolveModKeyId("M5") == "Alt+M1", "ResolveModKeyId('M5') resolves to 'Alt+M1'")
+    Assert(ResolveModKeyId("M12") == "Alt+M7", "ResolveModKeyId('M12') resolves to 'Alt+M7'")
+    sel_res := ResolveModKeyId("select")
+    Assert(sel_res is Array && sel_res[1] == "Alt+M1" && sel_res[2] == 6,
+        "ResolveModKeyId('select') resolves to ['Alt+M1', 6]")
+}
+
 RunLayerMappingTests() {
     InitTestSuite("LAYER MAPPING & INI BINDING REGRESSION TESTS")
     Test_LayerId_To_ModKeyId_Mapping()
     Test_Ini_Layer_Binding()
     Test_New_LayerBinding_Specification()
+    Test_Alt_Separation_And_Spec_Matching()
     FinishTestSuite()
 }
 

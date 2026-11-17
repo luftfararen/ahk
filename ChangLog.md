@@ -3,6 +3,72 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-18] - Decouple Alt from StateModKeyId and Unify Standard Modifier Combinations
+
+### Overview
+- **Category**: Refactoring / Architecture
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `src/ui/app.js`, `readme.adoc`, `.agents/references/CODE_ANALYSIS.md`, `test/test_layer_mapping.ahk`
+- **Summary**: Decoupled the standard modifier `Alt` (`GetKeyState("Alt", "P")`) from local modifier checks in `StateModKeyId` and `State2ModKeyId`, eliminating `Alt` constraints from single-modifier mutual exclusion checks (M1, M2, M7). Introduced `Layers.ParseModSpec` and `Layers.EvalModSpec` to cleanly handle standard modifier combinations (e.g. `Alt+M1`, `!M1`) at the layer binding level, enabling `SELECT` to be bound to `["Alt+M1", M6]` while treating `Alt` as an independent standard modifier.
+
+### Background & Root Cause
+- **Symptoms**: `Alt` was previously embedded directly as specific composite modifiers (`M5 := F13 + Alt`, `M12 := Tab + Alt`) and embedded into the exclusion conditions of basic modifiers (`!GetKeyState("Alt", "P")` in M1, M2, M7).
+- **Root Cause**:
+  1. `Alt` was treated as an ad-hoc layer modifier instead of a standard OS modifier (alongside `Shift`, `Ctrl`, and `Win`).
+  2. Pressing `Alt` with basic modifiers (like F13 or 無変換) unintentionally disabled single-modifier evaluation.
+  3. Layer actions could not combine standard modifiers with layer modifiers in an orthogonal, declarative way.
+
+### Technical Changes
+- **`src/PlayGroundsExp.ahk`**:
+  - `Layers.StateModKeyId` & `Layers.State2ModKeyId`:
+    - Removed `GetKeyState("Alt", "P")` from exclusion conditions of `M1`, `M2`, and `M7`.
+    - Deprecated hardcoded `Alt` combinations in `M5` and `M12` (`return false`).
+  - `Layers.ParseModSpec(spec)`:
+    - Added parser for modifier specifications supporting standard modifier prefixes (`!`, `^`, `+`, `#`) and named combinations (e.g. `"Alt+M1"`, `"Ctrl+Alt+M2"`).
+    - Added backwards-compatibility resolution for legacy `M5` -> `{mod_key_id: 1, alt: true}` and `M12` -> `{mod_key_id: 7, alt: true}`.
+  - `Layers.EvalModSpec(spec, key_obj)`:
+    - Added evaluator verifying standard modifier state before delegating to `StateModKeyId` / `State2ModKeyId`.
+  - `Layers.State` & `Layers.State2`:
+    - Routed modifier checks through `EvalModSpec` to support scalar IDs, modifier descriptor strings, and arrays.
+  - `SendLayerKey`:
+    - Implemented two-pass resolution prioritizing explicit standard modifier requirements (pass 1 for modifiers with active standard keys, pass 2 for non-standard requirements) to eliminate collision between base layers (e.g. `NAVI_CTRL`) and modified layers (e.g. `SELECT`).
+  - Constants & Defaults:
+    - Updated `layer_id_to_mod_key_id` default binding for `SELECT` from `[M5, M6]` to `["Alt+M1", M6]`.
+    - Updated `ResetCombinations` to maintain the 14-element base length of `mod_key_list`.
+- **`src/Utils.ahk`**:
+  - `ResolveModKeyId`:
+    - Supported `"Alt+M1"`, `"!M1"`, `"Alt+M7"`, `"!M7"`, and updated `"select"` resolution to `["Alt+M1", m6_val]`.
+    - Preserved string modifier descriptors in comma-separated list parsing.
+  - `LoadLayerBindingsFromIni` & `SaveLayerBindingsToIni`:
+    - Supported string modifier descriptors in deserialization and serialized string items cleanly without prefixing "M" to string tokens.
+- **Documentation & Tests**:
+  - Updated `readme.adoc` modifier table and `CODE_ANALYSIS.md` to reflect `Alt` decoupling.
+  - Added Test Group 12 to `test/test_layer_mapping.ahk` covering `ParseModSpec`, `EvalModSpec`, `Alt` exclusion removal, and string resolution.
+
+### Verification & Impact
+- Validated syntax with `AutoHotkey64.exe /validate` for `src/PlayGroundsExp.ahk` and `src/Utils.ahk`.
+- Executed regression test runner `test/test_runner.ahk` and `test/test_layer_mapping.ahk` — all test suites passed with exit code 0.
+- Confirmed that `Alt` works orthogonally with `M1` / `M2` without breaking `SELECT` activation or standard CAW pass-through.
+
+### Suggested Commit Message
+```text
+Decouple Alt from StateModKeyId and unify standard modifier combinations
+
+Overview:
+- Decoupled Alt from local modifier checks in StateModKeyId and State2ModKeyId.
+- Removed Alt from mutual exclusion checks in M1, M2, and M7.
+- Added ParseModSpec and EvalModSpec to support declarative standard modifier bindings.
+- Rebound SELECT layer default to ["Alt+M1", M6].
+
+Technical Changes:
+- PlayGroundsExp.ahk: Implemented ParseModSpec and EvalModSpec; eliminated Alt checks from StateModKeyId/State2ModKeyId; added two-pass priority matching in SendLayerKey; updated ResetCombinations for 14 keys.
+- Utils.ahk: Updated ResolveModKeyId, LoadLayerBindingsFromIni, and SaveLayerBindingsToIni to support string modifier descriptors.
+- Docs & Tests: Updated readme.adoc, CODE_ANALYSIS.md, and added Test Group 12 to test_layer_mapping.ahk.
+
+Verification:
+- Syntax verified with AutoHotkey64 /validate.
+- All unit and regression tests passed via test_runner.ahk.
+```
+
 ## [2026-11-15] - Reassign mod_key_id M1-M14 and Configure SELECT (M5,M6) and SHIFT (Space)
 
 ### Overview
