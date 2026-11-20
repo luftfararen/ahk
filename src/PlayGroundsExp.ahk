@@ -30,7 +30,7 @@
 ;    打鍵間隔）を記録します。各配列の効率分析や、自身のタイピング傾向の把握に
 ;    活用できます
 ; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
-;    日本語入力が ON の間、マウスカーソルに追従する小さなドットを表示します。
+;    日本語入力が ON の間、テキスト入力キャレットに追従する小さなドットを表示します。
 ;
 ;  リアルシフトキーとスペースシフトキーの挙動は個別に設定可能
 ;  スペースシフトキー修飾として各キーの動作が登録されていればその動作を
@@ -524,49 +524,227 @@ AutoSuspendForRemoteDesktop() {
 }
 
 /**
- * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
+ * 現在フォーカスされているテキスト入力位置（キャレット）の画面座標を取得する
+ * 1. GetGUIThreadInfo (Win32標準キャレット: メモ帳・エディットコントロール等)
+ * 2. UI Automation (Web/Electron/Chromium: Chrome, VS Code 等の TextPattern2/TextPattern)
+ * 3. CaretGetPos (AutoHotkey v2 組み込みフォールバック)
+ * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (0 の場合はアクティブ/フォアグラウンド)
+ * @returns {Object|Boolean} {x: Integer, y: Integer} または取得失敗時は false
  */
-UpdateImeIndicator(precise := False) {
-    static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
+GetCaretPosition(target_hwnd := 0) {
+    ; --- 1. GetGUIThreadInfo による Win32 キャレット取得 ---
+    static ptr_size := A_PtrSize
+    static cb_size := 4 + 4 + (ptr_size * 6) + 16 ; 64bit: 72, 32bit: 48
+    static gui_info := Buffer(cb_size, 0)
+    NumPut("UInt", cb_size, gui_info, 0)
 
+    hwnd_caret := 0
+
+    ; (A) フォアグラウンドスレッド (idThread = 0) を試行
+    if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", gui_info.Ptr, "Int") {
+        hwnd_caret := NumGet(gui_info, 8 + 5 * ptr_size, "Ptr")
+    }
+
+    ; (B) 取得できない場合、アクティブウィンドウまたは target_hwnd のスレッドIDで試行
+    if !hwnd_caret {
+        hwnd_check := target_hwnd ? target_hwnd : (WinExist("A") || DllCall("GetForegroundWindow", "Ptr"))
+        if hwnd_check {
+            tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd_check, "Ptr", 0, "UInt")
+            if (tid && DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", gui_info.Ptr, "Int")) {
+                hwnd_caret := NumGet(gui_info, 8 + 5 * ptr_size, "Ptr")
+            }
+        }
+    }
+
+    if hwnd_caret {
+        rect_offset := 8 + 6 * ptr_size
+        left   := NumGet(gui_info, rect_offset, "Int")
+        top    := NumGet(gui_info, rect_offset + 4, "Int")
+        right  := NumGet(gui_info, rect_offset + 8, "Int")
+        bottom := NumGet(gui_info, rect_offset + 12, "Int")
+
+        ; キャレット矩形がすべて0、または高さが不正な場合は除外
+        if !(bottom <= top || (left == 0 && top == 0 && right == 0 && bottom == 0)) {
+            pt := Buffer(8, 0)
+            NumPut("Int", right, pt, 0)
+            NumPut("Int", bottom, pt, 4)
+
+            ; クライアント座標からスクリーン座標へ変換
+            if DllCall("ClientToScreen", "Ptr", hwnd_caret, "Ptr", pt.Ptr, "Int") {
+                return {x: NumGet(pt, 0, "Int"), y: NumGet(pt, 4, "Int")}
+            }
+        }
+    }
+
+    ; --- 2. UI Automation によるキャレット取得 (Chrome / Electron / VS Code 等) ---
+    static p_uia := 0
+    static uia_init_attempted := false
+    static IID_IUIAutomationTextPattern2 := ""
+    static IID_IUIAutomationTextPattern := ""
+
+    if !uia_init_attempted {
+        uia_init_attempted := true
+        try {
+            clsid_uia := Buffer(16)
+            iid_uia := Buffer(16)
+            DllCall("ole32\CLSIDFromString", "Str", "{ff48dba4-60ef-4201-aa87-54103eef594e}", "Ptr", clsid_uia)
+            DllCall("ole32\CLSIDFromString", "Str", "{30CBE57D-D9D0-452A-AB13-7AC5AC4825EE}", "Ptr", iid_uia)
+
+            IID_IUIAutomationTextPattern2 := Buffer(16)
+            DllCall("ole32\CLSIDFromString", "Str", "{506A921A-FCC9-409F-B23B-37EB74106872}", "Ptr", IID_IUIAutomationTextPattern2)
+
+            IID_IUIAutomationTextPattern := Buffer(16)
+            DllCall("ole32\CLSIDFromString", "Str", "{32EBA289-3583-42C9-9C59-3B6D9A1E9B6A}", "Ptr", IID_IUIAutomationTextPattern)
+
+            p_raw := 0
+            if DllCall("ole32\CoCreateInstance", "Ptr", clsid_uia, "Ptr", 0, "UInt", 1, "Ptr", iid_uia, "Ptr*", &p_raw, "Int") == 0 {
+                p_uia := p_raw
+            }
+        }
+    }
+
+    if p_uia {
+        try {
+            p_focused := 0
+            ; 8: IUIAutomation::GetFocusedElement
+            if (ComCall(8, p_uia, "Ptr*", &p_focused) == 0 && p_focused) {
+                p_range := 0
+
+                ; (A) TextPattern2 (10024) -> GetCaretRange (10)
+                p_pattern2 := 0
+                if (ComCall(14, p_focused, "Int", 10024, "Ptr", IID_IUIAutomationTextPattern2, "Ptr*", &p_pattern2) == 0 && p_pattern2) {
+                    is_active := 0
+                    ComCall(10, p_pattern2, "Int*", &is_active, "Ptr*", &p_range)
+                    ObjRelease(p_pattern2)
+                }
+
+                ; (B) TextPattern (10014) -> GetSelection (5)
+                if !p_range {
+                    p_pattern := 0
+                    if (ComCall(14, p_focused, "Int", 10014, "Ptr", IID_IUIAutomationTextPattern, "Ptr*", &p_pattern) == 0 && p_pattern) {
+                        p_ranges := 0
+                        if (ComCall(5, p_pattern, "Ptr*", &p_ranges) == 0 && p_ranges) {
+                            len := 0
+                            if (ComCall(3, p_ranges, "Int*", &len) == 0 && len > 0) {
+                                ComCall(4, p_ranges, "Int", 0, "Ptr*", &p_range)
+                            }
+                            ObjRelease(p_ranges)
+                        }
+                        ObjRelease(p_pattern)
+                    }
+                }
+
+                ObjRelease(p_focused)
+
+                if p_range {
+                    psa := 0
+                    ; 10: IUIAutomationTextRange::GetBoundingRectangles
+                    hr_rect := ComCall(10, p_range, "Ptr*", &psa)
+                    ObjRelease(p_range)
+
+                    if (hr_rect == 0 && psa) {
+                        p_data := 0
+                        res := false
+                        if DllCall("oleaut32\SafeArrayAccessData", "Ptr", psa, "Ptr*", &p_data, "Int") == 0 {
+                            c_elements := NumGet(psa, 16 + (A_PtrSize - 8), "UInt")
+                            if c_elements >= 4 {
+                                r_left   := NumGet(p_data, 0, "Double")
+                                r_top    := NumGet(p_data, 8, "Double")
+                                r_width  := NumGet(p_data, 16, "Double")
+                                r_height := NumGet(p_data, 24, "Double")
+                                if (r_width > 0 || r_height > 0) {
+                                    res := {x: Round(r_left + r_width), y: Round(r_top + r_height)}
+                                }
+                            }
+                            DllCall("oleaut32\SafeArrayUnaccessData", "Ptr", psa, "Int")
+                        }
+                        DllCall("oleaut32\SafeArrayDestroy", "Ptr", psa, "Int")
+                        if res
+                            return res
+                    }
+                }
+            }
+        }
+    }
+
+    ; --- 3. AHK v2 組み込み CaretGetPos フォールバック ---
+    try {
+        CoordMode("Caret", "Screen")
+        cx := 0, cy := 0
+        if CaretGetPos(&cx, &cy) {
+            return {x: cx, y: cy}
+        }
+    }
+
+    return false
+}
+
+/**
+ * テキスト入力キャレットの右下に IME 状態を示すインジケータ（ドット）を表示・更新する
+ * @param {Boolean} [precise=False] - IME状態取得を強制的に再取得するかどうか
+ * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
+ */
+UpdateImeIndicator(precise := False, target_hwnd := 0) {
+    static last_status := -1 ; -1:初期状態, 0:オフ/非表示, 1:オン, 2:強制オン
+    static last_x := -1, last_y := -1
+
+    ; 1. インジケーター表示が無効な場合は非表示にして終了
     if !TypeAnalyzer.is_showing_ime_indicator {
         if last_status != 0 {
             m_gui.Hide()
             last_status := 0
+            last_x := -1
+            last_y := -1
         }
         return
     }
 
-    mx := -1, my := 0
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    static last_x := -2, last_y := 0
+    ; 2. IME 状態の判定 (0: OFF, 1: ON, 2: 強制 ON)
+    ime_state_value := 0
+    if ImeState.IsOn(precise) {
+        ime_state_value := ImeState.force_ime_on ? 2 : 1
+    }
 
-    if (mx = last_x && my = last_y) {
-        ime_state_value := 0
-        if ImeState.IsOn(precise) {
-            ime_state_value := ImeState.force_ime_on ? 2 : 1
-        }
-
-        if ime_state_value > 0 {
-            if ime_state_value != last_status {
-                m_gui.BackColor := (ime_state_value == 2) ? "Green" : color_japanese
-                m_gui.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
-            }
-        } else {
-            ; 既に非表示の場合は Hide しない（余計な負荷削減）
-            if last_status != 0 {
-                m_gui.Hide()
-            }
-        }
-        last_status := ime_state_value
-    } else {   ; マウスが動いて位置が変更された場合
-        if last_status != -1 {
+    ; IME OFF の場合は即座に非表示にして終了 (キャレット取得の負荷を回避)
+    if (ime_state_value == 0) {
+        if last_status != 0 {
             m_gui.Hide()
+            last_status := 0
+            last_x := -1
+            last_y := -1
         }
-        last_x := mx
-        last_y := my
-        last_status := -1
+        return
+    }
+
+    ; 3. キャレット座標を取得
+    caret_pos := GetCaretPosition(target_hwnd)
+    if !caret_pos {
+        ; キャレットが取得できない（存在しない）場合は非表示
+        if last_status != 0 {
+            m_gui.Hide()
+            last_status := 0
+            last_x := -1
+            last_y := -1
+        }
+        return
+    }
+
+    ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
+    static dpi_scale := A_ScreenDPI / 96
+    static offset := Round(2 * dpi_scale)
+
+    target_x := caret_pos.x + offset
+    target_y := caret_pos.y + offset
+
+    ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
+    if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
+        if (ime_state_value != last_status) {
+            m_gui.BackColor := (ime_state_value == 2) ? "Green" : color_japanese
+        }
+        m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")
+        last_x := target_x
+        last_y := target_y
+        last_status := ime_state_value
     }
 }
 
