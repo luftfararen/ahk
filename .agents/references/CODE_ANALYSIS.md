@@ -91,6 +91,16 @@ graph TD
   2. Legacy `[Settings]` section (backward compatibility).
   3. Default fallback: `[1, 2, 3, 4, 5, 6, 7, 8]`.
 
+### 2.6 IME Indicator & Caret Tracking (`GetCaretPosition`, `UpdateImeIndicator`)
+
+- **Role**: Visually displays current IME state (ON: Red, Force ON: Green, OFF: Hidden) via `m_gui` at the text insertion point (caret) rather than the mouse cursor.
+- **Caret Resolution Hierarchy**:
+  1. `GetGUIThreadInfo`: Standard Win32 caret lookup via `cbSize = 72` (x64) / `48` (x86). Queries thread 0 first, falling back to active window thread ID. Converts `rcCaret` client coordinates to screen via `ClientToScreen`.
+  2. COM UI Automation: Fallback for Chromium/Electron/VS Code editors where Win32 carets do not exist. Queries `IUIAutomation::GetFocusedElement` -> `GetCurrentPatternAs(UIA_TextPattern2PatternId)` -> `GetCaretRange` -> `GetBoundingRectangles`. Fallback to `TextPattern` (`10014`) -> `GetSelection` when `TextPattern2` is unavailable.
+  3. AutoHotkey v2 `CaretGetPos(&x, &y)`: Final built-in fallback.
+- **Display Offset**: Positioned 2px to the right and 2px below the caret bounding box, dynamically scaled by `A_ScreenDPI / 96`.
+- **Flicker-Free Optimization**: Only repositions or updates `m_gui` when coordinates or IME state change. Bypasses caret lookup entirely when IME is OFF.
+
 ---
 
 ## 3. Key Lifecycle & State Machine Transitions

@@ -3,6 +3,65 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-21] - Transition IME Indicator Tracking from Mouse Cursor to Text Caret
+
+### Overview
+- **Category**: Feature / UX Enhancement
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_caret_indicator.ahk`, `test/test_runner.ahk`
+- **Summary**: Replaced the mouse-cursor-following IME dot indicator in `PlayGroundsExp.ahk` with a caret-tracking indicator that renders directly below and to the right of the active text insertion point. Implemented Win32 `GetGUIThreadInfo` as the primary caret discovery mechanism, added COM-based UI Automation (`IUIAutomationTextPattern2` / `IUIAutomationTextPattern`) as a robust fallback for modern Chromium/Electron/Web editors (such as Chrome and VS Code), and incorporated AutoHotkey v2 `CaretGetPos` as an additional fallback.
+
+### Background & Root Cause
+- **Problem**: The existing indicator displayed a red dot relative to the mouse cursor position (`mx + 36`, `my + 36`). When typing without actively moving the mouse, the indicator was anchored far away from the active typing field, making it difficult to immediately confirm IME status.
+- **Requirements**:
+  1. Replace mouse tracking (`CoordMode("Mouse", "Screen")`, `MouseGetPos`) with text caret tracking.
+  2. Implement `GetGUIThreadInfo` via `DllCall` as the primary method, properly handling `GUITHREADINFO` struct alignment (72 bytes on x64, 48 bytes on x86), `hwndCaret`, `rcCaret` bounds, and client-to-screen coordinate transformation.
+  3. Support Chromium, Electron, and Web-based applications where Win32 carets do not exist by integrating a COM UI Automation fallback (`IUIAutomation::GetFocusedElement` -> `IUIAutomationTextPattern2::GetCaretRange` / `IUIAutomationTextPattern::GetSelection` -> `GetBoundingRectangles`).
+  4. Preserve existing IME state evaluation (`ImeState.IsOn()`, `ImeState.force_ime_on`), indicator visibility toggle (`TypeAnalyzer.is_showing_ime_indicator`), and GUI styling (`m_gui`, `dot_size`, `color_japanese`, "Green" for forced IME ON).
+  5. Position the indicator at caret right + 2px and bottom + 2px, accounting for display DPI scaling (`A_ScreenDPI / 96`).
+  6. Ensure the indicator immediately hides when IME is OFF, when caret acquisition fails, or when switching away from text controls, without leaving orphan dots or stealing focus (`NoActivate`).
+
+### Technical Changes
+- **`src/PlayGroundsExp.ahk`**:
+  - Implemented `GetCaretPosition(target_hwnd := 0)`:
+    - **Method 1 (`GetGUIThreadInfo`)**: Queries foreground thread (0), falls back to target/active window thread ID (`GetWindowThreadProcessId`). Reads `rcCaret` right and bottom client coordinates and converts them to virtual screen coordinates via `ClientToScreen(hwndCaret, pt)`. Validates against empty/inverted rects.
+    - **Method 2 (UI Automation)**: Lazily initializes `IUIAutomation` via `CoCreateInstance` (`CLSID_CUIAutomation`, `IID_IUIAutomation`). Retrieves `GetFocusedElement` (vtable slot 8), queries `GetCurrentPatternAs` (vtable slot 14) for `TextPattern2` (`UIA_TextPattern2PatternId = 10024`), executes `GetCaretRange` (vtable slot 10) to obtain `IUIAutomationTextRange`, and calls `GetBoundingRectangles` (vtable slot 10). If `TextPattern2` is unavailable, queries `TextPattern` (`10014`) -> `GetSelection` (slot 5). Unpacks the `SAFEARRAY` of doubles via `SafeArrayAccessData` to determine right and bottom screen bounds. Ensures thorough cleanup via `ObjRelease` and `SafeArrayDestroy`.
+    - **Method 3 (`CaretGetPos`)**: Calls AutoHotkey v2 built-in `CaretGetPos(&cx, &cy)` under `CoordMode("Caret", "Screen")` as a final fallback.
+  - Rewrote `UpdateImeIndicator(precise := False, target_hwnd := 0)`:
+    - Completely removed all dependencies on `MouseGetPos` and mouse coordinates.
+    - Bypasses caret lookup when IME is OFF (`ime_state_value == 0`), eliminating polling overhead during standard alphanumeric input.
+    - Hides `m_gui` immediately if `TypeAnalyzer.is_showing_ime_indicator` is disabled, IME is OFF, or caret acquisition returns `false`.
+    - Calculates DPI-scaled offset: `offset := Round(2 * (A_ScreenDPI / 96))`.
+    - Updates `m_gui.BackColor` and repositions with `m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")` only when target coordinates or IME status change.
+- **`test/test_caret_indicator.ahk`**:
+  - Authored comprehensive test suite covering:
+    - Caret coordinate retrieval in standard Win32 `Edit` controls.
+    - Coordinate change verification between start and end caret offsets via `EM_SETSEL`.
+    - Clean failure / `false` return on non-text elements (focused buttons) and destroyed windows.
+    - Automatic GUI hide on IME OFF, indicator disable, and focus shift.
+    - Color switching between `color_japanese` and `"Green"` on `ImeState.force_ime_on`.
+- **`test/test_runner.ahk`**:
+  - Integrated `Test_Caret_Indicator()` into the master test runner under Test Suite 3.
+
+### Verification & Testing
+- Automated regression suite executed:
+  - `powershell -ExecutionPolicy Bypass -File test/run_tests.ps1 -TestScript test_caret_indicator.ahk` -> 8/8 tests passed (100%).
+  - AutoHotkey syntax validation: `AutoHotkey64.exe /validate src\PlayGroundsExp.ahk` -> passed with exit code 0.
+- Microbenchmark validation:
+  - `GetGUIThreadInfo`: ~0.0005 ms/call.
+  - `IUIAutomation::GetFocusedElement`: ~0.14 ms/call.
+
+### Suggested Commit Message
+```text
+feat(indicator): track text caret position for IME dot indicator
+
+- Implement GetCaretPosition() using Win32 GetGUIThreadInfo with thread-id fallback
+- Add COM UI Automation fallback for Chromium, Electron, and VS Code
+- Add AHK v2 CaretGetPos fallback
+- Replace mouse tracking in UpdateImeIndicator() with caret-following logic
+- Apply DPI scaling for 2px caret offsets
+- Add test_caret_indicator.ahk to regression suite
+```
+
 ## [2026-11-15] - Reassign mod_key_id M1-M14 and Configure SELECT (M5,M6) and SHIFT (Space)
 
 ### Overview
