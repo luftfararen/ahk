@@ -811,6 +811,41 @@ class FontManager {
     }
 }
 
+GetHalfWidthLen(str) {
+    w := 0
+    loop parse str {
+        ; ASCII (0x007F以下) と半角カナ (0xFF61..0xFF9F) を半角1、それ以外を半角2とみなす例
+        code := Ord(A_LoopField)
+        w += (code <= 0x007F || (code >= 0xFF61 && code <= 0xFF9F)) ? 1 : 2
+    }
+    return w
+}
+
+/**
+ * 文字列を指定した長さでセンタリングし、両端に半角スペースを挿入して返します。
+ * 文字列の長さが指定の長さ以上の場合は、元の文字列をそのまま返します。
+ * 
+ * @param {String} text - 対象となる文字列
+ * @param {Integer} width - 出力文字列の目標の長さ（半角文字数）
+ * @returns {String} センタリングされた文字列、または元の文字列
+ */
+CenterPad(text, width) {
+    len := StrLen(text)
+    if (len >= width) {
+        return text
+    }
+
+    pad_total := width - len
+    left_pad := pad_total // 2
+    right_pad := pad_total - left_pad
+
+    ; 繰り返し文字列を半角スペースで埋める
+    left_str := left_pad > 0 ? Format("{:" . left_pad . "}", "") : ""
+    right_str := right_pad > 0 ? Format("{:" . right_pad . "}", "") : ""
+
+    return left_str . text . right_str
+}
+
 /**
  * 画面上に OSD (On-Screen Display) メッセージを表示する
  * @param {String} text - 表示するテキスト
@@ -2496,10 +2531,11 @@ class IMEIndicator {
         this.ime_indicator_mode := Mod(this.ime_indicator_mode + 1, 4)
         this.SaveConfig()
 
-        mode_names := ["非表示", "キャレット右下にのみ表示", "マウスカーソルにのみ表示", "双方表示"]
+        mode_names := ["非表示", "キャレットに表示", "マウスカーソルに表示", "両方に表示"]
         current_name := (this.ime_indicator_mode >= 0 && this.ime_indicator_mode <= 3) ? mode_names[this.ime_indicator_mode +
             1] : "不明"
-        ShowOSD("IME Indicator: " . current_name)
+
+        ShowOSD(CenterPad("IME状態表示: " . current_name, 30))
 
         ; 即時反映処理
         global m_gui, m_gui_m
@@ -2515,7 +2551,7 @@ class IMEIndicator {
         }
 
         try {
-            ImeIndicator.Update(true)
+            ImeIndicator.Update()
         }
     }
 

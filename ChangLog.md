@@ -3,6 +3,40 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-23] - Add String Padding Helpers and Improve IME Indicator OSD Formatting
+
+### Overview
+
+- **Category**: UI / UX Enhancement
+- **Affected Files**: `src/Utils.ahk`, `readme.adoc`
+- **Summary**: Added helper functions `GetHalfWidthLen` and `CenterPad` to `src/Utils.ahk` for text width calculation and centered string padding. Updated `IMEIndicator.CycleImeIndicatorMode()` to display a centered Japanese OSD message with refined mode names ("非表示", "キャレットに表示", "マウスカーソルに表示", "両方に表示"). Also updated `readme.adoc` documentation clarifying that the web configuration editor is currently in beta.
+
+### Technical Changes
+
+- **`src/Utils.ahk`**:
+  - Implemented `GetHalfWidthLen(str)`: Computes display width treating ASCII (<= 0x7F) and half-width Kana (0xFF61..0xFF9F) as 1 and full-width characters as 2.
+  - Implemented `CenterPad(text, width)`: Centers input text within a target half-width column width by padding leading and trailing spaces.
+  - Updated `IMEIndicator.CycleImeIndicatorMode()`:
+    - Renamed indicator display labels to concise Japanese: `["非表示", "キャレットに表示", "マウスカーソルに表示", "両方に表示"]`.
+    - Formatted OSD output with `CenterPad("IME状態表示: " . current_name, 30)` for cleaner visual alignment.
+    - Updated `ImeIndicator.Update()` call to omit unnecessary redundant argument.
+- **`readme.adoc`**:
+  - Clarified section heading "設定エディタについて" and noted that the configuration editor is in beta.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate` across `PlayGrounds.ahk`, `PlayGroundsExp.ahk`, `Utils.ahk`, `Handler.ahk`, and `test/test_caret_indicator.ahk` (all exit with code 0).
+
+### Suggested Commit Message
+
+```text
+feat(ui): add string padding helpers and refine IME indicator OSD display
+
+- Add `GetHalfWidthLen` and `CenterPad` utility functions in `src/Utils.ahk`
+- Refine `IMEIndicator.CycleImeIndicatorMode()` OSD message and centered alignment
+- Note beta status of web configuration editor in `readme.adoc`
+```
+
 ## [2026-11-23] - Relocate IMEIndicator Class to Utils.ahk and Harmonize PlayGrounds.ahk with PlayGroundsExp.ahk
 
 ### Overview
