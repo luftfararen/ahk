@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-22] - Decouple Config Management into Dedicated Class and Update Caret Indicator Tests
+
+### Overview
+
+- **Category**: Refactoring / Testing
+- **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `src/Handler.ahk`, `test/test_caret_indicator.ahk`
+- **Summary**: Extracted settings I/O logic from `TypeAnalyzer` into a dedicated `Config` class (`Config.Load()`, `Config.Save()`), updating all caller sites across `PlayGroundsExp.ahk` and `Handler.ahk`. Updated `test/test_caret_indicator.ahk` to be fully compatible with both `IMEIndicator` and `TypeAnalyzer` interfaces.
+
+### Technical Changes
+
+- **`src/Utils.ahk`**:
+  - Extracted `Config.Load()` and `Config.Save()` from `TypeAnalyzer` into a dedicated `class Config`.
+  - Updated `TypeAnalyzer.ToggleLogging()` and `TypeAnalyzer.Load()` to use `Config.Save()` and `Config.Load()`.
+- **`src/PlayGroundsExp.ahk`**:
+  - Replaced `TypeAnalyzer.SaveConfig()` with `Config.Save()` in `OnExit`.
+  - Replaced `TypeAnalyzer.LoadConfig()` call in `Init()` with `Config.Load()`.
+- **`src/Handler.ahk`**:
+  - Replaced `TypeAnalyzer.SaveConfig()` with `Config.Save()` in `Esc::` handler.
+- **`test/test_caret_indicator.ahk`**:
+  - Updated GUI initialization and indicator mode toggle testing to check for `IMEIndicator` and adapt dynamically to `UpdateCaret` vs `UpdateImeIndicator`.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate` for `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `src/Handler.ahk`, and `test/test_caret_indicator.ahk` (all passed).
+
+### Suggested Commit Message
+
+```text
+refactor(config): extract Config class and adapt caret indicator tests
+
+- Extract `Config` class (`Load`, `Save`) from `TypeAnalyzer` in `src/Utils.ahk`
+- Update caller sites in `PlayGroundsExp.ahk` and `Handler.ahk` to use `Config.Save()` and `Config.Load()`
+- Update `test/test_caret_indicator.ahk` to support `IMEIndicator` class interface
+```
+
 ## [2026-11-22] - Implement 4-Stage Circular IME Indicator Display Modes with F13 + Comma
 
 ### Overview

@@ -2435,7 +2435,7 @@ ParseIniCombinationValue(val) {
 #include "Preset.ahk"
 
 ; 終了・リロード時に保存
-OnExit((*) => (TypeAnalyzer.Save(true), TypeAnalyzer.SaveConfig()))
+OnExit((*) => (TypeAnalyzer.Save(true), Config.Save()))
 
 ; ============================================================================
 ; 設定の読み込み
@@ -2491,6 +2491,9 @@ Init() {
     start_qpc := HighPrecisionTimer()
 
     DllCall("winmm\timeBeginPeriod", "UInt", 1, "UInt")
+
+    ; 0. Configのロード
+    Config.Load()
 
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()

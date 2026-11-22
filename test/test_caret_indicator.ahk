@@ -13,11 +13,16 @@ Test_Caret_Indicator() {
     global m_gui
 
     if !IsSet(m_gui) || !m_gui {
-        InitGUI()
+        if HasMethod(IMEIndicator, "Init") {
+            IMEIndicator.Init()
+        } else if IsSet(InitGUI) {
+            InitGUI()
+        }
     }
 
     ; Save original states to restore later
-    orig_showing := TypeAnalyzer.is_showing_ime_indicator
+    indicator_class := IsSet(IMEIndicator) ? IMEIndicator : TypeAnalyzer
+    orig_showing := indicator_class.is_showing_ime_indicator
     orig_force_ime := ImeState.force_ime_on
 
     ; Create Test Window
@@ -60,40 +65,48 @@ Test_Caret_Indicator() {
     Assert(posBtn == false, "GetCaretPosition returns false when button is focused")
 
     ; Test 4: Disabling indicator setting hides m_gui
-    TypeAnalyzer.is_showing_ime_indicator := false
-    UpdateImeIndicator(false, tGui.Hwnd)
+    indicator_class.is_showing_ime_indicator := false
+    if HasMethod(IMEIndicator, "UpdateCaret") {
+        IMEIndicator.UpdateCaret(false, tGui.Hwnd)
+    } else {
+        UpdateImeIndicator(false, tGui.Hwnd)
+    }
     Assert(!DllCall("IsWindowVisible", "Ptr", m_gui.Hwnd), "m_gui is hidden when is_showing_ime_indicator is false")
 
     ; Test 5: Indicator setting enabled
-    TypeAnalyzer.is_showing_ime_indicator := true
+    indicator_class.is_showing_ime_indicator := true
 
     ; Test 6: Focusing button with indicator enabled hides m_gui (no caret)
     btnCtrl.Focus()
     Sleep(100)
-    UpdateImeIndicator(false, tGui.Hwnd)
+    if HasMethod(IMEIndicator, "UpdateCaret") {
+        IMEIndicator.UpdateCaret(false, tGui.Hwnd)
+    } else {
+        UpdateImeIndicator(false, tGui.Hwnd)
+    }
     Assert(!DllCall("IsWindowVisible", "Ptr", m_gui.Hwnd), "m_gui is hidden when caret is unavailable")
 
     ; Test 7: 4-stage mode cycling
-    TypeAnalyzer.ime_indicator_mode := 0
-    Assert(TypeAnalyzer.is_showing_ime_indicator == false, "Mode 0: is_showing_ime_indicator is false")
-    TypeAnalyzer.CycleImeIndicatorMode()
-    Assert(TypeAnalyzer.ime_indicator_mode == 1, "Mode cycled 0 -> 1 (Caret only)")
-    Assert(TypeAnalyzer.is_showing_ime_indicator == true, "Mode 1: is_showing_ime_indicator is true")
-    TypeAnalyzer.CycleImeIndicatorMode()
-    Assert(TypeAnalyzer.ime_indicator_mode == 2, "Mode cycled 1 -> 2 (Mouse only)")
-    Assert(TypeAnalyzer.is_showing_ime_indicator == true, "Mode 2: is_showing_ime_indicator is true")
-    TypeAnalyzer.CycleImeIndicatorMode()
-    Assert(TypeAnalyzer.ime_indicator_mode == 3, "Mode cycled 2 -> 3 (Both)")
-    Assert(TypeAnalyzer.is_showing_ime_indicator == true, "Mode 3: is_showing_ime_indicator is true")
-    TypeAnalyzer.CycleImeIndicatorMode()
-    Assert(TypeAnalyzer.ime_indicator_mode == 0, "Mode cycled 3 -> 0 (Hidden)")
-    Assert(TypeAnalyzer.is_showing_ime_indicator == false, "Mode 0: is_showing_ime_indicator is false")
+    indicator_class.ime_indicator_mode := 0
+    Assert(indicator_class.is_showing_ime_indicator == false, "Mode 0: is_showing_ime_indicator is false")
+    indicator_class.CycleImeIndicatorMode()
+    Assert(indicator_class.ime_indicator_mode == 1, "Mode cycled 0 -> 1 (Caret only)")
+    Assert(indicator_class.is_showing_ime_indicator == true, "Mode 1: is_showing_ime_indicator is true")
+    indicator_class.CycleImeIndicatorMode()
+    Assert(indicator_class.ime_indicator_mode == 2, "Mode cycled 1 -> 2 (Mouse only)")
+    Assert(indicator_class.is_showing_ime_indicator == true, "Mode 2: is_showing_ime_indicator is true")
+    indicator_class.CycleImeIndicatorMode()
+    Assert(indicator_class.ime_indicator_mode == 3, "Mode cycled 2 -> 3 (Both)")
+    Assert(indicator_class.is_showing_ime_indicator == true, "Mode 3: is_showing_ime_indicator is true")
+    indicator_class.CycleImeIndicatorMode()
+    Assert(indicator_class.ime_indicator_mode == 0, "Mode cycled 3 -> 0 (Hidden)")
+    Assert(indicator_class.is_showing_ime_indicator == false, "Mode 0: is_showing_ime_indicator is false")
 
     ; Cleanup test window
     tGui.Destroy()
 
     ; Restore original states
-    TypeAnalyzer.is_showing_ime_indicator := orig_showing
+    indicator_class.is_showing_ime_indicator := orig_showing
     ImeState.force_ime_on := orig_force_ime
 }
 

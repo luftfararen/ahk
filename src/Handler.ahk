@@ -18,7 +18,7 @@ sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 
 Esc:: {
     TypeAnalyzer.Save(true)
-    TypeAnalyzer.SaveConfig()
+    Config.Save()
     Reload()
 }
 
