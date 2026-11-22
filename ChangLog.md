@@ -3,6 +3,38 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-23] - Relocate IMEIndicator Class to Utils.ahk and Harmonize PlayGrounds.ahk with PlayGroundsExp.ahk
+
+### Overview
+
+- **Category**: Refactoring / Architecture
+- **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `src/PlayGrounds.ahk`
+- **Summary**: Relocated the `IMEIndicator` class definition from `PlayGroundsExp.ahk` to `Utils.ahk` so that it is globally available to both `PlayGrounds.ahk` and `PlayGroundsExp.ahk`. Removed the duplicated inline definition in `PlayGroundsExp.ahk`, synchronized `PlayGrounds.ahk` to leverage the caret-and-mouse IME tracking system, and consolidated `Layers.StateModKeyId` delegating to `Layers.State2ModKeyId`.
+
+### Technical Changes
+
+- **`src/Utils.ahk`**:
+  - Placed `class IMEIndicator` at the module level in `Utils.ahk`, providing centralized management of IME indicator mode (0: hidden, 1: caret, 2: mouse, 3: both), GUI lifecycle (`Init()`), config persistence (`LoadConfig()`, `SaveConfig()`), and rendering updates (`UpdateCaret()`, `UpdateMouse()`, `Update()`).
+- **`src/PlayGroundsExp.ahk`**:
+  - Removed local `class IMEIndicator` block to prevent duplication and ensure single-source-of-truth from `Utils.ahk`.
+- **`src/PlayGrounds.ahk`**:
+  - Synchronized with `PlayGroundsExp.ahk` by replacing legacy `UpdateImeIndicator()` calls with `ImeIndicator.Update()`, invoking `IMEIndicator.Init()` in `Init()`, and removing legacy `UpdateImeIndicator` function and redundant `StateModKeyId` implementation in `Layers`.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate` across `PlayGrounds.ahk`, `PlayGroundsExp.ahk`, `Utils.ahk`, `Handler.ahk`, and `test/test_caret_indicator.ahk` (all passed cleanly with exit code 0).
+
+### Suggested Commit Message
+
+```text
+refactor(indicator): relocate IMEIndicator to Utils.ahk and synchronize PlayGrounds.ahk
+
+- Move `IMEIndicator` class definition to `Utils.ahk` for shared usage across entry scripts
+- Remove duplicate `IMEIndicator` class definition from `PlayGroundsExp.ahk`
+- Update `PlayGrounds.ahk` to use `ImeIndicator.Update()` and initialize via `IMEIndicator.Init()`
+- Consolidate `Layers.StateModKeyId` in `PlayGrounds.ahk` to match `PlayGroundsExp.ahk`
+```
+
 ## [2026-11-22] - Decouple Config Management into Dedicated Class and Update Caret Indicator Tests
 
 ### Overview
