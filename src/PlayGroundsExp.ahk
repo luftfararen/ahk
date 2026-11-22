@@ -31,6 +31,7 @@
 ;    活用できます
 ; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
 ;    日本語入力が ON の間、テキスト入力キャレットに追従する小さなドットを表示します。
+;    日本語入力が ON の間、マウスカーソルに追従する小さなドットを表示します。
 ;
 ;  リアルシフトキーとスペースシフトキーの挙動は個別に設定可能
 ;  スペースシフトキー修飾として各キーの動作が登録されていればその動作を
@@ -558,9 +559,9 @@ GetCaretPosition(target_hwnd := 0) {
 
     if hwnd_caret {
         rect_offset := 8 + 6 * ptr_size
-        left   := NumGet(gui_info, rect_offset, "Int")
-        top    := NumGet(gui_info, rect_offset + 4, "Int")
-        right  := NumGet(gui_info, rect_offset + 8, "Int")
+        left := NumGet(gui_info, rect_offset, "Int")
+        top := NumGet(gui_info, rect_offset + 4, "Int")
+        right := NumGet(gui_info, rect_offset + 8, "Int")
         bottom := NumGet(gui_info, rect_offset + 12, "Int")
 
         ; キャレット矩形がすべて0、または高さが不正な場合は除外
@@ -571,7 +572,7 @@ GetCaretPosition(target_hwnd := 0) {
 
             ; クライアント座標からスクリーン座標へ変換
             if DllCall("ClientToScreen", "Ptr", hwnd_caret, "Ptr", pt.Ptr, "Int") {
-                return {x: NumGet(pt, 0, "Int"), y: NumGet(pt, 4, "Int")}
+                return { x: NumGet(pt, 0, "Int"), y: NumGet(pt, 4, "Int") }
             }
         }
     }
@@ -591,13 +592,16 @@ GetCaretPosition(target_hwnd := 0) {
             DllCall("ole32\CLSIDFromString", "Str", "{30CBE57D-D9D0-452A-AB13-7AC5AC4825EE}", "Ptr", iid_uia)
 
             IID_IUIAutomationTextPattern2 := Buffer(16)
-            DllCall("ole32\CLSIDFromString", "Str", "{506A921A-FCC9-409F-B23B-37EB74106872}", "Ptr", IID_IUIAutomationTextPattern2)
+            DllCall("ole32\CLSIDFromString", "Str", "{506A921A-FCC9-409F-B23B-37EB74106872}", "Ptr",
+                IID_IUIAutomationTextPattern2)
 
             IID_IUIAutomationTextPattern := Buffer(16)
-            DllCall("ole32\CLSIDFromString", "Str", "{32EBA289-3583-42C9-9C59-3B6D9A1E9B6A}", "Ptr", IID_IUIAutomationTextPattern)
+            DllCall("ole32\CLSIDFromString", "Str", "{32EBA289-3583-42C9-9C59-3B6D9A1E9B6A}", "Ptr",
+                IID_IUIAutomationTextPattern)
 
             p_raw := 0
-            if DllCall("ole32\CoCreateInstance", "Ptr", clsid_uia, "Ptr", 0, "UInt", 1, "Ptr", iid_uia, "Ptr*", &p_raw, "Int") == 0 {
+            if DllCall("ole32\CoCreateInstance", "Ptr", clsid_uia, "Ptr", 0, "UInt", 1, "Ptr", iid_uia, "Ptr*", &p_raw,
+                "Int") == 0 {
                 p_uia := p_raw
             }
         }
@@ -612,7 +616,8 @@ GetCaretPosition(target_hwnd := 0) {
 
                 ; (A) TextPattern2 (10024) -> GetCaretRange (10)
                 p_pattern2 := 0
-                if (ComCall(14, p_focused, "Int", 10024, "Ptr", IID_IUIAutomationTextPattern2, "Ptr*", &p_pattern2) == 0 && p_pattern2) {
+                if (ComCall(14, p_focused, "Int", 10024, "Ptr", IID_IUIAutomationTextPattern2, "Ptr*", &p_pattern2) ==
+                0 && p_pattern2) {
                     is_active := 0
                     ComCall(10, p_pattern2, "Int*", &is_active, "Ptr*", &p_range)
                     ObjRelease(p_pattern2)
@@ -621,7 +626,8 @@ GetCaretPosition(target_hwnd := 0) {
                 ; (B) TextPattern (10014) -> GetSelection (5)
                 if !p_range {
                     p_pattern := 0
-                    if (ComCall(14, p_focused, "Int", 10014, "Ptr", IID_IUIAutomationTextPattern, "Ptr*", &p_pattern) == 0 && p_pattern) {
+                    if (ComCall(14, p_focused, "Int", 10014, "Ptr", IID_IUIAutomationTextPattern, "Ptr*", &p_pattern) ==
+                    0 && p_pattern) {
                         p_ranges := 0
                         if (ComCall(5, p_pattern, "Ptr*", &p_ranges) == 0 && p_ranges) {
                             len := 0
@@ -648,12 +654,12 @@ GetCaretPosition(target_hwnd := 0) {
                         if DllCall("oleaut32\SafeArrayAccessData", "Ptr", psa, "Ptr*", &p_data, "Int") == 0 {
                             c_elements := NumGet(psa, 16 + (A_PtrSize - 8), "UInt")
                             if c_elements >= 4 {
-                                r_left   := NumGet(p_data, 0, "Double")
-                                r_top    := NumGet(p_data, 8, "Double")
-                                r_width  := NumGet(p_data, 16, "Double")
+                                r_left := NumGet(p_data, 0, "Double")
+                                r_top := NumGet(p_data, 8, "Double")
+                                r_width := NumGet(p_data, 16, "Double")
                                 r_height := NumGet(p_data, 24, "Double")
                                 if (r_width > 0 || r_height > 0) {
-                                    res := {x: Round(r_left + r_width), y: Round(r_top + r_height)}
+                                    res := { x: Round(r_left + r_width), y: Round(r_top + r_height) }
                                 }
                             }
                             DllCall("oleaut32\SafeArrayUnaccessData", "Ptr", psa, "Int")
@@ -672,7 +678,7 @@ GetCaretPosition(target_hwnd := 0) {
         CoordMode("Caret", "Screen")
         cx := 0, cy := 0
         if CaretGetPos(&cx, &cy) {
-            return {x: cx, y: cy}
+            return { x: cx, y: cy }
         }
     }
 
@@ -685,7 +691,7 @@ GetCaretPosition(target_hwnd := 0) {
  * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
  */
 UpdateImeIndicator(precise := False, target_hwnd := 0) {
-    static last_status := -1 ; -1:初期状態, 0:オフ/非表示, 1:オン, 2:強制オン
+    static last_status := -1 ; -1: 初期状態, 0: 非表示, 1: 日本語(ON), 2: 強制ON, 3: 英語(OFF)
     static last_x := -1, last_y := -1
 
     ; 1. インジケーター表示が無効な場合は非表示にして終了
@@ -699,27 +705,9 @@ UpdateImeIndicator(precise := False, target_hwnd := 0) {
         return
     }
 
-    ; 2. IME 状態の判定 (0: OFF, 1: ON, 2: 強制 ON)
-    ime_state_value := 0
-    if ImeState.IsOn(precise) {
-        ime_state_value := ImeState.force_ime_on ? 2 : 1
-    }
-
-    ; IME OFF の場合は即座に非表示にして終了 (キャレット取得の負荷を回避)
-    if (ime_state_value == 0) {
-        if last_status != 0 {
-            m_gui.Hide()
-            last_status := 0
-            last_x := -1
-            last_y := -1
-        }
-        return
-    }
-
-    ; 3. キャレット座標を取得
+    ; 2. キャレット座標を取得（取得できない場合は非表示にして終了）
     caret_pos := GetCaretPosition(target_hwnd)
     if !caret_pos {
-        ; キャレットが取得できない（存在しない）場合は非表示
         if last_status != 0 {
             m_gui.Hide()
             last_status := 0
@@ -727,6 +715,13 @@ UpdateImeIndicator(precise := False, target_hwnd := 0) {
             last_y := -1
         }
         return
+    }
+
+    ; 3. IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
+    if ImeState.IsOn(precise) {
+        ime_state_value := ImeState.force_ime_on ? 2 : 1
+    } else {
+        ime_state_value := 3
     }
 
     ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
@@ -739,12 +734,63 @@ UpdateImeIndicator(precise := False, target_hwnd := 0) {
     ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
     if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
         if (ime_state_value != last_status) {
-            m_gui.BackColor := (ime_state_value == 2) ? "Green" : color_japanese
+            if (ime_state_value == 3) {
+                m_gui.BackColor := color_english ; 英語 (IME OFF) -> Green
+            } else {
+                m_gui.BackColor := color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+            }
         }
         m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")
         last_x := target_x
         last_y := target_y
         last_status := ime_state_value
+    }
+}
+
+/**
+ * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
+ */
+UpdateMouseImeIndicator(precise := False) {
+    static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
+
+    if !TypeAnalyzer.is_showing_ime_indicator {
+        if last_status != 0 {
+            m_gui_m.Hide()
+            last_status := 0
+        }
+        return
+    }
+
+    mx := -1, my := 0
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    static last_x := -2, last_y := 0
+
+    if (mx = last_x && my = last_y) {
+        ime_state_value := 0
+        if ImeState.IsOn(precise) {
+            ime_state_value := ImeState.force_ime_on ? 2 : 1
+        }
+
+        if ime_state_value > 0 {
+            if ime_state_value != last_status {
+                m_gui_m.BackColor := (ime_state_value == 2) ? color_english : color_japanese
+                m_gui_m.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
+            }
+        } else {
+            ; 既に非表示の場合は Hide しない（余計な負荷削減）
+            if last_status != 0 {
+                m_gui_m.Hide()
+            }
+        }
+        last_status := ime_state_value
+    } else {   ; マウスが動いて位置が変更された場合
+        if last_status != -1 {
+            m_gui_m.Hide()
+        }
+        last_x := mx
+        last_y := my
+        last_status := -1
     }
 }
 
@@ -769,6 +815,7 @@ TimerEvent() {
     }
 
     UpdateImeIndicator()
+    UpdateMouseImeIndicator()
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
@@ -1802,82 +1849,6 @@ class Layers {
     }
 
     /**
-     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
-     * @param {Integer} mod_key_id - 修飾キーID
-     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
-     */
-    static StateModKeyId(mod_key_id) {
-        if WinActive("ahk_group RemoteDesktops")
-            return false
-
-        if (mod_key_id < 1)
-            return false
-
-        ; M1: F13 (単独, Alt・無変換・Spaceなし)
-        if mod_key_id == 1 {
-            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
-        }
-        ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
-        if mod_key_id == 2 {
-            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
-        }
-        ; M3: 変換 (単独, F14なし)
-        if mod_key_id == 3 {
-            return conv.IsPressed() && !f14.IsPressed()
-        }
-        ; M4: F14 (単独, 変換なし)
-        if mod_key_id == 4 {
-            return f14.IsPressed() && !conv.IsPressed()
-        }
-        ; M5: F13 + Alt
-        if mod_key_id == 5 {
-            return f13.IsPressed() && GetKeyState("Alt", "P")
-        }
-        ; M6: F13 + 無変換
-        if mod_key_id == 6 {
-            return f13.IsPressed() && noconv.IsPressed()
-        }
-        ; M7: Tab (単独, Alt・無変換・Spaceなし)
-        if mod_key_id == 7 {
-            return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
-        }
-        ; M8: Space (Space-Shift, F13・無変換・Tabなし)
-        if mod_key_id == 8 {
-            return space.IsPressed() && !(f13.IsPressed() || noconv.IsPressed() || tab.IsPressed())
-        }
-        ; M9: 変換 + F14
-        if mod_key_id == 9 {
-            return conv.IsPressed() && f14.IsPressed()
-        }
-        ; M10: F13 + Space
-        if mod_key_id == 10 {
-            return f13.IsPressed() && space.IsPressed()
-        }
-        ; M11: 無変換 + Space
-        if mod_key_id == 11 {
-            return noconv.IsPressed() && space.IsPressed()
-        }
-        ; M12: Tab + Alt
-        if mod_key_id == 12 {
-            return tab.IsPressed() && GetKeyState("Alt", "P")
-        }
-        ; M13: Tab + 無変換
-        if mod_key_id == 13 {
-            return tab.IsPressed() && noconv.IsPressed()
-        }
-        ; M14: Tab + Space
-        if mod_key_id == 14 {
-            return tab.IsPressed() && space.IsPressed()
-        }
-
-        ; M15以降（動的に登録された修飾キーオブジェクト）
-        if (mod_key_id <= mod_key_list.Length) {
-            return mod_key_list[mod_key_id].IsPressed()
-        }
-        return false
-    }
-
-    /**
      * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを判定します。
      * @param {Integer} layer_id - レイヤーID
      * @param {Object} key_obj - 処理対象のキーオブジェクト
@@ -1905,102 +1876,122 @@ class Layers {
         return false
     }
 
+    /**
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
+     * @param {Integer} mod_key_id - 修飾キーID
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
+     */
+    static StateModKeyId(mod_key_id) {
+        return Layers.State2ModKeyId(mod_key_id, "")
+    }
+
+    /**
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
+     * key_obj が指定されている場合、そのキーオブジェクトが対象トリガーに該当するときは false を返します。
+     * @param {Integer} mod_key_id - 修飾キーID
+     * @param {Object} [key_obj=""] - 除外判定対象のキーオブジェクト（未指定・非オブジェクト時は除外なし）
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
+     */
     static State2ModKeyId(mod_key_id, key_obj) {
+        global f13, noconv, conv, f14, tab, space, mod_key_list
+
         if WinActive("ahk_group RemoteDesktops")
             return false
 
         if (mod_key_id < 1)
             return false
 
+        has_key_obj := IsSet(key_obj) && IsObject(key_obj)
+
         ; M1: F13 (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 1 {
-            if f13 == key_obj || noconv == key_obj || space == key_obj
+            if has_key_obj && (f13 == key_obj || noconv == key_obj)
                 return false
-            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
         }
         ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
         if mod_key_id == 2 {
-            if noconv == key_obj || f13 == key_obj || tab == key_obj || space == key_obj
+            if has_key_obj && (noconv == key_obj || f13 == key_obj || tab == key_obj || space == key_obj)
                 return false
             return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
         }
         ; M3: 変換 (単独, F14なし)
         if mod_key_id == 3 {
-            if conv == key_obj
+            if has_key_obj && conv == key_obj
                 return false
             return conv.IsPressed() && !f14.IsPressed()
         }
         ; M4: F14 (単独, 変換なし)
         if mod_key_id == 4 {
-            if f14 == key_obj
+            if has_key_obj && f14 == key_obj
                 return false
             return f14.IsPressed() && !conv.IsPressed()
         }
         ; M5: F13 + Alt
         if mod_key_id == 5 {
-            if f13 == key_obj
+            if has_key_obj && f13 == key_obj
                 return false
             return f13.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M6: F13 + 無変換
         if mod_key_id == 6 {
-            if f13 == key_obj || noconv == key_obj
+            if has_key_obj && (f13 == key_obj || noconv == key_obj)
                 return false
             return f13.IsPressed() && noconv.IsPressed()
         }
         ; M7: Tab (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 7 {
-            if tab == key_obj || noconv == key_obj || space == key_obj
+            if has_key_obj && (tab == key_obj || noconv == key_obj || space == key_obj)
                 return false
             return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
         ; M8: Space (Space-Shift, F13・無変換・Tabなし)
         if mod_key_id == 8 {
-            if space == key_obj || f13 == key_obj || noconv == key_obj || tab == key_obj
+            if has_key_obj && (space == key_obj || f13 == key_obj || noconv == key_obj || tab == key_obj)
                 return false
             return space.IsPressed() && !(f13.IsPressed() || noconv.IsPressed() || tab.IsPressed())
         }
         ; M9: 変換 + F14
         if mod_key_id == 9 {
-            if conv == key_obj || f14 == key_obj
+            if has_key_obj && (conv == key_obj || f14 == key_obj)
                 return false
             return conv.IsPressed() && f14.IsPressed()
         }
         ; M10: F13 + Space
         if mod_key_id == 10 {
-            if f13 == key_obj || space == key_obj
+            if has_key_obj && (f13 == key_obj || space == key_obj)
                 return false
             return f13.IsPressed() && space.IsPressed()
         }
         ; M11: 無変換 + Space
         if mod_key_id == 11 {
-            if noconv == key_obj || space == key_obj
+            if has_key_obj && (noconv == key_obj || space == key_obj)
                 return false
             return noconv.IsPressed() && space.IsPressed()
         }
         ; M12: Tab + Alt
         if mod_key_id == 12 {
-            if tab == key_obj
+            if has_key_obj && tab == key_obj
                 return false
             return tab.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M13: Tab + 無変換
         if mod_key_id == 13 {
-            if tab == key_obj || noconv == key_obj
+            if has_key_obj && (tab == key_obj || noconv == key_obj)
                 return false
             return tab.IsPressed() && noconv.IsPressed()
         }
         ; M14: Tab + Space
         if mod_key_id == 14 {
-            if tab == key_obj || space == key_obj
+            if has_key_obj && (tab == key_obj || space == key_obj)
                 return false
             return tab.IsPressed() && space.IsPressed()
         }
 
-        ; M15以降
+        ; M15以降（動的に登録された修飾キーオブジェクト）
         if (mod_key_id <= mod_key_list.Length) {
             key := mod_key_list[mod_key_id]
-            if key == key_obj
+            if has_key_obj && key == key_obj
                 return false
             return key.IsPressed()
         }
@@ -2579,8 +2570,8 @@ Init() {
     A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
 
     ; スクリプトと同じフォルダにあるアイコンファイルを指定
-    if FileExist("klt.ico") {
-        TraySetIcon("klt.ico")
+    if FileExist("Playgrounds.ico") {
+        TraySetIcon("Playgrounds.ico")
     }
 
     ; 8. タイマーの開始 (初期化完了後に実行)

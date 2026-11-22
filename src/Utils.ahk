@@ -859,12 +859,13 @@ ShowOSD(text, duration := 3000, key_close := False) {
  * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
  */
 InitGUI() {
-    global color_japanese
+    global color_japanese, color_english
     global dot_size
-    global m_gui
+    global m_gui, m_gui_m
 
     color_japanese := "Red"
-    dot_size := 8
+    color_english := "Green"
+    dot_size := 12
     ; ------------
 
     ; キャレット表示用のGUI作成
@@ -872,6 +873,11 @@ InitGUI() {
     m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
     m_gui.BackColor := color_japanese
     WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+
+    m_gui_m := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+    m_gui_m.BackColor := color_japanese
+    WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui_m)
+
 }
 
 /*============================================================================
