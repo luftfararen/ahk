@@ -73,6 +73,22 @@ Test_Caret_Indicator() {
     UpdateImeIndicator(false, tGui.Hwnd)
     Assert(!DllCall("IsWindowVisible", "Ptr", m_gui.Hwnd), "m_gui is hidden when caret is unavailable")
 
+    ; Test 7: 4-stage mode cycling
+    TypeAnalyzer.ime_indicator_mode := 0
+    Assert(TypeAnalyzer.is_showing_ime_indicator == false, "Mode 0: is_showing_ime_indicator is false")
+    TypeAnalyzer.CycleImeIndicatorMode()
+    Assert(TypeAnalyzer.ime_indicator_mode == 1, "Mode cycled 0 -> 1 (Caret only)")
+    Assert(TypeAnalyzer.is_showing_ime_indicator == true, "Mode 1: is_showing_ime_indicator is true")
+    TypeAnalyzer.CycleImeIndicatorMode()
+    Assert(TypeAnalyzer.ime_indicator_mode == 2, "Mode cycled 1 -> 2 (Mouse only)")
+    Assert(TypeAnalyzer.is_showing_ime_indicator == true, "Mode 2: is_showing_ime_indicator is true")
+    TypeAnalyzer.CycleImeIndicatorMode()
+    Assert(TypeAnalyzer.ime_indicator_mode == 3, "Mode cycled 2 -> 3 (Both)")
+    Assert(TypeAnalyzer.is_showing_ime_indicator == true, "Mode 3: is_showing_ime_indicator is true")
+    TypeAnalyzer.CycleImeIndicatorMode()
+    Assert(TypeAnalyzer.ime_indicator_mode == 0, "Mode cycled 3 -> 0 (Hidden)")
+    Assert(TypeAnalyzer.is_showing_ime_indicator == false, "Mode 0: is_showing_ime_indicator is false")
+
     ; Cleanup test window
     tGui.Destroy()
 

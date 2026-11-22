@@ -3,6 +3,69 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-22] - Implement 4-Stage Circular IME Indicator Display Modes with F13 + Comma
+
+### Overview
+
+- **Category**: Feature / UX Enhancement
+- **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `src/Handler.ahk`, `test/test_caret_indicator.ahk`
+- **Summary**: Implemented a 4-stage circular display mode switcher for the IME indicator triggered by `F13 + ","` (and `Win + M1 + ","`). Users can cycle between 4 display modes: `0: Hidden (非表示)`, `1: Caret Only (キャレット右下にのみ表示)`, `2: Mouse Only (マウスカーソルにのみ表示)`, and `3: Both (双方表示)`. Added persistent storage in `config.ini` under `[Settings]` (`ImeIndicatorMode`), maintained backward compatibility with `is_showing_ime_indicator`, ensured immediate GUI state reflection without lag, and updated help text and regression tests.
+
+### Background & Motivation
+
+- **User Request**: Previously, the IME indicator toggled simply between enabled and disabled, or showed both caret and mouse indicators simultaneously. Users needed the flexibility to switch between showing neither, caret only, mouse cursor only, or both via `F13 + ","` with clear OSD feedback and state persistence across restarts.
+
+### Technical Changes
+
+- **`src/Utils.ahk` (`TypeAnalyzer`)**:
+  - Added `static ime_indicator_mode := 3` to track the 4-stage indicator state (`0: 非表示`, `1: キャレット右下にのみ表示`, `2: マウスカーソルにのみ表示`, `3: 双方表示`).
+  - Converted `static is_showing_ime_indicator` to a dynamic property with `get => (this.ime_indicator_mode > 0)` and `set => (this.ime_indicator_mode := value ? 3 : 0)` ensuring 100% backward compatibility for external callers expecting a boolean.
+  - Added `static CycleImeIndicatorMode()`:
+    - Increments `ime_indicator_mode := Mod(ime_indicator_mode + 1, 4)`.
+    - Persists the new setting to `config.ini` via `this.SaveConfig()`.
+    - Displays the current mode name via `ShowOSD("IME Indicator: " . current_name)`.
+    - Immediately hides inactive indicator GUIs (`m_gui.Hide()` when mode is not 1 or 3; `m_gui_m.Hide()` when mode is not 2 or 3) and dispatches forced updates (`UpdateImeIndicator(true)`, `UpdateMouseImeIndicator(true)`) for instant UI response.
+  - Maintained `static ToggleImeIndicator()` delegating to `CycleImeIndicatorMode()`.
+  - Updated `LoadConfig()` to read `ImeIndicatorMode` from `[Settings]` in `config.ini`, falling back to `ImeIndicatorEnabled` (`1` -> `3`, `0` -> `0`) if not present.
+  - Updated `SaveConfig()` to write both `ImeIndicatorMode` and `ImeIndicatorEnabled`.
+
+- **`src/PlayGroundsExp.ahk`**:
+  - In `UpdateImeIndicator(precise := False, target_hwnd := 0)`:
+    - Changed the visibility condition from `!TypeAnalyzer.is_showing_ime_indicator` to `!(TypeAnalyzer.ime_indicator_mode == 1 || TypeAnalyzer.ime_indicator_mode == 3)`.
+    - If caret indicator is not active, calls `m_gui.Hide()`, resets `last_status := 0`, `last_x := -1`, `last_y := -1`, and exits immediately.
+  - In `UpdateMouseImeIndicator(precise := False)`:
+    - Changed the visibility condition from `!TypeAnalyzer.is_showing_ime_indicator` to `!(TypeAnalyzer.ime_indicator_mode == 2 || TypeAnalyzer.ime_indicator_mode == 3)`.
+    - If mouse indicator is not active, calls `m_gui_m.Hide()`, resets `last_status := 0`, `last_x := -2`, `last_y := 0`, and exits immediately.
+  - In `ShowHelp()`:
+    - Updated help description for `Win+M1+, / F13+,` to reflect 4-stage indicator mode switching (`非表示/キャレット/マウス/双方`).
+
+- **`src/Handler.ahk`**:
+  - Under `#HotIf Layers.State(L_NAVI_CTRL)`:
+    - Bound `sc033:: TypeAnalyzer.CycleImeIndicatorMode()` for direct `F13 + ","` operation.
+    - Updated `#sc033:: TypeAnalyzer.CycleImeIndicatorMode()` for `Win + M1 + ","` operation.
+
+- **`test/test_caret_indicator.ahk`**:
+  - Added unit test cases verifying circular transitions: `0 -> 1 -> 2 -> 3 -> 0`, verifying that `ime_indicator_mode` and `is_showing_ime_indicator` align correctly at each stage.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk` (clean exit code 0).
+- Ran regression test suite `test/test_caret_indicator.ahk` via `run_tests.ps1` (17 tests total, 17 passed, 0 failed).
+
+### Suggested Commit Message
+
+```text
+feat(indicator): implement 4-stage circular IME indicator mode switcher with F13 + comma
+
+- Add `TypeAnalyzer.ime_indicator_mode` (0: hidden, 1: caret only, 2: mouse only, 3: both)
+- Implement `TypeAnalyzer.CycleImeIndicatorMode()` with OSD notification and immediate GUI updates
+- Preserve `TypeAnalyzer.is_showing_ime_indicator` getter/setter for backwards compatibility
+- Save and load `ImeIndicatorMode` in config.ini under `[Settings]`
+- Update `UpdateImeIndicator` and `UpdateMouseImeIndicator` in `PlayGroundsExp.ahk` with clean state reset
+- Bind `sc033` and `#sc033` under `L_NAVI_CTRL` in `Handler.ahk` to cycle modes
+- Update `ShowHelp()` and expand unit tests in `test/test_caret_indicator.ahk`
+```
+
 ## [2026-11-22] - Consolidate Modifier Key State Evaluation and Fix Key Object Guard in `Layers`
 
 ### Technical Changes

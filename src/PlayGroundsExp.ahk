@@ -384,7 +384,7 @@ ToggleForceImeModeOn() {
         ImeState.last_active_control_hwnd := hwnd
     }
     ImeState.UpdateState()
-    UpdateImeIndicator()
+    ImeIndicator.Update()
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
@@ -402,7 +402,7 @@ SendImeChar(c) {
  */
 ToggleImeState() {
     SendImeChar(B_ZENKAKU)
-    UpdateImeIndicator()
+    ImeIndicator.Update()
 }
 
 /**
@@ -413,7 +413,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         ImeState.ResetComposition()
         SendImeChar(c) ;criticalが二重にかかるが大丈夫
-        UpdateImeIndicator()
+        ImeIndicator.Update()
         return
     }
     if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
@@ -524,275 +524,227 @@ AutoSuspendForRemoteDesktop() {
     return auto_suspended
 }
 
-/**
- * 現在フォーカスされているテキスト入力位置（キャレット）の画面座標を取得する
- * 1. GetGUIThreadInfo (Win32標準キャレット: メモ帳・エディットコントロール等)
- * 2. UI Automation (Web/Electron/Chromium: Chrome, VS Code 等の TextPattern2/TextPattern)
- * 3. CaretGetPos (AutoHotkey v2 組み込みフォールバック)
- * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (0 の場合はアクティブ/フォアグラウンド)
- * @returns {Object|Boolean} {x: Integer, y: Integer} または取得失敗時は false
- */
-GetCaretPosition(target_hwnd := 0) {
-    ; --- 1. GetGUIThreadInfo による Win32 キャレット取得 ---
-    static ptr_size := A_PtrSize
-    static cb_size := 4 + 4 + (ptr_size * 6) + 16 ; 64bit: 72, 32bit: 48
-    static gui_info := Buffer(cb_size, 0)
-    NumPut("UInt", cb_size, gui_info, 0)
-
-    hwnd_caret := 0
-
-    ; (A) フォアグラウンドスレッド (idThread = 0) を試行
-    if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", gui_info.Ptr, "Int") {
-        hwnd_caret := NumGet(gui_info, 8 + 5 * ptr_size, "Ptr")
+class IMEIndicator {
+    static ime_indicator_mode := 3 ; 0: 非表示, 1: キャレット, 2: マウス, 3: 双方
+    static is_showing_ime_indicator {
+        get => (this.ime_indicator_mode > 0)
+        set => (this.ime_indicator_mode := value ? 3 : 0)
     }
 
-    ; (B) 取得できない場合、アクティブウィンドウまたは target_hwnd のスレッドIDで試行
-    if !hwnd_caret {
-        hwnd_check := target_hwnd ? target_hwnd : (WinExist("A") || DllCall("GetForegroundWindow", "Ptr"))
-        if hwnd_check {
-            tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd_check, "Ptr", 0, "UInt")
-            if (tid && DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", gui_info.Ptr, "Int")) {
-                hwnd_caret := NumGet(gui_info, 8 + 5 * ptr_size, "Ptr")
-            }
-        }
+    /**
+     * IMEインジケータの表示/非表示を切り替えます（旧バージョン互換）。
+     */
+    static ToggleImeIndicator() {
+        this.CycleImeIndicatorMode()
     }
 
-    if hwnd_caret {
-        rect_offset := 8 + 6 * ptr_size
-        left := NumGet(gui_info, rect_offset, "Int")
-        top := NumGet(gui_info, rect_offset + 4, "Int")
-        right := NumGet(gui_info, rect_offset + 8, "Int")
-        bottom := NumGet(gui_info, rect_offset + 12, "Int")
-
-        ; キャレット矩形がすべて0、または高さが不正な場合は除外
-        if !(bottom <= top || (left == 0 && top == 0 && right == 0 && bottom == 0)) {
-            pt := Buffer(8, 0)
-            NumPut("Int", right, pt, 0)
-            NumPut("Int", bottom, pt, 4)
-
-            ; クライアント座標からスクリーン座標へ変換
-            if DllCall("ClientToScreen", "Ptr", hwnd_caret, "Ptr", pt.Ptr, "Int") {
-                return { x: NumGet(pt, 0, "Int"), y: NumGet(pt, 4, "Int") }
-            }
-        }
-    }
-
-    ; --- 2. UI Automation によるキャレット取得 (Chrome / Electron / VS Code 等) ---
-    static p_uia := 0
-    static uia_init_attempted := false
-    static IID_IUIAutomationTextPattern2 := ""
-    static IID_IUIAutomationTextPattern := ""
-
-    if !uia_init_attempted {
-        uia_init_attempted := true
+    /**
+     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
+     */
+    static SaveConfig() {
         try {
-            clsid_uia := Buffer(16)
-            iid_uia := Buffer(16)
-            DllCall("ole32\CLSIDFromString", "Str", "{ff48dba4-60ef-4201-aa87-54103eef594e}", "Ptr", clsid_uia)
-            DllCall("ole32\CLSIDFromString", "Str", "{30CBE57D-D9D0-452A-AB13-7AC5AC4825EE}", "Ptr", iid_uia)
-
-            IID_IUIAutomationTextPattern2 := Buffer(16)
-            DllCall("ole32\CLSIDFromString", "Str", "{506A921A-FCC9-409F-B23B-37EB74106872}", "Ptr",
-                IID_IUIAutomationTextPattern2)
-
-            IID_IUIAutomationTextPattern := Buffer(16)
-            DllCall("ole32\CLSIDFromString", "Str", "{32EBA289-3583-42C9-9C59-3B6D9A1E9B6A}", "Ptr",
-                IID_IUIAutomationTextPattern)
-
-            p_raw := 0
-            if DllCall("ole32\CoCreateInstance", "Ptr", clsid_uia, "Ptr", 0, "UInt", 1, "Ptr", iid_uia, "Ptr*", &p_raw,
-                "Int") == 0 {
-                p_uia := p_raw
-            }
+            WriteConfig(String(this.ime_indicator_mode), "Settings", "ImeIndicatorMode")
+            WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
+        } catch {
         }
     }
 
-    if p_uia {
+    /**
+     * IMEインジケータの表示モードを4段階で順次切り替えます。
+     * 0: 非表示
+     * 1: キャレット右下にのみ表示
+     * 2: マウスカーソルにのみ表示
+     * 3: 双方表示
+     */
+    static CycleImeIndicatorMode() {
+        this.ime_indicator_mode := Mod(this.ime_indicator_mode + 1, 4)
+        this.SaveConfig()
+
+        mode_names := ["非表示", "キャレット右下にのみ表示", "マウスカーソルにのみ表示", "双方表示"]
+        current_name := (this.ime_indicator_mode >= 0 && this.ime_indicator_mode <= 3) ? mode_names[this.ime_indicator_mode +
+            1] : "不明"
+        ShowOSD("IME Indicator: " . current_name)
+
+        ; 即時反映処理
+        global m_gui, m_gui_m
+        if (this.ime_indicator_mode != 1 && this.ime_indicator_mode != 3) {
+            if IsSet(m_gui) && m_gui {
+                try m_gui.Hide()
+            }
+        }
+        if (this.ime_indicator_mode != 2 && this.ime_indicator_mode != 3) {
+            if IsSet(m_gui_m) && m_gui_m {
+                try m_gui_m.Hide()
+            }
+        }
+
         try {
-            p_focused := 0
-            ; 8: IUIAutomation::GetFocusedElement
-            if (ComCall(8, p_uia, "Ptr*", &p_focused) == 0 && p_focused) {
-                p_range := 0
+            ImeIndicator.Update(true)
+        }
+    }
 
-                ; (A) TextPattern2 (10024) -> GetCaretRange (10)
-                p_pattern2 := 0
-                if (ComCall(14, p_focused, "Int", 10024, "Ptr", IID_IUIAutomationTextPattern2, "Ptr*", &p_pattern2) ==
-                0 && p_pattern2) {
-                    is_active := 0
-                    ComCall(10, p_pattern2, "Int*", &is_active, "Ptr*", &p_range)
-                    ObjRelease(p_pattern2)
-                }
+    /**
+     * テキスト入力キャレットの右下に IME 状態を示すインジケータ（ドット）を表示・更新する
+     * @param {Boolean} [precise=False] - IME状態取得を強制的に再取得するかどうか
+     * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
+     */
+    static UpdateCaret(precise := False, target_hwnd := 0) {
+        static last_status := -1 ; -1: 初期状態, 0: 非表示, 1: 日本語(ON), 2: 強制ON, 3: 英語(OFF)
+        static last_x := -1, last_y := -1
 
-                ; (B) TextPattern (10014) -> GetSelection (5)
-                if !p_range {
-                    p_pattern := 0
-                    if (ComCall(14, p_focused, "Int", 10014, "Ptr", IID_IUIAutomationTextPattern, "Ptr*", &p_pattern) ==
-                    0 && p_pattern) {
-                        p_ranges := 0
-                        if (ComCall(5, p_pattern, "Ptr*", &p_ranges) == 0 && p_ranges) {
-                            len := 0
-                            if (ComCall(3, p_ranges, "Int*", &len) == 0 && len > 0) {
-                                ComCall(4, p_ranges, "Int", 0, "Ptr*", &p_range)
-                            }
-                            ObjRelease(p_ranges)
-                        }
-                        ObjRelease(p_pattern)
-                    }
-                }
-
-                ObjRelease(p_focused)
-
-                if p_range {
-                    psa := 0
-                    ; 10: IUIAutomationTextRange::GetBoundingRectangles
-                    hr_rect := ComCall(10, p_range, "Ptr*", &psa)
-                    ObjRelease(p_range)
-
-                    if (hr_rect == 0 && psa) {
-                        p_data := 0
-                        res := false
-                        if DllCall("oleaut32\SafeArrayAccessData", "Ptr", psa, "Ptr*", &p_data, "Int") == 0 {
-                            c_elements := NumGet(psa, 16 + (A_PtrSize - 8), "UInt")
-                            if c_elements >= 4 {
-                                r_left := NumGet(p_data, 0, "Double")
-                                r_top := NumGet(p_data, 8, "Double")
-                                r_width := NumGet(p_data, 16, "Double")
-                                r_height := NumGet(p_data, 24, "Double")
-                                if (r_width > 0 || r_height > 0) {
-                                    res := { x: Round(r_left + r_width), y: Round(r_top + r_height) }
-                                }
-                            }
-                            DllCall("oleaut32\SafeArrayUnaccessData", "Ptr", psa, "Int")
-                        }
-                        DllCall("oleaut32\SafeArrayDestroy", "Ptr", psa, "Int")
-                        if res
-                            return res
-                    }
-                }
+        ; 1. インジケーター表示が無効、またはキャレット表示モード(1, 3)でない場合は非表示にして終了
+        if !(IMEIndicator.ime_indicator_mode == 1 || IMEIndicator.ime_indicator_mode == 3) {
+            if last_status != 0 {
+                m_gui.Hide()
+                last_status := 0
+                last_x := -1
+                last_y := -1
             }
+            return
         }
-    }
 
-    ; --- 3. AHK v2 組み込み CaretGetPos フォールバック ---
-    try {
-        CoordMode("Caret", "Screen")
-        cx := 0, cy := 0
-        if CaretGetPos(&cx, &cy) {
-            return { x: cx, y: cy }
-        }
-    }
-
-    return false
-}
-
-/**
- * テキスト入力キャレットの右下に IME 状態を示すインジケータ（ドット）を表示・更新する
- * @param {Boolean} [precise=False] - IME状態取得を強制的に再取得するかどうか
- * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
- */
-UpdateImeIndicator(precise := False, target_hwnd := 0) {
-    static last_status := -1 ; -1: 初期状態, 0: 非表示, 1: 日本語(ON), 2: 強制ON, 3: 英語(OFF)
-    static last_x := -1, last_y := -1
-
-    ; 1. インジケーター表示が無効な場合は非表示にして終了
-    if !TypeAnalyzer.is_showing_ime_indicator {
-        if last_status != 0 {
-            m_gui.Hide()
-            last_status := 0
-            last_x := -1
-            last_y := -1
-        }
-        return
-    }
-
-    ; 2. キャレット座標を取得（取得できない場合は非表示にして終了）
-    caret_pos := GetCaretPosition(target_hwnd)
-    if !caret_pos {
-        if last_status != 0 {
-            m_gui.Hide()
-            last_status := 0
-            last_x := -1
-            last_y := -1
-        }
-        return
-    }
-
-    ; 3. IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
-    if ImeState.IsOn(precise) {
-        ime_state_value := ImeState.force_ime_on ? 2 : 1
-    } else {
-        ime_state_value := 3
-    }
-
-    ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
-    static dpi_scale := A_ScreenDPI / 96
-    static offset := Round(2 * dpi_scale)
-
-    target_x := caret_pos.x + offset
-    target_y := caret_pos.y + offset
-
-    ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
-    if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
-        if (ime_state_value != last_status) {
-            if (ime_state_value == 3) {
-                m_gui.BackColor := color_english ; 英語 (IME OFF) -> Green
-            } else {
-                m_gui.BackColor := color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+        ; 2. キャレット座標を取得（取得できない場合は非表示にして終了）
+        caret_pos := GetCaretPosition(target_hwnd)
+        if !caret_pos {
+            if last_status != 0 {
+                m_gui.Hide()
+                last_status := 0
+                last_x := -1
+                last_y := -1
             }
+            return
         }
-        m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")
-        last_x := target_x
-        last_y := target_y
-        last_status := ime_state_value
-    }
-}
 
-/**
- * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
- */
-UpdateMouseImeIndicator(precise := False) {
-    static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
-
-    if !TypeAnalyzer.is_showing_ime_indicator {
-        if last_status != 0 {
-            m_gui_m.Hide()
-            last_status := 0
-        }
-        return
-    }
-
-    mx := -1, my := 0
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    static last_x := -2, last_y := 0
-
-    if (mx = last_x && my = last_y) {
-        ime_state_value := 0
+        ; 3. IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
         if ImeState.IsOn(precise) {
             ime_state_value := ImeState.force_ime_on ? 2 : 1
+        } else {
+            ime_state_value := 3
         }
 
-        if ime_state_value > 0 {
-            if ime_state_value != last_status {
-                m_gui_m.BackColor := (ime_state_value == 2) ? color_english : color_japanese
-                m_gui_m.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
+        ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
+        static dpi_scale := A_ScreenDPI / 96
+        static offset := Round(2 * dpi_scale)
+
+        target_x := caret_pos.x + offset
+        target_y := caret_pos.y + offset
+
+        ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
+        if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
+            if (ime_state_value != last_status) {
+                if (ime_state_value == 3) {
+                    m_gui.BackColor := color_english ; 英語 (IME OFF) -> Green
+                } else {
+                    m_gui.BackColor := color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+                }
             }
-        } else {
-            ; 既に非表示の場合は Hide しない（余計な負荷削減）
+            m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")
+            last_x := target_x
+            last_y := target_y
+            last_status := ime_state_value
+        }
+    }
+
+    /**
+     * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
+     */
+    static UpdateMouse(precise := False) {
+        static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
+        static last_x := -2, last_y := 0
+
+        if !(IMEIndicator.ime_indicator_mode == 2 || IMEIndicator.ime_indicator_mode == 3) {
             if last_status != 0 {
                 m_gui_m.Hide()
+                last_status := 0
+                last_x := -2
+                last_y := 0
             }
+            return
         }
-        last_status := ime_state_value
-    } else {   ; マウスが動いて位置が変更された場合
-        if last_status != -1 {
-            m_gui_m.Hide()
+
+        mx := -1, my := 0
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&mx, &my)
+
+        if (mx = last_x && my = last_y) {
+            ime_state_value := 0
+            if ImeState.IsOn(precise) {
+                ime_state_value := ImeState.force_ime_on ? 2 : 1
+            }
+
+            if ime_state_value > 0 {
+                if ime_state_value != last_status {
+                    m_gui_m.BackColor := (ime_state_value == 2) ? color_english : color_japanese
+                    m_gui_m.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
+                }
+            } else {
+                ; 既に非表示の場合は Hide しない（余計な負荷削減）
+                if last_status != 0 {
+                    m_gui_m.Hide()
+                }
+            }
+            last_status := ime_state_value
+        } else {   ; マウスが動いて位置が変更された場合
+            if last_status != -1 {
+                m_gui_m.Hide()
+            }
+            last_x := mx
+            last_y := my
+            last_status := -1
         }
-        last_x := mx
-        last_y := my
-        last_status := -1
     }
-}
+
+    static Update() {
+        IMEIndicator.UpdateCaret()
+        IMEIndicator.UpdateMouse()
+    }
+
+    /**
+     * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
+     */
+    static Init() {
+        global color_japanese, color_english
+        global dot_size
+        global m_gui, m_gui_m
+
+        color_japanese := "Red"
+        color_english := "Green"
+        dot_size := 18
+        mouse_dot_size := 12
+
+        this.LoadConfig()
+
+        ; ------------
+
+        ; キャレット表示用のGUI作成
+        ; 描画用のウィンドウ（GUI）作成
+        m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        m_gui.BackColor := color_japanese
+        WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+
+        m_gui_m := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        m_gui_m.BackColor := color_japanese
+        WinSetRegion("0-0 w" mouse_dot_size " h" mouse_dot_size " Ellipse", m_gui_m)
+
+    }
+
+    /**
+     * 設定ファイル (config.ini) からロギングおよびインジケータ設定を読み込みます。
+     */
+    static LoadConfig() {
+        try {
+            mode_val := ReadConfig("Settings", "ImeIndicatorMode", "")
+            if (mode_val != "") {
+                this.ime_indicator_mode := Integer(mode_val)
+            } else {
+                enabled_val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
+                this.ime_indicator_mode := (enabled_val == "1") ? 3 : 0
+            }
+        } catch {
+            this.ime_indicator_mode := 3
+        }
+    }
+} ;class IMEIndicator
 
 /**
  * 定期的に実行されるタイマーイベント。IME表示の更新やログの保存などを行う。
@@ -814,8 +766,7 @@ TimerEvent() {
         return
     }
 
-    UpdateImeIndicator()
-    UpdateMouseImeIndicator()
+    ImeIndicator.Update()
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
@@ -2523,7 +2474,7 @@ ShowHelp() {
         . "Win+M1+f: 強制IMEモードのON/OFF 切り替え`n"
         . "Win+M1+Up: マウス速度を上げる`n"
         . "Win+M1+Down: マウス速度を下げる`n"
-        . "Win+M1+,: IMEインジケータの表示/非表示を切り替え`n"
+        . "Win+M1+, / F13+,: IMEインジケータ表示モード切替(非表示/キャレット/マウス/双方)`n"
         . "Win+M1+.: キーロガーのOn/Offを切り替`n"
         . "==記号レイヤ1==  ==記号レイヤ2==`n"
         . "|?|/|*|+| |    |!|@|#|$|%|`n"
@@ -2559,7 +2510,7 @@ Init() {
     InitModLayer()
 
     ; 5. UI/GUI関連の初期化
-    InitGUI()
+    IMEIndicator.Init()
 
     ; 6. レイアウト設定・ログの読み込み
     LoadLayoutConfig()
@@ -2583,6 +2534,7 @@ Init() {
 
 Init()
 
+;ホットキーを定義
 #include "Handler.ahk"
 
 ; --- サスペンド（一時停止）ホットキー ---
