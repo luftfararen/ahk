@@ -3,14 +3,150 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-22] - Implement 4-Stage Circular IME Indicator Display Modes with F13 + Comma
+
+### Overview
+
+- **Category**: Feature / UX Enhancement
+- **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `src/Handler.ahk`, `test/test_caret_indicator.ahk`
+- **Summary**: Implemented a 4-stage circular display mode switcher for the IME indicator triggered by `F13 + ","` (and `Win + M1 + ","`). Users can cycle between 4 display modes: `0: Hidden (非表示)`, `1: Caret Only (キャレット右下にのみ表示)`, `2: Mouse Only (マウスカーソルにのみ表示)`, and `3: Both (双方表示)`. Added persistent storage in `config.ini` under `[Settings]` (`ImeIndicatorMode`), maintained backward compatibility with `is_showing_ime_indicator`, ensured immediate GUI state reflection without lag, and updated help text and regression tests.
+
+### Background & Motivation
+
+- **User Request**: Previously, the IME indicator toggled simply between enabled and disabled, or showed both caret and mouse indicators simultaneously. Users needed the flexibility to switch between showing neither, caret only, mouse cursor only, or both via `F13 + ","` with clear OSD feedback and state persistence across restarts.
+
+### Technical Changes
+
+- **`src/Utils.ahk` (`TypeAnalyzer`)**:
+  - Added `static ime_indicator_mode := 3` to track the 4-stage indicator state (`0: 非表示`, `1: キャレット右下にのみ表示`, `2: マウスカーソルにのみ表示`, `3: 双方表示`).
+  - Converted `static is_showing_ime_indicator` to a dynamic property with `get => (this.ime_indicator_mode > 0)` and `set => (this.ime_indicator_mode := value ? 3 : 0)` ensuring 100% backward compatibility for external callers expecting a boolean.
+  - Added `static CycleImeIndicatorMode()`:
+    - Increments `ime_indicator_mode := Mod(ime_indicator_mode + 1, 4)`.
+    - Persists the new setting to `config.ini` via `this.SaveConfig()`.
+    - Displays the current mode name via `ShowOSD("IME Indicator: " . current_name)`.
+    - Immediately hides inactive indicator GUIs (`m_gui.Hide()` when mode is not 1 or 3; `m_gui_m.Hide()` when mode is not 2 or 3) and dispatches forced updates (`UpdateImeIndicator(true)`, `UpdateMouseImeIndicator(true)`) for instant UI response.
+  - Maintained `static ToggleImeIndicator()` delegating to `CycleImeIndicatorMode()`.
+  - Updated `LoadConfig()` to read `ImeIndicatorMode` from `[Settings]` in `config.ini`, falling back to `ImeIndicatorEnabled` (`1` -> `3`, `0` -> `0`) if not present.
+  - Updated `SaveConfig()` to write both `ImeIndicatorMode` and `ImeIndicatorEnabled`.
+
+- **`src/PlayGroundsExp.ahk`**:
+  - In `UpdateImeIndicator(precise := False, target_hwnd := 0)`:
+    - Changed the visibility condition from `!TypeAnalyzer.is_showing_ime_indicator` to `!(TypeAnalyzer.ime_indicator_mode == 1 || TypeAnalyzer.ime_indicator_mode == 3)`.
+    - If caret indicator is not active, calls `m_gui.Hide()`, resets `last_status := 0`, `last_x := -1`, `last_y := -1`, and exits immediately.
+  - In `UpdateMouseImeIndicator(precise := False)`:
+    - Changed the visibility condition from `!TypeAnalyzer.is_showing_ime_indicator` to `!(TypeAnalyzer.ime_indicator_mode == 2 || TypeAnalyzer.ime_indicator_mode == 3)`.
+    - If mouse indicator is not active, calls `m_gui_m.Hide()`, resets `last_status := 0`, `last_x := -2`, `last_y := 0`, and exits immediately.
+  - In `ShowHelp()`:
+    - Updated help description for `Win+M1+, / F13+,` to reflect 4-stage indicator mode switching (`非表示/キャレット/マウス/双方`).
+
+- **`src/Handler.ahk`**:
+  - Under `#HotIf Layers.State(L_NAVI_CTRL)`:
+    - Bound `sc033:: TypeAnalyzer.CycleImeIndicatorMode()` for direct `F13 + ","` operation.
+    - Updated `#sc033:: TypeAnalyzer.CycleImeIndicatorMode()` for `Win + M1 + ","` operation.
+
+- **`test/test_caret_indicator.ahk`**:
+  - Added unit test cases verifying circular transitions: `0 -> 1 -> 2 -> 3 -> 0`, verifying that `ime_indicator_mode` and `is_showing_ime_indicator` align correctly at each stage.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk` (clean exit code 0).
+- Ran regression test suite `test/test_caret_indicator.ahk` via `run_tests.ps1` (17 tests total, 17 passed, 0 failed).
+
+### Suggested Commit Message
+
+```text
+feat(indicator): implement 4-stage circular IME indicator mode switcher with F13 + comma
+
+- Add `TypeAnalyzer.ime_indicator_mode` (0: hidden, 1: caret only, 2: mouse only, 3: both)
+- Implement `TypeAnalyzer.CycleImeIndicatorMode()` with OSD notification and immediate GUI updates
+- Preserve `TypeAnalyzer.is_showing_ime_indicator` getter/setter for backwards compatibility
+- Save and load `ImeIndicatorMode` in config.ini under `[Settings]`
+- Update `UpdateImeIndicator` and `UpdateMouseImeIndicator` in `PlayGroundsExp.ahk` with clean state reset
+- Bind `sc033` and `#sc033` under `L_NAVI_CTRL` in `Handler.ahk` to cycle modes
+- Update `ShowHelp()` and expand unit tests in `test/test_caret_indicator.ahk`
+```
+
+## [2026-11-22] - Consolidate Modifier Key State Evaluation and Fix Key Object Guard in `Layers`
+
+### Technical Changes
+
+- Consolidated `Layers.StateModKeyId` and `Layers.State2ModKeyId` into a single implementation by making `key_obj` optional in `Layers.State2ModKeyId(mod_key_id, key_obj := "")` and delegating `StateModKeyId` to it.
+- Fixed the object validation condition (`IsSet(key_obj) && IsObject(key_obj)`) so trigger key exclusion checks only run when a valid object is provided instead of comparing against the result of `IsSet(key_obj)`.
+
+## [2026-11-21] - Transition IME Indicator Tracking from Mouse Cursor to Text Caret
+
+### Overview
+
+- **Category**: Feature / UX Enhancement
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_caret_indicator.ahk`, `test/test_runner.ahk`
+- **Summary**: Replaced the mouse-cursor-following IME dot indicator in `PlayGroundsExp.ahk` with a caret-tracking indicator that renders directly below and to the right of the active text insertion point. Implemented Win32 `GetGUIThreadInfo` as the primary caret discovery mechanism, added COM-based UI Automation (`IUIAutomationTextPattern2` / `IUIAutomationTextPattern`) as a robust fallback for modern Chromium/Electron/Web editors (such as Chrome and VS Code), and incorporated AutoHotkey v2 `CaretGetPos` as an additional fallback.
+
+### Background & Root Cause
+
+- **Problem**: The existing indicator displayed a red dot relative to the mouse cursor position (`mx + 36`, `my + 36`). When typing without actively moving the mouse, the indicator was anchored far away from the active typing field, making it difficult to immediately confirm IME status.
+- **Requirements**:
+  1. Replace mouse tracking (`CoordMode("Mouse", "Screen")`, `MouseGetPos`) with text caret tracking.
+  2. Implement `GetGUIThreadInfo` via `DllCall` as the primary method, properly handling `GUITHREADINFO` struct alignment (72 bytes on x64, 48 bytes on x86), `hwndCaret`, `rcCaret` bounds, and client-to-screen coordinate transformation.
+  3. Support Chromium, Electron, and Web-based applications where Win32 carets do not exist by integrating a COM UI Automation fallback (`IUIAutomation::GetFocusedElement` -> `IUIAutomationTextPattern2::GetCaretRange` / `IUIAutomationTextPattern::GetSelection` -> `GetBoundingRectangles`).
+  4. Preserve existing IME state evaluation (`ImeState.IsOn()`, `ImeState.force_ime_on`), indicator visibility toggle (`TypeAnalyzer.is_showing_ime_indicator`), and GUI styling (`m_gui`, `dot_size`, `color_japanese`, "Green" for forced IME ON).
+  5. Position the indicator at caret right + 2px and bottom + 2px, accounting for display DPI scaling (`A_ScreenDPI / 96`).
+  6. Ensure the indicator immediately hides when IME is OFF, when caret acquisition fails, or when switching away from text controls, without leaving orphan dots or stealing focus (`NoActivate`).
+
+### Technical Changes
+
+- **`src/PlayGroundsExp.ahk`**:
+  - Implemented `GetCaretPosition(target_hwnd := 0)`:
+    - **Method 1 (`GetGUIThreadInfo`)**: Queries foreground thread (0), falls back to target/active window thread ID (`GetWindowThreadProcessId`). Reads `rcCaret` right and bottom client coordinates and converts them to virtual screen coordinates via `ClientToScreen(hwndCaret, pt)`. Validates against empty/inverted rects.
+    - **Method 2 (UI Automation)**: Lazily initializes `IUIAutomation` via `CoCreateInstance` (`CLSID_CUIAutomation`, `IID_IUIAutomation`). Retrieves `GetFocusedElement` (vtable slot 8), queries `GetCurrentPatternAs` (vtable slot 14) for `TextPattern2` (`UIA_TextPattern2PatternId = 10024`), executes `GetCaretRange` (vtable slot 10) to obtain `IUIAutomationTextRange`, and calls `GetBoundingRectangles` (vtable slot 10). If `TextPattern2` is unavailable, queries `TextPattern` (`10014`) -> `GetSelection` (slot 5). Unpacks the `SAFEARRAY` of doubles via `SafeArrayAccessData` to determine right and bottom screen bounds. Ensures thorough cleanup via `ObjRelease` and `SafeArrayDestroy`.
+    - **Method 3 (`CaretGetPos`)**: Calls AutoHotkey v2 built-in `CaretGetPos(&cx, &cy)` under `CoordMode("Caret", "Screen")` as a final fallback.
+  - Rewrote `UpdateImeIndicator(precise := False, target_hwnd := 0)`:
+    - Completely removed all dependencies on `MouseGetPos` and mouse coordinates.
+    - Bypasses caret lookup when IME is OFF (`ime_state_value == 0`), eliminating polling overhead during standard alphanumeric input.
+    - Hides `m_gui` immediately if `TypeAnalyzer.is_showing_ime_indicator` is disabled, IME is OFF, or caret acquisition returns `false`.
+    - Calculates DPI-scaled offset: `offset := Round(2 * (A_ScreenDPI / 96))`.
+    - Updates `m_gui.BackColor` and repositions with `m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")` only when target coordinates or IME status change.
+- **`test/test_caret_indicator.ahk`**:
+  - Authored comprehensive test suite covering:
+    - Caret coordinate retrieval in standard Win32 `Edit` controls.
+    - Coordinate change verification between start and end caret offsets via `EM_SETSEL`.
+    - Clean failure / `false` return on non-text elements (focused buttons) and destroyed windows.
+    - Automatic GUI hide on IME OFF, indicator disable, and focus shift.
+    - Color switching between `color_japanese` and `"Green"` on `ImeState.force_ime_on`.
+- **`test/test_runner.ahk`**:
+  - Integrated `Test_Caret_Indicator()` into the master test runner under Test Suite 3.
+
+### Verification & Testing
+
+- Automated regression suite executed:
+  - `powershell -ExecutionPolicy Bypass -File test/run_tests.ps1 -TestScript test_caret_indicator.ahk` -> 8/8 tests passed (100%).
+  - AutoHotkey syntax validation: `AutoHotkey64.exe /validate src\PlayGroundsExp.ahk` -> passed with exit code 0.
+- Microbenchmark validation:
+  - `GetGUIThreadInfo`: ~0.0005 ms/call.
+  - `IUIAutomation::GetFocusedElement`: ~0.14 ms/call.
+
+### Suggested Commit Message
+
+```text
+feat(indicator): track text caret position for IME dot indicator
+
+- Implement GetCaretPosition() using Win32 GetGUIThreadInfo with thread-id fallback
+- Add COM UI Automation fallback for Chromium, Electron, and VS Code
+- Add AHK v2 CaretGetPos fallback
+- Replace mouse tracking in UpdateImeIndicator() with caret-following logic
+- Apply DPI scaling for 2px caret offsets
+- Add test_caret_indicator.ahk to regression suite
+```
+
 ## [2026-11-15] - Reassign mod_key_id M1-M14 and Configure SELECT (M5,M6) and SHIFT (Space)
 
 ### Overview
+
 - **Category**: Feature / Refactoring
 - **Affected Files**: `src/PlayGrounds.ahk`, `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `src/ui/app.js`, `src/ui/index.html`, `readme.adoc`
 - **Summary**: Reassigned `mod_key_id` to M1–M14 based on the updated modifier condition matrix, mapped M5 (F13 + Alt) and M6 (F13 + 無変換) to `SELECT` (Layer 5), and bound Space (`M8`) to `SHIFT` (Layer 7). Added support for multi-modifier array bindings across layer state resolution, INI serialization, and UI configuration.
 
 ### Background & Root Cause
+
 - **Symptoms**: `SHIFT` in `[LayerBinding]` was not functioning for Space-Shift because `L_SHIFT` was previously mapped to M5/M6 while `L_SELECT` was unmapped. Space-Shift requires Space (`M8`) bound to `L_SHIFT`, and F13+Alt / F13+無変換 bound to `L_SELECT`.
 - **Requirements**:
   1. Reassign modifier IDs M1–M14 according to the new condition table:
@@ -34,6 +170,7 @@ The format is maintained in English with comprehensive technical details.
   4. Support multi-modifier array representations in `layer_id_to_mod_key_id` and comma-separated strings in INI serialization.
 
 ### Technical Changes
+
 - **`src/PlayGrounds.ahk` & `src/PlayGroundsExp.ahk`**:
   - Defined global constants `M1` through `M14` (`1` through `14`).
   - Initialized `mod_key_list` with 14 elements corresponding to primary trigger keys: `[f13, noconv, conv, f14, f13, f13, tab, space, conv, f13, noconv, tab, tab, tab]`.
@@ -60,12 +197,14 @@ The format is maintained in English with comprehensive technical details.
   - Updated modifier specification table, range references (M1–M14), and sample configurations (`SELECT = M5, M6`, `SHIFT = M8`).
 
 ### Verification & Impact
+
 - Validated state resolution logic in `Layers.State` and `Layers.State2` to ensure proper evaluation of both scalar and array `mod_key_id` values.
 - Verified that `SELECT` activates when either M5 (F13 + Alt) or M6 (F13 + 無変換) is held.
 - Verified that Space-Shift (`SHIFT`) properly maps to Space (`M8`).
 - Confirmed backwards compatibility for single-modifier configs and proper comma-separated INI save/load round-tripping.
 
 ### Suggested Commit Message
+
 ```text
 Reassign mod_key_id M1-M14 and assign SELECT to M5/M6, SHIFT to space
 
@@ -87,11 +226,13 @@ Verification:
 ## [2026-11-13] - Fix TypeAnalyzer Performance Guard and Add Auto-Recovery Logic
 
 ### Overview
+
 - **Category**: Bug Fix / Performance & Reliability
 - **Affected Files**: `src/Utils.ahk`
 - **Summary**: Fixed raw QPC counter comparison against milliseconds in `TypeAnalyzer.Log` and implemented an automatic recovery mechanism to resume typing logging after load spikes settle.
 
 ### Background & Root Cause
+
 - **Symptoms**: `TypeAnalyzer` frequently halted keystroke logging permanently with the warning "TypeAnalyzer: 処理遅延のため記録を一時停止", even under nominal load conditions. Once paused, logging never resumed.
 - **Root Cause**:
   1. `total_log_time` stored raw `QueryPerformanceCounter` ticks rather than milliseconds. Comparing raw ticks against `50` resulted in false positives within microseconds (~5 µs on a 10 MHz timer).
@@ -99,6 +240,7 @@ Verification:
   3. `ResetTotalLogTime()` was not invoked internally during idle periods or within `TypeAnalyzer`'s lifecycle.
 
 ### Technical Changes
+
 - **`TypeAnalyzer.GetFreq`**:
   - Added static helper to safely retrieve the performance counter frequency via `this.freq`, global `g_freq`, or `QueryFrequency()`.
 - **`TypeAnalyzer.Log`**:
@@ -112,10 +254,12 @@ Verification:
   - Added call to `ResetTotalLogTime()` at the start of idle processing to guarantee recovery when typing pauses.
 
 ### Verification & Impact
+
 - Converted latency checks to genuine millisecond scale, eliminating premature pause triggers during sub-millisecond execution.
 - Ensured automated recovery without user intervention via timers, stroke thresholds, and idle callbacks.
 
 ### Suggested Commit Message
+
 ```text
 Fix TypeAnalyzer performance guard and implement auto-recovery logic
 
@@ -136,14 +280,17 @@ Verification:
 ## [2026-11-07] - Refactor InitModLayer to Use SetLayerKeys for Batch Layer Assignment
 
 ### Overview
+
 - **Category**: Refactoring
 - **Affected Files**: `src/Preset.ahk`
 - **Summary**: Replaced individual `SetLayerKey` calls for LAYOUT_30_KEYS targets with batch `SetLayerKeys` calls across multiple layers in `InitModLayer`. Also replaced individual `SetLayerKey` calls in `L_NAVI_CTRL` with `SetLayerKeys` for the 30-key block. Reduces line count significantly and aligns with the pattern established in `L_SELECT`.
 
 ### Background & Root Cause
+
 - **Motivation**: The `InitModLayer` function contained long repetitive sequences of `key.SetLayerKey(mode, layer_id, value)` calls for every LAYOUT_30_KEYS key in each layer. The `SetLayerKeys` helper exists precisely to batch-assign the 30-key array in one call, matching the pattern already used for `L_SELECT`. Applying it consistently improves readability and maintainability.
 
 ### Technical Changes
+
 - **`InitModLayer` / `L_NAVI_CTRL`**:
   - Replaced 20 individual `SetLayerKey` calls for `q`–`slash` (LAYOUT_30_KEYS) with a single `SetLayerKeys(LAYOUT_30_KEYS, mode, L_NAVI_CTRL, [...])` call (30 elements).
   - Keys outside LAYOUT_30_KEYS (`at`, `openbracket`, `colon`, `closebracket`, `enter`, `space`) retained as individual `SetLayerKey` calls.
@@ -159,11 +306,13 @@ Verification:
 - **`L_SHIFT`**: No LAYOUT_30_KEYS assignments existed; unchanged.
 
 ### Verification & Impact
+
 - Net reduction: 83 lines removed, 23 lines added (net -60 lines) in `src/Preset.ahk`.
 - Logic and key mappings are functionally identical to the original individual assignments.
 - Syntax validation pending (AutoHotkey64.exe /validate unavailable in sandbox).
 
 ### Suggested Commit Message
+
 ```text
 Refactor InitModLayer: Use SetLayerKeys for L_NAVI_CTRL, L_SYMBOL_NUM, L_NUMPAD, L_SYMBOL2
 
@@ -184,11 +333,13 @@ Verification:
 ## [2026-11-01] - Reorganize Code Analysis References and Domain Rules for Token Efficiency
 
 ### Overview
+
 - **Category**: Documentation / Agent Rules & Analysis Architecture
 - **Affected Files**: `.agents/references/CODE_ANALYSIS.md`, `.agents/references/CODE_ANALYSIS_UI.md`, `.agents/references/GLOSSARY.md`, `.agents/rules/code_analysis.md`, `.agents/rules/coding.md`, `todo.txt`
 - **Summary**: Modularized codebase analysis references by separating Web Config Editor UI architecture into `CODE_ANALYSIS_UI.md`, streamlining `CODE_ANALYSIS.md` for AHK core logic, converting `GLOSSARY.md` into compact日英 decision/mapping tables, and updating workspace coding/analysis rules to strictly restrict pre-task reference reading to the relevant domain to reduce AI token/quota consumption.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - `CODE_ANALYSIS.md` was large (~24KB) and mixed AHK engine logic with Web UI concerns, incurring high reading/token cost before any simple task.
   - Absence of dedicated UI analysis documentation made Web UI modifications require full DOM/JS re-analysis.
@@ -197,6 +348,7 @@ Verification:
   - Lack of domain separation in code analysis documentation and rules.
 
 ### Technical Changes
+
 - **`.agents/references/CODE_ANALYSIS_UI.md`**:
   - Created dedicated analysis document covering Web UI architecture, `IniDocument` AST parser, 6 content panels, `[LayerBinding]` synchronization, and file persistence flow.
 - **`.agents/references/CODE_ANALYSIS.md`**:
@@ -210,10 +362,12 @@ Verification:
   - Updated task list reflecting completion of analysis re-organization and rule updates.
 
 ### Verification & Impact
+
 - Verified structure and links across all reference files (`CODE_ANALYSIS.md`, `CODE_ANALYSIS_UI.md`, `GLOSSARY.md`).
 - Syntax-checked AHK files (`AutoHotkey64.exe /validate src\PlayGroundsExp.ahk`).
 
 ### Suggested Commit Message
+
 ```text
 Reorganize Code Analysis References and Domain Rules for Token Efficiency
 
@@ -237,11 +391,13 @@ Verification:
 ## [2026-11-01] - Refactor Web UI and Utils for LayerBinding INI Specification
 
 ### Overview
+
 - **Category**: UI / Architecture / Configuration
 - **Affected Files**: `src/ui/app.js`, `src/ui/index.html`, `src/Utils.ahk`, `readme.adoc`, `src/config.ini`, `todo.txt`
 - **Summary**: Aligned Web Config Editor UI with the canonical `[LayerBinding]` specification, replacing the legacy modifier-to-layer table with a clean layer-to-modifier (`M1`–`M8`) binding view with descriptions. Restored `known_layers` definition in `src/Utils.ahk` to resolve `#Warn` unassigned variable warning, cleaned up sample `config.ini`, and updated documentation.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - Web UI dynamic layers panel still mapped physical modifiers (`space`, `noconv`, etc.) under `[Settings]` rather than `[LayerBinding]`.
   - Renaming or deleting layers in the Web UI updated `[Settings]` instead of `[LayerBinding]`.
@@ -251,6 +407,7 @@ Verification:
   - Inadvertent omission of `known_layers` definition in `LoadLayerBindingsFromIni`.
 
 ### Technical Changes
+
 - **`src/ui/index.html`**:
   - Updated navigation menu item from "動的レイヤー ( space / noconv )" to "レイヤーバインド ([LayerBinding])".
   - Refactored panel header, guidance alert, and table headers to display `レイヤー名 / ID`, `修飾キーID (バインド先)`, `修飾キーの説明`, and `操作`.
@@ -268,10 +425,12 @@ Verification:
   - Cleaned up legacy commented/unused layer sample definitions.
 
 ### Verification & Impact
+
 - Validated script syntax with AutoHotkey v2: `AutoHotkey64.exe /validate src\PlayGroundsExp.ahk` (ExitCode: 0, zero warnings or errors).
 - UI HTML and JS parsed cleanly.
 
 ### Suggested Commit Message
+
 ```text
 Refactor Web UI and Utils for LayerBinding INI Specification
 
@@ -294,11 +453,13 @@ Verification:
 ## [2026-10-29] - Transition to INI File Specification Compliant with Layer Array Structure
 
 ### Overview
+
 - **Category**: Refactoring / Architecture / INI Configuration
 - **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `readme.adoc`, `test/test_layer_mapping.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
 - **Summary**: Transitioned INI configuration to a clean specification directly compliant with the internal 1D layer array structure (`layer_id_to_mod_key_id`). Eliminated physical modifier key redundancy in INI files by formalizing the fixed mapping of modifier IDs (`M1`–`M8`), implemented prioritized fallback loading and array order preservation on saving, added comprehensive regression tests (183/183 passing), and updated documentation and analysis references.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - Layer bindings were scattered across `[Settings]` using physical key names (`space = NAVI_CTRL`), `[Settings]` using layer names (`NAVI_CTRL = M1`), and `[LayerBinding]`, resulting in duplicate storage and ambiguity.
   - Storing physical key names like `space` or `noconv` in INI files duplicated the fixed mapping contracts already enforced by `Layers.StateModKeyId`.
@@ -308,6 +469,7 @@ Verification:
   - Lack of a unified, prioritized specification for serializing and deserializing the `layer_id_to_mod_key_id` array structure, and absence of bounds validation for modifier key IDs.
 
 ### Technical Changes
+
 - **`src/Utils.ahk`**:
   - `ResolveModKeyId`: Bounded `mod_key_id` validation to `1 <= mod_id <= max_mod_id` using `mod_key_list.Length`, and added explicit handling for `"none"`, `"0"`, and `""` returning `0`.
   - `ResolveLayerId`: Added support for numeric layer representations (`^LAYER_?(\d+)$`).
@@ -324,11 +486,13 @@ Verification:
   - Added Section 1.5 detailing Layer Array Binding architecture and marked `config.ini` value validation and layer array transition as resolved.
 
 ### Verification & Impact
+
 - Validated script syntax with AutoHotkey v2: `AutoHotkey64.exe /validate src\PlayGroundsExp.ahk` (ExitCode: 0).
 - Ran master regression test suite (`test/run_tests.ps1`): all 183 tests passed (100% pass rate).
 - Full backwards compatibility maintained: existing `[Settings]` configurations continue to function seamlessly.
 
 ### Suggested Commit Message
+
 ```text
 Transition to INI File Specification Compliant with Layer Array Structure
 
@@ -354,11 +518,13 @@ Verification:
 ## [2026-10-24] - Formalize Code Analysis Persistence Rule and Changelog-Driven Commit Command Protocol
 
 ### Overview
+
 - **Category**: Configuration / Agent Rules & Governance
 - **Affected Files**: `.agents/rules/code_analysis.md`, `.agents/rules/commit.md`, `.agents/rules/changelog.md`, `.agents/rules/coding.md`, `.agents/skills/ahk-coding/SKILL.md`, `.agents/skills/git-commit/SKILL.md`, `.agents/skills/update-changelog/SKILL.md`
 - **Summary**: Established the Source Code Analysis Persistence Rule (`.agents/rules/code_analysis.md`) mandating incremental knowledge maintenance in `CODE_ANALYSIS.md` to minimize re-analysis costs, and formalized the "コミットして" custom command protocol to directly extract and execute commit logs from `ChangLog.md`'s `### Suggested Commit Message` section.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - Re-analyzing the entire codebase across agent turns wasted tokens and increased task latency.
   - Custom commit commands ("コミットして") lacked an explicit rule mandating direct reuse of `ChangLog.md`'s structured commit messages, risking redundant message reconstruction.
@@ -366,6 +532,7 @@ Verification:
   - Absence of a dedicated workspace rule governing code analysis lifecycle and commit message extraction.
 
 ### Technical Changes
+
 - **`.agents/rules/code_analysis.md`**:
   - Authored comprehensive persistence guidelines: Prior Reference requirement, minimal reading cost rule, AI-optimized compact structure (tables, bullet points, invariants), in-place differential updates, and accuracy contracts.
 - **`.agents/rules/commit.md`**:
@@ -378,10 +545,12 @@ Verification:
   - Added mandatory cross-references requiring agents to read `CODE_ANALYSIS.md` before analyzing code and update it after modifications.
 
 ### Verification & Impact
+
 - Validated consistency across all rule files, skills, and glossary references.
 - Executed master regression tests (`run_tests.ps1`): all 159 tests passed.
 
 ### Suggested Commit Message
+
 ```text
 Formalize Code Analysis Persistence Rule and Changelog-Driven Commit Command Protocol
 
@@ -405,11 +574,13 @@ Verification:
 ## [2026-10-24] - Fix IME State Synchronization, Narrow Critical Scope, and Add Parameter Bounds Validation
 
 ### Overview
+
 - **Category**: Bug Fix & Robustness / IME State Consistency & Config Validation
 - **Affected Files**: `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
 - **Summary**: Resolved uninitialized `down_ime_state` reference in Mode 9 Backspace calculation, propagated captured IME state to `SendKeyWithShift` on Mode 5 release, narrowed `Critical` scope in `OnHoldTimeout` to prevent low-level hook latency, added comprehensive validation and safe fallbacks for `HoldMode` and `config.ini` parameters, and ensured `Layers.last_active_item` is reset on global resets.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - In Mode 9 chord evaluation, `GetBackspaceUndoCount()` occasionally calculated incorrect Backspace counts after rapid IME ON/OFF toggling.
   - In Mode 5 solitary release, toggling IME state while holding the key caused the release key to reflect the real-time IME state rather than the state at press initiation.
@@ -423,6 +594,7 @@ Verification:
   4. Absence of boundary checking in `HoldMode` constructor and `LoadLayoutConfig()`.
 
 ### Technical Changes
+
 - **`RKey.SendKeyWithShift`**:
   - Added optional `ime_state := -1` parameter, delegating to `this.SendShiftedKey(IsPhysicalShiftPressed(this), ime_state)` to honor preserved press states.
 - **`LKey.Up`**:
@@ -442,11 +614,13 @@ Verification:
   - Added Test Group 14 assertions covering `SendKeyWithShift(ime_state)`, `_EvaluateChord` IME synchronization, `HoldMode` bounds fallbacks, and `ResetAll` cleanup. Total assertions increased to 159 (100% pass rate).
 
 ### Verification & Impact
+
 - Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
 - Executed master test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 159 tests passed with 0 failures (100% pass rate).
 - Fully eliminated IME state desynchronization and Backspace length errors while preserving 100% behavioral compatibility with all existing layout definitions.
 
 ### Suggested Commit Message
+
 ```text
 Fix IME State Synchronization, Narrow Critical Scope, and Add Parameter Bounds Validation
 
@@ -474,11 +648,13 @@ Verification:
 ## [2026-10-23] - Formalize LKey State Machine with Session ID Generation and Ghost Recovery
 
 ### Overview
+
 - **Category**: Bug Fix / State Management & Lifecycle Robustness
 - **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
 - **Summary**: Formalized the `LKey` 3-state lifecycle (`st_init`, `st_pressing`, `st_processed`), resolved critical interruption omission in `hold_mode == 0` leading to errant space insertions, introduced monotonic `session_id` to eliminate stale timer race conditions, and implemented ghost press auto-recovery to prevent permanent key deadlocks upon window focus changes.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - Typing ordinary alphanumeric keys (`hold_mode == 0`) while holding Space (`hold_mode == 3`) failed to mark Space as interrupted; when Space was released, an unwanted trailing space was emitted.
   - In rapid tapping sequences (Down -> Up -> Down), asynchronous `OnHoldTimeout` callbacks from a prior session could trigger or reschedule during a new session.
@@ -489,6 +665,7 @@ Verification:
   3. No automatic mechanism to recover keys whose physical state (`!IsPressed()`) had desynchronized from internal state (`state != st_init`).
 
 ### Technical Changes
+
 - **`LKey.ResetState`**:
   - Encapsulated complete instance cleanup (`state := st_init`, `pressed_time_qpc := 0`, `interrupted := false`, `saved_scaw := ""`, `down_hwnd := 0`, `session_id++`, and timer cancellation).
 - **`LKey.InterruptOthers`**:
@@ -505,24 +682,28 @@ Verification:
   - Added `Test Group 13: LKey State Machine & Lifecycle Transitions` (12 assertions covering `ResetState`, `hold_mode == 0` interruption, session ID expiration, and `CleanupReleasedKeys`).
 
 ### Verification & Impact
+
 - Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
 - Executed master regression test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 125 tests passed with 0 failures (100% pass rate).
 - Completely eliminated space insertion leaks during fast rollover typing and resolved ghost key deadlocks without altering key mapping definitions.
 
-## [2026-10-23] - Refactor Layers.SendLayerKey with Extracted _EvaluateChord Decision Engine
+## [2026-10-23] - Refactor Layers.SendLayerKey with Extracted \_EvaluateChord Decision Engine
 
 ### Overview
+
 - **Category**: Refactoring / Architecture & Clean Separation of Responsibilities
 - **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`, `.agents/references/CODE_ANALYSIS.md`
 - **Summary**: Extracted the core chord evaluation logic of HoldModes 5–9 from `Layers.SendLayerKey` into a dedicated static helper `Layers._EvaluateChord`, eliminating repetitive threshold/buffer branching and establishing clean separation between chord evaluation, side effects, and action dispatch.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - `Layers.SendLayerKey()` contained heavily duplicated logic: threshold evaluation (`t_qpc >= x`), rollover buffer checks (`t_qpc < x - b`), and `_WaitForHold()` invocations were repeated 5 to 6 times across individual if-else blocks for Modes 5 through 9.
   - Mode-specific behaviors (Mode 8 preceding release acceptance, Mode 9 pre-send and Backspace cancellation, Mode 5 fallback key emission) were entangled with layer item iteration and key dispatch, impeding readability and testability.
 - **Root Cause**: Lack of functional decomposition between timing/zone classification, mode-specific chord resolution, and layer action emission.
 
 ### Technical Changes
+
 - **`Layers._EvaluateChord`**:
   - Created a static decision method handling the 3-zone timing model:
     - Zone 1 ($t \ge x$): Unconditional hold completion across all modes.
@@ -536,18 +717,21 @@ Verification:
   - Added `Test Group 12: Layers._EvaluateChord Direct Evaluation` directly validating `_EvaluateChord` against Zone 1, Zone 2, and fallback state transitions across Modes 5, 7, and 8.
 
 ### Verification & Impact
+
 - Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
 - Executed master regression test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 113 tests passed with 0 failures (100% pass rate).
 - Fully preserved 100% behavioral compatibility with existing key configurations, rollover timing, and chord combinations.
 
-## [2026-10-23] - Fix _WaitForHold Interruption Leak, Key Release State Corruption, and Focus Safety Guard
+## [2026-10-23] - Fix \_WaitForHold Interruption Leak, Key Release State Corruption, and Focus Safety Guard
 
 ### Overview
+
 - **Category**: Bug Fix / State Management & Robustness
 - **Affected Files**: `src/PlayGroundsExp.ahk`, `test/test_hold_mode.ahk`, `test/test_runner.ahk`
 - **Summary**: Resolved critical key press state corruption where keys were left in permanent `st_pressing` state when released during synchronous hold wait, added interruption detection (`interrupted`) to `_WaitForHold`, and added active window focus validation before `{Backspace}` execution.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - In rapid typing and rollover tapping, keys would occasionally get "stuck" or become unresponsive because the repeat guard (`state == st_pressing`) blocked subsequent key down events permanently.
   - When typing a 3-key sequence (A -> B -> C) where A+B was in a gray zone wait, striking C properly interrupted A via `InterruptOthers()`, but `_WaitForHold()` continued polling until threshold expiry, firing an illegitimate A+B chord.
@@ -558,6 +742,7 @@ Verification:
   3. **Unchecked Backspace Execution**: `OnHoldTimeout()` emitted `{Backspace}` without verifying that the window active at press start was still active.
 
 ### Technical Changes
+
 - **`Layers._WaitForHold`**:
   - Added interruption check `(mod_key.interrupted || mod_key.state != LKey.st_pressing)` both prior to entering the loop and on every polling iteration, immediately returning status code `0` (interruption cancelled).
   - Updated JSDoc documentation to accurately reflect `Sleep(1)` polling and return codes (`0: interruption, 1: mod先行Up, 2: key先行Up, 3: hold timeout`).
@@ -574,6 +759,7 @@ Verification:
   - Added `Test Group 11: _WaitForHold Interruption & Safety Guard` covering immediate interruption cancellation (tests 1 & 2) and `Down()` physical release safety guard (test 3).
 
 ### Verification & Impact
+
 - Validated syntax with `AutoHotkey64.exe /validate src/PlayGroundsExp.ahk`.
 - Executed master regression test suite (`powershell -ExecutionPolicy Bypass -File test/run_tests.ps1`): all 106 tests passed with 0 failures (100% pass rate).
 - Completely eliminated repeat guard lockups on rapid rollover releases while maintaining full backward compatibility with all HoldModes.
@@ -581,15 +767,18 @@ Verification:
 ## [2026-10-23] - Establish Automated Regression Testing Framework and Agent Rules
 
 ### Overview
+
 - **Category**: Feature / Testing Infrastructure & Governance
 - **Affected Files**: `test/test_framework.ahk`, `test/test_runner.ahk`, `test/test_hold_mode.ahk`, `test/test_layer_mapping.ahk`, `test/run_tests.ps1`, `test/README.md`, `.gitignore`, `.agents/rules/testing.md`, `.agents/rules/coding.md`, `.agents/skills/ahk-coding/SKILL.md`
 - **Summary**: Established a standardized automated regression testing system under the `test/` directory, consolidated scattered ad-hoc test scripts, and added strict agent development rules requiring automated test creation and execution for all code modifications.
 
 ### Background & Root Cause
+
 - **Symptoms**: Test scripts (`test_hold_mode.ahk`, `test_runner.ahk`, temporary logs) were scattered across the root and `src/` directories without unified test harness or standard execution workflow. Git ignore rules excluded test scripts unintentionally, and agent development guidelines lacked requirements for creating and running regression tests upon modifying code.
 - **Root Cause**: Absence of a dedicated testing structure and governance rules to mandate continuous automated validation.
 
 ### Technical Changes
+
 - **Testing Infrastructure (`test/`)**:
   - `test/test_framework.ahk`: Implemented core assertion (`Assert`), UTF-8 test logging (`LogMsg`), and test suite lifecycle management (`InitTestSuite`, `FinishTestSuite`).
   - `test/test_hold_mode.ahk`: Organized Hold Mode and rollover timing regression tests (Test Groups 1 through 8). Supports standalone execution and module inclusion.
@@ -606,6 +795,7 @@ Verification:
   - `.agents/skills/ahk-coding/SKILL.md`: Added test creation and test suite execution requirements to Section 4 (Post-Modification Requirement).
 
 ### Verification & Impact
+
 - Validated all AHK files with `AutoHotkey64.exe /validate`.
 - Executed full test suite via `powershell -ExecutionPolicy Bypass -File test/run_tests.ps1` with 102/102 assertions passing (100% pass rate, exit code 0).
 - Verified standalone execution of `test_hold_mode.ahk` (81/81 pass) and `test_layer_mapping.ahk` (21/21 pass).
@@ -614,11 +804,13 @@ Verification:
 ## [2026-10-21] - Fix HoldMode 7 & 8 Dynamic Combination Key Regression
 
 ### Overview
+
 - **Category**: Bug Fix / Regression Fix
 - **Affected Files**: `src/PlayGroundsExp.ahk`
 - **Summary**: Fixed a regression where dynamic custom combination keys configured with HoldMode 7 and 8 (e.g. `RegistIMECombination` in Minato layouts) completely failed to activate, and restored safe event wait mechanics.
 
 ### Background & Root Cause
+
 - **Symptoms**:
   - Combinations configured via `RegistIMECombination(8, ...)` (e.g. `d` -> "nn", `v` -> "ltu", `e` -> "ru" with target layers) and `RegistIMECombination(7, ...)` (e.g. `s+r` -> "uru", `k+r` -> "ara") became completely non-functional.
   - Rollover key events failed to distinguish between key release and hold timeouts.
@@ -633,6 +825,7 @@ Verification:
      - The hold detection loop evaluated `HighPrecisionTimer() - mod_key.pressed_time_qpc >= hold_th` directly. When the modifier key was released, `_Up` reset `mod_key.pressed_time_qpc` to `0`, resulting in `HighPrecisionTimer() - 0` evaluating to an enormous number and falsely triggering a hold timeout (`res := 3`) instead of key release (`res := 1`).
 
 ### Technical Changes
+
 - **`Layers.State(layer_id)` (`src/PlayGroundsExp.ahk`)**:
   - Extended boundary logic: If `layer_id <= layer_id_to_mod_key_id.Length`, look up `mod_key_id` from `layer_id_to_mod_key_id`. If `layer_id > 8` and `layer_id <= mod_key_list.Length`, evaluate `Layers.StateModKeyId(layer_id)` directly as a dynamically registered modifier key.
 - **`Layers.State2(layer_id, key_obj)` (`src/PlayGroundsExp.ahk`)**:
@@ -644,5 +837,6 @@ Verification:
   - Restored lightweight, non-blocking `Sleep(1)` polling to ensure AutoHotkey's internal message dispatch (keyboard hook updates and key release events) runs smoothly.
 
 ### Verification & Impact
+
 - Validated script syntax with AutoHotkey v2 binary (`AutoHotkey64.exe /validate PlayGroundsExp.ahk`) with 0 errors.
 - Confirmed that HoldMode 7 and HoldMode 8 combinations now pass state checks and accurately detect key release vs. hold duration.

@@ -30,6 +30,7 @@
 ;    打鍵間隔）を記録します。各配列の効率分析や、自身のタイピング傾向の把握に
 ;    活用できます
 ; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
+;    日本語入力が ON の間、テキスト入力キャレットに追従する小さなドットを表示します。
 ;    日本語入力が ON の間、マウスカーソルに追従する小さなドットを表示します。
 ;
 ;  リアルシフトキーとスペースシフトキーの挙動は個別に設定可能
@@ -383,7 +384,7 @@ ToggleForceImeModeOn() {
         ImeState.last_active_control_hwnd := hwnd
     }
     ImeState.UpdateState()
-    UpdateImeIndicator()
+    ImeIndicator.Update()
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
@@ -401,7 +402,7 @@ SendImeChar(c) {
  */
 ToggleImeState() {
     SendImeChar(B_ZENKAKU)
-    UpdateImeIndicator()
+    ImeIndicator.Update()
 }
 
 /**
@@ -412,7 +413,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         ImeState.ResetComposition()
         SendImeChar(c) ;criticalが二重にかかるが大丈夫
-        UpdateImeIndicator()
+        ImeIndicator.Update()
         return
     }
     if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
@@ -523,52 +524,227 @@ AutoSuspendForRemoteDesktop() {
     return auto_suspended
 }
 
-/**
- * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
- */
-UpdateImeIndicator(precise := False) {
-    static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
-
-    if !TypeAnalyzer.is_showing_ime_indicator {
-        if last_status != 0 {
-            m_gui.Hide()
-            last_status := 0
-        }
-        return
+class IMEIndicator {
+    static ime_indicator_mode := 3 ; 0: 非表示, 1: キャレット, 2: マウス, 3: 双方
+    static is_showing_ime_indicator {
+        get => (this.ime_indicator_mode > 0)
+        set => (this.ime_indicator_mode := value ? 3 : 0)
     }
 
-    mx := -1, my := 0
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    static last_x := -2, last_y := 0
+    /**
+     * IMEインジケータの表示/非表示を切り替えます（旧バージョン互換）。
+     */
+    static ToggleImeIndicator() {
+        this.CycleImeIndicatorMode()
+    }
 
-    if (mx = last_x && my = last_y) {
-        ime_state_value := 0
-        if ImeState.IsOn(precise) {
-            ime_state_value := ImeState.force_ime_on ? 2 : 1
+    /**
+     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
+     */
+    static SaveConfig() {
+        try {
+            WriteConfig(String(this.ime_indicator_mode), "Settings", "ImeIndicatorMode")
+            WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
+        } catch {
+        }
+    }
+
+    /**
+     * IMEインジケータの表示モードを4段階で順次切り替えます。
+     * 0: 非表示
+     * 1: キャレット右下にのみ表示
+     * 2: マウスカーソルにのみ表示
+     * 3: 双方表示
+     */
+    static CycleImeIndicatorMode() {
+        this.ime_indicator_mode := Mod(this.ime_indicator_mode + 1, 4)
+        this.SaveConfig()
+
+        mode_names := ["非表示", "キャレット右下にのみ表示", "マウスカーソルにのみ表示", "双方表示"]
+        current_name := (this.ime_indicator_mode >= 0 && this.ime_indicator_mode <= 3) ? mode_names[this.ime_indicator_mode +
+            1] : "不明"
+        ShowOSD("IME Indicator: " . current_name)
+
+        ; 即時反映処理
+        global m_gui, m_gui_m
+        if (this.ime_indicator_mode != 1 && this.ime_indicator_mode != 3) {
+            if IsSet(m_gui) && m_gui {
+                try m_gui.Hide()
+            }
+        }
+        if (this.ime_indicator_mode != 2 && this.ime_indicator_mode != 3) {
+            if IsSet(m_gui_m) && m_gui_m {
+                try m_gui_m.Hide()
+            }
         }
 
-        if ime_state_value > 0 {
-            if ime_state_value != last_status {
-                m_gui.BackColor := (ime_state_value == 2) ? "Green" : color_japanese
-                m_gui.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
-            }
-        } else {
-            ; 既に非表示の場合は Hide しない（余計な負荷削減）
+        try {
+            ImeIndicator.Update(true)
+        }
+    }
+
+    /**
+     * テキスト入力キャレットの右下に IME 状態を示すインジケータ（ドット）を表示・更新する
+     * @param {Boolean} [precise=False] - IME状態取得を強制的に再取得するかどうか
+     * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
+     */
+    static UpdateCaret(precise := False, target_hwnd := 0) {
+        static last_status := -1 ; -1: 初期状態, 0: 非表示, 1: 日本語(ON), 2: 強制ON, 3: 英語(OFF)
+        static last_x := -1, last_y := -1
+
+        ; 1. インジケーター表示が無効、またはキャレット表示モード(1, 3)でない場合は非表示にして終了
+        if !(IMEIndicator.ime_indicator_mode == 1 || IMEIndicator.ime_indicator_mode == 3) {
             if last_status != 0 {
                 m_gui.Hide()
+                last_status := 0
+                last_x := -1
+                last_y := -1
             }
+            return
         }
-        last_status := ime_state_value
-    } else {   ; マウスが動いて位置が変更された場合
-        if last_status != -1 {
-            m_gui.Hide()
+
+        ; 2. キャレット座標を取得（取得できない場合は非表示にして終了）
+        caret_pos := GetCaretPosition(target_hwnd)
+        if !caret_pos {
+            if last_status != 0 {
+                m_gui.Hide()
+                last_status := 0
+                last_x := -1
+                last_y := -1
+            }
+            return
         }
-        last_x := mx
-        last_y := my
-        last_status := -1
+
+        ; 3. IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
+        if ImeState.IsOn(precise) {
+            ime_state_value := ImeState.force_ime_on ? 2 : 1
+        } else {
+            ime_state_value := 3
+        }
+
+        ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
+        static dpi_scale := A_ScreenDPI / 96
+        static offset := Round(2 * dpi_scale)
+
+        target_x := caret_pos.x + offset
+        target_y := caret_pos.y + offset
+
+        ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
+        if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
+            if (ime_state_value != last_status) {
+                if (ime_state_value == 3) {
+                    m_gui.BackColor := color_english ; 英語 (IME OFF) -> Green
+                } else {
+                    m_gui.BackColor := color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+                }
+            }
+            m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")
+            last_x := target_x
+            last_y := target_y
+            last_status := ime_state_value
+        }
     }
-}
+
+    /**
+     * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
+     */
+    static UpdateMouse(precise := False) {
+        static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
+        static last_x := -2, last_y := 0
+
+        if !(IMEIndicator.ime_indicator_mode == 2 || IMEIndicator.ime_indicator_mode == 3) {
+            if last_status != 0 {
+                m_gui_m.Hide()
+                last_status := 0
+                last_x := -2
+                last_y := 0
+            }
+            return
+        }
+
+        mx := -1, my := 0
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&mx, &my)
+
+        if (mx = last_x && my = last_y) {
+            ime_state_value := 0
+            if ImeState.IsOn(precise) {
+                ime_state_value := ImeState.force_ime_on ? 2 : 1
+            }
+
+            if ime_state_value > 0 {
+                if ime_state_value != last_status {
+                    m_gui_m.BackColor := (ime_state_value == 2) ? color_english : color_japanese
+                    m_gui_m.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
+                }
+            } else {
+                ; 既に非表示の場合は Hide しない（余計な負荷削減）
+                if last_status != 0 {
+                    m_gui_m.Hide()
+                }
+            }
+            last_status := ime_state_value
+        } else {   ; マウスが動いて位置が変更された場合
+            if last_status != -1 {
+                m_gui_m.Hide()
+            }
+            last_x := mx
+            last_y := my
+            last_status := -1
+        }
+    }
+
+    static Update() {
+        IMEIndicator.UpdateCaret()
+        IMEIndicator.UpdateMouse()
+    }
+
+    /**
+     * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
+     */
+    static Init() {
+        global color_japanese, color_english
+        global dot_size
+        global m_gui, m_gui_m
+
+        color_japanese := "Red"
+        color_english := "Green"
+        dot_size := 18
+        mouse_dot_size := 12
+
+        this.LoadConfig()
+
+        ; ------------
+
+        ; キャレット表示用のGUI作成
+        ; 描画用のウィンドウ（GUI）作成
+        m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        m_gui.BackColor := color_japanese
+        WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+
+        m_gui_m := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        m_gui_m.BackColor := color_japanese
+        WinSetRegion("0-0 w" mouse_dot_size " h" mouse_dot_size " Ellipse", m_gui_m)
+
+    }
+
+    /**
+     * 設定ファイル (config.ini) からロギングおよびインジケータ設定を読み込みます。
+     */
+    static LoadConfig() {
+        try {
+            mode_val := ReadConfig("Settings", "ImeIndicatorMode", "")
+            if (mode_val != "") {
+                this.ime_indicator_mode := Integer(mode_val)
+            } else {
+                enabled_val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
+                this.ime_indicator_mode := (enabled_val == "1") ? 3 : 0
+            }
+        } catch {
+            this.ime_indicator_mode := 3
+        }
+    }
+} ;class IMEIndicator
 
 /**
  * 定期的に実行されるタイマーイベント。IME表示の更新やログの保存などを行う。
@@ -590,7 +766,7 @@ TimerEvent() {
         return
     }
 
-    UpdateImeIndicator()
+    ImeIndicator.Update()
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
@@ -1624,82 +1800,6 @@ class Layers {
     }
 
     /**
-     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
-     * @param {Integer} mod_key_id - 修飾キーID
-     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
-     */
-    static StateModKeyId(mod_key_id) {
-        if WinActive("ahk_group RemoteDesktops")
-            return false
-
-        if (mod_key_id < 1)
-            return false
-
-        ; M1: F13 (単独, Alt・無変換・Spaceなし)
-        if mod_key_id == 1 {
-            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
-        }
-        ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
-        if mod_key_id == 2 {
-            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
-        }
-        ; M3: 変換 (単独, F14なし)
-        if mod_key_id == 3 {
-            return conv.IsPressed() && !f14.IsPressed()
-        }
-        ; M4: F14 (単独, 変換なし)
-        if mod_key_id == 4 {
-            return f14.IsPressed() && !conv.IsPressed()
-        }
-        ; M5: F13 + Alt
-        if mod_key_id == 5 {
-            return f13.IsPressed() && GetKeyState("Alt", "P")
-        }
-        ; M6: F13 + 無変換
-        if mod_key_id == 6 {
-            return f13.IsPressed() && noconv.IsPressed()
-        }
-        ; M7: Tab (単独, Alt・無変換・Spaceなし)
-        if mod_key_id == 7 {
-            return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
-        }
-        ; M8: Space (Space-Shift, F13・無変換・Tabなし)
-        if mod_key_id == 8 {
-            return space.IsPressed() && !(f13.IsPressed() || noconv.IsPressed() || tab.IsPressed())
-        }
-        ; M9: 変換 + F14
-        if mod_key_id == 9 {
-            return conv.IsPressed() && f14.IsPressed()
-        }
-        ; M10: F13 + Space
-        if mod_key_id == 10 {
-            return f13.IsPressed() && space.IsPressed()
-        }
-        ; M11: 無変換 + Space
-        if mod_key_id == 11 {
-            return noconv.IsPressed() && space.IsPressed()
-        }
-        ; M12: Tab + Alt
-        if mod_key_id == 12 {
-            return tab.IsPressed() && GetKeyState("Alt", "P")
-        }
-        ; M13: Tab + 無変換
-        if mod_key_id == 13 {
-            return tab.IsPressed() && noconv.IsPressed()
-        }
-        ; M14: Tab + Space
-        if mod_key_id == 14 {
-            return tab.IsPressed() && space.IsPressed()
-        }
-
-        ; M15以降（動的に登録された修飾キーオブジェクト）
-        if (mod_key_id <= mod_key_list.Length) {
-            return mod_key_list[mod_key_id].IsPressed()
-        }
-        return false
-    }
-
-    /**
      * 指定されたキーが自身でレイヤーキーである場合を除き、レイヤー状態がアクティブかどうかを判定します。
      * @param {Integer} layer_id - レイヤーID
      * @param {Object} key_obj - 処理対象のキーオブジェクト
@@ -1727,102 +1827,122 @@ class Layers {
         return false
     }
 
+    /**
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
+     * @param {Integer} mod_key_id - 修飾キーID
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
+     */
+    static StateModKeyId(mod_key_id) {
+        return Layers.State2ModKeyId(mod_key_id, "")
+    }
+
+    /**
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
+     * key_obj が指定されている場合、そのキーオブジェクトが対象トリガーに該当するときは false を返します。
+     * @param {Integer} mod_key_id - 修飾キーID
+     * @param {Object} [key_obj=""] - 除外判定対象のキーオブジェクト（未指定・非オブジェクト時は除外なし）
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
+     */
     static State2ModKeyId(mod_key_id, key_obj) {
+        global f13, noconv, conv, f14, tab, space, mod_key_list
+
         if WinActive("ahk_group RemoteDesktops")
             return false
 
         if (mod_key_id < 1)
             return false
 
+        has_key_obj := IsSet(key_obj) && IsObject(key_obj)
+
         ; M1: F13 (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 1 {
-            if f13 == key_obj || noconv == key_obj || space == key_obj
+            if has_key_obj && (f13 == key_obj || noconv == key_obj)
                 return false
-            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
+            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
         }
         ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
         if mod_key_id == 2 {
-            if noconv == key_obj || f13 == key_obj || tab == key_obj || space == key_obj
+            if has_key_obj && (noconv == key_obj || f13 == key_obj || tab == key_obj || space == key_obj)
                 return false
             return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
         }
         ; M3: 変換 (単独, F14なし)
         if mod_key_id == 3 {
-            if conv == key_obj
+            if has_key_obj && conv == key_obj
                 return false
             return conv.IsPressed() && !f14.IsPressed()
         }
         ; M4: F14 (単独, 変換なし)
         if mod_key_id == 4 {
-            if f14 == key_obj
+            if has_key_obj && f14 == key_obj
                 return false
             return f14.IsPressed() && !conv.IsPressed()
         }
         ; M5: F13 + Alt
         if mod_key_id == 5 {
-            if f13 == key_obj
+            if has_key_obj && f13 == key_obj
                 return false
             return f13.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M6: F13 + 無変換
         if mod_key_id == 6 {
-            if f13 == key_obj || noconv == key_obj
+            if has_key_obj && (f13 == key_obj || noconv == key_obj)
                 return false
             return f13.IsPressed() && noconv.IsPressed()
         }
         ; M7: Tab (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 7 {
-            if tab == key_obj || noconv == key_obj || space == key_obj
+            if has_key_obj && (tab == key_obj || noconv == key_obj || space == key_obj)
                 return false
             return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
         ; M8: Space (Space-Shift, F13・無変換・Tabなし)
         if mod_key_id == 8 {
-            if space == key_obj || f13 == key_obj || noconv == key_obj || tab == key_obj
+            if has_key_obj && (space == key_obj || f13 == key_obj || noconv == key_obj || tab == key_obj)
                 return false
             return space.IsPressed() && !(f13.IsPressed() || noconv.IsPressed() || tab.IsPressed())
         }
         ; M9: 変換 + F14
         if mod_key_id == 9 {
-            if conv == key_obj || f14 == key_obj
+            if has_key_obj && (conv == key_obj || f14 == key_obj)
                 return false
             return conv.IsPressed() && f14.IsPressed()
         }
         ; M10: F13 + Space
         if mod_key_id == 10 {
-            if f13 == key_obj || space == key_obj
+            if has_key_obj && (f13 == key_obj || space == key_obj)
                 return false
             return f13.IsPressed() && space.IsPressed()
         }
         ; M11: 無変換 + Space
         if mod_key_id == 11 {
-            if noconv == key_obj || space == key_obj
+            if has_key_obj && (noconv == key_obj || space == key_obj)
                 return false
             return noconv.IsPressed() && space.IsPressed()
         }
         ; M12: Tab + Alt
         if mod_key_id == 12 {
-            if tab == key_obj
+            if has_key_obj && tab == key_obj
                 return false
             return tab.IsPressed() && GetKeyState("Alt", "P")
         }
         ; M13: Tab + 無変換
         if mod_key_id == 13 {
-            if tab == key_obj || noconv == key_obj
+            if has_key_obj && (tab == key_obj || noconv == key_obj)
                 return false
             return tab.IsPressed() && noconv.IsPressed()
         }
         ; M14: Tab + Space
         if mod_key_id == 14 {
-            if tab == key_obj || space == key_obj
+            if has_key_obj && (tab == key_obj || space == key_obj)
                 return false
             return tab.IsPressed() && space.IsPressed()
         }
 
-        ; M15以降
+        ; M15以降（動的に登録された修飾キーオブジェクト）
         if (mod_key_id <= mod_key_list.Length) {
             key := mod_key_list[mod_key_id]
-            if key == key_obj
+            if has_key_obj && key == key_obj
                 return false
             return key.IsPressed()
         }
@@ -2354,7 +2474,7 @@ ShowHelp() {
         . "Win+M1+f: 強制IMEモードのON/OFF 切り替え`n"
         . "Win+M1+Up: マウス速度を上げる`n"
         . "Win+M1+Down: マウス速度を下げる`n"
-        . "Win+M1+,: IMEインジケータの表示/非表示を切り替え`n"
+        . "Win+M1+, / F13+,: IMEインジケータ表示モード切替(非表示/キャレット/マウス/双方)`n"
         . "Win+M1+.: キーロガーのOn/Offを切り替`n"
         . "==記号レイヤ1==  ==記号レイヤ2==`n"
         . "|?|/|*|+| |    |!|@|#|$|%|`n"
@@ -2390,7 +2510,7 @@ Init() {
     InitModLayer()
 
     ; 5. UI/GUI関連の初期化
-    InitGUI()
+    IMEIndicator.Init()
 
     ; 6. レイアウト設定・ログの読み込み
     LoadLayoutConfig()
@@ -2401,8 +2521,8 @@ Init() {
     A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
 
     ; スクリプトと同じフォルダにあるアイコンファイルを指定
-    if FileExist("klt.ico") {
-        TraySetIcon("klt.ico")
+    if FileExist("Playgrounds.ico") {
+        TraySetIcon("Playgrounds.ico")
     }
 
     ; 8. タイマーの開始 (初期化完了後に実行)
@@ -2414,6 +2534,7 @@ Init() {
 
 Init()
 
+;ホットキーを定義
 #include "Handler.ahk"
 
 ; --- サスペンド（一時停止）ホットキー ---
