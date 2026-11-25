@@ -950,6 +950,15 @@ class LKey extends RKey {
 
     static instances := []
 
+    static LoadConfig() {
+        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
+        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
+    }
+
+    static SaveConfig() {
+        WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+        WriteConfig(String(LKey.pre_stroke_buf), "Settings", "PreStrokeBuf")
+    }
     /**
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
@@ -1439,11 +1448,8 @@ ResetCombinations() {
  */
 LoadLayoutConfig() {
     try {
-        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
-        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
-        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
-        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
-        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
+        LKey.LoadConfig()
+        Layers.LoadConfig()
         layout_name := ReadConfig("Settings", "StartupLayout", "")
         if layout_name = ""
             return
@@ -1547,6 +1553,18 @@ class Layers {
 
     ime_arr := []
     arr := []
+
+    static LoadConfig() {
+        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
+        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
+        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
+    }
+
+    static SaveConfig() {
+        WriteConfig(String(Layers.b_time), "Settings", "b_time")
+        WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
+        WriteConfig(String(Layers.hold_th), "Settings", "LayerHoldTh")
+    }
 
     /**
      * レイヤーIDで指定されたレイヤーがアクティブかどうかを判定します。
@@ -2212,8 +2230,14 @@ ParseIniCombinationValue(val) {
 
 #include "Preset.ahk"
 
+SaveConfig() {
+    TypeAnalyzer.SaveConfig()
+    LKey.SaveConfig()
+    Layers.SaveConfig()
+}
+
 ; 終了・リロード時に保存
-OnExit((*) => (TypeAnalyzer.Save(true), Config.Save()))
+OnExit((*) => (TypeAnalyzer.Save(true), SaveConfig()))
 
 ; ============================================================================
 ; 設定の読み込み
@@ -2270,9 +2294,6 @@ Init() {
 
     DllCall("winmm\timeBeginPeriod", "UInt", 1, "UInt")
 
-    ; 0. Configのロード
-    Config.Load()
-
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()
 
@@ -2294,8 +2315,8 @@ Init() {
     IMEIndicator.Init()
 
     ; 6. レイアウト設定・ログの読み込み
-    LoadLayoutConfig()
-    TypeAnalyzer.Load()
+    LoadLayoutConfig() ; LKey.LoadConfig(), Layes..LoadConfig(),
+    TypeAnalyzer.Load() ;TypeAnalyzer.LoadConfig()
 
     ; 7. トレイメニューやUIの設定
     A_TrayMenu.Add() ; セパレータ

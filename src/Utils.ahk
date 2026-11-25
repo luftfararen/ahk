@@ -1017,42 +1017,6 @@ ReadLayerKey(layout_map, section_text, prefix, ini_path) {
     }
 }
 
-class Config {
-    /**
-     * 設定ファイル (config.ini) からロギングおよびインジケータ設定を読み込みます。
-     */
-    static Load() {
-        this.freq := QueryFrequency()
-        try {
-            val := ReadConfig("Settings", "LogEnabled", "0")
-            TypeAnalyzer.is_logging_enabled := (val == "1")
-        } catch {
-            TypeAnalyzer.is_logging_enabled := false
-        }
-        try {
-            TypeAnalyzer.max_log := Integer(ReadConfig("Settings", "MaxLog", "5000"))
-        } catch {
-            TypeAnalyzer.max_log := 2000
-        }
-    }
-
-    /**
-     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
-     */
-    static Save() {
-        try {
-            WriteConfig(TypeAnalyzer.is_logging_enabled ? "1" : "0", "Settings", "LogEnabled")
-            WriteConfig(String(TypeAnalyzer.max_log), "Settings", "MaxLog")
-            WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
-            WriteConfig(String(LKey.pre_stroke_buf), "Settings", "PreStrokeBuf")
-            WriteConfig(String(Layers.b_time), "Settings", "b_time")
-            WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
-        } catch {
-        }
-    }
-
-}
-
 /**
  * タイピングログ（トリグラム頻度、打鍵間隔など）を記録・集計・保存するクラスです。
  */
@@ -1096,6 +1060,35 @@ class TypeAnalyzer {
     static stroke_count := 0           ; 最大処理時間リセット用打鍵カウンタ
 
     /**
+     * 設定ファイル (config.ini) からロギングおよびインジケータ設定を読み込みます。
+     */
+    static LoadConfig() {
+        this.freq := QueryFrequency()
+        try {
+            val := ReadConfig("Settings", "LogEnabled", "0")
+            TypeAnalyzer.is_logging_enabled := (val == "1")
+        } catch {
+            TypeAnalyzer.is_logging_enabled := false
+        }
+        try {
+            TypeAnalyzer.max_log := Integer(ReadConfig("Settings", "MaxLog", "5000"))
+        } catch {
+            TypeAnalyzer.max_log := 2000
+        }
+    }
+
+    /**
+     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
+     */
+    static SaveConfig() {
+        try {
+            WriteConfig(TypeAnalyzer.is_logging_enabled ? "1" : "0", "Settings", "LogEnabled")
+            WriteConfig(String(TypeAnalyzer.max_log), "Settings", "MaxLog")
+        } catch {
+        }
+    }
+
+    /**
      * 高精度パフォーマンスカウンタの周波数を取得します。
      * @returns {Integer} カウンタ周波数 (Hz)
      */
@@ -1124,8 +1117,8 @@ class TypeAnalyzer {
      */
     static ToggleLogging() {
         this.is_logging_enabled := !this.is_logging_enabled
-        Config.Save()
-        ShowOSD("TypeAnalyzer: " . (this.is_logging_enabled ? "ON" : "OFF"))
+        TypeAnalyzer.SaveConfig()
+        ShowOSD("TypeAnalyzer:TypeAnalyzer " . (this.is_logging_enabled ? "ON" : "OFF"))
     }
 
     /**
@@ -1147,7 +1140,7 @@ class TypeAnalyzer {
         this.Log("warmup")
         this.ResetTotalLogTime()
         this.stats_short_idx := 0
-        Config.Load() ; 本来の設定に戻す
+        TypeAnalyzer.LoadConfig() ; 本来の設定に戻す
 
         if !FileExist(this.log_file)
             return

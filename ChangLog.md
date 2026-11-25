@@ -3,6 +3,43 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-26] - Modularize Config Management into Individual Classes and Add Unified SaveConfig
+
+### Overview
+
+- **Category**: Refactoring / Architecture
+- **Affected Files**: `src/Utils.ahk`, `src/PlayGroundsExp.ahk`, `src/Handler.ahk`
+- **Summary**: Modularized configuration persistence so each domain class (`LKey`, `Layers`, `TypeAnalyzer`) owns its respective `LoadConfig()` and `SaveConfig()` methods instead of relying on a centralized external `Config` class. Added a unified `SaveConfig()` helper function in `PlayGroundsExp.ahk` called on exit and reload.
+
+### Technical Changes
+
+- **`src/PlayGroundsExp.ahk`**:
+  - Added `LKey.LoadConfig()` and `LKey.SaveConfig()` managing `HoldTh` and `PreStrokeBuf`.
+  - Added `Layers.LoadConfig()` and `Layers.SaveConfig()` managing `b_time`, `b_time2`, and `LayerHoldTh`.
+  - Refactored `LoadLayoutConfig()` to invoke `LKey.LoadConfig()` and `Layers.LoadConfig()`.
+  - Implemented `SaveConfig()` coordinating `TypeAnalyzer.SaveConfig()`, `LKey.SaveConfig()`, and `Layers.SaveConfig()`.
+  - Updated `OnExit` hook to invoke `SaveConfig()`.
+- **`src/Utils.ahk`**:
+  - Removed obsolete `Config` class.
+  - Re-introduced `TypeAnalyzer.LoadConfig()` and `TypeAnalyzer.SaveConfig()` managing `LogEnabled` and `MaxLog`.
+  - Updated `TypeAnalyzer.ToggleLogging()` and `TypeAnalyzer.Load()` to use `TypeAnalyzer.SaveConfig()` and `TypeAnalyzer.LoadConfig()`.
+- **`src/Handler.ahk`**:
+  - Updated `Esc::` reload handler to invoke `SaveConfig()` instead of `Config.Save()`.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate` across `PlayGrounds.ahk`, `PlayGroundsExp.ahk`, `Utils.ahk`, and `Handler.ahk` (all exit code 0).
+
+### Suggested Commit Message
+
+```text
+refactor(config): modularize config I/O to domain classes and add SaveConfig
+
+- Add `LoadConfig`/`SaveConfig` to `LKey` and `Layers` in `src/PlayGroundsExp.ahk`
+- Move config loading/saving for logger to `TypeAnalyzer` and remove `Config` class in `src/Utils.ahk`
+- Define unified `SaveConfig()` in `PlayGroundsExp.ahk` and use in `OnExit` and `Handler.ahk`
+```
+
 ## [2026-11-23] - Add String Padding Helpers and Improve IME Indicator OSD Formatting
 
 ### Overview
