@@ -195,6 +195,15 @@ class ImeState {
     static last_check_time := 0
     static threshold := 100
 
+    ;IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
+    static GetStatus(precise := True) {
+        if ImeState.IsOn(precise) {
+            return ImeState.force_ime_on ? 2 : 1
+        } else {
+            return 3
+        }
+    }
+
     /**
      * 動作状態を設定する
      * @param {Integer} mode - 動作モード
@@ -384,7 +393,7 @@ ToggleForceImeModeOn() {
         ImeState.last_active_control_hwnd := hwnd
     }
     ImeState.UpdateState()
-    ImeIndicator.Update()
+    ImeIndicator.Update(ImeState.GetStatus())
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
@@ -402,7 +411,7 @@ SendImeChar(c) {
  */
 ToggleImeState() {
     SendImeChar(B_ZENKAKU)
-    ImeIndicator.Update()
+    ImeIndicator.Update(ImeState.GetStatus())
 }
 
 /**
@@ -413,7 +422,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         ImeState.ResetComposition()
         SendImeChar(c) ;criticalが二重にかかるが大丈夫
-        ImeIndicator.Update()
+        ImeIndicator.Update(ImeState.GetStatus())
         return
     }
     if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
@@ -544,7 +553,7 @@ TimerEvent() {
         return
     }
 
-    ImeIndicator.Update()
+    ImeIndicator.Update(ImeState.GetStatus())
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
@@ -1978,7 +1987,8 @@ class Layers {
 
                         t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
                         x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
-                        b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
+                        b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time
+                        )
 
                         ; 1. 判定エンジンによる同時押し評価
                         chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
@@ -2234,10 +2244,12 @@ SaveConfig() {
     TypeAnalyzer.SaveConfig()
     LKey.SaveConfig()
     Layers.SaveConfig()
+    IMEIndicator.SaveConfig()
+    TypeAnalyzer.Save(true)
 }
 
 ; 終了・リロード時に保存
-OnExit((*) => (TypeAnalyzer.Save(true), SaveConfig()))
+OnExit((*) => (SaveConfig()))
 
 ; ============================================================================
 ; 設定の読み込み

@@ -177,9 +177,6 @@ ReadConfig(section, key, defaultValue, ConfigPath := "") {
  * @returns {Integer} 読み込んだ整数設定値
  */
 ReadConfigInt(section, key, defaultValue, ConfigPath := "") {
-    if ConfigPath = "" {
-        ConfigPath := A_ScriptDir . "\config.ini"
-    }
     try {
         return Integer(ReadConfig(section, key, String(defaultValue), ConfigPath))
     } catch {
@@ -197,6 +194,18 @@ StripQuotes(val) {
         return SubStr(val, 2, StrLen(val) - 2)
     }
     return val
+}
+
+/**
+ * 指定されたセクションとキーに設定を書き込みます。
+ * @param {String} value - 書き込む値
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
+ * @returns {Boolean} 書き込み結果
+ */
+WriteConfig(value, section, key) {
+    static ConfigPath := A_ScriptDir . "\config.ini"
+    return IniWrite(value, ConfigPath, section, key)
 }
 
 /**
@@ -237,18 +246,6 @@ GetIniSection(filename, sectionName) {
         }
     }
     return section_text
-}
-
-/**
- * 指定されたセクションとキーに設定を書き込みます。
- * @param {String} value - 書き込む値
- * @param {String} section - セクション名
- * @param {String} key - キー名
- * @returns {Boolean} 書き込み結果
- */
-WriteConfig(value, section, key) {
-    static ConfigPath := A_ScriptDir . "\config.ini"
-    return IniWrite(value, ConfigPath, section, key)
 }
 
 /**
@@ -2490,6 +2487,18 @@ GetCaretPosition(target_hwnd := 0) {
 
 class IMEIndicator {
     static ime_indicator_mode := 3 ; 0: 非表示, 1: キャレット, 2: マウス, 3: 双方
+    static caret_gui := ""
+    static mouse_gui := ""
+
+    static color_japanese := "Red"
+    static color_english := "Green"
+    static caret_dot_size := 12
+    static mouse_dot_size := 10
+    static caret_offset_x := 20
+    static caret_offset_y := 20
+    static mouse_offset_x := 20
+    static mouse_offset_y := 20
+
     static is_showing_ime_indicator {
         get => (this.ime_indicator_mode > 0)
         set => (this.ime_indicator_mode := value ? 3 : 0)
@@ -2503,17 +2512,6 @@ class IMEIndicator {
     }
 
     /**
-     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
-     */
-    static SaveConfig() {
-        try {
-            WriteConfig(String(this.ime_indicator_mode), "Settings", "ImeIndicatorMode")
-            WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
-        } catch {
-        }
-    }
-
-    /**
      * IMEインジケータの表示モードを4段階で順次切り替えます。
      * 0: 非表示
      * 1: キャレット右下にのみ表示
@@ -2521,6 +2519,9 @@ class IMEIndicator {
      * 3: 双方表示
      */
     static CycleImeIndicatorMode() {
+        if !(this.caret_gui is Gui) || !(this.mouse_gui is Gui) {
+            return
+        }
         this.ime_indicator_mode := Mod(this.ime_indicator_mode + 1, 4)
         this.SaveConfig()
 
@@ -2531,20 +2532,16 @@ class IMEIndicator {
         ShowOSD(CenterPad("IME状態表示: " . current_name, 30))
 
         ; 即時反映処理
-        global m_gui, m_gui_m
+
         if (this.ime_indicator_mode != 1 && this.ime_indicator_mode != 3) {
-            if IsSet(m_gui) && m_gui {
-                try m_gui.Hide()
-            }
+            try this.caret_gui.Hide()
         }
         if (this.ime_indicator_mode != 2 && this.ime_indicator_mode != 3) {
-            if IsSet(m_gui_m) && m_gui_m {
-                try m_gui_m.Hide()
-            }
+            try this.mouse_gui.Hide()
         }
 
         try {
-            ImeIndicator.Update()
+            ImeIndicator.Update(ImeState.GetStatus())
         }
     }
 
@@ -2553,14 +2550,14 @@ class IMEIndicator {
      * @param {Boolean} [precise=False] - IME状態取得を強制的に再取得するかどうか
      * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
      */
-    static UpdateCaret(precise := False, target_hwnd := 0) {
+    static UpdateCaret(ime_state_value, target_hwnd := 0) {
         static last_status := -1 ; -1: 初期状態, 0: 非表示, 1: 日本語(ON), 2: 強制ON, 3: 英語(OFF)
         static last_x := -1, last_y := -1
 
         ; 1. インジケーター表示が無効、またはキャレット表示モード(1, 3)でない場合は非表示にして終了
         if !(IMEIndicator.ime_indicator_mode == 1 || IMEIndicator.ime_indicator_mode == 3) {
             if last_status != 0 {
-                m_gui.Hide()
+                this.caret_gui.Hide()
                 last_status := 0
                 last_x := -1
                 last_y := -1
@@ -2572,7 +2569,7 @@ class IMEIndicator {
         caret_pos := GetCaretPosition(target_hwnd)
         if !caret_pos {
             if last_status != 0 {
-                m_gui.Hide()
+                this.caret_gui.Hide()
                 last_status := 0
                 last_x := -1
                 last_y := -1
@@ -2580,30 +2577,25 @@ class IMEIndicator {
             return
         }
 
-        ; 3. IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
-        if ImeState.IsOn(precise) {
-            ime_state_value := ImeState.force_ime_on ? 2 : 1
-        } else {
-            ime_state_value := 3
-        }
-
         ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
-        static dpi_scale := A_ScreenDPI / 96
-        static offset := Round(2 * dpi_scale)
+        static dpi_scale := A_ScreenDPI
+        static offset_x := Round(dpi_scale * this.caret_offset_x / 960)
+        static offset_y := Round(dpi_scale * this.caret_offset_y / 960)
 
-        target_x := caret_pos.x + offset
-        target_y := caret_pos.y + offset
+        target_x := caret_pos.x + offset_x
+        target_y := caret_pos.y + offset_y
 
         ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
         if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
             if (ime_state_value != last_status) {
                 if (ime_state_value == 3) {
-                    m_gui.BackColor := color_english ; 英語 (IME OFF) -> Green
+                    this.caret_gui.BackColor := this.color_english ; 英語 (IME OFF) -> Green
                 } else {
-                    m_gui.BackColor := color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+                    this.caret_gui.BackColor := this.color_japanese ; 日本語 (IME ON / 強制ON) -> Red
                 }
             }
-            m_gui.Show("x" target_x " y" target_y " w" dot_size " h" dot_size " NoActivate")
+            this.caret_gui.Show("x" target_x " y" target_y " w" this.caret_dot_size " h" this.caret_dot_size " NoActivate"
+            )
             last_x := target_x
             last_y := target_y
             last_status := ime_state_value
@@ -2613,13 +2605,13 @@ class IMEIndicator {
     /**
      * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
      */
-    static UpdateMouse(precise := False) {
+    static UpdateMouse(ime_state_value) {
         static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
         static last_x := -2, last_y := 0
 
         if !(IMEIndicator.ime_indicator_mode == 2 || IMEIndicator.ime_indicator_mode == 3) {
             if last_status != 0 {
-                m_gui_m.Hide()
+                this.mouse_gui.Hide()
                 last_status := 0
                 last_x := -2
                 last_y := 0
@@ -2631,27 +2623,31 @@ class IMEIndicator {
         CoordMode("Mouse", "Screen")
         MouseGetPos(&mx, &my)
 
-        if (mx = last_x && my = last_y) {
-            ime_state_value := 0
-            if ImeState.IsOn(precise) {
-                ime_state_value := ImeState.force_ime_on ? 2 : 1
-            }
+        static dpi_scale := A_ScreenDPI
+        static offset_x := Round(dpi_scale * this.caret_offset_x / 960 * 8)
+        static offset_y := Round(dpi_scale * this.caret_offset_y / 960 * 8)
 
+        if (mx = last_x && my = last_y) {
             if ime_state_value > 0 {
                 if ime_state_value != last_status {
-                    m_gui_m.BackColor := (ime_state_value == 2) ? color_english : color_japanese
-                    m_gui_m.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
+                    if (ime_state_value == 3) {
+                        this.mouse_gui.BackColor := this.color_english ; 英語 (IME OFF) -> Green
+                    } else {
+                        this.mouse_gui.BackColor := this.color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+                    }
+                    this.mouse_gui.Show("x" (mx + offset_x) " y" (my + offset_y) " w" this.mouse_dot_size " h" this.mouse_dot_size " NoActivate"
+                    )
                 }
             } else {
                 ; 既に非表示の場合は Hide しない（余計な負荷削減）
                 if last_status != 0 {
-                    m_gui_m.Hide()
+                    this.mouse_gui.Hide()
                 }
             }
             last_status := ime_state_value
         } else {   ; マウスが動いて位置が変更された場合
             if last_status != -1 {
-                m_gui_m.Hide()
+                this.mouse_gui.Hide()
             }
             last_x := mx
             last_y := my
@@ -2659,37 +2655,31 @@ class IMEIndicator {
         }
     }
 
-    static Update() {
-        IMEIndicator.UpdateCaret()
-        IMEIndicator.UpdateMouse()
+    static Update(ime_state_value := "") {
+        if (ime_state_value == "") {
+            ime_state_value := (IsSet(ImeState) && HasMethod(ImeState, "GetStatus")) ? ImeState.GetStatus() : (ImeState.IsOn() ? (ImeState.force_ime_on ? 2 : 1) : 3)
+        }
+        IMEIndicator.UpdateCaret(ime_state_value)
+        IMEIndicator.UpdateMouse(ime_state_value)
     }
 
     /**
      * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
      */
     static Init() {
-        global color_japanese, color_english
-        global dot_size
-        global m_gui, m_gui_m
-
-        color_japanese := "Red"
-        color_english := "Green"
-        dot_size := 18
-        mouse_dot_size := 12
-
         this.LoadConfig()
 
         ; ------------
 
         ; キャレット表示用のGUI作成
         ; 描画用のウィンドウ（GUI）作成
-        m_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
-        m_gui.BackColor := color_japanese
-        WinSetRegion("0-0 w" dot_size " h" dot_size " Ellipse", m_gui)
+        this.caret_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        this.caret_gui.BackColor := this.color_japanese
+        WinSetRegion("0-0 w" this.caret_dot_size " h" this.caret_dot_size " Ellipse", this.caret_gui)
 
-        m_gui_m := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
-        m_gui_m.BackColor := color_japanese
-        WinSetRegion("0-0 w" mouse_dot_size " h" mouse_dot_size " Ellipse", m_gui_m)
+        this.mouse_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        this.mouse_gui.BackColor := this.color_japanese
+        WinSetRegion("0-0 w" this.mouse_dot_size " h" this.mouse_dot_size " Ellipse", this.mouse_gui)
 
     }
 
@@ -2698,15 +2688,42 @@ class IMEIndicator {
      */
     static LoadConfig() {
         try {
-            mode_val := ReadConfig("Settings", "ImeIndicatorMode", "")
-            if (mode_val != "") {
-                this.ime_indicator_mode := Integer(mode_val)
-            } else {
-                enabled_val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
-                this.ime_indicator_mode := (enabled_val == "1") ? 3 : 0
-            }
+            this.ime_indicator_mode := ReadConfig("Settings", "ImeIndicatorMode", "")
+            ; if (mode_val != "") {
+            ;     this.ime_indicator_mode := Integer(mode_val)
+            ; } else {
+            ;     enabled_val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
+            ;     this.ime_indicator_mode := (enabled_val == "1") ? 3 : 0
+            ; }
+            this.color_japanese := ReadConfig("Settings", "ColorJapanese", this.color_japanese)
+            this.color_english := ReadConfig("Settings", "ColorEnglish", this.color_english)
+            this.caret_dot_size := ReadConfig("Settings", "CaretDotSize", this.caret_dot_size)
+            this.caret_offset_x := ReadConfig("Settings", "CaretOffsetX", this.caret_offset_x)
+            this.caret_offset_y := ReadConfig("Settings", "CaretOffsetY", this.caret_offset_y)
+            this.mouse_dot_size := ReadConfig("Settings", "MouseDotSize", this.mouse_dot_size)
+            this.mouse_offset_x := ReadConfig("Settings", "MouseOffsetX", this.mouse_offset_x)
+            this.mouse_offset_y := ReadConfig("Settings", "MouseOffsetY", this.mouse_offset_y)
         } catch {
             this.ime_indicator_mode := 3
         }
     }
+    /**
+     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
+     */
+    static SaveConfig() {
+        try {
+            WriteConfig(String(this.ime_indicator_mode), "Settings", "ImeIndicatorMode")
+            ;WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
+            WriteConfig(this.color_japanese, "Settings", "ColorJapanese")
+            WriteConfig(this.color_english, "Settings", "ColorEnglish")
+            WriteConfig(this.caret_dot_size, "Settings", "CaretDotSize")
+            WriteConfig(this.caret_offset_x, "Settings", "CaretOffsetX")
+            WriteConfig(this.caret_offset_y, "Settings", "CaretOffsetY")
+            WriteConfig(this.mouse_dot_size, "Settings", "MouseDotSize")
+            WriteConfig(this.mouse_offset_x, "Settings", "MouseOffsetX")
+            WriteConfig(this.mouse_offset_y, "Settings", "MouseOffsetY")
+        } catch {
+        }
+    }
+
 } ;class IMEIndicator

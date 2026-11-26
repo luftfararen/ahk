@@ -3,6 +3,46 @@
 All notable changes to this project will be documented in this file.
 The format is maintained in English with comprehensive technical details.
 
+## [2026-11-27] - Centralize IME Status Evaluation and Enhance IMEIndicator Configuration
+
+### Overview
+
+- **Category**: Refactoring / Feature Enhancement
+- **Affected Files**: `src/PlayGroundsExp.ahk`, `src/Utils.ahk`, `test/test_caret_indicator.ahk`
+- **Summary**: Centralized IME state resolution by introducing `ImeState.GetStatus()`, refactored `IMEIndicator` to encapsulate GUI objects as class properties (`caret_gui`, `mouse_gui`), added configuration support for indicator dot dimensions and screen offsets, and updated test suites.
+
+### Technical Changes
+
+- **`src/PlayGroundsExp.ahk`**:
+  - Added `ImeState.GetStatus(precise := True)`: Evaluates IME state and returns 1 (Japanese ON), 2 (Forced ON), or 3 (English OFF).
+  - Updated all caller sites (`ToggleForceImeModeOn`, `ToggleImeState`, `SendAndLog`, `TimerEvent`) to pass `ImeState.GetStatus()` into `ImeIndicator.Update()`.
+  - Added `IMEIndicator.SaveConfig()` and `TypeAnalyzer.Save(true)` invocation inside unified `SaveConfig()`, simplifying `OnExit`.
+- **`src/Utils.ahk`**:
+  - Refactored `IMEIndicator`:
+    - Converted global GUI variables to static members `caret_gui` and `mouse_gui`.
+    - Added configurable properties: `caret_dot_size`, `caret_offset_x`, `caret_offset_y`, `mouse_dot_size`, `mouse_offset_x`, `mouse_offset_y`, `color_japanese`, `color_english`.
+    - Updated `LoadConfig()` and `SaveConfig()` to persist indicator sizes and offsets in `[Settings]`.
+    - Updated `Update(ime_state_value := "")` with an optional parameter defaulting to `ImeState.GetStatus()` when omitted for robust backward compatibility.
+    - Updated `UpdateCaret` and `UpdateMouse` signatures to accept `ime_state_value` directly.
+- **`test/test_caret_indicator.ahk`**:
+  - Updated GUI target references to `IMEIndicator.caret_gui` and adapted test calls to `IMEIndicator.UpdateCaret(1, tGui.Hwnd)`.
+
+### Verification
+
+- Validated syntax with `AutoHotkey64.exe /validate` across `PlayGrounds.ahk`, `PlayGroundsExp.ahk`, `Utils.ahk`, `Handler.ahk`, and `test/test_caret_indicator.ahk` (all exit code 0).
+
+### Suggested Commit Message
+
+```text
+refactor(indicator): centralize IME status evaluation and add indicator size/offset configs
+
+- Add `ImeState.GetStatus()` to determine IME state code (1/2/3)
+- Encapsulate GUI windows as `IMEIndicator.caret_gui` and `IMEIndicator.mouse_gui`
+- Support dot size and offset settings in `IMEIndicator.LoadConfig()` and `SaveConfig()`
+- Make `ime_state_value` optional in `IMEIndicator.Update()` for backward compatibility
+- Update unit tests in `test/test_caret_indicator.ahk`
+```
+
 ## [2026-11-26] - Modularize Config Management into Individual Classes and Add Unified SaveConfig
 
 ### Overview

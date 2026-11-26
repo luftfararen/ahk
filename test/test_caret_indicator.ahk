@@ -12,13 +12,13 @@ Test_Caret_Indicator() {
     global dot_size
     global m_gui
 
-    if !IsSet(m_gui) || !m_gui {
-        if HasMethod(IMEIndicator, "Init") {
-            IMEIndicator.Init()
-        } else if IsSet(InitGUI) {
-            InitGUI()
-        }
+    if HasMethod(IMEIndicator, "Init") {
+        IMEIndicator.Init()
+    } else if (!IsSet(m_gui) || !m_gui) && IsSet(InitGUI) {
+        InitGUI()
     }
+
+    target_gui := (IsSet(IMEIndicator) && IMEIndicator.caret_gui is Gui) ? IMEIndicator.caret_gui : m_gui
 
     ; Save original states to restore later
     indicator_class := IsSet(IMEIndicator) ? IMEIndicator : TypeAnalyzer
@@ -64,27 +64,27 @@ Test_Caret_Indicator() {
     posBtn := GetCaretPosition(tGui.Hwnd)
     Assert(posBtn == false, "GetCaretPosition returns false when button is focused")
 
-    ; Test 4: Disabling indicator setting hides m_gui
+    ; Test 4: Disabling indicator setting hides GUI
     indicator_class.is_showing_ime_indicator := false
     if HasMethod(IMEIndicator, "UpdateCaret") {
-        IMEIndicator.UpdateCaret(false, tGui.Hwnd)
+        IMEIndicator.UpdateCaret(1, tGui.Hwnd)
     } else {
         UpdateImeIndicator(false, tGui.Hwnd)
     }
-    Assert(!DllCall("IsWindowVisible", "Ptr", m_gui.Hwnd), "m_gui is hidden when is_showing_ime_indicator is false")
+    Assert(!DllCall("IsWindowVisible", "Ptr", target_gui.Hwnd), "Indicator GUI is hidden when is_showing_ime_indicator is false")
 
     ; Test 5: Indicator setting enabled
     indicator_class.is_showing_ime_indicator := true
 
-    ; Test 6: Focusing button with indicator enabled hides m_gui (no caret)
+    ; Test 6: Focusing button with indicator enabled hides GUI (no caret)
     btnCtrl.Focus()
     Sleep(100)
     if HasMethod(IMEIndicator, "UpdateCaret") {
-        IMEIndicator.UpdateCaret(false, tGui.Hwnd)
+        IMEIndicator.UpdateCaret(1, tGui.Hwnd)
     } else {
         UpdateImeIndicator(false, tGui.Hwnd)
     }
-    Assert(!DllCall("IsWindowVisible", "Ptr", m_gui.Hwnd), "m_gui is hidden when caret is unavailable")
+    Assert(!DllCall("IsWindowVisible", "Ptr", target_gui.Hwnd), "Indicator GUI is hidden when caret is unavailable")
 
     ; Test 7: 4-stage mode cycling
     indicator_class.ime_indicator_mode := 0
