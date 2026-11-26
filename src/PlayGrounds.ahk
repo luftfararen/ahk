@@ -195,6 +195,15 @@ class ImeState {
     static last_check_time := 0
     static threshold := 100
 
+    ;IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
+    static GetStatus(precise := True) {
+        if ImeState.IsOn(precise) {
+            return ImeState.force_ime_on ? 2 : 1
+        } else {
+            return 3
+        }
+    }
+
     /**
      * 動作状態を設定する
      * @param {Integer} mode - 動作モード
@@ -384,7 +393,7 @@ ToggleForceImeModeOn() {
         ImeState.last_active_control_hwnd := hwnd
     }
     ImeState.UpdateState()
-    ImeIndicator.Update()
+    ImeIndicator.Update(ImeState.GetStatus())
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
@@ -402,7 +411,7 @@ SendImeChar(c) {
  */
 ToggleImeState() {
     SendImeChar(B_ZENKAKU)
-    ImeIndicator.Update()
+    ImeIndicator.Update(ImeState.GetStatus())
 }
 
 /**
@@ -413,7 +422,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         ImeState.ResetComposition()
         SendImeChar(c) ;criticalが二重にかかるが大丈夫
-        ImeIndicator.Update()
+        ImeIndicator.Update(ImeState.GetStatus())
         return
     }
     if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
@@ -544,7 +553,7 @@ TimerEvent() {
         return
     }
 
-    ImeIndicator.Update()
+    ImeIndicator.Update(ImeState.GetStatus())
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
@@ -950,6 +959,15 @@ class LKey extends RKey {
 
     static instances := []
 
+    static LoadConfig() {
+        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
+        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
+    }
+
+    static SaveConfig() {
+        WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+        WriteConfig(String(LKey.pre_stroke_buf), "Settings", "PreStrokeBuf")
+    }
     /**
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
@@ -1439,11 +1457,8 @@ ResetCombinations() {
  */
 LoadLayoutConfig() {
     try {
-        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
-        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
-        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
-        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
-        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
+        LKey.LoadConfig()
+        Layers.LoadConfig()
         layout_name := ReadConfig("Settings", "StartupLayout", "")
         if layout_name = ""
             return
@@ -1547,6 +1562,18 @@ class Layers {
 
     ime_arr := []
     arr := []
+
+    static LoadConfig() {
+        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
+        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
+        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
+    }
+
+    static SaveConfig() {
+        WriteConfig(String(Layers.b_time), "Settings", "b_time")
+        WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
+        WriteConfig(String(Layers.hold_th), "Settings", "LayerHoldTh")
+    }
 
     /**
      * レイヤーIDで指定されたレイヤーがアクティブかどうかを判定します。
@@ -1960,7 +1987,8 @@ class Layers {
 
                         t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
                         x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
-                        b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
+                        b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time
+                        )
 
                         ; 1. 判定エンジンによる同時押し評価
                         chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
@@ -2212,8 +2240,16 @@ ParseIniCombinationValue(val) {
 
 #include "Preset.ahk"
 
+SaveConfig() {
+    TypeAnalyzer.SaveConfig()
+    LKey.SaveConfig()
+    Layers.SaveConfig()
+    IMEIndicator.SaveConfig()
+    TypeAnalyzer.Save(true)
+}
+
 ; 終了・リロード時に保存
-OnExit((*) => (TypeAnalyzer.Save(true), Config.Save()))
+OnExit((*) => (SaveConfig()))
 
 ; ============================================================================
 ; 設定の読み込み
@@ -2270,9 +2306,6 @@ Init() {
 
     DllCall("winmm\timeBeginPeriod", "UInt", 1, "UInt")
 
-    ; 0. Configのロード
-    Config.Load()
-
     ; 1. 文字列・キー変換用マップの初期化 (LKeyの生成に必要)
     InitMaps()
 
@@ -2294,8 +2327,8 @@ Init() {
     IMEIndicator.Init()
 
     ; 6. レイアウト設定・ログの読み込み
-    LoadLayoutConfig()
-    TypeAnalyzer.Load()
+    LoadLayoutConfig() ; LKey.LoadConfig(), Layes..LoadConfig(),
+    TypeAnalyzer.Load() ;TypeAnalyzer.LoadConfig()
 
     ; 7. トレイメニューやUIの設定
     A_TrayMenu.Add() ; セパレータ
