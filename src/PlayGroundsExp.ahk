@@ -30,6 +30,7 @@
 ;    打鍵間隔）を記録します。各配列の効率分析や、自身のタイピング傾向の把握に
 ;    活用できます
 ; 9. IMEインジケーター (Dot Indicator): 現在の IME 状態を視覚化します。
+;    日本語入力が ON の間、テキスト入力キャレットに追従する小さなドットを表示します。
 ;    日本語入力が ON の間、マウスカーソルに追従する小さなドットを表示します。
 ;
 ;  リアルシフトキーとスペースシフトキーの挙動は個別に設定可能
@@ -115,17 +116,24 @@ global LAYER_ID_TO_NAME := Map(
 ; ============================================================================
 ; mod_key_id (修飾キー、または修飾キーの組み合わせのインデックス番号)
 ; ============================================================================
-global M1 := 1 ; F13 (単独)
-global M2 := 2 ; 無変換 (単独)
-global M3 := 3 ; 変換 (単独)
-global M4 := 4 ; F14 (単独)
-global M5 := 5 ; F13 + (Alt または 無変換)
-global M6 := 6 ; Tab
-global M7 := 7 ; Space
-global M8 := 8 ; 変換 + F14
+global M1 := 1   ; F13 (単独)
+global M2 := 2   ; 無変換 (単独)
+global M3 := 3   ; 変換 (単独)
+global M4 := 4   ; F14 (単独)
+global M5 := 5   ; F13 + Alt
+global M6 := 6   ; F13 + 無変換
+global M7 := 7   ; Tab (単独)
+global M8 := 8   ; Space (Space-Shift)
+global M9 := 9   ; 変換 + F14
+global M10 := 10 ; F13 + Space
+global M11 := 11 ; 無変換 + Space
+global M12 := 12 ; Tab + Alt
+global M13 := 13 ; Tab + 無変換
+global M14 := 14 ; Tab + Space
 
 ; layer_id から mod_key_id を引く変換配列
-global layer_id_to_mod_key_id := [M1, M2, M3, M4, M5, M6, M7, M8]
+; SELECT に M5, M6、SHIFT に space (M8) を割り当て
+global layer_id_to_mod_key_id := [M1, M2, M3, M4, [M5, M6], M7, M8, M9]
 
 ; mod_key_id から修飾キー用のキーオブジェクトを引く配列
 global mod_key_list := []
@@ -186,6 +194,15 @@ class ImeState {
     static last_action_time := 0
     static last_check_time := 0
     static threshold := 100
+
+    ;IME 状態の判定 (1: 日本語ON, 2: 強制ON, 3: 英語OFF)
+    static GetStatus(precise := True) {
+        if ImeState.IsOn(precise) {
+            return ImeState.force_ime_on ? 2 : 1
+        } else {
+            return 3
+        }
+    }
 
     /**
      * 動作状態を設定する
@@ -376,7 +393,7 @@ ToggleForceImeModeOn() {
         ImeState.last_active_control_hwnd := hwnd
     }
     ImeState.UpdateState()
-    UpdateImeIndicator()
+    ImeIndicator.Update(ImeState.GetStatus())
     ShowOSD("Force IME Mode: " . ImeState.MakeForceStateWord())
 }
 
@@ -394,7 +411,7 @@ SendImeChar(c) {
  */
 ToggleImeState() {
     SendImeChar(B_ZENKAKU)
-    UpdateImeIndicator()
+    ImeIndicator.Update(ImeState.GetStatus())
 }
 
 /**
@@ -405,7 +422,7 @@ SendAndLog(c) {
     if c = B_NOCONV || c = B_CONV || c = B_ZENKAKU {
         ImeState.ResetComposition()
         SendImeChar(c) ;criticalが二重にかかるが大丈夫
-        UpdateImeIndicator()
+        ImeIndicator.Update(ImeState.GetStatus())
         return
     }
     if (c = B_ENTER || c = C_ENTER || c = "{Enter}" || c = "{Blind}{Enter}" || c = B_ESC || c = C_ESC || c = "{Esc}") {
@@ -517,53 +534,6 @@ AutoSuspendForRemoteDesktop() {
 }
 
 /**
- * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
- */
-UpdateImeIndicator(precise := False) {
-    static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
-
-    if !TypeAnalyzer.is_showing_ime_indicator {
-        if last_status != 0 {
-            m_gui.Hide()
-            last_status := 0
-        }
-        return
-    }
-
-    mx := -1, my := 0
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    static last_x := -2, last_y := 0
-
-    if (mx = last_x && my = last_y) {
-        ime_state_value := 0
-        if ImeState.IsOn(precise) {
-            ime_state_value := ImeState.force_ime_on ? 2 : 1
-        }
-
-        if ime_state_value > 0 {
-            if ime_state_value != last_status {
-                m_gui.BackColor := (ime_state_value == 2) ? "Green" : color_japanese
-                m_gui.Show("x" (mx + 36) " y" (my + 36) " w" dot_size " h" dot_size " NoActivate")
-            }
-        } else {
-            ; 既に非表示の場合は Hide しない（余計な負荷削減）
-            if last_status != 0 {
-                m_gui.Hide()
-            }
-        }
-        last_status := ime_state_value
-    } else {   ; マウスが動いて位置が変更された場合
-        if last_status != -1 {
-            m_gui.Hide()
-        }
-        last_x := mx
-        last_y := my
-        last_status := -1
-    }
-}
-
-/**
  * 定期的に実行されるタイマーイベント。IME表示の更新やログの保存などを行う。
  */
 TimerEvent() {
@@ -583,7 +553,7 @@ TimerEvent() {
         return
     }
 
-    UpdateImeIndicator()
+    ImeIndicator.Update(ImeState.GetStatus())
 
     ; 20秒以上操作がない場合、ログを保存
     if (Mod(counter, 100) == 0) {
@@ -989,6 +959,15 @@ class LKey extends RKey {
 
     static instances := []
 
+    static LoadConfig() {
+        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
+        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
+    }
+
+    static SaveConfig() {
+        WriteConfig(String(LKey.hold_th), "Settings", "HoldTh")
+        WriteConfig(String(LKey.pre_stroke_buf), "Settings", "PreStrokeBuf")
+    }
     /**
      * すべての LKey インスタンスの状態（押下時間、割り込みフラグ、タイマーなど）を初期状態にリセットします。
      */
@@ -1478,11 +1457,8 @@ ResetCombinations() {
  */
 LoadLayoutConfig() {
     try {
-        LKey.hold_th := ReadConfigInt("Settings", "HoldTh", LKey.hold_th)
-        LKey.pre_stroke_buf := ReadConfigInt("Settings", "PreStrokeBuf", LKey.pre_stroke_buf)
-        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
-        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
-        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
+        LKey.LoadConfig()
+        Layers.LoadConfig()
         layout_name := ReadConfig("Settings", "StartupLayout", "")
         if layout_name = ""
             return
@@ -1587,6 +1563,18 @@ class Layers {
     ime_arr := []
     arr := []
 
+    static LoadConfig() {
+        Layers.b_time := ReadConfigInt("Settings", "b_time", Layers.b_time)
+        Layers.b_time2 := ReadConfigInt("Settings", "b_time2", Layers.b_time2)
+        Layers.hold_th := ReadConfigInt("Settings", "LayerHoldTh", Layers.hold_th)
+    }
+
+    static SaveConfig() {
+        WriteConfig(String(Layers.b_time), "Settings", "b_time")
+        WriteConfig(String(Layers.b_time2), "Settings", "b_time2")
+        WriteConfig(String(Layers.hold_th), "Settings", "LayerHoldTh")
+    }
+
     /**
      * レイヤーIDで指定されたレイヤーがアクティブかどうかを判定します。
      * layer_id_to_mod_key_id を経由して mod_key_id を取得し、それに基づいて評価します。
@@ -1598,65 +1586,20 @@ class Layers {
             return false
         }
         if (layer_id <= layer_id_to_mod_key_id.Length) {
-            mod_key_id := layer_id_to_mod_key_id[layer_id]
-            if (mod_key_id <= 0)
+            target_mod := layer_id_to_mod_key_id[layer_id]
+            if (target_mod is Array) {
+                for mid in target_mod {
+                    if (mid > 0 && Layers.StateModKeyId(mid))
+                        return true
+                }
                 return false
-            return Layers.StateModKeyId(mod_key_id)
+            }
+            if (target_mod <= 0)
+                return false
+            return Layers.StateModKeyId(target_mod)
         }
         if (layer_id <= mod_key_list.Length) {
             return Layers.StateModKeyId(layer_id)
-        }
-        return false
-    }
-
-    /**
-     * 特定のモディファイアインデックス（M1〜M8、または登録キー）がアクティブかどうかを判定します。
-     * @param {Integer} mod_key_id - 修飾キーID
-     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
-     */
-    static StateModKeyId(mod_key_id) {
-        if WinActive("ahk_group RemoteDesktops")
-            return false
-
-        if (mod_key_id < 1)
-            return false
-
-        ; M1: F13 (単独, Alt/無変換なし)
-        if mod_key_id == 1 {
-            return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
-        }
-        ; M2: 無変換 (単独, F13/Altなし)
-        if mod_key_id == 2 {
-            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P"))
-        }
-        ; M3: 変換 (単独, F14なし)
-        if mod_key_id == 3 {
-            return conv.IsPressed() && !f14.IsPressed()
-        }
-        ; M4: F14 (単独, 変換なし)
-        if mod_key_id == 4 {
-            return f14.IsPressed() && !conv.IsPressed()
-        }
-        ; M5: F13 + (Alt または 無変換)
-        if mod_key_id == 5 {
-            return f13.IsPressed() && (GetKeyState("Alt", "P") || noconv.IsPressed())
-        }
-        ; M6: Tab
-        if mod_key_id == 6 {
-            return tab.IsPressed()
-        }
-        ; M7: Space
-        if mod_key_id == 7 {
-            return space.IsPressed()
-        }
-        ; M8: 変換 + F14
-        if mod_key_id == 8 {
-            return conv.IsPressed() && f14.IsPressed()
-        }
-
-        ; M9以降（動的に登録された修飾キーオブジェクト）
-        if (mod_key_id <= mod_key_list.Length) {
-            return mod_key_list[mod_key_id].IsPressed()
         }
         return false
     }
@@ -1671,10 +1614,17 @@ class Layers {
         if (layer_id < 1)
             return false
         if (layer_id <= layer_id_to_mod_key_id.Length) {
-            mod_key_id := layer_id_to_mod_key_id[layer_id]
-            if (mod_key_id <= 0)
+            target_mod := layer_id_to_mod_key_id[layer_id]
+            if (target_mod is Array) {
+                for mid in target_mod {
+                    if (mid > 0 && Layers.State2ModKeyId(mid, key_obj))
+                        return true
+                }
                 return false
-            return Layers.State2ModKeyId(mod_key_id, key_obj)
+            }
+            if (target_mod <= 0)
+                return false
+            return Layers.State2ModKeyId(target_mod, key_obj)
         }
         if (layer_id <= mod_key_list.Length) {
             return Layers.State2ModKeyId(layer_id, key_obj)
@@ -1682,57 +1632,122 @@ class Layers {
         return false
     }
 
+    /**
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
+     * @param {Integer} mod_key_id - 修飾キーID
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
+     */
+    static StateModKeyId(mod_key_id) {
+        return Layers.State2ModKeyId(mod_key_id, "")
+    }
+
+    /**
+     * 特定のモディファイアインデックス（M1〜M14、または登録キー）がアクティブかどうかを判定します。
+     * key_obj が指定されている場合、そのキーオブジェクトが対象トリガーに該当するときは false を返します。
+     * @param {Integer} mod_key_id - 修飾キーID
+     * @param {Object} [key_obj=""] - 除外判定対象のキーオブジェクト（未指定・非オブジェクト時は除外なし）
+     * @returns {Boolean} 指定された修飾状態がアクティブな場合は true
+     */
     static State2ModKeyId(mod_key_id, key_obj) {
+        global f13, noconv, conv, f14, tab, space, mod_key_list
+
         if WinActive("ahk_group RemoteDesktops")
             return false
 
         if (mod_key_id < 1)
             return false
 
+        has_key_obj := IsSet(key_obj) && IsObject(key_obj)
+
+        ; M1: F13 (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 1 {
-            if f13 == key_obj || noconv == key_obj
+            if has_key_obj && (f13 == key_obj || noconv == key_obj)
                 return false
             return f13.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed())
         }
+        ; M2: 無変換 (単独, F13・Alt・Tab・Spaceなし)
         if mod_key_id == 2 {
-            if noconv == key_obj || f13 == key_obj
+            if has_key_obj && (noconv == key_obj || f13 == key_obj || tab == key_obj || space == key_obj)
                 return false
-            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P"))
+            return noconv.IsPressed() && !(f13.IsPressed() || GetKeyState("Alt", "P") || tab.IsPressed() || space.IsPressed())
         }
+        ; M3: 変換 (単独, F14なし)
         if mod_key_id == 3 {
-            if conv == key_obj
+            if has_key_obj && conv == key_obj
                 return false
             return conv.IsPressed() && !f14.IsPressed()
         }
+        ; M4: F14 (単独, 変換なし)
         if mod_key_id == 4 {
-            if f14 == key_obj
+            if has_key_obj && f14 == key_obj
                 return false
             return f14.IsPressed() && !conv.IsPressed()
         }
+        ; M5: F13 + Alt
         if mod_key_id == 5 {
-            if f13 == key_obj || noconv == key_obj
+            if has_key_obj && f13 == key_obj
                 return false
-            return f13.IsPressed() && (GetKeyState("Alt", "P") || noconv.IsPressed())
+            return f13.IsPressed() && GetKeyState("Alt", "P")
         }
+        ; M6: F13 + 無変換
         if mod_key_id == 6 {
-            if tab == key_obj
+            if has_key_obj && (f13 == key_obj || noconv == key_obj)
                 return false
-            return tab.IsPressed()
+            return f13.IsPressed() && noconv.IsPressed()
         }
+        ; M7: Tab (単独, Alt・無変換・Spaceなし)
         if mod_key_id == 7 {
-            if space == key_obj
+            if has_key_obj && (tab == key_obj || noconv == key_obj || space == key_obj)
                 return false
-            return space.IsPressed()
+            return tab.IsPressed() && !(GetKeyState("Alt", "P") || noconv.IsPressed() || space.IsPressed())
         }
+        ; M8: Space (Space-Shift, F13・無変換・Tabなし)
         if mod_key_id == 8 {
-            if conv == key_obj || f14 == key_obj
+            if has_key_obj && (space == key_obj || f13 == key_obj || noconv == key_obj || tab == key_obj)
+                return false
+            return space.IsPressed() && !(f13.IsPressed() || noconv.IsPressed() || tab.IsPressed())
+        }
+        ; M9: 変換 + F14
+        if mod_key_id == 9 {
+            if has_key_obj && (conv == key_obj || f14 == key_obj)
                 return false
             return conv.IsPressed() && f14.IsPressed()
         }
+        ; M10: F13 + Space
+        if mod_key_id == 10 {
+            if has_key_obj && (f13 == key_obj || space == key_obj)
+                return false
+            return f13.IsPressed() && space.IsPressed()
+        }
+        ; M11: 無変換 + Space
+        if mod_key_id == 11 {
+            if has_key_obj && (noconv == key_obj || space == key_obj)
+                return false
+            return noconv.IsPressed() && space.IsPressed()
+        }
+        ; M12: Tab + Alt
+        if mod_key_id == 12 {
+            if has_key_obj && tab == key_obj
+                return false
+            return tab.IsPressed() && GetKeyState("Alt", "P")
+        }
+        ; M13: Tab + 無変換
+        if mod_key_id == 13 {
+            if has_key_obj && (tab == key_obj || noconv == key_obj)
+                return false
+            return tab.IsPressed() && noconv.IsPressed()
+        }
+        ; M14: Tab + Space
+        if mod_key_id == 14 {
+            if has_key_obj && (tab == key_obj || space == key_obj)
+                return false
+            return tab.IsPressed() && space.IsPressed()
+        }
 
+        ; M15以降（動的に登録された修飾キーオブジェクト）
         if (mod_key_id <= mod_key_list.Length) {
             key := mod_key_list[mod_key_id]
-            if key == key_obj
+            if has_key_obj && key == key_obj
                 return false
             return key.IsPressed()
         }
@@ -1948,60 +1963,69 @@ class Layers {
     SendLayerKey(key_obj, ime_state) {
         arr := ime_state == 1 ? this.ime_arr : this.arr
         for item in arr {
-            mod_key_id := 0
+            mod_key_ids := []
             if (item.layer_id >= 1 && item.layer_id <= layer_id_to_mod_key_id.Length) {
-                mod_key_id := layer_id_to_mod_key_id[item.layer_id]
-            } else if (item.layer_id > 8 && item.layer_id <= mod_key_list.Length) {
-                mod_key_id := item.layer_id
+                target_mod := layer_id_to_mod_key_id[item.layer_id]
+                if (target_mod is Array) {
+                    mod_key_ids := target_mod
+                } else if (target_mod > 0) {
+                    mod_key_ids := [target_mod]
+                }
+            } else if (item.layer_id > 14 && item.layer_id <= mod_key_list.Length) {
+                mod_key_ids := [item.layer_id]
             }
-            if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
-                continue
 
-            mod_key := mod_key_list[mod_key_id]
-            if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
-                if Layers.State2ModKeyId(mod_key_id, key_obj) {
-                    mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
-                        mod_key.hold_mode_org)
+            for mod_key_id in mod_key_ids {
+                if (mod_key_id < 1 || mod_key_id > mod_key_list.Length)
+                    continue
 
-                    t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
-                    x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
-                    b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time)
+                mod_key := mod_key_list[mod_key_id]
+                if (mod_key != key_obj && mod_key.IsPressed() && mod_key.state != LKey.st_init) {
+                    if Layers.State2ModKeyId(mod_key_id, key_obj) {
+                        mod_hold_mode := (item.mode >= 0) ? item.mode : ((ime_state == 1) ? mod_key.hold_mode_ime_org :
+                            mod_key.hold_mode_org)
 
-                    ; 1. 判定エンジンによる同時押し評価
-                    chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
-                        ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj, ime_state)
-                        : (t_qpc >= x ? 1 : 0)
+                        t_qpc := HighPrecisionTimer() - mod_key.pressed_time_qpc
+                        x := (item.hold_th >= 0) ? item.hold_th : Layers.hold_th
+                        b := (item.b_time >= 0) ? item.b_time : ((mod_hold_mode == 8) ? Layers.b_time2 : Layers.b_time
+                        )
 
-                    if (chord_result == -1)
-                        return true ; 先行送信済みで処理完了
-                    if (chord_result == 0)
-                        continue
+                        ; 1. 判定エンジンによる同時押し評価
+                        chord_result := (mod_hold_mode >= 5 && mod_hold_mode <= 9)
+                            ? Layers._EvaluateChord(mod_hold_mode, t_qpc, x, b, mod_key, key_obj, ime_state)
+                            : (t_qpc >= x ? 1 : 0)
 
-                    ; 2. 修飾成立時のキー送信と状態更新
-                    mod_key.state := LKey.st_processed
-                    action_to_send := item.action
-                    if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
-                        false) {
-                        ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
-                        if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
-                            Layers.last_active_item == item) {
-                            item.tap_count += 1
-                        } else {
-                            item.tap_count := 1
-                            item.last_mod_key := mod_key
-                            item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
+                        if (chord_result == -1)
+                            return true ; 先行送信済みで処理完了
+                        if (chord_result == 0)
+                            continue
+
+                        ; 2. 修飾成立時のキー送信と状態更新
+                        mod_key.state := LKey.st_processed
+                        action_to_send := item.action
+                        if (item.action2 != "" && item.action2 !== false) || (item.action3 != "" && item.action3 !==
+                            false) {
+                            ; 同一モディファイア押下セッション、かつ同一キーの連続打鍵判定
+                            if (item.last_mod_key == mod_key && item.last_mod_press_start_qpc == mod_key.pressed_time_qpc &&
+                                Layers.last_active_item == item) {
+                                item.tap_count += 1
+                            } else {
+                                item.tap_count := 1
+                                item.last_mod_key := mod_key
+                                item.last_mod_press_start_qpc := mod_key.pressed_time_qpc
+                            }
+                            if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
+                                action_to_send := item.action3
+                            } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
+                                action_to_send := item.action2
+                            }
                         }
-                        if (item.tap_count >= 3 && item.action3 != "" && item.action3 !== false) {
-                            action_to_send := item.action3
-                        } else if (item.tap_count >= 2 && item.action2 != "" && item.action2 !== false) {
-                            action_to_send := item.action2
-                        }
+                        ; 直近のアクティブなレイヤーアイテムを更新
+                        Layers.last_active_item := item
+
+                        this._SendKey(item.layer_id, action_to_send, key_obj)
+                        return true
                     }
-                    ; 直近のアクティブなレイヤーアイテムを更新
-                    Layers.last_active_item := item
-
-                    this._SendKey(item.layer_id, action_to_send, key_obj)
-                    return true
                 }
             }
         }
@@ -2216,8 +2240,16 @@ ParseIniCombinationValue(val) {
 
 #include "Preset.ahk"
 
+SaveConfig() {
+    TypeAnalyzer.SaveConfig()
+    LKey.SaveConfig()
+    Layers.SaveConfig()
+    IMEIndicator.SaveConfig()
+    TypeAnalyzer.Save(true)
+}
+
 ; 終了・リロード時に保存
-OnExit((*) => (TypeAnalyzer.Save(true), TypeAnalyzer.SaveConfig()))
+OnExit((*) => (SaveConfig()))
 
 ; ============================================================================
 ; 設定の読み込み
@@ -2256,7 +2288,7 @@ ShowHelp() {
         . "Win+M1+f: 強制IMEモードのON/OFF 切り替え`n"
         . "Win+M1+Up: マウス速度を上げる`n"
         . "Win+M1+Down: マウス速度を下げる`n"
-        . "Win+M1+,: IMEインジケータの表示/非表示を切り替え`n"
+        . "Win+M1+, / F13+,: IMEインジケータ表示モード切替(非表示/キャレット/マウス/双方)`n"
         . "Win+M1+.: キーロガーのOn/Offを切り替`n"
         . "==記号レイヤ1==  ==記号レイヤ2==`n"
         . "|?|/|*|+| |    |!|@|#|$|%|`n"
@@ -2282,29 +2314,29 @@ Init() {
 
     ; 3. モディファイアキーリストとレイヤーマッピングの初期化
     global mod_key_list
-    ;                M1(F13), M2(noconv), M3(conv), M4(F14), M5(F13), M6(tab), M7(space), M8(conv)
-    mod_key_list := [f13, noconv, conv, f14, f13, tab, space, conv]
+    ;                M1(F13), M2(noconv), M3(conv), M4(F14), M5(F13), M6(F13), M7(tab), M8(space), M9(conv), M10(F13), M11(noconv), M12(tab), M13(tab), M14(tab)
+    mod_key_list := [f13, noconv, conv, f14, f13, f13, tab, space, conv, f13, noconv, tab, tab, tab]
 
     global layer_id_to_mod_key_id
-    layer_id_to_mod_key_id := [M1, M2, M3, M4, M5, M6, M7, M8]
+    layer_id_to_mod_key_id := [M1, M2, M3, M4, [M5, M6], M7, M8, M9]
 
     ; 4. レイヤーとレイアウトの適用
     InitModLayer()
 
     ; 5. UI/GUI関連の初期化
-    InitGUI()
+    IMEIndicator.Init()
 
     ; 6. レイアウト設定・ログの読み込み
-    LoadLayoutConfig()
-    TypeAnalyzer.Load()
+    LoadLayoutConfig() ; LKey.LoadConfig(), Layes..LoadConfig(),
+    TypeAnalyzer.Load() ;TypeAnalyzer.LoadConfig()
 
     ; 7. トレイメニューやUIの設定
     A_TrayMenu.Add() ; セパレータ
     A_TrayMenu.Add("Key Layout Config Editorを開く", OpenConfigEditor)
 
     ; スクリプトと同じフォルダにあるアイコンファイルを指定
-    if FileExist("klt.ico") {
-        TraySetIcon("klt.ico")
+    if FileExist("Playgrounds.ico") {
+        TraySetIcon("Playgrounds.ico")
     }
 
     ; 8. タイマーの開始 (初期化完了後に実行)
@@ -2316,6 +2348,7 @@ Init() {
 
 Init()
 
+;ホットキーを定義
 #include "Handler.ahk"
 
 ; --- サスペンド（一時停止）ホットキー ---

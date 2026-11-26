@@ -12,6 +12,7 @@
 #Include "test_framework.ahk"
 #Include "test_hold_mode.ahk"
 #Include "test_layer_mapping.ahk"
+#Include "test_caret_indicator.ahk"
 
 RunAllTests() {
     InitTestSuite("MASTER REGRESSION TEST SUITE")
@@ -34,6 +35,9 @@ RunAllTests() {
     Test_LayerId_To_ModKeyId_Mapping()
     Test_Ini_Layer_Binding()
     Test_New_LayerBinding_Specification()
+
+    ; --- Test Suite 3: Caret & IME Indicator ---
+    Test_Caret_Indicator()
 
     FinishTestSuite()
 }

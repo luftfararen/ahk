@@ -18,7 +18,7 @@ sc029:: Send(C_EISU) ; Zen/Han -> Eisu
 
 Esc:: {
     TypeAnalyzer.Save(true)
-    TypeAnalyzer.SaveConfig()
+    SaveConfig()
     Reload()
 }
 
@@ -55,7 +55,8 @@ sc079:: ToggleImeState() ; Convert
 #8:: LoadLayoutFromIni(8)
 #9:: LoadLayoutFromIni(9)
 #0:: LoadLayoutFromIni(0)
-#sc033:: TypeAnalyzer.ToggleImeIndicator()
+#sc033:: IMEIndicator.CycleImeIndicatorMode()
+sc033:: IMEIndicator.CycleImeIndicatorMode()
 #.:: TypeAnalyzer.ToggleLogging()
 #h:: ShowHelp()
 
