@@ -1,0 +1,12 @@
+log.txt
+*.bak
+data
+*.pyc
+tools/*
+*.ig
+/test_*.*
+test/*.log
+test/*.txt
+test/*.ini
+src/config.ini
+todo.txt

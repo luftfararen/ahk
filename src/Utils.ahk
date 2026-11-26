@@ -1,0 +1,2729 @@
+#Requires AutoHotkey v2.0
+
+; ============================================================================
+; 修飾キー・記号・定数
+; ============================================================================
+; --- 変数命名規則 ---
+; R_... : ホットキー定義用の生文字列 (例: "sc07B")
+; C_... : Send互換の文字列 (例: "{sc07B}")
+; B_... : Blindモード用のSend文字列 (例: "{Blind}{sc07B}")
+
+; --- 無変換キー ---
+R_NOCONV := "sc07B"
+C_NOCONV := "{sc07B}"
+B_NOCONV := "{Blind}{sc07B}"
+
+; --- 変換キー ---
+R_CONV := "sc079"
+C_CONV := "{sc079}"
+B_CONV := "{Blind}{sc079}"
+
+; --- 円キー (¥) ---
+C_YEN := "{sc07D}"
+B_YEN := "{Blind}{sc07D}"
+
+; --- バックスラッシュキー (\) ---
+C_BACKSLASH := "{sc073}"
+
+; --- ハット/キャレットキー (^) ---
+C_HAT := "{sc00D}"
+
+; --- セミコロン (;) ---
+C_SEMICOLON := "{sc027}"
+B_SEMICOLON := "{Blind}{sc027}"
+C_PLUS := "+{sc027}"
+
+; --- コロン (:) ---
+C_COLON := "{sc028}"
+B_COLON := "{Blind}{sc028}"
+C_ASTERISK := "+{sc028}"
+
+; --- カンマ (,) ---
+C_COMMA := "{sc033}"
+
+; --- 英数 (CapsLock) ---
+R_EISU := "sc03A"
+C_EISU := "{sc03A}"
+
+; --- ひらがな/カタカナ ---
+R_HIRAGANA := "sc070"
+C_HIRAGANA := "{sc070}"
+
+; --- 全角/半角 (IME) ---
+R_ZENKAKU := "sc029"
+C_ZENKAKU := "{sc029}"
+B_ZENKAKU := "{Blind}{sc029}"
+
+; --- スラッシュ (/) ---
+C_SLASH := "{sc035}"
+B_SLASH := "{Blind}{sc035}"
+
+; --- Enter ---
+R_ENTER := "ENTER"
+C_ENTER := "{Enter}"
+B_ENTER := "{Blind}{Enter}"
+
+; --- テンキー定数 ---
+C_N0 := "{Numpad0}"
+C_N1 := "{Numpad1}"
+C_N2 := "{Numpad2}"
+C_N3 := "{Numpad3}"
+C_N4 := "{Numpad4}"
+C_N5 := "{Numpad5}"
+C_N6 := "{Numpad6}"
+C_N7 := "{Numpad7}"
+C_N8 := "{Numpad8}"
+C_N9 := "{Numpad9}"
+C_NDOT := "{NumpadDot}"
+
+; --- テンキー演算子 (Blindモードのみ) ---
+B_NADD := "{Blind}{NumpadAdd}"
+B_NMUL := "{Blind}{NumpadMult}"
+B_NSUB := "{Blind}{NumpadSub}"
+B_NDIV := "{Blind}{NumpadDiv}"
+
+; --- 機能キー ---
+C_DEL := "{Delete}"
+B_DEL := "{Blind}{Delete}"
+
+C_BS := "{Backspace}"
+B_BS := "{Blind}{Backspace}"
+
+C_ESC := "{Esc}"
+B_ESC := "{Blind}{Esc}"
+
+R_TAB := "Tab"
+C_TAB := "{Tab}"
+B_TAB := "{Blind}{Tab}"
+
+R_SPACE := "Space"
+C_SPACE := "{Space}"
+B_SPACE := "{Blind}{Space}"
+
+; --- 編集/ナビゲーション ショートカット ---
+R_REDO := "^y"
+B_UNDO := "{Blind}^{z}"
+B_CUT := "{Blind}^{x}"
+B_COPY := "{Blind}^{c}"
+B_PASTE := "{Blind}^{v}"
+
+; --- ナビゲーション ---
+B_HOME := "{Blind}{Home}"
+B_END := "{Blind}{End}"
+B_PGUP := "{Blind}{PgUp}"
+B_PGDN := "{Blind}{PgDn}"
+
+B_CHOME := "{Blind}^{Home}"
+B_CEND := "{Blind}^{End}"
+C_CSHOME := "^+{Home}"
+C_CSEND := "^+{End}"
+B_CPGUP := "{Blind}^{PgUp}"
+B_CPGDN := "{Blind}^{PgDn}"
+
+C_LEFT := "{Left}"
+B_LEFT := "{Blind}{Left}"
+C_RIGHT := "{Right}"
+B_RIGHT := "{Blind}{Right}"
+C_UP := "{Up}"
+B_UP := "{Blind}{Up}"
+C_DOWN := "{Down}"
+B_DOWN := "{Blind}{Down}"
+
+B_CLEFT := "{Blind}^{Left}"
+B_CRIGHT := "{Blind}^{Right}"
+C_CSLEFT := "^+{Left}"
+C_CSRIGHT := "^+{Right}"
+
+; --- ファンクションキー (Blindモードのみ) ---
+B_F1 := "{Blind}{F1}"
+B_F2 := "{Blind}{F2}"
+B_F3 := "{Blind}{F3}"
+B_F4 := "{Blind}{F4}"
+B_F5 := "{Blind}{F5}"
+B_F6 := "{Blind}{F6}"
+B_F7 := "{Blind}{F7}"
+B_F8 := "{Blind}{F8}"
+B_F9 := "{Blind}{F9}"
+B_F10 := "{Blind}{F10}"
+B_F11 := "{Blind}{F11}"
+B_F12 := "{Blind}{F12}"
+
+; ============================================================================
+; GLOBAL FUNCTIONS
+; ============================================================================
+
+/**
+ * 指定されたセクションとキーから設定を読み込みます。
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
+ * @param {String} defaultValue - デフォルト値
+ * @returns {String} 読み込んだ設定値
+ */
+ReadConfig(section, key, defaultValue, ConfigPath := "") {
+    if ConfigPath = "" {
+        ConfigPath := A_ScriptDir . "\config.ini"
+    }
+    val := IniRead(ConfigPath, section, key, defaultValue)
+    val := RegExReplace(val, "[\t ]+;.*$") ; インラインコメントを除去
+    return StripQuotes(Trim(val))
+}
+
+/**
+ * 指定されたセクションとキーから設定を整数値として読み込みます。
+ * 読み込みに失敗した場合や数値に変換できない場合は defaultValue を返します。
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
+ * @param {Integer} defaultValue - デフォルト値
+ * @returns {Integer} 読み込んだ整数設定値
+ */
+ReadConfigInt(section, key, defaultValue, ConfigPath := "") {
+    try {
+        return Integer(ReadConfig(section, key, String(defaultValue), ConfigPath))
+    } catch {
+        return defaultValue
+    }
+}
+
+/**
+ * 文字列の先頭と末尾がダブルクォーテーションで囲まれている場合、それらを除去した文字列を返します。
+ * @param {String} val - 対象文字列
+ * @returns {String} クォーテーション除去後の文字列
+ */
+StripQuotes(val) {
+    if (SubStr(val, 1, 1) == '"' && SubStr(val, -1) == '"' && StrLen(val) >= 2) {
+        return SubStr(val, 2, StrLen(val) - 2)
+    }
+    return val
+}
+
+/**
+ * 指定されたセクションとキーに設定を書き込みます。
+ * @param {String} value - 書き込む値
+ * @param {String} section - セクション名
+ * @param {String} key - キー名
+ * @returns {Boolean} 書き込み結果
+ */
+WriteConfig(value, section, key) {
+    static ConfigPath := A_ScriptDir . "\config.ini"
+    return IniWrite(value, ConfigPath, section, key)
+}
+
+/**
+ * INIファイルから指定されたセクションのすべての行をテキストとして取得します。
+ * Windows APIのエンコーディング制限を回避するため、UTF-8で直接ファイルを解析します。
+ * @param {String} filename - INIファイルのパス
+ * @param {String} sectionName - 取得対象のセクション名
+ * @returns {String} セクション全体のテキスト行
+ */
+GetIniSection(filename, sectionName) {
+    try {
+        content := FileRead(filename, "UTF-8")
+    } catch {
+        return ""
+    }
+
+    in_section := false
+    section_text := ""
+
+    for line in StrSplit(content, "`n", "`r") {
+        line := Trim(line)
+        if line == ""
+            continue
+
+        ; セクションヘッダーの判定 (例: [Minato])
+        if (SubStr(line, 1, 1) == "[" && SubStr(line, -1) == "]") {
+            current_sec := SubStr(line, 2, StrLen(line) - 2)
+            if (current_sec = sectionName) {
+                in_section := true
+            } else {
+                in_section := false
+            }
+            continue
+        }
+
+        if in_section {
+            section_text .= line . "`n"
+        }
+    }
+    return section_text
+}
+
+/**
+ * 高精度タイマーの周波数を取得します。
+ * @returns {Int64} 周波数
+ */
+QueryFrequency() {
+    freq := 0
+    DllCall("QueryPerformanceFrequency", "Int64*", &freq, "Int")
+    return freq
+}
+
+/**
+ * 高精度タイマーの現在のカウント値を取得します。
+ * @returns {Int64} カウント値
+ */
+QueryCounter() {
+    tick := 0
+    DllCall("QueryPerformanceCounter", "Int64*", &tick, "Int")
+    return tick
+}
+
+g_freq := QueryFrequency()
+
+/**
+ * 高分解能タイマーによる現在時刻を取得します (単位: ミリ秒)。
+ * @returns {Float} 経過ミリ秒
+ */
+HighPrecisionTimer() {
+    global g_freq
+    counter := 0
+    DllCall("QueryPerformanceCounter", "Int64*", &counter)
+    return (counter / g_freq) * 1000 ; ミリ秒単位に変換して返す
+}
+
+/**
+ * 高精度な一時待機処理を行います（MsgWaitForMultipleObjectsの呼び出し）。
+ * @param {Integer} t - 待機時間 (ms)
+ */
+Wait(t) {
+    ; timeBeginPeriod(1) のおかげで、引数 t 通り（1ms単位）の精度で待てる
+    DllCall("MsgWaitForMultipleObjects", "UInt", 0, "Ptr", 0, "Int", 0, "UInt", t, "UInt", 0x04FF, "UInt")
+}
+
+/**
+ * QPC高精度タイマーを利用した、ミリ秒未満の精度を持つビジーループと待機を組み合わせた高精度Sleep関数。
+ * @param {Integer} t - 待機時間 (ms)
+ */
+SleepHighPrecision(t) {
+    start_qpc := HighPrecisionTimer()
+
+    ; 【フェーズ1：大きく休む（2ms以上の隙間があるとき）】
+    ; ターゲットの2ms手前までは、正確になった Wait() でCPUを完全に寝かせる
+    while ((rem := t - (HighPrecisionTimer() - start_qpc)) > 2) {
+        ; 残り時間に応じた可変ウェイト（最大でも5msに抑えてキー入力を逃さない）
+        wait_time := (rem > 5) ? 5 : 1
+        Wait(wait_time)
+        Sleep(-1)
+    }
+
+    ; 【フェーズ2：ミリ秒未満の極小の隙間を埋める】
+    ; 残り2ms未満になったら、Waitを使うと行き過ぎる可能性があるので、
+    ; Sleep(0) または SwitchToThread で他のプロセスに優しく譲りつつ、QPCで超高精度に時間を合わせる
+    while (HighPrecisionTimer() - start_qpc < t) {
+        ; Sleep(0) または DllCall("SwitchToThread") は、
+        ; タイマー解像度に関係なく、1タイムスライス（数マイクロ秒）だけタスクを譲る
+        DllCall("SwitchToThread")
+        Sleep(-1)
+    }
+}
+
+/**
+ * アクティブなウィンドウまたはフォーカスされているコントロールのハンドル (HWND) を取得する
+ * 正確な IME 状態の検出に必要
+ * @returns {Ptr} ウィンドウハンドル (HWND)
+ */
+GetFocusedControlHandle() {
+    static ptr_size := A_PtrSize
+    static cb_size := 4 + 4 + (ptr_size * 6) + 16
+    st_gti := Buffer(cb_size, 0)
+
+    hwnd := WinExist("A")
+    if !hwnd
+        return 0
+
+    NumPut("UInt", cb_size, st_gti, 0)
+
+    ; 1. アクティブウィンドウのスレッドIDを指定して GUI 情報を取得
+    tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
+    if (tid && DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", st_gti)) {
+        hwndFocus := NumGet(st_gti, 8 + ptr_size, "Ptr")
+        if hwndFocus
+            return hwndFocus
+    }
+
+    ; 2. フォアグラウンドスレッド全体 (idThread = 0) で再取得
+    if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", st_gti) {
+        hwndFocus := NumGet(st_gti, 8 + ptr_size, "Ptr")
+        if hwndFocus
+            return hwndFocus
+    }
+
+    ; 3. AHK 組み込み機能によるコントロール取得のフォールバック
+    try {
+        if (ctrl := ControlGetFocus("A")) {
+            if (ctrlHwnd := ControlGetHwnd(ctrl, "A"))
+                return ctrlHwnd
+        }
+    }
+
+    return hwnd
+}
+
+/**
+ * 特定のウィンドウの IME (Input Method Editor) 状態を設定する
+ * @param {Ptr} hwnd - 対象ウィンドウハンドル
+ * @param {Integer} state - 設定したい状態 (1: ON, 0: OFF)
+ * @returns {LParam} DllCall の結果
+ */
+SetImeStatus(hwnd, state) {
+    default_ime_wnd := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+    ; 0x0002: SMTO_ABORTIFHUNG, timeout 50ms
+    return DllCall("user32\SendMessageTimeout"
+        , "Ptr", default_ime_wnd
+        , "UInt", 0x0283  ; WM_IME_CONTROL
+        , "Ptr", 0x006    ; IMC_SETOPENSTATUS (開状態を設定)
+        , "Ptr", state
+        , "UInt", 0x0002  ; SMTO_ABORTIFHUNG
+        , "UInt", 50      ; 50ms timeout
+        , "Ptr*", &result
+        , "Ptr")
+}
+
+/* ============================================================================
+    STRING CONVERSION & HELPERS
+============================================================================ */
+
+/**
+ * マップのキーと値を入れ替えた新しいマップを返します。
+ * @param {Map} originalMap - 入れ替え元のマップ
+ * @returns {Map} キーと値を反転したマップ
+ */
+FlipMap(originalMap) {
+    flipped := Map()
+    for key, value in originalMap {
+        flipped[value] := key
+    }
+    return flipped
+}
+
+/**
+ * 1つの波括弧で囲まれた文字列か判定する (例: "{sc027}", "{Enter}")
+ * @param {String} text - 判定対象の文字列
+ * @returns {Integer} マッチした場合は正の数、それ以外は 0
+ */
+IsSingleBraceText(text) => RegExMatch(text, "^\{[^{}]+\}$")
+
+/**
+ * 文字列に波括弧を追加します（すでに単一の波括弧で囲まれている場合はそのまま返します）。
+ * @param {String} key - 対象キー文字列
+ * @returns {String} 波括弧付き文字列
+ */
+AddBraces(key) => IsSingleBraceText(key) ? key : "{" . key . "}"
+
+/**
+ * 文字列から外側の波括弧を除去します。
+ * @param {String} key - 対象キー文字列
+ * @returns {String} 波括弧除去後の文字列
+ */
+RemoveBraces(key) => IsSingleBraceText(key) ? SubStr(key, 2, -1) : key
+
+/**
+ * パイプ区切りのアクション文字列を分解するヘルパー
+ * @param {String} action - 分解対象のアクション文字列（例: "a|b"）
+ * @param {String} [action2=""] - 第2アクション
+ * @returns {Array} 分解されたアクション配列
+ */
+ParseSplitActions(action, action2 := "") {
+    if (action2 == "" && action != "|" && InStr(action, "|")) {
+        parts := StrSplit(action, "|")
+        if parts.Length >= 2
+            return [parts[1], parts[2]]
+    }
+    return [action, action2]
+}
+
+/**
+ * 配列要素を指定された区切り文字で結合する補助関数
+ * @param {String} sep - 区切り文字列
+ * @param {Array} arr - 結合する配列
+ * @returns {String} 結合された文字列
+ */
+StrJoin(sep, arr) {
+    res := ""
+    for item in arr
+        res .= (res == "" ? "" : sep) . item
+    return res
+}
+
+/**
+ * 指定されたキー文字列に修飾記号 (+, ^, !, #, {Blind}) が含まれているか確認します。
+ * @param {String} text - 判定対象のキー文字列
+ * @returns {Boolean} 修飾記号が含まれている場合は true
+ */
+HasModifierSymbols(text) {
+    ; 単体の "{+}" や "{^}" などの場合は修飾記号ありとみなさない
+    if IsSingleBraceText(text) {
+        inner := SubStr(text, 2, StrLen(text) - 2)
+        if (inner == "+" || inner == "^" || inner == "!" || inner == "#") {
+            return false
+        }
+    }
+    list := ["{Blind}", "+", "#", "^", "!"]
+    for item in list {
+        if InStr(text, item, false) > 0 {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * スキャンコードと文字、およびキーの日本語文字/文字名の相互変換を行うためのマッピング情報を初期化します。
+ */
+InitMaps() {
+    global sc_from_char_map
+    global char_from_sc_map
+    global char_from_str_map
+    global str_from_char_map
+
+    ; 記号 -> スキャンコード形式 scXXX (波括弧なし)
+    sc_from_char_map := Map(
+        ";", "sc027", ":", "sc028", ",", "sc033", ".", "sc034", "/", "sc035", "¥", "sc07D",
+        "\", "sc073", "^", "sc00D", "@", "sc010", "[", "sc01A", "]", "sc01B"
+    )
+    sc_from_char_map.Default := ""
+
+    ; スキャンコード形式(波括弧なし) -> 記号文字
+    char_from_sc_map := FlipMap(sc_from_char_map)
+    char_from_sc_map.Default := ""
+
+    ; 文字列名 -> 文字
+    char_from_str_map := Map(
+        "semicolon", ";", "colon", ":", "comma", ",", "period", ".", "slash", "/", "yen", "¥",
+        "backslash", "\", "hat", "^", "minus", "-", "openbracket", "[", "closebracket", "]",
+        "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine",
+        "9",
+        "zero", "0",
+        "space", "space", "tab", "tab", "enter", "enter", "esc", "esc"
+    )
+    char_from_str_map.Default := ""
+
+    ; 文字 -> 文字列名
+    str_from_char_map := FlipMap(char_from_str_map)
+    str_from_char_map.Default := ""
+}
+
+; --- 変換基本関数 ---
+
+/**
+ * 文字（例: ";"）をスキャンコード形式（例: "{sc027}"）に変換します。英数字はそのまま返します。
+ * @param {String} c - 変換対象の文字
+ * @returns {String} スキャンコード形式の文字列
+ */
+ScFromChar(c) {
+    sc := sc_from_char_map[c]
+    if (sc == "") {
+        return c
+    }
+    return AddBraces(sc)
+}
+
+/**
+ * スキャンコード形式（例: "{sc027}"）を文字（例: ";"）に変換します。
+ * @param {String} sc - 変換対象のスキャンコード
+ * @returns {String} 変換後の文字
+ */
+CharFromSc(sc) {
+    sc_raw := RemoveBraces(sc)
+    c := char_from_sc_map[sc_raw]
+    return (c == "") ? sc : c
+}
+
+/**
+ * キーの名前（例: "semicolon"）を対応する文字（例: ";"）に変換します。
+ * @param {String} str - キーの名前
+ * @returns {String} 対応する文字
+ */
+CharFromStr(str) {
+    c := char_from_str_map[str]
+    return (c == "") ? str : c
+}
+
+/**
+ * 文字（例: ";"）を対応するキーの名前（例: "semicolon"）に変換します。
+ * @param {String} c - 変換対象の文字
+ * @returns {String} キーの名前
+ */
+StrFromChar(c) {
+    str := str_from_char_map[c]
+    return (str == "") ? c : str
+}
+
+; --- 統合ロジック関数 (INI入出力用) ---
+/**
+ * INIファイルのエントリー名を作る: スキャンコードや文字を小文字の名前形式に変換します。
+ * 例: "{sc027}" -> "semicolon", ";" -> "semicolon", "1" -> "one", "a" -> "a", "{Enter}" -> "enter"
+ * @param {String} sc - 変換対象のスキャンコードまたは文字
+ * @returns {String} 小文字のエントリー名
+ */
+EntryName(sc) {
+    sc_raw := RemoveBraces(sc)
+    c := CharFromSc(StrLower(sc_raw))
+    name := StrFromChar(RemoveBraces(c))
+    return StrLower(RemoveBraces(name))
+}
+
+/**
+ * 表示用の文字・文字列に変換します。
+ * 例: "{sc027}" -> ";", ";" -> ";", "one" -> "1", "a" -> "a", "{Enter}" -> "Enter"
+ * @param {String} str - 変換対象の文字列
+ * @param {Boolean} [remove_braces=true] - 外側の波括弧を除去するかどうか
+ * @returns {String} 表示用文字列
+ */
+DispStr(str, remove_braces := true) {
+    c := CharFromStr(str) ; "semicolon" -> ";"
+    if (c == str) {         ; 変換されなかった場合（名前ではない場合）
+        c := CharFromSc(str) ; "{sc027}" -> ";"
+    }
+    return remove_braces ? RemoveBraces(c) : c ; "{Esc}" -> "Esc" などの最終調整
+}
+
+/**
+ * 【キー表記の解決】
+ * 人間用の名前や文字を、AHKが送信・管理で利用する標準的な形式に整えます。
+ * (名前があればスキャンコードへ、そうでなければ元の文字や表記を維持)
+ * 例: "semicolon" -> "{sc027}", "one" -> "1", "{Enter}" -> "{Enter}"
+ * @param {String} str - 変換対象の文字列 (パイプ区切り対応)
+ * @returns {String} 解決されたキー表記文字列
+ */
+ResolveKeyText(str) {
+    str := StripQuotes(Trim(str))
+    if (str != "|" && InStr(str, "|")) {
+        resolved := []
+        for part in StrSplit(str, "|")
+            resolved.Push(ResolveKeyText_Single(Trim(part)))
+        return StrJoin("|", resolved)
+    }
+    return ResolveKeyText_Single(str)
+}
+
+/**
+ * 単一のキー記述文字列（例: "semicolon" や "a"）をスキャンコード形式に変換します。
+ * @param {String} str - キー記述文字列
+ * @returns {String} 解決されたスキャンコード、または元の文字列
+ */
+ResolveKeyText_Single(str) {
+    ; 名前（semicolon等）から文字（;等）を取得
+    c := CharFromStr(str)
+    ; 文字からスキャンコードを取得（スキャンコード化できない文字はそのまま返る想定）
+    return ScFromChar(c)
+}
+
+/**
+ * 文字列名から対応する LKey/RKey オブジェクトを取得します。
+ * @param {String} name - キー名（例: "f", "space", "semicolon"）
+ * @returns {Object|Boolean} 見つかったキーオブジェクト、存在しない場合は false
+ */
+GetKeyObjByName(name) {
+    static key_map := Map()
+    if key_map.Count == 0 {
+        global QWERTY_CHARS, LAYOUT_KEYS, LAYOUT_SPECIAL_NAMES, LAYOUT_SPECIAL_KEYS
+        for i, c in QWERTY_CHARS {
+            key_map[EntryName(c)] := LAYOUT_KEYS[i]
+        }
+        for i, c in LAYOUT_SPECIAL_NAMES {
+            key_map[c] := LAYOUT_SPECIAL_KEYS[i]
+        }
+    }
+    ; "f", "space", ";" 等を内部のエントリー名 ("semicolon"等) に正規化して取得
+    name := EntryName(name)
+    return key_map.Get(name, false)
+}
+
+/**
+ * 論理キー名（レイアウト適用後の文字・記号）から物理キーオブジェクトを取得します。
+ * 一致するマッピングがない場合は、QWERTY物理キー名としてフォールバックします。
+ * @param {String} name - 論理キー名
+ * @param {Boolean} [is_ime=false] - IME ON 時の論理キーで検索するかどうか
+ * @returns {Object|Boolean} 見つかったキーオブジェクト
+ */
+GetKeyObjByLogicalName(name, is_ime := false) {
+    global LAYOUT_KEYS
+    norm_name := EntryName(name)
+    for keyObj in LAYOUT_KEYS {
+        current_text := is_ime ? keyObj.ime_key_text : keyObj.key_text
+        if (EntryName(current_text) == norm_name) {
+            return keyObj
+        }
+    }
+    return GetKeyObjByName(name)
+}
+
+/**
+ * LAYOUT_KEYS を走査し、登録された文字（IME-ON / IME-OFF の両方）から
+ * LKey オブジェクトへのマッピング（Map）を生成して返します。
+ * Mapのキーには、:o,.などの記号もそのまま使用できます。
+ * @returns {Map} 文字・記号 -> キーオブジェクトのマップ
+ */
+CreateKeyMap() {
+    global LAYOUT_KEYS
+    key_map := Map()
+    for keyObj in LAYOUT_KEYS {
+        ;IME - ON 時のキー登録名をマップに追加
+        if keyObj.ime_key_text != "" && keyObj.ime_key_text != "{none}" {
+            clean_name := DispStr(keyObj.ime_key_text)
+            if clean_name != "" {
+                key_map[clean_name] := keyObj
+            }
+        }
+        ;IME - OFF 時のキー登録名もマップに追加（存在しない場合のみ）
+        if keyObj.key_text != "" && keyObj.key_text != "{none}" {
+            clean_name := DispStr(keyObj.key_text)
+            if clean_name != "" && !key_map.Has(clean_name) {
+                key_map[clean_name] := keyObj
+            }
+        }
+    }
+    return key_map
+}
+
+/**
+ * INIや定義から読み込んだ値を、AHKのSendで安全に動作する形式にパースします。
+ * 1文字の危険な記号のみを波括弧で安全に隔離し、2文字以上のマクロ等はそのまま通します。
+ * @param {String} raw_str - 変換対象の文字列 (例: "*", "+", "ctrl")
+ * @returns {String} パース済みの文字列 (例: "{*}", "{+}", "ctrl")
+ */
+ParseIniValue(raw_str) {
+    if (raw_str == " ") {
+        return "{Space}"
+    }
+    if (StrLen(raw_str) == 1) {
+        if InStr("+^!#{}*?<>=``;:@[]¥\", raw_str) {
+            return "{" . raw_str . "}"
+        }
+    }
+    return raw_str
+}
+
+/**
+ * 【送信コマンドの構築】
+ * 解決済みのキー表記に、修飾記号などを付与して「Send関数用」の最終文字列を作ります。
+ * @param {String} text - キーまたは文字
+ * @param {String} [prefix=""] - 修飾キープレフィックス（例: "+"）
+ * @returns {String} 送信用キー文字列
+ */
+BuildSendText(text, prefix := "") {
+    if text == ""
+        return ""
+    if text == "{none}"
+        return "{none}"
+
+    ; {Blind} や 意図的な修飾記号付きマクロの場合はそのまま返す
+    if InStr(text, "{Blind}", false) || HasModifierSymbols(text)
+        return text
+
+    ; 1文字の素の記号のみを安全にエスケープ（ただし単一波括弧の場合はスキップ）
+    if !IsSingleBraceText(text) {
+        text := ParseIniValue(text)
+    }
+
+    if (StrLen(text) == 1 || IsSingleBraceText(text)) {
+        return prefix . text
+    }
+    return text
+}
+
+/**
+ * レイアウト文字列のパース補助クラス。
+ */
+class LayoutString {
+    arr := []
+    /**
+     * コンストラクタ
+     * @param {String} layout_str - パースするレイアウト文字列
+     */
+    __New(layout_str) {
+        this.layout_str := layout_str
+        if this.layout_str = ""
+            return
+        if InStr(this.layout_str, " ") {
+            this.arr := []
+            for item in StrSplit(Trim(this.layout_str), " ") {
+                if item != ""
+                    this.arr.Push(item)
+            }
+        } else {
+            this.arr := StrSplit(this.layout_str)
+        }
+    }
+    /**
+     * 指定されたインデックスの要素を取得します。
+     * @param {Integer} index - インデックス（1-indexed）
+     * @returns {String} 要素文字列
+     */
+    GetElement(index) => (index <= this.arr.Length) ? this.arr[index] : ""
+}
+
+/**
+ * フォント管理クラス
+ * 起動時に一度だけチェックを行い、結果を保持する
+ */
+class FontManager {
+    static Monospace := this._DetermineMonospace()
+
+    /**
+     * システムにインストールされている等幅フォントから最適な候補を決定します。
+     * @returns {String} フォント名
+     */
+    static _DetermineMonospace() {
+        ; 優先順位リスト
+        candidates := ["PlemolJP", "PlemolJP Console", "MS Gothic", "游ゴシック", "游明朝", "Consolas"]
+
+        for name in candidates {
+            if this.IsInstalled(name)
+                return name
+        }
+        return "Consolas" ; 最終バックアップ
+    }
+
+    /**
+     * システムにフォントが存在するか厳密に判定します。
+     * @param {String} name - フォント名
+     * @returns {Boolean} フォントが存在する場合は true
+     */
+    static IsInstalled(name) {
+        ; 1. フォントを作成してデバイスコンテキストに選択
+        hFont := DllCall("CreateFont", "Int", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 400
+            , "Int", 0, "Int", 0, "Int", 0, "Int", 1, "Int", 0, "Int", 0, "Int", 0, "Int", 0
+            , "Str", name, "Ptr")
+
+        if !hFont
+            return false
+
+        hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+        oldObj := DllCall("SelectObject", "Ptr", hdc, "Ptr", hFont, "Ptr")
+
+        ; 2. Windowsが実際に割り当てたフォント名を取得
+        nameBuf := Buffer(512)
+        DllCall("GetTextFace", "Ptr", hdc, "Int", 256, "Ptr", nameBuf, "Int")
+        actualName := StrGet(nameBuf)
+
+        ; 3. 後処理
+        DllCall("SelectObject", "Ptr", hdc, "Ptr", oldObj, "Ptr")
+        DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc, "Int")
+        DllCall("DeleteObject", "Ptr", hFont, "Int")
+
+        ; 指定した名前と実際に当たった名前が一致するか（代替フォントでないか）
+        return actualName = name
+    }
+}
+
+GetHalfWidthLen(str) {
+    w := 0
+    loop parse str {
+        ; ASCII (0x007F以下) と半角カナ (0xFF61..0xFF9F) を半角1、それ以外を半角2とみなす例
+        code := Ord(A_LoopField)
+        w += (code <= 0x007F || (code >= 0xFF61 && code <= 0xFF9F)) ? 1 : 2
+    }
+    return w
+}
+
+/**
+ * 文字列を指定した長さでセンタリングし、両端に半角スペースを挿入して返します。
+ * 文字列の長さが指定の長さ以上の場合は、元の文字列をそのまま返します。
+ * 
+ * @param {String} text - 対象となる文字列
+ * @param {Integer} width - 出力文字列の目標の長さ（半角文字数）
+ * @returns {String} センタリングされた文字列、または元の文字列
+ */
+CenterPad(text, width) {
+    len := StrLen(text)
+    if (len >= width) {
+        return text
+    }
+
+    pad_total := width - len
+    left_pad := pad_total // 2
+    right_pad := pad_total - left_pad
+
+    ; 繰り返し文字列を半角スペースで埋める
+    left_str := left_pad > 0 ? Format("{:" . left_pad . "}", "") : ""
+    right_str := right_pad > 0 ? Format("{:" . right_pad . "}", "") : ""
+
+    return left_str . text . right_str
+}
+
+/**
+ * 画面上に OSD (On-Screen Display) メッセージを表示する
+ * @param {String} text - 表示するテキスト
+ * @param {Integer} [duration=3000] - 表示時間 (ms)
+ * @param {Boolean} [key_close=False] - True の場合、全キーが離されるまで、またはタイムアウトまで表示を維持する
+ */
+ShowOSD(text, duration := 3000, key_close := False) {
+    my_gui := Gui("+AlwaysOnTop +ToolWindow -Caption +Disabled")
+    my_gui.BackColor := "333333"
+    my_gui.SetFont("s16 cWhite w700", FontManager.Monospace)
+
+    ; テキスト周囲の余白
+    my_gui.MarginX := 20
+    my_gui.MarginY := 15
+
+    ; 改行を含むテキストを中央寄せで表示
+    my_gui.Add("Text", "Center", text)
+    my_gui.Show("NoActivate xCenter y900") ; 画面下部中央に表示
+
+    if key_close {
+        ; 全てのキーが離された状態（物理的に何も押されていない状態）になったら閉じる
+        fn_close(*) {
+            SetTimer(CheckNoKeys, 0)
+            try my_gui.Destroy()
+        }
+
+        /**
+         * すべての物理キーが離されている状態であるかチェックし、すべて離されていればOSDを閉じます。
+         */
+        CheckNoKeys() {
+            loop 255 {
+                if GetKeyState(Format("vk{:02X}", A_Index), "P")
+                    return ; 何か押されているので待機継続
+            }
+            fn_close()
+        }
+
+        SetTimer(CheckNoKeys, 50)
+        SetTimer(fn_close, -duration) ; タイムアウトでも閉じる
+    } else {
+        SetTimer(() => (my_gui.Destroy()), -duration)
+    }
+}
+
+/*============================================================================
+ [Class] MouseSpeed
+ システムのマウス速度を制御するためのスタティッククラス
+============================================================================*/
+class MouseSpeed {
+    static SPI_GETMOUSESPEED := 0x70 ; API 定数
+    static SPI_SETMOUSESPEED := 0x71 ; API 定数
+    def_mouse_speed := 10
+
+    /**
+     * 現在のシステムマウス速度を取得する (値: 1-20)
+     * @returns {Integer} 現在の速度
+     */
+    static GetSpeed() {
+        val := 0
+        DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_GETMOUSESPEED, "UInt", 0, "Ptr*", &val, "UInt", 0, "Int"
+        )
+        return val
+    }
+
+    /**
+     * システムのマウス速度を設定する (値: 1-20)
+     * @param {Integer} val - 設定する速度
+     * @returns {Integer} 設定された速度
+     */
+    static SetSpeed(val) {
+        ; 値を1から20の状態に収める
+        if val < 1 {
+            val := 1
+        } else if val > 20 {
+            val := 20
+        }
+        DllCall("SystemParametersInfo", "UInt", MouseSpeed.SPI_SETMOUSESPEED, "UInt", 0, "Ptr", val, "UInt", 0, "Int")
+        ToolTip("MouseSpeed: " . val)
+        SetTimer(ToolTip, -3000) ; ツールチップを3秒間表示する
+        return val
+    }
+
+    /**
+     * マウス速度を 1 上げます。
+     */
+    static IncSpeed() {
+        v := MouseSpeed.GetSpeed()
+        if v = 0 { ; 速度の取得に失敗
+            ToolTip("MouseSpeed: " . v)
+            return
+        }
+        MouseSpeed.SetSpeed(v + 1)
+    }
+
+    /**
+     * マウス速度を 1 下げます。
+     */
+    static DecSpeed() {
+        v := MouseSpeed.GetSpeed()
+        if v = 0 { ; 速度の取得に失敗
+            return
+        }
+        MouseSpeed.SetSpeed(v - 1)
+    }
+}    ;class MouseSpeed
+
+/**
+ * INIファイルからキー配列設定を動的に読み込み、マップにマッピングするためのヘルパークラスです。
+ */
+class IniMap {
+    /**
+     * コンストラクタ
+     * @param {Map} map - 保存先マップ
+     * @param {String} section - INIのセクション名
+     * @param {String} [prefix=""] - キー名のプレフィックス
+     * @param {String} [ini_path=""] - INIファイルのパス
+     */
+    __New(map, section, prefix := "", ini_path := "") {
+        this.map := map
+        this.inipath := ini_path == "" ? A_ScriptDir . "\config.ini" : ini_path
+        this.section := section
+        this.prefix := prefix
+    }
+
+    /**
+     * 指定された文字に対する設定をINIから読み込んでマップにセットします。
+     * @param {String} c - 処理対象の文字
+     */
+    Set(c) {
+        key := EntryName(c)
+        if key == "" {
+            return
+        }
+        val := IniRead(this.inipath, this.section, this.prefix . key, "")
+        val := ResolveKeyText(val)
+        if val != "" {
+            this.map.Set(key, val)
+        }
+    }
+}
+
+/**
+ * INIファイルから読み込んだセクション定義から、指定したプレフィックスを持つレイヤーキー設定をパースし、レイアウトマップに格納します。
+ * @param {Map} layout_map - 取得したキー設定を格納するマップ
+ * @param {String} section_text - INIファイルから読み出したセクション全体のテキスト
+ * @param {String} prefix - 抽出対象 of プレフィックス（例: "m_"）
+ * @param {String} ini_path - INIファイルの絶対パス
+ */
+ReadLayerKey(layout_map, section_text, prefix, ini_path) {
+    if section_text != "" {
+        prefix_len := StrLen(prefix)
+        for line in StrSplit(section_text, "`n", "`r") {
+            line := Trim(line)
+            if line == ""
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key_name := Trim(SubStr(line, 1, pos - 1))
+                if SubStr(key_name, 1, prefix_len) == prefix {
+                    map_key := SubStr(key_name, prefix_len + 1)
+                    val := Trim(SubStr(line, pos + 1))
+                    val := ResolveKeyText(val)
+                    if val != "" {
+                        layout_map.Set(map_key, val)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * タイピングログ（トリグラム頻度、打鍵間隔など）を記録・集計・保存するクラスです。
+ */
+class TypeAnalyzer {
+    /**
+     * 各キー配列ログアイテムの統計情報を保持する構造体クラス。
+     */
+    class TAItem {
+        count := 0
+        count_d := 0
+        duration12 := 0
+        duration13 := 0
+    }
+
+    static IDLE_TIMEOUT := 3000     ; 3秒以上の打鍵間隔で履歴リセット
+    static AUTOSAVE_INTERVAL := 300000 ; 5分ごとに自動保存
+    static MAX_DURATION := 1000      ; 1秒以上の打鍵間隔は無効値として扱う
+
+    static log_file := A_ScriptDir . "\log.txt"
+    static is_logging_enabled := false
+    static stats := Map()     ; 段階3: フル辞書 (長期保存用)
+    static stats_mid := Map() ; 段階2: 中間辞書 (集計用)
+    static stats_short := []  ; 段階1: リスト (事前確保バッファ)
+    static stats_short_idx := 0 ; 現在の書き込み位置
+    static stats_short_max := 1000 ; バッファの最大容量
+    static current_layout := "Qwerty"
+    static hist_1 := "", hist_2 := "", hist_3 := ""
+    static tick_1 := 0, tick_2 := 0, tick_3 := 0
+    static last_key_time := 0
+    static max_log := 5000
+    static last_save_time := A_TickCount
+    static total_log_time := 0
+    static total_log_time2 := 0
+    static freq := 0
+    static MAX_LOG_TIME_MS := 50       ; 処理遅延判定閾値 (ms)
+    static PAUSE_RECOVERY_MS := 3000   ; 遅延一時停止からの自動復帰試行間隔 (ms)
+    static PAUSE_MAX_SKIPS := 20       ; 遅延一時停止からの最大スキップ打鍵数
+    static is_warning_shown := false   ; 警告表示中フラグ
+    static pause_time := 0             ; 一時停止開始時刻 (TickCount)
+    static skip_count := 0             ; 一時停止中のスキップ回数
+    static stroke_count := 0           ; 最大処理時間リセット用打鍵カウンタ
+
+    /**
+     * 設定ファイル (config.ini) からロギングおよびインジケータ設定を読み込みます。
+     */
+    static LoadConfig() {
+        this.freq := QueryFrequency()
+        try {
+            val := ReadConfig("Settings", "LogEnabled", "0")
+            TypeAnalyzer.is_logging_enabled := (val == "1")
+        } catch {
+            TypeAnalyzer.is_logging_enabled := false
+        }
+        try {
+            TypeAnalyzer.max_log := Integer(ReadConfig("Settings", "MaxLog", "5000"))
+        } catch {
+            TypeAnalyzer.max_log := 2000
+        }
+    }
+
+    /**
+     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
+     */
+    static SaveConfig() {
+        try {
+            WriteConfig(TypeAnalyzer.is_logging_enabled ? "1" : "0", "Settings", "LogEnabled")
+            WriteConfig(String(TypeAnalyzer.max_log), "Settings", "MaxLog")
+        } catch {
+        }
+    }
+
+    /**
+     * 高精度パフォーマンスカウンタの周波数を取得します。
+     * @returns {Integer} カウンタ周波数 (Hz)
+     */
+    static GetFreq() {
+        if this.freq > 0
+            return this.freq
+        global g_freq
+        if IsSet(g_freq) && g_freq > 0 {
+            this.freq := g_freq
+            return this.freq
+        }
+        this.freq := QueryFrequency()
+        return this.freq
+    }
+
+    /**
+     * 直近の打鍵履歴（3文字トリグラム追跡バッファ）をリセットします。
+     */
+    static ResetHistory() {
+        this.hist_1 := "", this.hist_2 := "", this.hist_3 := ""
+        this.tick_1 := 0, this.tick_2 := 0, this.tick_3 := 0
+    }
+
+    /**
+     * キーロギングの有効/無効を切り替えます。
+     */
+    static ToggleLogging() {
+        this.is_logging_enabled := !this.is_logging_enabled
+        TypeAnalyzer.SaveConfig()
+        ShowOSD("TypeAnalyzer:TypeAnalyzer " . (this.is_logging_enabled ? "ON" : "OFF"))
+    }
+
+    /**
+     * ログファイル (log.txt) から打鍵統計情報を読み込み、メモリ上に復元します。
+     */
+    static Load() {
+
+        ; ログバッファを事前確保し、オブジェクトを再利用可能にする
+        this.stats_short := Array()
+        this.stats_short.Capacity := this.stats_short_max
+        loop this.stats_short_max {
+            this.stats_short.Push({ c: "", t: 0 })
+        }
+        this.stats_short_idx := 0
+
+        ; --- ウォームアップ ---
+        ; 初回呼び出し時のオーバーヘッド（DLLロードや静的変数初期化）を排除する
+        this.is_logging_enabled := true ; 一時的に有効化
+        this.Log("warmup")
+        this.ResetTotalLogTime()
+        this.stats_short_idx := 0
+        TypeAnalyzer.LoadConfig() ; 本来の設定に戻す
+
+        if !FileExist(this.log_file)
+            return
+
+        try {
+            content := FileRead(this.log_file)
+            current_sec := ""
+            for line in StrSplit(content, "`n", "`r") {
+                line := Trim(line)
+                if line = ""
+                    continue
+                if SubStr(line, 1, 1) = "[" && SubStr(line, -1) = "]" {
+                    current_sec := SubStr(line, 2, StrLen(line) - 2)
+                    if !this.stats.Has(current_sec)
+                        this.stats[current_sec] := Map()
+                } else if current_sec != "" {
+                    pos := InStr(line, " : ", false, -1)
+                    if pos {
+                        seq := SubStr(line, 1, pos - 1)
+                        valStr := SubStr(line, pos + 3)
+                        vals := StrSplit(valStr, " ")
+
+                        item := TypeAnalyzer.TAItem()
+                        item.count := Integer(vals[1])
+                        if vals.Length >= 4 {
+                            item.count_d := Integer(vals[2])
+                            item.duration12 := Integer(vals[3]) * item.count_d
+                            item.duration13 := Integer(vals[4]) * item.count_d
+                        } else if vals.Length >= 3 {
+                            item.count_d := item.count
+                            item.duration12 := Integer(vals[2]) * item.count_d
+                            item.duration13 := Integer(vals[3]) * item.count_d
+                        }
+                        this.stats[current_sec][seq] := item
+                    }
+                }
+            }
+        } catch {
+        }
+    }
+
+    /**
+     * ログ統計の総件数が上限（max_log）を超えた場合、出現頻度を半減・不要キーを削除して圧縮します。
+     */
+    static _Compaction() {
+        for layout, stats_map in this.stats {
+            total := 0
+            for seq, item in stats_map
+                total += item.count
+
+            ; マップ全体を舐め終わった後に判定する
+            if total > this.max_log {
+                keysToDel := []
+                for seq, item in stats_map {
+                    item.count //= 2
+                    if item.count == 0 {
+                        keysToDel.Push(seq)
+                    }
+                }
+                for seq in keysToDel
+                    stats_map.Delete(seq)
+            }
+        }
+    }
+
+    /**
+     * レイアウトの名称を設定します。
+     * @param {String} section - 設定するレイアウトセクション名
+     */
+    static SetLayoutName(section) {
+        this.current_layout := section
+    }
+
+    /**
+     * レイアウトを切り替え、それまでのログの統合・圧縮を行います。
+     * @param {String} section - 新しいレイアウトセクション名
+     */
+    static ChangeLayout(section) {
+        this._MergeShortTerm()
+        this._Consolidate()
+        this._Compaction()
+        this.SetLayoutName(section)
+    }
+
+    /**
+     * 短期バッファ（stats_short）のログデータを解析し、中間辞書（stats_mid）に集計・統合します。
+     */
+    static _MergeShortTerm() {
+        if this.stats_short_idx == 0 {
+            return
+        }
+        ; リスト (stats_short) を 中間辞書 (stats_mid) に集計
+        layout := this.current_layout
+        if !this.stats_mid.Has(layout)
+            this.stats_mid[layout] := Map()
+        stats_map := this.stats_mid[layout]
+        def_save := char_from_sc_map.Default
+        loop this.stats_short_idx {
+            entry := this.stats_short[A_Index]
+            char := entry.c
+            tick := entry.t
+
+            ; {Blind} や {sc033} のような括弧付き文字列のパース
+            if InStr(char, "{") {
+                if SubStr(char, 1, 7) = "{Blind}"
+                    char := SubStr(char, 8) ; {Blind} を除去
+                char := DispStr(char, false)
+                if InStr(char, "{") { ; さらに括弧が含まれるか ({Enter} 等)
+                    char := " "
+                }
+            }
+            if char = ""
+                continue
+
+            if (tick - this.last_key_time >= this.IDLE_TIMEOUT) {
+                this.ResetHistory()
+            }
+            this.last_key_time := tick
+
+            this.hist_1 := this.hist_2
+            this.hist_2 := this.hist_3
+            this.hist_3 := char
+
+            this.tick_1 := this.tick_2
+            this.tick_2 := this.tick_3
+            this.tick_3 := tick
+
+            ; 履歴が3文字に満たない場合はスキップ
+            if this.hist_1 == ""
+                continue
+            if this.hist_1 == " "
+                continue
+            if this.hist_2 == " "
+                continue
+
+            seq := this.hist_1 . " " . this.hist_2 . " " . this.hist_3
+            if !stats_map.Has(seq)
+                stats_map[seq] := TypeAnalyzer.TAItem()
+
+            item := stats_map[seq]
+            item.count += 1
+            t := this.tick_3 - this.tick_1
+            if t < this.MAX_DURATION {
+                item.count_d += 1
+                item.duration12 += (this.tick_2 - this.tick_1)
+                item.duration13 += t
+            }
+        }
+        char_from_sc_map.Default := def_save
+
+        this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
+        this.total_log_time := 0
+        this.stats_short_idx := 0
+    }
+
+    /**
+     * 中間辞書からフル辞書へデータを統合（Consolidate）します。
+     */
+    static _Consolidate() {
+        if this.stats_mid.Count == 0
+            return
+
+        for layout, mid_map in this.stats_mid {
+            if !this.stats.Has(layout)
+                this.stats[layout] := Map()
+            full_map := this.stats[layout]
+
+            for seq, mid_item in mid_map {
+                if !full_map.Has(seq)
+                    full_map[seq] := TypeAnalyzer.TAItem()
+                full_item := full_map[seq]
+
+                full_item.count += mid_item.count
+                full_item.count_d += mid_item.count_d
+                full_item.duration12 += mid_item.duration12
+                full_item.duration13 += mid_item.duration13
+            }
+        }
+        this.stats_mid := Map()
+    }
+
+    /**
+     * キーロガーの最大処理時間を更新・リセットして一時的な遅延スパイクから復帰可能にします。
+     */
+    static ResetTotalLogTime() {
+        if this.total_log_time > 0 {
+            this.total_log_time2 := Max(this.total_log_time2, this.total_log_time)
+            this.total_log_time := 0
+        }
+        this.pause_time := 0
+        this.skip_count := 0
+        this.is_warning_shown := false
+    }
+
+    /**
+     * 指定されたアイドル時間に基づき、必要に応じてログデータを自動保存します。
+     * @param {Integer} time - アイドル時間 (ms)
+     */
+    static SaveIfIdle(time) {
+        Critical()
+        ; アイドル時に遅延スパイク状態をリセットし、復帰可能にする
+        if this.total_log_time > 0 || this.pause_time > 0 {
+            this.ResetTotalLogTime()
+        }
+
+        if (time < 20000) {
+            Critical("Off")
+            return
+        }
+        if this.stats_short_idx == 0 {
+            Critical("Off")
+            return
+        }
+
+        ; 前回saveから指定時間経っていたら保存
+        if (A_TickCount - this.last_save_time >= this.AUTOSAVE_INTERVAL && time >= 60000) {
+            Critical("Off")
+            this.Save()
+            return
+        }
+
+        this._MergeShortTerm()
+        Critical("Off")
+    }
+
+    /**
+     * 現在の統計情報をファイルに書き込みます。
+     * @param {Boolean} [sync=false] - 同期的に保存するかどうか
+     */
+    static Save(sync := false) {
+        Critical()
+        this._MergeShortTerm()
+        this._Consolidate()
+        Critical("Off")
+
+        if this.stats.Count == 0
+            return
+
+        if sync {
+            this._SaveAsync()
+        } else {
+            SetTimer(ObjBindMethod(this, "_SaveAsync"), -1)
+        }
+    }
+
+    /**
+     * 統計情報を非同期的にファイルに書き込みます。
+     */
+    static _SaveAsync() {
+        this._Compaction()
+
+        output := ""
+        if (this.freq > 0) {
+            max_us := (this.total_log_time2 * 1000000) / this.freq
+            output .= Format("; Max Log Time: {:.3f} us `r`n`r`n", max_us)
+        }
+
+        for layout, stats_map in this.stats {
+            output .= "[" . layout . "]`r`n"
+
+            sortStr := ""
+            for seq, item in stats_map {
+                ; 頻度降順（カウントの反転値を0埋め10桁）とシーケンス（昇順）を連結してソート用文字列を作成
+                sortStr .= Format("{:010}|{}", 9999999999 - item.count, seq) . "`n"
+            }
+
+            if sortStr != "" {
+                sortStr := SubStr(sortStr, 1, -1) ; 末尾の改行を削除
+                sortedStr := Sort(sortStr, "D`n") ; 昇順ソート（反転値が小さい＝元のカウントが大きい順になる）
+
+                for line in StrSplit(sortedStr, "`n") {
+                    if line = ""
+                        continue
+                    pos := InStr(line, "|")
+                    if pos {
+                        invCount := Integer(SubStr(line, 1, pos - 1))
+                        count := 9999999999 - invCount
+                        seq := SubStr(line, pos + 1)
+                        item := stats_map[seq]
+                        avg12 := item.count_d > 0 ? (item.duration12 // item.count_d) : 0
+                        avg13 := item.count_d > 0 ? (item.duration13 // item.count_d) : 0
+                        output .= seq . " : " . item.count . " " . item.count_d . " " . avg12 . " " . avg13 .
+                            "`r`n"
+                    }
+                }
+            }
+            output .= "`r`n"
+        }
+        try {
+            f := FileOpen(this.log_file, "w", "UTF-8")
+            f.Write(output)
+            f.Close()
+        } catch {
+        }
+        this.last_save_time := A_TickCount
+    }
+
+    /**
+     * 入力された文字をロガーに記録します。
+     * @param {String} char - 記録対象の文字
+     */
+    static Log(char) {
+        if !this.is_logging_enabled
+            return
+        if WinActive("ahk_group RemoteDesktops")
+            return
+
+        ; --- パフォーマンス保護と自動復帰ロジック ---
+        freq := this.GetFreq()
+        last_ms := freq > 0 ? (this.total_log_time * 1000.0) / freq : 0
+
+        if (last_ms > this.MAX_LOG_TIME_MS) {
+            now := A_TickCount
+            ; 自動復帰判定: 一定時間経過(PAUSE_RECOVERY_MS) または 一定打鍵スキップ(PAUSE_MAX_SKIPS)
+            if (this.pause_time > 0 && (now - this.pause_time >= this.PAUSE_RECOVERY_MS || this.skip_count >= this.PAUSE_MAX_SKIPS
+            )) {
+                ; 負荷低下のプローブ（テスト再開）のためにリセット
+                this.ResetTotalLogTime()
+            } else {
+                if (!this.is_warning_shown) {
+                    ToolTip("TypeAnalyzer: 処理遅延のため記録を一時停止")
+                    SetTimer(() => ToolTip(), -3000)
+                    this.is_warning_shown := true
+                    this.pause_time := now
+                    this.skip_count := 0
+                    ; タイマーでも自動復帰を予約
+                    SetTimer(ObjBindMethod(this, "ResetTotalLogTime"), -this.PAUSE_RECOVERY_MS)
+                }
+                this.skip_count += 1
+                return ; パフォーマンス保護のため早期リターン
+            }
+        }
+
+        if char = ""
+            return
+        if !ImeState.IsOn()
+            return
+        start_qpc := QueryCounter()
+        if this.stats_short_idx < this.stats_short_max {
+            this.stats_short_idx += 1
+            entry := this.stats_short[this.stats_short_idx]
+            entry.c := char
+            entry.t := A_TickCount
+        } else {
+            return
+        }
+        end_qpc := QueryCounter()
+        time_qpc := end_qpc - start_qpc
+        this.total_log_time := Max(time_qpc, this.total_log_time)
+
+        ; 定期的に最大処理時間をリセットし、単発スパイクによる永続的な遅延判定を防止
+        this.stroke_count += 1
+        if (this.stroke_count >= 100) {
+            this.stroke_count := 0
+            this.ResetTotalLogTime()
+        }
+    }
+} ;class TypeAnalyzer
+
+/**
+ * 文字列をUTF-8エンコーディングに基づく16進数（HEX）文字列に変換します。
+ * @param {String} str - 変換対象の文字列
+ * @returns {String} 16進数の文字列
+ */
+StringToHex(str) {
+    reqSize := StrPut(str, "UTF-8")
+    buf := Buffer(reqSize)
+    StrPut(str, buf, "UTF-8")
+    hex := ""
+    loop reqSize - 1 {
+        hex .= Format("{:02x}", NumGet(buf, A_Index - 1, "UChar"))
+    }
+    return hex
+}
+
+/**
+ * 現在のキーレイアウトを指定された設定に保存・適用します。
+ * @param {String} name - レイアウト名
+ * @param {String} layout - 保存するキーレイアウト文字列
+ * @param {String} [num_layout="1234567890-"] - 保存する数字列レイアウト文字列
+ * @param {String} [shift_layout=""] - Shift 時のキーレイアウト文字列
+ * @param {String} [shift_num=""] - Shift 時の数字列レイアウト文字列
+ * @param {Boolean} [ime=false] - IME ON 時にも同時に適用するかどうか
+ */
+StoreLayout(name, layout, num_layout := "1234567890-", shift_layout := "", shift_num := "", ime := false) {
+    ResetCombinations()
+    TypeAnalyzer.SetLayoutName(name)
+    if name != "" {
+        try {
+            WriteConfig(name, "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+
+    l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
+    for i, keyObj in LAYOUT_NUM_KEYS {
+        keyObj.SetKey(l_num.GetElement(i), l_snum.GetElement(i), ime)
+        keyObj.SetMode(1, 0)
+    }
+    l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
+
+    global LAYOUT_30_KEYS
+    for i, keyObj in LAYOUT_30_KEYS {
+        keyObj.SetKey(l_char.GetElement(i), l_schar.GetElement(i), ime)
+    }
+    global LAYOUT_KEYS
+    SetLKeyMode(LAYOUT_KEYS, 1, 0)
+}
+
+/**
+ * レイアウト文字列から、QWERTY_CHARS の各キーエントリー名をキーとする配置マップを構築します。
+ * @param {String} [layout_str=""] - スペース区切りまたは連続文字からなるレイアウト文字列
+ * @returns {Map} エントリー名 -> 割り当て文字のマップ
+ */
+MakeLayoutMap(layout_str := "") {
+    res_map := Map()
+    if (layout_str == "") {
+        return res_map
+    }
+    l := LayoutString(layout_str)
+    for i, key in QWERTY_CHARS {
+        res_map.Set(EntryName(key), l.GetElement(i))
+    }
+    return res_map
+}
+
+/**
+ * すべてのキー配列オブジェクトに対し、指定されたキーレイアウト定義から基本キー（IME OFF時）のマッピングを設定・保存します。
+ * @param {String} name - レイアウト識別名
+ * @param {String} [layout="1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\"] - 基本の全キー配置文字列
+ * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
+ */
+StoreLayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
+    TypeAnalyzer.ChangeLayout(name)
+    if name != "" {
+        try {
+            WriteConfig(name, "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+
+    l := LayoutString(layout), ls := LayoutString(shift_layout)
+    global LAYOUT_KEYS
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.SetKey(l.GetElement(i), ls.GetElement(i))
+        keyObj.SetMode(1, 0)
+    }
+    SetLKeyMode(LAYOUT_KEYS, 1, 0)
+}
+
+/**
+ * 読み込まれた各状態マッピング（基本、Shift、IME ON、IME Shift）のマップを、すべての物理キー配列オブジェクトに設定・適用します。
+ * @param {String} name - レイアウト識別名
+ * @param {Map} layout_map - 基本キーマッピング
+ * @param {Map} shift_map - Shiftキーマッピング
+ * @param {Map} ime_map - IME ON時キーマッピング
+ * @param {Map} ime_shift_map - IME Shiftキーマッピング
+ */
+StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map) {
+    TypeAnalyzer.ChangeLayout(name)
+    ResetCombinations()
+    if name != "" {
+        try {
+            WriteConfig(name, "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+    global QWERTY_CHARS
+    for i, keyObj in LAYOUT_KEYS {
+        c := QWERTY_CHARS[i]
+        key_text := EntryName(c)
+        if (!layout_map.Has(key_text))
+            layout_map[key_text] := ""
+        if (!shift_map.Has(key_text))
+            shift_map[key_text] := ""
+        keyObj.SetKey(layout_map[key_text], shift_map[key_text])
+        keyObj.SetMode(1, -1)
+    }
+    ResetIME() ; IME ON 時の個別設定を一旦リセット
+
+    for i, keyObj in LAYOUT_KEYS {
+        c := QWERTY_CHARS[i]
+        key_text := EntryName(c)
+        if (!ime_map.Has(key_text))
+            ime_map[key_text] := ""
+        if (!ime_shift_map.Has(key_text))
+            ime_shift_map[key_text] := ""
+        keyObj.SetImeKey(ime_map[key_text], ime_shift_map[key_text])
+        keyObj.SetMode(-1, 0)
+    }
+}
+
+/**
+ * INIファイルから特定のセクションに記述されたキーコンビネーション設定を読み込み、適用します。
+ * @param {String} section - 対象 of INIセクション名
+ * @param {String} prefix - キー判定の接頭辞（例: "m_"）
+ * @param {Boolean} is_ime - IME ON 時の設定として読み込む場合は true
+ */
+ApplyCombinationsFromIni(section, prefix, is_ime) {
+    try {
+        section_text := GetIniSection(A_ScriptDir . "\config.ini", section)
+    } catch {
+        return
+    }
+    prefix_len := StrLen(prefix)
+    for line in StrSplit(section_text, "`n", "`r") {
+        line := Trim(line)
+        if line == "" || SubStr(line, 1, 1) == ";"
+            continue
+
+        pos := InStr(line, "=")
+        if pos > 0 {
+            key_name := Trim(SubStr(line, 1, pos - 1))
+            if SubStr(key_name, 1, prefix_len) == prefix {
+                key_pair := SubStr(key_name, prefix_len + 1) ; 例: "f+d"
+                val := Trim(SubStr(line, pos + 1))
+                if val == ""
+                    continue
+
+                parsed_parts := ParseIniCombinationValue(val)
+                if parsed_parts.Length == 0
+                    continue
+
+                mode := -1
+                actions := []
+
+                first_val := parsed_parts[1]
+                mode_parts := StrSplit(first_val, ",")
+                for idx, part in mode_parts {
+                    mode_parts[idx] := Trim(part)
+                }
+
+                if (mode_parts.Length > 0 && IsInteger(mode_parts[1])) {
+                    mode_val := Integer(mode_parts[1])
+                    if (mode_val != -1 && (mode_val < 0 || mode_val > 13)) {
+                        mode_val := 7 ; 不正なモード番号は安全なデフォルト Mode 7 にフォールバック
+                    }
+                    if (mode_parts.Length >= 3) {
+                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) :
+                            Layers.hold_th
+                        b_time := (IsInteger(mode_parts[3]) && Integer(mode_parts[3]) >= 0) ? Integer(mode_parts[3]) :
+                            ((mode_val = 8) ? Layers.b_time2 : Layers.b_time)
+                        mode := HoldMode(mode_val, hold_th, b_time)
+                    } else if (mode_parts.Length == 2) {
+                        hold_th := (IsInteger(mode_parts[2]) && Integer(mode_parts[2]) > 0) ? Integer(mode_parts[2]) :
+                            Layers.hold_th
+                        b_time := (mode_val = 8) ? Layers.b_time2 : Layers.b_time
+                        mode := HoldMode(mode_val, hold_th, b_time)
+                    } else {
+                        mode := mode_val
+                    }
+                    start_idx := 2
+                } else {
+                    mode := 7
+                    start_idx := 1
+                }
+
+                loop parsed_parts.Length - start_idx + 1 {
+                    idx := A_Index + start_idx - 1
+                    act := parsed_parts[idx]
+                    resolved_act := ResolveKeyText(act)
+                    actions.Push(resolved_act)
+                }
+
+                if actions.Length == 0
+                    continue
+
+                action1 := actions[1]
+                action2 := actions.Length >= 2 ? actions[2] : ""
+                action3 := actions.Length >= 3 ? actions[3] : ""
+
+                ; "修飾キー_対象キー" を分割
+                keys := StrSplit(key_pair, "_")
+                if keys.Length == 2 {
+                    ResolveKeyFn := (k_str, is_ime) => (
+                        (SubStr(Trim(k_str), 1, 1) == "P")
+                            ? GetKeyObjByName(SubStr(Trim(k_str), 2))
+                            : GetKeyObjByLogicalName(Trim(k_str), is_ime)
+                    )
+
+                    layer_obj := ResolveKeyFn(keys[1], is_ime)
+                    target_obj := ResolveKeyFn(keys[2], is_ime)
+
+                    if (layer_obj && target_obj) {
+                        if is_ime
+                            RegistIMECombination(mode, layer_obj, target_obj, action1, action2, action3)
+                        else
+                            RegistCombination(mode, layer_obj, target_obj, action1, action2, action3)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * config.ini のセクションから、各キーマッピングおよび Shift / IME 用のマッピングを個別キー単位で詳細に読み込み、適用します。
+ * @param {String} section - INIのセクション名
+ * @returns {Boolean} 読み込みと適用に成功した場合は true
+ */
+ApplyLayoutFromIni2(section) {
+    ; 必須のレイアウト名を取得
+    name := ReadConfig(section, "Name", "")
+    if (name == "")
+        return false
+
+    ; IME-off / IME-on のセクション名を取得
+    layout_sec := ReadConfig(section, "Layout", "")
+    if (layout_sec == "") {
+        ; 後方互換性のためのフォールバック
+        layout_sec := section
+    }
+    layout_ime_sec := ReadConfig(section, "LayoutIME", layout_sec)
+
+    ; LKey のモード指定を取得
+    hold_mode := ReadConfig(layout_sec, "Mode", "1")
+    hold_mode_ime := (layout_ime_sec != "") ? ReadConfig(layout_ime_sec, "Mode", "0") : hold_mode
+    global LAYOUT_KEYS
+    SetLKeyMode(LAYOUT_KEYS, hold_mode, hold_mode_ime)
+
+    ; 1. IME-off レイアウトの読み込み
+    layout := ReadLayoutTextFromIni(layout_sec, "L")
+    if (layout == "")
+        layout_map := MakeLayoutMap("1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\")
+    else
+        layout_map := MakeLayoutMap(layout)
+    ReadEachLayoutFromIni(layout_map, layout_sec, "")
+
+    shift_layout := ReadLayoutTextFromIni(layout_sec, "S")
+    if (shift_layout == "")
+        shift_map := Map()
+    else
+        shift_map := MakeLayoutMap(shift_layout)
+    ReadEachLayoutFromIni(shift_map, layout_sec, "s_")
+
+    ; 2. IME-on レイアウトの読み込み
+    if (layout_ime_sec != "") {
+        ime_layout := ReadLayoutTextFromIni(layout_ime_sec, "L")
+        if (ime_layout == "")
+            ime_map := Map()
+        else
+            ime_map := MakeLayoutMap(ime_layout)
+        ReadEachLayoutFromIni(ime_map, layout_ime_sec, "")
+
+        ime_shift_layout := ReadLayoutTextFromIni(layout_ime_sec, "S")
+        if (ime_shift_layout == "")
+            ime_shift_map := Map()
+        else
+            ime_shift_map := MakeLayoutMap(ime_shift_layout)
+        ReadEachLayoutFromIni(ime_shift_map, layout_ime_sec, "s_")
+    } else {
+        ime_map := Map()
+        ime_shift_map := Map()
+    }
+
+    layout_map.Default := ""
+    shift_map.Default := ""
+    ime_map.Default := ""
+    ime_shift_map.Default := ""
+
+    ; 基本レイアウトの設定
+    StoreLayoutMap(name, layout_map, shift_map, ime_map, ime_shift_map)
+
+    ; --- 追加: Mode 4 コンビネーションの動的読み込み ---
+    ApplyCombinationsFromIni(layout_sec, "m_", false)  ; IME OFF 用
+    ApplyCombinationsFromIni(layout_ime_sec, "m_", true)  ; IME ON 用
+
+    ShowOSD("Loaded layout: " . name)
+    return true
+}
+
+/**
+ * レイヤー名（"NAVI_CTRL", "L_NAVI_CTRL" 等）または数値から layer_id を解決します。
+ * @param {String|Integer} layer_name_or_id
+ * @param {Boolean} [create_if_missing=true]
+ * @returns {Integer} layer_id (見つからない場合は 0)
+ */
+ResolveLayerId(layer_name_or_id, create_if_missing := true) {
+    if IsInteger(layer_name_or_id) {
+        val := Integer(layer_name_or_id)
+        if val > 0
+            return val
+    }
+    s := StrUpper(Trim(layer_name_or_id))
+    if RegExMatch(s, "^L_(.+)$", &m) {
+        s := m[1]
+    }
+    global LAYER_NAME_TO_ID, LAYER_ID_TO_NAME
+    if IsSet(LAYER_NAME_TO_ID) && LAYER_NAME_TO_ID.Has(s) {
+        return LAYER_NAME_TO_ID[s]
+    }
+    if RegExMatch(s, "^LAYER_?(\d+)$", &m) {
+        return Integer(m[1])
+    }
+    if create_if_missing && s != "" {
+        new_id := 1
+        if IsSet(LAYER_NAME_TO_ID) {
+            for name, id in LAYER_NAME_TO_ID {
+                if id >= new_id
+                    new_id := id + 1
+            }
+            LAYER_NAME_TO_ID[s] := new_id
+            if IsSet(LAYER_ID_TO_NAME)
+                LAYER_ID_TO_NAME[new_id] := s
+        }
+        return new_id
+    }
+    return 0
+}
+
+/**
+ * 修飾キー指定（"M1"〜"M14", 1〜14, "space", "f13", "noconv" 等）から mod_key_id を解決します。
+ * カンマ区切りの場合は配列 [mod_id1, mod_id2, ...] を返します。
+ * @param {String|Integer} mod_str
+ * @returns {Integer|Array} mod_key_id (1〜14、配列、解決できない場合は 0)
+ */
+ResolveModKeyId(mod_str) {
+    if (mod_str is Array) {
+        return mod_str
+    }
+    global mod_key_list
+    max_mod_id := (IsSet(mod_key_list) && mod_key_list is Array && mod_key_list.Length >= 14) ? mod_key_list.Length :
+        14
+
+    if IsInteger(mod_str) {
+        val := Integer(mod_str)
+        if (val >= 1 && val <= max_mod_id)
+            return val
+        return 0
+    }
+    s := Trim(mod_str)
+    if InStr(s, ",") {
+        res_arr := []
+        for part in StrSplit(s, ",") {
+            p_val := ResolveModKeyId(Trim(part))
+            if (p_val is Array) {
+                for sub_val in p_val {
+                    if (sub_val > 0)
+                        res_arr.Push(sub_val)
+                }
+            } else if (p_val > 0) {
+                res_arr.Push(p_val)
+            }
+        }
+        return res_arr.Length > 0 ? res_arr : 0
+    }
+
+    s := StrLower(s)
+    if (s == "none" || s == "0" || s == "")
+        return 0
+    if RegExMatch(s, "^m(\d+)$", &m) {
+        val := Integer(m[1])
+        if (val >= 1 && val <= max_mod_id)
+            return val
+        return 0
+    }
+    global M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14
+    m1_val := IsSet(M1) ? M1 : 1
+    m2_val := IsSet(M2) ? M2 : 2
+    m3_val := IsSet(M3) ? M3 : 3
+    m4_val := IsSet(M4) ? M4 : 4
+    m5_val := IsSet(M5) ? M5 : 5
+    m6_val := IsSet(M6) ? M6 : 6
+    m7_val := IsSet(M7) ? M7 : 7
+    m8_val := IsSet(M8) ? M8 : 8
+    m9_val := IsSet(M9) ? M9 : 9
+    m10_val := IsSet(M10) ? M10 : 10
+    m11_val := IsSet(M11) ? M11 : 11
+    m12_val := IsSet(M12) ? M12 : 12
+    m13_val := IsSet(M13) ? M13 : 13
+    m14_val := IsSet(M14) ? M14 : 14
+
+    switch s {
+        case "f13", "navi", "navi_ctrl": return m1_val
+        case "noconv", "sc07b", "muhenkan", "symbol_num": return m2_val
+        case "conv", "sc079", "henkan", "symbol1": return m3_val
+        case "f14", "symbol2": return m4_val
+        case "f13+alt": return m5_val
+        case "f13+noconv", "f13+muhenkan": return m6_val
+        case "tab", "numpad": return m7_val
+        case "space", "shift", "lshift": return m8_val ; space / shift is M8
+        case "conv+f14", "f14+conv", "func": return m9_val
+        case "f13+space": return m10_val
+        case "noconv+space", "muhenkan+space": return m11_val
+        case "tab+alt": return m12_val
+        case "tab+noconv", "tab+muhenkan": return m13_val
+        case "tab+space": return m14_val
+        case "select": return [m5_val, m6_val] ; SELECT is M5, M6
+    }
+    return 0
+}
+
+/**
+ * layer_id と mod_key_id をバインド（紐付け）します。
+ * @param {Integer} layer_id - レイヤーID
+ * @param {Integer} mod_key_id - 修飾キーID (M1〜M8など)
+ */
+BindLayerToModKey(layer_id, mod_key_id) {
+    global layer_id_to_mod_key_id
+    if !IsSet(layer_id_to_mod_key_id)
+        return
+    while (layer_id_to_mod_key_id.Length < layer_id) {
+        layer_id_to_mod_key_id.Push(0)
+    }
+    layer_id_to_mod_key_id[layer_id] := mod_key_id
+}
+
+/**
+ * layer_id にバインドされている mod_key_id を取得します。
+ * @param {Integer} layer_id - レイヤーID
+ * @returns {Integer} mod_key_id (未設定時は 0)
+ */
+GetModKeyIdByLayerId(layer_id) {
+    global layer_id_to_mod_key_id
+    if (IsSet(layer_id_to_mod_key_id) && layer_id >= 1 && layer_id <= layer_id_to_mod_key_id.Length) {
+        return layer_id_to_mod_key_id[layer_id]
+    }
+    return 0
+}
+
+/**
+ * INIファイルからレイヤー配列構造および各 layer_id に紐付けられた設定を読み込み、mod_key_id にバインドします。
+ * 新仕様の [LayerBinding] セクション、各レイヤーセクションの ModKeyId、レガシー [Settings] の順に優先適用します。
+ * @param {String} [ini_path=""] - INIファイルのパス
+ */
+LoadLayerBindingsFromIni(ini_path := "") {
+    if ini_path == "" {
+        ini_path := A_ScriptDir . "\config.ini"
+    }
+    if !FileExist(ini_path)
+        return
+
+    global layer_id_to_mod_key_id, M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, LAYER_NAME_TO_ID,
+        LAYER_ID_TO_NAME
+    m1_val := IsSet(M1) ? M1 : 1
+    m2_val := IsSet(M2) ? M2 : 2
+    m3_val := IsSet(M3) ? M3 : 3
+    m4_val := IsSet(M4) ? M4 : 4
+    m5_val := IsSet(M5) ? M5 : 5
+    m6_val := IsSet(M6) ? M6 : 6
+    m7_val := IsSet(M7) ? M7 : 7
+    m8_val := IsSet(M8) ? M8 : 8
+    m9_val := IsSet(M9) ? M9 : 9
+    m10_val := IsSet(M10) ? M10 : 10
+    m11_val := IsSet(M11) ? M11 : 11
+    m12_val := IsSet(M12) ? M12 : 12
+    m13_val := IsSet(M13) ? M13 : 13
+    m14_val := IsSet(M14) ? M14 : 14
+
+    default_bindings := [m1_val, m2_val, m3_val, m4_val, [m5_val, m6_val], m7_val, m8_val, m9_val]
+    layer_id_to_mod_key_id := default_bindings.Clone()
+
+    ; 各レイヤーが明示的にバインド設定されたかを追跡するマップ (layer_id -> true)
+    explicit_bound := Map()
+    applied_sections := Map()
+
+    ; 1. 新仕様: [LayerBinding] セクションからの読み込み (最優先)
+    try {
+        sec_text := IniRead(ini_path, "LayerBinding")
+        for line in StrSplit(sec_text, "`n", "`r") {
+            line := Trim(line)
+            if (line == "" || SubStr(line, 1, 1) == ";")
+                continue
+            pos := InStr(line, "=")
+            if (pos > 0) {
+                key := Trim(SubStr(line, 1, pos - 1))
+                val := Trim(SubStr(line, pos + 1))
+
+                ; インラインコメントの除去
+                c_pos := InStr(val, Chr(32) . Chr(59))
+                if (c_pos == 0) {
+                    c_pos := InStr(val, "`t;")
+                }
+                if (c_pos > 0) {
+                    val := SubStr(val, 1, c_pos - 1)
+                }
+                val := Trim(val)
+
+                lay_id := ResolveLayerId(key, true)
+                if (lay_id > 0) {
+                    val_lower := StrLower(val)
+                    if (val == "" || val == "0" || val_lower == "none") {
+                        ; 明示的な無効化
+                        BindLayerToModKey(lay_id, 0)
+                        explicit_bound[lay_id] := true
+                    } else {
+                        mod_id := ResolveModKeyId(val)
+                        if (mod_id is Array || mod_id > 0) {
+                            BindLayerToModKey(lay_id, mod_id)
+                            explicit_bound[lay_id] := true
+                            ApplyDynamicLayerSection(lay_id, key, ini_path)
+                            applied_sections[key] := true
+                        } else {
+                            ; 不正な修飾キーIDの場合の安全なフォールバック
+                            fallback_mod := (lay_id <= default_bindings.Length) ? default_bindings[lay_id] : 0
+                            BindLayerToModKey(lay_id, fallback_mod)
+                            explicit_bound[lay_id] := true
+                        }
+                    }
+                }
+            }
+        }
+    } catch {
+        ; セクションが存在しない場合は無視
+    }
+
+    ; 3. 後方互換性: [Settings] セクションからのレガシー設定読み込み
+    ; 3-A. [Settings] 修飾キー名 -> レイヤー名 (例: space=NAVI_CTRL, noconv=SHORTCUT_CTRL)
+    modifiers := ["space", "noconv", "conv", "tab", "f13", "f14"]
+    for mod_name in modifiers {
+        sec := ReadConfig("Settings", mod_name, "", ini_path)
+        if (sec != "") {
+            lay_id := ResolveLayerId(sec, true)
+            if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
+                mod_id := ResolveModKeyId(mod_name)
+                if (mod_id is Array || mod_id > 0) {
+                    BindLayerToModKey(lay_id, mod_id)
+                    explicit_bound[lay_id] := true
+                    ApplyDynamicLayerSection(lay_id, sec, ini_path)
+                    applied_sections[sec] := true
+                }
+            }
+        }
+    }
+
+    ; 3-B. [Settings] レイヤー名 -> 修飾キー (例: NAVI_CTRL=M1, SYMBOL_NUM=space)
+    known_layers := ["NAVI_CTRL", "SYMBOL_NUM", "SYMBOL1", "SYMBOL2", "SELECT", "NUMPAD", "SHIFT", "FUNC"]
+    for lay_name in known_layers {
+        lay_id := ResolveLayerId(lay_name, false)
+        if (lay_id > 0 && !explicit_bound.Has(lay_id)) {
+            mod_val := ReadConfig("Settings", lay_name, "", ini_path)
+            if (mod_val != "") {
+                mod_id := ResolveModKeyId(mod_val)
+                if (mod_id is Array || mod_id > 0) {
+                    BindLayerToModKey(lay_id, mod_id)
+                    explicit_bound[lay_id] := true
+                    ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
+                    applied_sections[lay_name] := true
+                }
+            }
+        }
+    }
+
+    ; 4. 定義済みレイヤーで未適用のセクションがあればキー定義を適用
+    for lay_name in known_layers {
+        lay_id := ResolveLayerId(lay_name, false)
+        if (lay_id > 0 && !applied_sections.Has(lay_name)) {
+            ApplyDynamicLayerSection(lay_id, lay_name, ini_path)
+            applied_sections[lay_name] := true
+        }
+    }
+}
+
+/**
+ * 現在の layer_id と mod_key_id の配列構造を INI ファイルの [LayerBinding] セクションに保存します。
+ * 配列の順序（layer_id: 1..N）を維持し、冗長な物理キー名を省いて "M" . mod_id 形式で出力します。
+ * 複数修飾キーの場合はカンマ区切り（例: "M5, M6"）で出力します。
+ * @param {String} [ini_path=""] - INIファイルのパス
+ */
+SaveLayerBindingsToIni(ini_path := "") {
+    if ini_path == "" {
+        ini_path := A_ScriptDir . "\config.ini"
+    }
+    global layer_id_to_mod_key_id, LAYER_ID_TO_NAME
+    if !IsSet(layer_id_to_mod_key_id)
+        return
+
+    loop layer_id_to_mod_key_id.Length {
+        lay_id := A_Index
+        mod_id := layer_id_to_mod_key_id[lay_id]
+        lay_name := (IsSet(LAYER_ID_TO_NAME) && LAYER_ID_TO_NAME.Has(lay_id))
+            ? LAYER_ID_TO_NAME[lay_id]
+            : ("Layer_" . lay_id)
+
+        if (mod_id is Array) {
+            mod_str := ""
+            for idx, m in mod_id {
+                mod_str .= (idx > 1 ? ", " : "") . "M" . m
+            }
+        } else {
+            mod_str := (mod_id > 0) ? ("M" . mod_id) : "none"
+        }
+        try {
+            IniWrite(mod_str, ini_path, "LayerBinding", lay_name)
+        }
+    }
+}
+
+/**
+ * INIセクションのキーバリュー定義およびレイアウト配列を特定の layer_id に適用します。
+ * @param {Integer} layer_id - レイヤーID
+ * @param {String} section - セクション名
+ * @param {String} [ini_path=""] - INIファイルパス
+ */
+ApplyDynamicLayerSection(layer_id, section, ini_path := "") {
+    if ini_path == "" {
+        ini_path := A_ScriptDir . "\config.ini"
+    }
+    try {
+        section_text := IniRead(ini_path, section)
+    } catch {
+        section_text := ""
+    }
+
+    if section_text != "" {
+        ; グリッドレイアウト定義 (L00, L01...) がある場合は ApplyLayerLayoutFromIni を呼ぶ
+        if InStr(section_text, "L00") || InStr(section_text, "L01") {
+            ApplyLayerLayoutFromIni(layer_id, section)
+        }
+
+        ; 個別のキー定義（one=..., a=..., m_...=... 等）を適用
+        for line in StrSplit(section_text, "`n", "`r") {
+            line := Trim(line)
+            if (line == "" || SubStr(line, 1, 1) == ";")
+                continue
+            pos := InStr(line, "=")
+            if pos > 0 {
+                key_name := Trim(SubStr(line, 1, pos - 1))
+                if (StrLower(key_name) == "modkeyid")
+                    continue
+                val := Trim(SubStr(line, pos + 1))
+
+                ; インラインコメントの除去
+                c_pos := InStr(val, Chr(32) . Chr(59))
+                if c_pos == 0 {
+                    c_pos := InStr(val, "`t;")
+                }
+                if c_pos > 0 {
+                    val := SubStr(val, 1, c_pos - 1)
+                }
+                val := Trim(val)
+
+                val := ResolveKeyText(val)
+                if val != "" {
+                    key_entry := EntryName(key_name)
+                    key_obj := GetKeyObjByName(key_entry)
+                    if key_obj {
+                        key_obj.SetLayerKey(-1, layer_id, val)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * config.ini の [Settings] や [LayerBinding] から動的レイヤーの紐付けを読み込み、適用します。
+ */
+ApplyDynamicLayersFromSettings() {
+    LoadLayerBindingsFromIni()
+}
+
+/**
+ * 指定されたモディファイアキーに対応するレイヤーに、INIセクションのキーバリュー定義を適用（追加・上書き）します。
+ * @param {String} mod_key_name - モディファイアキー名 (例: "space", "noconv")
+ * @param {String} section - 設定読み込み対象の INI セクション名
+ */
+ApplyDynamicLayer(mod_key_name, section) {
+    mod_id := ResolveModKeyId(mod_key_name)
+    if (mod_id == 0)
+        return
+
+    lay_id := ResolveLayerId(section, true)
+    if (lay_id == 0)
+        return
+
+    BindLayerToModKey(lay_id, mod_id)
+    ApplyDynamicLayerSection(lay_id, section)
+}
+
+/**
+ * config.ini の指定されたセクションから、特定のレイヤー用のキー配列を読み込み適用する
+ * @param {Integer} layer_id - レイヤー番号
+ * @param {String} section - INIのセクション名
+ */
+ApplyLayerLayoutFromIni(layer_id, section) {
+    ini_path := A_ScriptDir . "\config.ini"
+
+    layout_text := ReadLayoutTextFromIni(section, "L")
+    layout_map := (layout_text != "") ? MakeLayoutMap(layout_text) : Map()
+
+    ReadEachLayoutFromIni(layout_map, section, "", ini_path)
+
+    for i, keyObj in LAYOUT_KEYS {
+        name := EntryName(QWERTY_CHARS[i])
+
+        ;layout_map[name]が"
+        keyObj.SetLayerKey(-1, layer_id, layout_map.Get(name, ""))
+    }
+
+    for i, keyObj in LAYOUT_SPECIAL_KEYS {
+        name := EntryName(LAYOUT_SPECIAL_NAMES[i])
+        keyObj.SetLayerKey(-1, layer_id, layout_map.Get(name, ""))
+    }
+
+}
+
+/**
+ * 新しい IME-ON 時のキーレイアウトを保存・設定します。
+ * @param {String} name - レイアウト名
+ * @param {String} [layout="qwertyuiopasdfghjkl;zxcvbnm,./"] - 新しい IME-ON 時のキー配列文字列
+ * @param {String} [num_layout="1234567890-"] - 新しい IME-ON 時の数字列配列文字列
+ * @param {String} [shift_layout=""] - Shift 時のキー配列文字列
+ * @param {String} [shift_num=""] - Shift 時の数字列配列文字列
+ */
+StoreIMELayout(name, layout := "qwertyuiopasdfghjkl;zxcvbnm,./", num_layout := "1234567890-", shift_layout :=
+    "",
+    shift_num := "") {
+    TypeAnalyzer.ChangeLayout(name)
+    if name != "" {
+        try {
+            WriteConfig(name, "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+
+    l_num := LayoutString(num_layout), l_snum := LayoutString(shift_num)
+    for i, keyObj in LAYOUT_NUM_KEYS {
+        keyObj.SetIMEKey(l_num.GetElement(i), l_snum.GetElement(i))
+    }
+    l_char := LayoutString(layout), l_schar := LayoutString(shift_layout)
+    for i, keyObj in LAYOUT_30_KEYS {
+        keyObj.SetIMEKey(l_char.GetElement(i), l_schar.GetElement(i))
+    }
+}
+
+/**
+ * すべてのキー配列オブジェクトに対し、指定されたキーレイアウト定義から IME ON 時のキーマッピングを設定・保存します。
+ * @param {String} name - レイアウト識別名
+ * @param {String} [layout="1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\"] - 数字・記号を含む全キー配置文字列
+ * @param {String} [shift_layout=""] - Shift 時の全キー配置文字列
+ */
+StoreIMELayout2(name, layout := "1234567890-^¥qwertyuiop@[asdfghjkl;:]zxcvbnm,./\", shift_layout := "") {
+    TypeAnalyzer.ChangeLayout(name)
+    if name != "" {
+        try {
+            WriteConfig(name, "Settings", "StartupLayout")
+        } catch {
+        }
+    }
+
+    l := LayoutString(layout), ls := LayoutString(shift_layout)
+    for i, keyObj in LAYOUT_KEYS {
+        keyObj.SetIMEKey(l.GetElement(i), ls.GetElement(i))
+    }
+}
+
+/**
+ * 指定されたコピー元レイヤーの設定を、すべてのキーにおいてコピー先レイヤーへ複製します。
+ * @param {Integer} src - コピー元レイヤーID
+ * @param {Integer} dst - コピー先レイヤーID
+ */
+copyLayer(layout_keys, src, dst) {
+    for keyObj in layout_keys {
+        keyObj.layers.Copy(src, dst)
+    }
+}
+
+/**
+ * レイアウトに登録されているすべての長押し対応キーに対して動作モードを一括設定します。
+ * @param {Integer} mode - 設定する長押し動作モード
+ * @param {Integer} [ime_mode=-1] - 設定するIME ON時の動作モード（省略時は通常モードと同値）
+ */
+SetLKeyMode(layout_keys, mode, ime_mode := -1) {
+    for i, keyObj in layout_keys {
+        keyObj.SetMode(mode, ime_mode)
+    }
+}
+
+/**
+ * INIファイルから複数スロットに分かれたレイアウト定義を読み込み、一つのレイアウト文字列に結合します。
+ * @param {String} section - INIのセクション名
+ * @param {String} prefix - キー名のプレフィックス (例: "L", "S")
+ * @returns {String} 結合されたレイアウト文字列
+ */
+ReadLayoutTextFromIni(section, prefix) {
+    layout := ReadConfig(section, prefix . "00", "")
+    loop LAYOUT_KEYS.Length - 1 {
+        str := ReadConfig(section, prefix . Format("{:02d}", A_Index), "")
+        if str == ""
+            break
+        layout .= " " . str
+    }
+    return layout
+}
+
+/**
+ * 現在フォーカスされているテキスト入力位置（キャレット）の画面座標を取得する
+ * 1. GetGUIThreadInfo (Win32標準キャレット: メモ帳・エディットコントロール等)
+ * 2. UI Automation (Web/Electron/Chromium: Chrome, VS Code 等の TextPattern2/TextPattern)
+ * 3. CaretGetPos (AutoHotkey v2 組み込みフォールバック)
+ * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (0 の場合はアクティブ/フォアグラウンド)
+ * @returns {Object|Boolean} {x: Integer, y: Integer} または取得失敗時は false
+ */
+GetCaretPosition(target_hwnd := 0) {
+    ; --- 1. GetGUIThreadInfo による Win32 キャレット取得 ---
+    static ptr_size := A_PtrSize
+    static cb_size := 4 + 4 + (ptr_size * 6) + 16 ; 64bit: 72, 32bit: 48
+    static gui_info := Buffer(cb_size, 0)
+    NumPut("UInt", cb_size, gui_info, 0)
+
+    hwnd_caret := 0
+
+    ; (A) フォアグラウンドスレッド (idThread = 0) を試行
+    if DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", gui_info.Ptr, "Int") {
+        hwnd_caret := NumGet(gui_info, 8 + 5 * ptr_size, "Ptr")
+    }
+
+    ; (B) 取得できない場合、アクティブウィンドウまたは target_hwnd のスレッドIDで試行
+    if !hwnd_caret {
+        hwnd_check := target_hwnd ? target_hwnd : (WinExist("A") || DllCall("GetForegroundWindow", "Ptr"))
+        if hwnd_check {
+            tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd_check, "Ptr", 0, "UInt")
+            if (tid && DllCall("GetGUIThreadInfo", "UInt", tid, "Ptr", gui_info.Ptr, "Int")) {
+                hwnd_caret := NumGet(gui_info, 8 + 5 * ptr_size, "Ptr")
+            }
+        }
+    }
+
+    if hwnd_caret {
+        rect_offset := 8 + 6 * ptr_size
+        left := NumGet(gui_info, rect_offset, "Int")
+        top := NumGet(gui_info, rect_offset + 4, "Int")
+        right := NumGet(gui_info, rect_offset + 8, "Int")
+        bottom := NumGet(gui_info, rect_offset + 12, "Int")
+
+        ; キャレット矩形がすべて0、または高さが不正な場合は除外
+        if !(bottom <= top || (left == 0 && top == 0 && right == 0 && bottom == 0)) {
+            pt := Buffer(8, 0)
+            NumPut("Int", right, pt, 0)
+            NumPut("Int", bottom, pt, 4)
+
+            ; クライアント座標からスクリーン座標へ変換
+            if DllCall("ClientToScreen", "Ptr", hwnd_caret, "Ptr", pt.Ptr, "Int") {
+                return { x: NumGet(pt, 0, "Int"), y: NumGet(pt, 4, "Int") }
+            }
+        }
+    }
+
+    ; --- 2. UI Automation によるキャレット取得 (Chrome / Electron / VS Code 等) ---
+    static p_uia := 0
+    static uia_init_attempted := false
+    static IID_IUIAutomationTextPattern2 := ""
+    static IID_IUIAutomationTextPattern := ""
+
+    if !uia_init_attempted {
+        uia_init_attempted := true
+        try {
+            clsid_uia := Buffer(16)
+            iid_uia := Buffer(16)
+            DllCall("ole32\CLSIDFromString", "Str", "{ff48dba4-60ef-4201-aa87-54103eef594e}", "Ptr", clsid_uia)
+            DllCall("ole32\CLSIDFromString", "Str", "{30CBE57D-D9D0-452A-AB13-7AC5AC4825EE}", "Ptr", iid_uia)
+
+            IID_IUIAutomationTextPattern2 := Buffer(16)
+            DllCall("ole32\CLSIDFromString", "Str", "{506A921A-FCC9-409F-B23B-37EB74106872}", "Ptr",
+                IID_IUIAutomationTextPattern2)
+
+            IID_IUIAutomationTextPattern := Buffer(16)
+            DllCall("ole32\CLSIDFromString", "Str", "{32EBA289-3583-42C9-9C59-3B6D9A1E9B6A}", "Ptr",
+                IID_IUIAutomationTextPattern)
+
+            p_raw := 0
+            if DllCall("ole32\CoCreateInstance", "Ptr", clsid_uia, "Ptr", 0, "UInt", 1, "Ptr", iid_uia, "Ptr*", &p_raw,
+                "Int") == 0 {
+                p_uia := p_raw
+            }
+        }
+    }
+
+    if p_uia {
+        try {
+            p_focused := 0
+            ; 8: IUIAutomation::GetFocusedElement
+            if (ComCall(8, p_uia, "Ptr*", &p_focused) == 0 && p_focused) {
+                p_range := 0
+
+                ; (A) TextPattern2 (10024) -> GetCaretRange (10)
+                p_pattern2 := 0
+                if (ComCall(14, p_focused, "Int", 10024, "Ptr", IID_IUIAutomationTextPattern2, "Ptr*", &p_pattern2) ==
+                0 && p_pattern2) {
+                    is_active := 0
+                    ComCall(10, p_pattern2, "Int*", &is_active, "Ptr*", &p_range)
+                    ObjRelease(p_pattern2)
+                }
+
+                ; (B) TextPattern (10014) -> GetSelection (5)
+                if !p_range {
+                    p_pattern := 0
+                    if (ComCall(14, p_focused, "Int", 10014, "Ptr", IID_IUIAutomationTextPattern, "Ptr*", &p_pattern) ==
+                    0 && p_pattern) {
+                        p_ranges := 0
+                        if (ComCall(5, p_pattern, "Ptr*", &p_ranges) == 0 && p_ranges) {
+                            len := 0
+                            if (ComCall(3, p_ranges, "Int*", &len) == 0 && len > 0) {
+                                ComCall(4, p_ranges, "Int", 0, "Ptr*", &p_range)
+                            }
+                            ObjRelease(p_ranges)
+                        }
+                        ObjRelease(p_pattern)
+                    }
+                }
+
+                ObjRelease(p_focused)
+
+                if p_range {
+                    psa := 0
+                    ; 10: IUIAutomationTextRange::GetBoundingRectangles
+                    hr_rect := ComCall(10, p_range, "Ptr*", &psa)
+                    ObjRelease(p_range)
+
+                    if (hr_rect == 0 && psa) {
+                        p_data := 0
+                        res := false
+                        if DllCall("oleaut32\SafeArrayAccessData", "Ptr", psa, "Ptr*", &p_data, "Int") == 0 {
+                            c_elements := NumGet(psa, 16 + (A_PtrSize - 8), "UInt")
+                            if c_elements >= 4 {
+                                r_left := NumGet(p_data, 0, "Double")
+                                r_top := NumGet(p_data, 8, "Double")
+                                r_width := NumGet(p_data, 16, "Double")
+                                r_height := NumGet(p_data, 24, "Double")
+                                if (r_width > 0 || r_height > 0) {
+                                    res := { x: Round(r_left + r_width), y: Round(r_top + r_height) }
+                                }
+                            }
+                            DllCall("oleaut32\SafeArrayUnaccessData", "Ptr", psa, "Int")
+                        }
+                        DllCall("oleaut32\SafeArrayDestroy", "Ptr", psa, "Int")
+                        if res
+                            return res
+                    }
+                }
+            }
+        }
+    }
+
+    ; --- 3. AHK v2 組み込み CaretGetPos フォールバック ---
+    try {
+        CoordMode("Caret", "Screen")
+        cx := 0, cy := 0
+        if CaretGetPos(&cx, &cy) {
+            return { x: cx, y: cy }
+        }
+    }
+
+    return false
+}
+
+class IMEIndicator {
+    static ime_indicator_mode := 3 ; 0: 非表示, 1: キャレット, 2: マウス, 3: 双方
+    static caret_gui := ""
+    static mouse_gui := ""
+
+    static color_japanese := "Red"
+    static color_english := "Green"
+    static caret_dot_size := 12
+    static mouse_dot_size := 10
+    static caret_offset_x := 20
+    static caret_offset_y := 20
+    static mouse_offset_x := 20
+    static mouse_offset_y := 20
+
+    static is_showing_ime_indicator {
+        get => (this.ime_indicator_mode > 0)
+        set => (this.ime_indicator_mode := value ? 3 : 0)
+    }
+
+    /**
+     * IMEインジケータの表示/非表示を切り替えます（旧バージョン互換）。
+     */
+    static ToggleImeIndicator() {
+        this.CycleImeIndicatorMode()
+    }
+
+    /**
+     * IMEインジケータの表示モードを4段階で順次切り替えます。
+     * 0: 非表示
+     * 1: キャレット右下にのみ表示
+     * 2: マウスカーソルにのみ表示
+     * 3: 双方表示
+     */
+    static CycleImeIndicatorMode() {
+        if !(this.caret_gui is Gui) || !(this.mouse_gui is Gui) {
+            return
+        }
+        this.ime_indicator_mode := Mod(this.ime_indicator_mode + 1, 4)
+        this.SaveConfig()
+
+        mode_names := ["非表示", "キャレットに表示", "マウスカーソルに表示", "両方に表示"]
+        current_name := (this.ime_indicator_mode >= 0 && this.ime_indicator_mode <= 3) ? mode_names[this.ime_indicator_mode +
+            1] : "不明"
+
+        ShowOSD(CenterPad("IME状態表示: " . current_name, 30))
+
+        ; 即時反映処理
+
+        if (this.ime_indicator_mode != 1 && this.ime_indicator_mode != 3) {
+            try this.caret_gui.Hide()
+        }
+        if (this.ime_indicator_mode != 2 && this.ime_indicator_mode != 3) {
+            try this.mouse_gui.Hide()
+        }
+
+        try {
+            ImeIndicator.Update(ImeState.GetStatus())
+        }
+    }
+
+    /**
+     * テキスト入力キャレットの右下に IME 状態を示すインジケータ（ドット）を表示・更新する
+     * @param {Boolean} [precise=False] - IME状態取得を強制的に再取得するかどうか
+     * @param {Integer} [target_hwnd=0] - 検査対象ウィンドウハンドル (省略時はアクティブ)
+     */
+    static UpdateCaret(ime_state_value, target_hwnd := 0) {
+        static last_status := -1 ; -1: 初期状態, 0: 非表示, 1: 日本語(ON), 2: 強制ON, 3: 英語(OFF)
+        static last_x := -1, last_y := -1
+
+        ; 1. インジケーター表示が無効、またはキャレット表示モード(1, 3)でない場合は非表示にして終了
+        if !(IMEIndicator.ime_indicator_mode == 1 || IMEIndicator.ime_indicator_mode == 3) {
+            if last_status != 0 {
+                this.caret_gui.Hide()
+                last_status := 0
+                last_x := -1
+                last_y := -1
+            }
+            return
+        }
+
+        ; 2. キャレット座標を取得（取得できない場合は非表示にして終了）
+        caret_pos := GetCaretPosition(target_hwnd)
+        if !caret_pos {
+            if last_status != 0 {
+                this.caret_gui.Hide()
+                last_status := 0
+                last_x := -1
+                last_y := -1
+            }
+            return
+        }
+
+        ; 4. DPI スケーリングを考慮したオフセット (初期値: 右端+2px, 下端+2px)
+        static dpi_scale := A_ScreenDPI
+        static offset_x := Round(dpi_scale * this.caret_offset_x / 960)
+        static offset_y := Round(dpi_scale * this.caret_offset_y / 960)
+
+        target_x := caret_pos.x + offset_x
+        target_y := caret_pos.y + offset_y
+
+        ; 5. 表示位置または IME 状態が変化した場合に GUI を更新
+        if (target_x != last_x || target_y != last_y || ime_state_value != last_status) {
+            if (ime_state_value != last_status) {
+                if (ime_state_value == 3) {
+                    this.caret_gui.BackColor := this.color_english ; 英語 (IME OFF) -> Green
+                } else {
+                    this.caret_gui.BackColor := this.color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+                }
+            }
+            this.caret_gui.Show("x" target_x " y" target_y " w" this.caret_dot_size " h" this.caret_dot_size " NoActivate"
+            )
+            last_x := target_x
+            last_y := target_y
+            last_status := ime_state_value
+        }
+    }
+
+    /**
+     * マウスカーソル付近に IME 状態を示すインジケータ（ドット）を表示・更新する
+     */
+    static UpdateMouse(ime_state_value) {
+        static last_status := -1 ;-1:初期状態, 0:オフ, 1:オン, 2:強制オン
+        static last_x := -2, last_y := 0
+
+        if !(IMEIndicator.ime_indicator_mode == 2 || IMEIndicator.ime_indicator_mode == 3) {
+            if last_status != 0 {
+                this.mouse_gui.Hide()
+                last_status := 0
+                last_x := -2
+                last_y := 0
+            }
+            return
+        }
+
+        mx := -1, my := 0
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&mx, &my)
+
+        static dpi_scale := A_ScreenDPI
+        static offset_x := Round(dpi_scale * this.caret_offset_x / 960 * 8)
+        static offset_y := Round(dpi_scale * this.caret_offset_y / 960 * 8)
+
+        if (mx = last_x && my = last_y) {
+            if ime_state_value > 0 {
+                if ime_state_value != last_status {
+                    if (ime_state_value == 3) {
+                        this.mouse_gui.BackColor := this.color_english ; 英語 (IME OFF) -> Green
+                    } else {
+                        this.mouse_gui.BackColor := this.color_japanese ; 日本語 (IME ON / 強制ON) -> Red
+                    }
+                    this.mouse_gui.Show("x" (mx + offset_x) " y" (my + offset_y) " w" this.mouse_dot_size " h" this.mouse_dot_size " NoActivate"
+                    )
+                }
+            } else {
+                ; 既に非表示の場合は Hide しない（余計な負荷削減）
+                if last_status != 0 {
+                    this.mouse_gui.Hide()
+                }
+            }
+            last_status := ime_state_value
+        } else {   ; マウスが動いて位置が変更された場合
+            if last_status != -1 {
+                this.mouse_gui.Hide()
+            }
+            last_x := mx
+            last_y := my
+            last_status := -1
+        }
+    }
+
+    static Update(ime_state_value := "") {
+        if (ime_state_value == "") {
+            ime_state_value := (IsSet(ImeState) && HasMethod(ImeState, "GetStatus")) ? ImeState.GetStatus() : (ImeState.IsOn() ? (ImeState.force_ime_on ? 2 : 1) : 3)
+        }
+        IMEIndicator.UpdateCaret(ime_state_value)
+        IMEIndicator.UpdateMouse(ime_state_value)
+    }
+
+    /**
+     * 日本語入力（IME）の状態を表示するためのインジケータGUI（ドットキャレット）を初期化します。
+     */
+    static Init() {
+        this.LoadConfig()
+
+        ; ------------
+
+        ; キャレット表示用のGUI作成
+        ; 描画用のウィンドウ（GUI）作成
+        this.caret_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        this.caret_gui.BackColor := this.color_japanese
+        WinSetRegion("0-0 w" this.caret_dot_size " h" this.caret_dot_size " Ellipse", this.caret_gui)
+
+        this.mouse_gui := Gui("+AlwaysOnTop -Caption +ToolWindow +LastFound -DPIScale")
+        this.mouse_gui.BackColor := this.color_japanese
+        WinSetRegion("0-0 w" this.mouse_dot_size " h" this.mouse_dot_size " Ellipse", this.mouse_gui)
+
+    }
+
+    /**
+     * 設定ファイル (config.ini) からロギングおよびインジケータ設定を読み込みます。
+     */
+    static LoadConfig() {
+        try {
+            this.ime_indicator_mode := ReadConfig("Settings", "ImeIndicatorMode", "")
+            ; if (mode_val != "") {
+            ;     this.ime_indicator_mode := Integer(mode_val)
+            ; } else {
+            ;     enabled_val := ReadConfig("Settings", "ImeIndicatorEnabled", "1")
+            ;     this.ime_indicator_mode := (enabled_val == "1") ? 3 : 0
+            ; }
+            this.color_japanese := ReadConfig("Settings", "ColorJapanese", this.color_japanese)
+            this.color_english := ReadConfig("Settings", "ColorEnglish", this.color_english)
+            this.caret_dot_size := ReadConfig("Settings", "CaretDotSize", this.caret_dot_size)
+            this.caret_offset_x := ReadConfig("Settings", "CaretOffsetX", this.caret_offset_x)
+            this.caret_offset_y := ReadConfig("Settings", "CaretOffsetY", this.caret_offset_y)
+            this.mouse_dot_size := ReadConfig("Settings", "MouseDotSize", this.mouse_dot_size)
+            this.mouse_offset_x := ReadConfig("Settings", "MouseOffsetX", this.mouse_offset_x)
+            this.mouse_offset_y := ReadConfig("Settings", "MouseOffsetY", this.mouse_offset_y)
+        } catch {
+            this.ime_indicator_mode := 3
+        }
+    }
+    /**
+     * 現在のロギング設定を設定ファイル (config.ini) に書き込み保存します。
+     */
+    static SaveConfig() {
+        try {
+            WriteConfig(String(this.ime_indicator_mode), "Settings", "ImeIndicatorMode")
+            ;WriteConfig(this.is_showing_ime_indicator ? "1" : "0", "Settings", "ImeIndicatorEnabled")
+            WriteConfig(this.color_japanese, "Settings", "ColorJapanese")
+            WriteConfig(this.color_english, "Settings", "ColorEnglish")
+            WriteConfig(this.caret_dot_size, "Settings", "CaretDotSize")
+            WriteConfig(this.caret_offset_x, "Settings", "CaretOffsetX")
+            WriteConfig(this.caret_offset_y, "Settings", "CaretOffsetY")
+            WriteConfig(this.mouse_dot_size, "Settings", "MouseDotSize")
+            WriteConfig(this.mouse_offset_x, "Settings", "MouseOffsetX")
+            WriteConfig(this.mouse_offset_y, "Settings", "MouseOffsetY")
+        } catch {
+        }
+    }
+
+} ;class IMEIndicator
